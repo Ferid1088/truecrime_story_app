@@ -142,6 +142,8 @@ REQUIRED_ROLES = {
     "mvp_overlay_scanner",
     # Just before the film is planned: what each approved picture or clip shows and which of the case's people it shows (vision).
     "mvp_picture_describer",
+    # Before the film is planned: for each person the text names for the first time, which approved photos of them give nothing away there.
+    "mvp_person_inspector",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",

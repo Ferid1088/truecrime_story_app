@@ -227,6 +227,13 @@ def test_the_marks_are_cut_away_before_the_pictures_are_labelled_for_their_place
         calls.append("describe")
         return {}
 
+    async def inspect(*args, **kw):
+        calls.append("people")
+        return []
+
+    monkeypatch.setattr(PL.PE, "inspect", inspect)
+    monkeypatch.setattr(PL.DR, "beat_windows", lambda manifest: [])
+    monkeypatch.setattr(PL.DR, "approved_items", lambda db, plan: {})
     monkeypatch.setattr(PL.DS, "describe_approved", describe)
     monkeypatch.setattr(PL.DS, "approved_assets", lambda db, plan: [])
     monkeypatch.setattr(PL.DS, "portrait_assets", lambda db, case_id, plan: [])
@@ -241,5 +248,6 @@ def test_the_marks_are_cut_away_before_the_pictures_are_labelled_for_their_place
     monkeypatch.setattr("app.documentary.visuals.generated.materialize", nothing)
     needs = SimpleNamespace(validation_json=json.dumps({"mvp": {"reveal_graph_id": 1}}))
     bp = SimpleNamespace(blueprint_json="{}")
-    asyncio.run(PL.stage_direct(SimpleNamespace(commit=lambda: None), SimpleNamespace(id=1), needs, bp, {}, "en"))
-    assert calls == ["overlays", "timing", "describe", "direct"], "only the approved pictures are described, after they are cut and labelled"
+    asyncio.run(PL.stage_direct(SimpleNamespace(commit=lambda: None), SimpleNamespace(id=1), needs, bp, {"timeline": {}}, "en"))
+    assert calls == ["overlays", "timing", "describe", "people", "direct"], \
+        "only the approved pictures are described, after they are cut and labelled; the people are checked before the plan is made"

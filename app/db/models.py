@@ -3169,6 +3169,28 @@ class MvpCandidate(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
 
 
+class PersonPhotoHint(Base):
+    """The person-photo inspector's table (before the planner plans): for a person the narration names for the FIRST time, the approved
+    photos of that person that give nothing away at that point of the text, best first. The main planner reads it and uses the photos
+    where its own rules allow."""
+
+    __tablename__ = "person_photo_hints"
+    __table_args__ = (Index("ix_person_photo_hints_film", "case_id", "language"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    visual_plan_id: Mapped[int] = mapped_column(ForeignKey("visual_plans.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20))
+    entity_key: Mapped[str] = mapped_column(String(120))
+    person_name: Mapped[str] = mapped_column(String(200))
+    mention_start: Mapped[float] = mapped_column(Float)              # where in the film the text names the person for the first time
+    mention_text: Mapped[str] = mapped_column(Text, default="")
+    visual_asset_id: Mapped[int] = mapped_column(ForeignKey("visual_assets.id"), index=True)
+    rank: Mapped[int] = mapped_column(Integer, default=1)            # 1 = the photo the planner should prefer
+    reason: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
 class MvpFilmReview(Base):
     """The persisted owner-review state of one rendered film. A film is a review candidate until
     the owner approves its exact checksum; nothing runs past AWAITING_OWNER_REVIEW without it."""

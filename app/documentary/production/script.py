@@ -46,6 +46,7 @@ from app.documentary.graphics.shots import finalize as finalize_graphics
 from app.documentary.mvp.overlays import crop_of
 from app.documentary.drawing import script as DRS
 from app.documentary.mvp import describe as DS
+from app.documentary.mvp import people as PE
 from app.documentary.production import card_audit as CA
 from app.documentary.production import picture_rules as PR
 from app.documentary.visuals import rights as R
@@ -967,7 +968,7 @@ def _carve(shots: list[dict], card: dict) -> None:
 
 
 def _picture_rules(final: list[dict], manifest: dict, spans: list[dict], plan: dict, assets: dict[str, VisualAsset],
-                   order: list[str], guard: SP.Firewall) -> dict:
+                   order: list[str], guard: SP.Firewall, person_hints: list[dict] | None = None) -> dict:
     """The audience can follow the pictures: a named person is shown, a repeat fits its text, no picture is held too long."""
     sentences = manifest["timeline"].get("sentences") or []
     facts = _facts(assets)
@@ -976,6 +977,17 @@ def _picture_rules(final: list[dict], manifest: dict, spans: list[dict], plan: d
         if f.get("entity_type") == "person" and assets[code].asset_type == "photo":
             for entity in f["entities"]:
                 persons.setdefault(entity, []).append(code)
+    preferred: dict[str, list[str]] = {}
+    for hint in sorted(person_hints or [], key=lambda h: (h["entity_key"], h["rank"])):       # the inspector's photos, best first
+        preferred.setdefault(hint["entity_key"], []).append(hint["asset"])
+        if hint["asset"] in assets and hint["asset"] not in persons.setdefault(hint["entity_key"], []):
+            persons[hint["entity_key"]].append(hint["asset"])
+
+    def pool_for(beat: str) -> list[VisualAsset]:
+        earned = _earned_pool(beat, final, plan, assets, order, guard)
+        have = {a.asset_code for a in earned}
+        return earned + [assets[c] for codes in preferred.values() for c in codes
+                         if c in assets and c not in have and not guard.blocks(beat, assets[c])]
 
     def beat_at(t: float) -> str | None:
         return next((sp["beat_id"] for sp in spans if sp["start"] <= t < sp["end"]), None)
@@ -991,8 +1003,9 @@ def _picture_rules(final: list[dict], manifest: dict, spans: list[dict], plan: d
     def fit(asset: VisualAsset, text: str) -> int:
         return len(PR.tokens(text) & PR.tokens(DS.depicts(asset)))
 
-    return {"people": PR.cover_people(final, sentences, persons, lambda beat: _earned_pool(beat, final, plan, assets, order, guard),
-                                      make, beat_at, lambda a: facts[a.asset_code]["entities"], fit),
+    return {"people": PR.cover_people(final, sentences, persons, pool_for, make, beat_at,
+                                      lambda a: facts[a.asset_code]["entities"] + [e for e, codes in preferred.items() if a.asset_code in codes],
+                                      fit, preferred),
             "repeats": PR.drop_unrelated_repeats(final, sentences, words_of),
             "held_too_long": PR.limit_picture_seconds(final)}
 
@@ -1003,7 +1016,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
             opening_strategy: str | None = None, arrest_beat: str | None = None,
             reveal_blocks: dict[str, list[str]] | None = None,
             cards: dict | None = None, board: dict | None = None,
-            detective_actions: list[dict] | None = None) -> dict:
+            detective_actions: list[dict] | None = None, person_hints: list[dict] | None = None) -> dict:
     """Pure function: manifest (audio timeline) + visual plan + localized
     texts -> production timeline. `incident_beat`: where the story's first
     incident happens (voice performance arc) — no investigation pictures
@@ -1282,7 +1295,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     shots = _cap_black(shots, plan, assets, order, guard, att.max_black_seconds,
                        starts, tracker, named_sents)
     final = _vary_long_holds(shots, plan, assets, order, guard, starts, tracker, named_sents)
-    picture_fixes = _picture_rules(final, manifest, spans, plan, assets, order, guard)
+    picture_fixes = _picture_rules(final, manifest, spans, plan, assets, order, guard, person_hints)
     cards_left_out, intro = insert_chapter_cards(final, cards, spans, overlays)
     board_appearances = insert_detective_board_cards(final, board, spans, overlays, language)
     detective_graphics = []
@@ -1481,7 +1494,8 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
                      arrest_beat=SP.arrest_beat(blueprint),
                      reveal_blocks=SP.reveal_blocks(blueprint),
                      case_status=getattr(case, "resolution_status", None),
-                     production_type=production_type or "original", opening_strategy=opening)
+                     production_type=production_type or "original", opening_strategy=opening,
+                     person_hints=PE.hints_of(db, version.case_id, language))
     script["audio"] = {"path": (manifest.get("mix") or {}).get("files", {}).get("documentary_wav")
                        or manifest["files"].get("narration_wav")}
     script["requirements_placed"] = satisfy_requirements(db, plan_row, script, assets)

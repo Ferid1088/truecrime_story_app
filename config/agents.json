@@ -511,6 +511,13 @@
       "description": "Just before the film is planned: what each approved picture or clip shows and which of the case's people it shows (vision).",
       "used_by": "app/documentary/mvp/describe.py"
     },
+    "mvp.person_inspector": {
+      "role": "mvp_person_inspector",
+      "prompt": "documentary/mvp/person_inspector_system",
+      "output": "json",
+      "description": "Before the film is planned: for each person the text names for the first time, which approved photos of them give nothing away there.",
+      "used_by": "app/documentary/mvp/people.py"
+    },
     "mvp.overlay_scan": {
       "role": "mvp_overlay_scanner",
       "prompt": "documentary/mvp/overlay_scan_system",

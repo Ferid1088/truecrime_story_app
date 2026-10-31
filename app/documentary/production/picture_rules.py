@@ -87,7 +87,7 @@ def drop_unrelated_repeats(shots: list[dict], sentences: list[dict], words_of: C
 def cover_people(shots: list[dict], sentences: list[dict], persons: dict[str, list[str]],
                  pool_for: Callable[[str], list], make_shot: Callable[[dict, object, float, float, str], dict],
                  beat_at: Callable[[float], str | None], entities_of: Callable[[object], list[str]],
-                 fit: Callable[[object, str], int] | None = None) -> list[dict]:
+                 fit: Callable[[object, str], int] | None = None, preferred: dict[str, list[str]] | None = None) -> list[dict]:
     """A person the text names has a photo of that person on screen: at the first mention always, at later mentions up to the
     configured number of times. `persons` maps an entity slug to its photos' codes; `pool_for(beat)` gives the photos the story
     has earned and the firewall allows at that beat. Only a picture shot is replaced, and only by a photo of that person."""
@@ -120,8 +120,10 @@ def cover_people(shots: list[dict], sentences: list[dict], persons: dict[str, li
                 continue
             beat = beat_at(start) or target.get("beat_id")
             shown = Counter(s.get("asset_id") for s in shots)
+            ranked = (preferred or {}).get(slug, [])            # the inspector's photos for this person, best first
             options = sorted((p for p in pool_for(beat) if slug in entities_of(p) and p.asset_code in persons[slug]),
-                             key=lambda p: (-(fit(p, text) if fit else 0), shown[p.asset_code]))   # the photo that fits the words, then the least shown
+                             key=lambda p: (ranked.index(p.asset_code) if p.asset_code in ranked else len(ranked),
+                                            -(fit(p, text) if fit else 0), shown[p.asset_code]))   # the inspector's choice, the fit, the least shown
             if not options:
                 continue
             why = "the first time the text names this person" if first else "the person the text names"

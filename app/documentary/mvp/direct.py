@@ -198,6 +198,11 @@ def _is_person(item: Item) -> bool:
     return asset_facts(item.asset).get("entity_type") == "person"
 
 
+def first_mentions_in(hints: list[dict], window: dict) -> dict[str, str]:
+    """{photo code: person's name} for the persons the text names for the first time inside this beat, from the inspector's table."""
+    return {h["asset"]: h["person_name"] for h in hints if window["start"] <= h["mention_start"] < window["end"]}
+
+
 def named_in_text(items: dict[str, list[Item]], pool: list[Item], text: str) -> list[Item]:
     """The approved items of a person or place that the beat's own words name, approved for other beats (the beat's pool holds
     only what was approved for the beat's requirements): the director may show them where the name is spoken."""
@@ -709,14 +714,14 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                       director: Director | None = None, target: VisualPlan | None = None,
                       entities: list[dict] | None = None, region: str | None = None,
                       topical: dict[str, list[tuple[str, float, str]]] | None = None,
-                      cover_last: bool = True, timeline=None, sequence=None) -> dict:
+                      cover_last: bool = True, timeline=None, sequence=None, person_hints: list[dict] | None = None) -> dict:
     """Plan the film around the toolkit's fixed cards: the free stretches of every beat get approved pictures and
     clips. Pictures are not asked for again: the director's choices are cached per beat. The fallback (a picture
     shown again, then the neighbouring pictures) fills what is still bare, but only when `cover_last` says every other
     source (the web search, topical pictures) has been tried and the owner has reviewed twice."""
     return await _direct_pass(db, case, plan, manifest, graph_id, beat_order, beats, director, target or plan, entities,
                               region, topical, cover=cover_last and cover_approved(plan), cover_last=cover_last,
-                              timeline=timeline, sequence=sequence)
+                              timeline=timeline, sequence=sequence, person_hints=person_hints)
 
 
 async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict,
@@ -724,7 +729,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
                        director: Director | None, target: VisualPlan, entities: list[dict] | None,
                        region: str | None, topical: dict[str, list[tuple[str, float, str]]] | None,
                        force: bool = False, cover: bool = False, cover_last: bool = True, timeline=None,
-                       sequence=None) -> dict:
+                       sequence=None, person_hints: list[dict] | None = None) -> dict:
     """One planning round: beat by beat, agent first, rules always. `plan` holds the approved requirements; the shot
     list is stored on `target` (the language's own plan row). `cover` lets the moments that stay bare be covered from
     their neighbours (after the owner's second review)."""
@@ -739,6 +744,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
     moment_clips = [i for group in items.values() for i in group if i.moment and i.moment.get("language") == language]
     items = {b: [i for i in group if not i.moment] for b, group in items.items()}
     out_beats, candidates, window_of, agent_used = [], {}, {}, 0
+    every_item = {i.code: i for group in items.values() for i in group}
     windows = beat_windows(manifest)
     if timeline is None:           # no toolkit film: every beat is free for pictures
         from app.documentary.detective.timeline import film_timeline
@@ -757,6 +763,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
         "timeline": {b: [[c["action_key"], c["start"], c["end"]] for c in cs]
                      for b, cs in sorted(timeline.cards_by_beat.items())},
         "sequence": sorted((sequence or {}).items()),
+        "hints": sorted([h["asset"], h["entity_key"], h["rank"]] for h in person_hints or []),
         "moment_clips": sorted([i.code, i.moment["beat"], i.moment["key"]] for i in moment_clips),
         "topical": {k: [[c, s_] for c, s_, _w in rows] for k, rows in sorted((topical or {}).items())}}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
@@ -780,6 +787,11 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
         named = [i for i in named_in_text(items, pool, beat_text) if not reveal_blocked(db, graph_id, beat_order, bid, i.asset)]
         named_codes = {i.code for i in named}
         pool += named
+        first_here = first_mentions_in(person_hints or [], window)         # the inspector's photos for the persons named here first
+        hinted = [i for code, i in every_item.items() if code in first_here and code not in {p.code for p in pool}
+                  and not reveal_blocked(db, graph_id, beat_order, bid, i.asset)]
+        pool += hinted
+        named_codes |= {i.code for i in hinted}
         near = [i for other, group in items.items() if abs(beat_order.get(other, 99) - beat_order.get(bid, 0)) <= 2
                 and other != bid for i in group
                 if i.entity in {p.entity for p in pool} and not reveal_blocked(
@@ -811,7 +823,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
                               "who": readable(i.entity), "depicts": DS.depicts(i.asset),
                               "people_shown": [readable(e) for e in i.people], "owner_note": i.asset.owner_note,
                               "clip_seconds": i.clip_seconds, "shown_before": tracker.appearances(i.code), "serves": i.serves,
-                              "named_in_text": i.code in named_codes} for i in left]
+                              "named_in_text": i.code in named_codes, "first_mention_of": first_here.get(i.code)} for i in left]
                 scene = [{**slots_view[n], "slot": k} for k, n in enumerate(numbers)]
                 proposal = validate_assignment(await director(case, beats.get(bid, {"beat_id": bid}), scene, pool_view),
                                                [slots[n] for n in numbers], left)
