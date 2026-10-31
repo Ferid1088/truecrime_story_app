@@ -198,3 +198,36 @@ def test_a_portrait_made_for_a_longer_time_plays_as_fast_as_the_planner_says_not
     lay = layer(made, speed=1.0)
     lay.apply(black(), 10.0 + made["seconds"] / 4 / 2)                                    # half a base drawing later: half way through the video
     assert abs(lay._last["P"][0] - made["frames"] / 2) <= 1
+
+
+def test_the_film_script_waits_for_the_portraits_the_planner_ordered_and_other_stops_are_at_once(db_session, monkeypatch, made):
+    import asyncio
+
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.drawing_settings(), "poll_seconds", 0.01)
+    monkeypatch.setattr(ai_config.drawing_settings(), "creation_wait_seconds", 0.5)
+    case, plan = _film(db_session)
+    asset = db_session.query(VisualAsset).filter_by(case_id=case.id, asset_code="PORT").one()
+    ready = {"drawing": {"status": "ready", "video": made["video"], "pen": made["pen"], "fps": made["fps"], "frames": made["frames"], "updated": 0}}
+    asked = []
+
+    def order(db, case_id, codes):
+        asked.append(codes)
+        if len(asked) == 3:                       # the third look finds it made
+            asset.spec_json = json.dumps(ready)
+            db.commit()
+        return codes
+
+    monkeypatch.setattr(DRS.S, "order", order)
+    out = asyncio.run(DRS.build_when_made(db_session, case, plan, json.loads(json.dumps(SCRIPT)), "en"))
+    assert len(asked) == 3 and out["portraits"]["PORT"]["frames"] == made["frames"]
+    asset.spec_json = "{}"
+    db_session.commit()
+    monkeypatch.setattr(ai_config.drawing_settings(), "creation_wait_seconds", 0.05)
+    with pytest.raises(AwaitingPortrait, match="Awaiting portrait creation"):
+        asyncio.run(DRS.build_when_made(db_session, case, plan, json.loads(json.dumps(SCRIPT)), "en"))
+    long_film = json.loads(json.dumps(SCRIPT))
+    long_film["shots"] = [{"kind": "image", "start": 0.0, "end": 9000.0}]
+    with pytest.raises(AwaitingPortrait, match="Awaiting portrait choice"):
+        asyncio.run(DRS.build_when_made(db_session, case, plan, long_film, "en"))

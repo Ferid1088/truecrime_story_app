@@ -3,6 +3,9 @@ language's corner. Built from the finished shot list once the portraits are made
 
 from __future__ import annotations
 
+import asyncio
+import time
+
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
@@ -70,3 +73,19 @@ def build(db: Session, case: Case, plan_row: VisualPlan, script: dict, language:
             overlay["offset_fraction"] = round(fraction, 4)
     return {"language": language, "rtl": language in RTL, "portraits": portraits, "segments": segments,
             "speed": round(plan.speed, 3), "order": plan.portraits}
+
+
+async def build_when_made(db: Session, case: Case, plan_row: VisualPlan, script: dict, language: str) -> dict:
+    """`build`, waiting for the portraits it orders: when the film needs portraits that are not made yet, the planner orders them (see `build`)
+    and this looks again every few seconds until they are made; only a portrait still missing after the configured time stops the run. Every
+    other reason (a spoiler gap, too few photos) stops it at once."""
+    cfg = ai_config.drawing_settings()
+    deadline = time.monotonic() + cfg.creation_wait_seconds
+    while True:
+        try:
+            return build(db, case, plan_row, script, language)
+        except AwaitingPortrait as stopped:
+            if not str(stopped).startswith("Awaiting portrait creation") or time.monotonic() >= deadline:
+                raise
+        await asyncio.sleep(cfg.poll_seconds)
+        db.expire_all()                        # the worker making a portrait wrote its state in another session

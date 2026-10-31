@@ -703,7 +703,10 @@ def the_owner_has_reviewed(monkeypatch):
     from app.documentary.mvp import pipeline as MVP
 
     monkeypatch.setattr(MVP, "stage_owner_attention", lambda db, plan, language: None)
-    monkeypatch.setattr(MVP, "stage_portraits", lambda *args, **kw: {"portraits": 1, "usable": 1, "gaps_checked": 0})   # (tested on its own)
+    async def portraits_ready(*args, **kw):
+        return {"portraits": 1, "usable": 1, "gaps_checked": 0}
+
+    monkeypatch.setattr(MVP, "stage_portraits_ready", portraits_ready)       # (tested on its own)
     monkeypatch.setattr("app.documentary.drawing.script.build", lambda *args, **kw: {"segments": [], "portraits": {}})
     async def no_outro(db, script, *args, **kw):
         return script

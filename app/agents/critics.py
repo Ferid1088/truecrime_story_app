@@ -87,7 +87,7 @@ class DocumentaryCritics:
         from app.documentary.drawing import script as DRS
 
         # the cut is final now: the drawing is planned on it (every gap gets its portrait), whatever the fixes changed
-        script["drawing"] = DRS.build(db, db.get(Case, row.case_id), db.get(VisualPlan, row.visual_plan_id), script, row.language)
+        script["drawing"] = await DRS.build_when_made(db, db.get(Case, row.case_id), db.get(VisualPlan, row.visual_plan_id), script, row.language)
         row.script_json = json.dumps(script, ensure_ascii=False)
         scores = [c["score"] for c in report["critics"].values()
                   if isinstance(c.get("score"), (int, float))]

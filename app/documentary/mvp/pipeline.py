@@ -414,7 +414,7 @@ async def stage_cut(db: Session, case: Case, needs_plan: VisualPlan, bp_row: Edi
     return {"overlays": overlays, "timing": timing, "cut_items": len(items)}
 
 
-def stage_portraits(db: Session, case: Case, plan_row: VisualPlan, manifest: dict, language: str, require_made: bool = False) -> dict:
+def stage_portraits(db: Session, case: Case, plan_row: VisualPlan, manifest: dict, language: str) -> dict:
     """No film without the pencil drawing, and no gap of the film without a portrait: every gap of eight seconds or more (a shorter one is covered by the neighbouring pictures) must have a
     photo (of the ones the owner chose, in priority order) that may be shown there without giving the story away. When one has not,
     the run stops here, before anything is rendered, and tells the owner what to do (Monitoring shows it with a button to the review)."""
@@ -446,14 +446,45 @@ def stage_portraits(db: Session, case: Case, plan_row: VisualPlan, manifest: dic
     validation.setdefault("mvp", {})["portraits"] = record
     plan_row.validation_json = json.dumps(validation, ensure_ascii=False)
     db.commit()
-    if require_made:                         # a film that is rendered needs its portraits made (the owner presses Create portraits)
-        from app.documentary.drawing.script import awaiting_creation, not_made
-
-        missing = not_made(db, case.id, [o["code"] for o in record["order"]])
-        if missing:
-            raise awaiting_creation(missing, record["needed"])
     return {"portraits": len(pool), "usable": len(usable), "gaps_checked": len(gaps), "needed": record["needed"],
             "speed": record["speed"]}
+
+
+async def stage_portraits_ready(db: Session, case: Case, plan_row: VisualPlan, manifest: dict, language: str, wait: bool) -> dict:
+    """The portraits stage of a run. A planning run only checks that every gap can have a portrait. A film run also makes sure the portraits
+    the film needs are made and that they are enough: it orders what is missing (the planner's check orders the next photo when what is
+    made does not cover the film), waits for the portraits to be made, and checks again. Only a portrait still missing after
+    `drawing.creation_wait_seconds`, or every chosen photo made and still not enough, stops the run, with a message for the owner."""
+    import asyncio
+    import time
+
+    from app.documentary.drawing import service as S
+    from app.documentary.drawing.script import awaiting_creation, not_made
+    from app.documentary.pipeline.errors import AwaitingPortrait
+
+    result = stage_portraits(db, case, plan_row, manifest, language)
+    if not wait:
+        return result
+    cfg = ai_config.drawing_settings()
+    deadline = time.monotonic() + cfg.creation_wait_seconds
+    while True:
+        db.expire_all()
+        record = json.loads(plan_row.validation_json or "{}")["mvp"]["portraits"]
+        missing = not_made(db, case.id, [o["code"] for o in record["order"]])
+        if missing:
+            ordered = S.order(db, case.id, missing)
+            if time.monotonic() >= deadline:
+                raise awaiting_creation(missing, record["needed"], ordered)
+        else:
+            check = S.check(db, case.id)
+            if check.get("enough") or not check.get("checked"):
+                return {**result, "made": check.get("made"), "waited": True}
+            if check.get("exhausted"):
+                raise AwaitingPortrait("Awaiting portrait choice: every photo you chose is made and their drawing time is still not enough for the "
+                                       "film. Open Review pictures and give more approved photos of people a drawing priority.")
+            if time.monotonic() >= deadline:
+                raise awaiting_creation(check.get("ordered") or ["the next photo"], record["needed"], check.get("ordered"))
+        await asyncio.sleep(cfg.poll_seconds)
 
 
 def stage_complete(plan_row: VisualPlan, language: str) -> dict:

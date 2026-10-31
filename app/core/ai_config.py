@@ -3091,6 +3091,10 @@ class DrawingConfig(BaseModel):
     # A black stretch the neighbouring pictures could not cover (they may not be held longer than a picture may stay) is drawn full screen
     # when it is at least this long; a shorter one stays black for a moment.
     leftover_gap_seconds: float = Field(gt=0.0)
+    # A film run that needs portraits that are not made yet orders them and waits for them: it looks every `poll_seconds` and stops with a
+    # message only when they are still not made after `creation_wait_seconds`.
+    creation_wait_seconds: float = Field(gt=0.0)
+    poll_seconds: float = Field(gt=0.0)
     window_opacity: float = Field(gt=0.0, le=1.0)
     full_opacity: float = Field(gt=0.0, le=1.0)
     window: DrawingWindowConfig

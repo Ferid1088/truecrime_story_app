@@ -1516,7 +1516,7 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     from app.documentary.render.logo import windows_of
 
     script["logo"] = windows_of(script)     # when the channel logo is in its corner (picture and clip shots only)
-    script["drawing"] = DRS.build(db, case, plan_row, script, language)       # no film without the pencil drawing
+    script["drawing"] = await DRS.build_when_made(db, case, plan_row, script, language)       # no film without the pencil drawing
     script = ensure_pipeline_member_ids(f"production-script:{version.id}:{language}", script)
     film_key = film_key_of(plan_row, manifest)
     script["film_key"] = film_key

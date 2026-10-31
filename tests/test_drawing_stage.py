@@ -88,3 +88,76 @@ def test_a_photo_approved_for_a_place_but_showing_a_person_waits_until_that_pers
     sentences = MANIFEST["timeline"]["sentences"] + [{"start": 500.0, "end": 510.0, "display": "Caleb Flynn was questioned."}]
     pool = DRP.portrait_pool(db_session, case.id, sentences, {"ashley_flynn", "caleb_flynn"})
     assert pool[0].earned_from == 500.0, "every person it shows must have been named first (the later of the two)"
+
+
+def _fast(monkeypatch, wait=0.3):
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.drawing_settings(), "poll_seconds", 0.01)
+    monkeypatch.setattr(ai_config.drawing_settings(), "creation_wait_seconds", wait)
+
+
+def _mark_ready(db, case, codes, tmp_path):
+    for code in codes:
+        asset = db.query(VisualAsset).filter_by(case_id=case.id, asset_code=code).one()
+        video = tmp_path / f"{code}.mp4"
+        video.write_bytes(b"x")
+        asset.spec_json = json.dumps({"drawing": {"status": "ready", "video": str(video), "pen": str(video), "fps": 10, "frames": 10, "updated": 0}})
+    db.commit()
+
+
+def test_a_film_run_orders_the_missing_portraits_waits_until_they_are_made_and_then_goes_on(db_session, tmp_path, monkeypatch):
+    import asyncio
+
+    from app.documentary.drawing import service as S
+
+    case, plan = _film(db_session, [(400, 430)], [("VIS_A", 1, "ashley_flynn"), ("VIS_B", 2, "alleigha_botner")])
+    _fast(monkeypatch)
+    ordered = []
+    looks = {"n": 0}
+
+    def order(db, case_id, codes):
+        ordered.append(list(codes))
+        looks["n"] += 1
+        if looks["n"] == 2:                        # the worker has made them by the second look
+            _mark_ready(db, case, codes, tmp_path)
+        return list(codes)
+
+    monkeypatch.setattr(S, "order", order)
+    monkeypatch.setattr(S, "check", lambda db, case_id: {"checked": True, "enough": True, "made": 1, "ordered": [], "exhausted": False})
+    done = asyncio.run(PL.stage_portraits_ready(db_session, case, plan, MANIFEST, "en", wait=True))
+    assert done["waited"] is True and ordered and ordered[0][0] == "VIS_A"
+
+
+def test_a_planning_run_does_not_wait_for_portraits(db_session, monkeypatch):
+    import asyncio
+
+    case, plan = _film(db_session, [(400, 430)], [("VIS_A", 1, "ashley_flynn")])
+    _fast(monkeypatch)
+    done = asyncio.run(PL.stage_portraits_ready(db_session, case, plan, MANIFEST, "en", wait=False))
+    assert "waited" not in done and done["needed"] >= 1
+
+
+def test_portraits_still_missing_after_the_waiting_time_stop_the_run_with_the_message(db_session, monkeypatch):
+    import asyncio
+
+    from app.documentary.drawing import service as S
+
+    case, plan = _film(db_session, [(400, 430)], [("VIS_A", 1, "ashley_flynn")])
+    _fast(monkeypatch, wait=0.05)
+    monkeypatch.setattr(S, "order", lambda db, case_id, codes: list(codes))
+    with pytest.raises(AwaitingPortrait, match="Awaiting portrait creation: 1 of the 1 portraits.*The planner has ordered VIS_A"):
+        asyncio.run(PL.stage_portraits_ready(db_session, case, plan, MANIFEST, "en", wait=True))
+
+
+def test_when_every_chosen_photo_is_made_and_still_not_enough_the_run_asks_for_more_photos_at_once(db_session, tmp_path, monkeypatch):
+    import asyncio
+
+    from app.documentary.drawing import service as S
+
+    case, plan = _film(db_session, [(400, 430)], [("VIS_A", 1, "ashley_flynn")])
+    _fast(monkeypatch)
+    _mark_ready(db_session, case, ["VIS_A"], tmp_path)
+    monkeypatch.setattr(S, "check", lambda db, case_id: {"checked": True, "enough": False, "made": 1, "ordered": [], "exhausted": True})
+    with pytest.raises(AwaitingPortrait, match="Awaiting portrait choice: every photo you chose is made"):
+        asyncio.run(PL.stage_portraits_ready(db_session, case, plan, MANIFEST, "en", wait=True))
