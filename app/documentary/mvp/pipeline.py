@@ -407,7 +407,7 @@ async def stage_cut(db: Session, case: Case, needs_plan: VisualPlan, bp_row: Edi
 
 
 def stage_portraits(db: Session, case: Case, plan_row: VisualPlan, manifest: dict, language: str, require_made: bool = False) -> dict:
-    """No film without the pencil drawing, and no gap of the film without a portrait: every gap of four seconds or more must have a
+    """No film without the pencil drawing, and no gap of the film without a portrait: every gap of eight seconds or more (a shorter one is covered by the neighbouring pictures) must have a
     photo (of the ones the owner chose, in priority order) that may be shown there without giving the story away. When one has not,
     the run stops here, before anything is rendered, and tells the owner what to do (Monitoring shows it with a button to the review)."""
     from app.documentary.pipeline.errors import AwaitingPortrait
@@ -450,7 +450,7 @@ def stage_portraits(db: Session, case: Case, plan_row: VisualPlan, manifest: dic
 
 def stage_complete(plan_row: VisualPlan, language: str) -> dict:
     """The end of planning: every moment has a picture, a video or a graphic, or what is still bare is reported. The owner has
-    reviewed twice by now and the planner has covered what it could (a gap under four seconds from the neighbouring pictures,
+    reviewed twice by now and the planner has covered what it could (a gap under eight seconds from the neighbouring pictures,
     a longer one by the drawing), so a bare moment is reported, never asked about again."""
     plan = json.loads(plan_row.validation_json or "{}").get("plan") or {}
     gaps = plan.get("gaps") or []

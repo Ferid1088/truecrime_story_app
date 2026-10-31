@@ -18,6 +18,14 @@ from app.documentary.render.drawing_layer import DrawingLayer
 W, H = 640, 360
 
 
+@pytest.fixture(autouse=True)
+def drawing_as_long_as_the_test_portrait(made, monkeypatch):
+    """The test portrait is 20 s long: a portrait takes that long at normal speed here."""
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.drawing_settings(), "base_seconds", made["seconds"])
+
+
 @pytest.fixture(scope="module")
 def made(tmp_path_factory):
     folder = tmp_path_factory.mktemp("portrait")
@@ -120,8 +128,8 @@ def _film(db, language="en"):
 
 SCRIPT = {"subtitles": [{"start": 0.0, "end": 5.0, "text": "Ashley taught children."}],
           "overlays": [{"kind": "label", "text": "illustration", "start": 10.0, "end": 20.0}],
-          "shots": [{"kind": "image", "start": 0.0, "end": 40.0}, {"kind": "graphic", "start": 40.0, "end": 60.0},
-                    {"kind": "image", "start": 60.0, "end": 400.0}]}
+          "shots": [{"kind": "image", "start": 0.0, "end": 15.0}, {"kind": "graphic", "start": 15.0, "end": 35.0},
+                    {"kind": "image", "start": 35.0, "end": 50.0}]}
 
 
 def test_a_film_whose_portraits_are_not_made_is_not_made_the_planner_orders_them_and_the_run_says_so(db_session, monkeypatch):
@@ -151,7 +159,7 @@ def test_a_made_portrait_gives_the_segments_in_the_languages_corner_and_moves_th
     out = DRS.build(db_session, case, plan, script, "fa")
     assert out["rtl"] is True and out["portraits"]["PORT"]["frames"] == made["frames"]
     assert all(s["portrait"] == "PORT" for s in out["segments"]) and out["segments"][0]["fade_in"] is True
-    assert not any(40.0 < (s["start"] + s["end"]) / 2 < 60.0 for s in out["segments"]), "hidden over the card"
+    assert not any(15.0 < (s["start"] + s["end"]) / 2 < 35.0 for s in out["segments"]), "hidden over the card"
     assert script["overlays"][0]["offset_fraction"] == 0.0938, "the label moves beside the window"
 
 
@@ -171,3 +179,22 @@ def test_the_paper_is_cream_in_the_films_rgb_frames_not_blue_and_the_pencil_is_b
     out = layer(made, mode="full").apply(black(), 20.0)
     middle = out[H // 2 - 40:H // 2 + 40, W // 2 - 40:W // 2 + 40].reshape(-1, 3).mean(axis=0)
     assert middle[0] > middle[2], "cream paper: more red than blue in an RGB frame"
+
+
+def test_two_gaps_one_after_the_other_do_not_shrink_and_grow_again_between_them(made):
+    script = {"drawing": {"rtl": False, "portraits": {"P": made}, "segments": [
+        {"start": 10.0, "end": 20.0, "mode": "full", "portrait": "P", "from": 0.0, "speed": 1.0, "grow_in": True, "grow_out": False},
+        {"start": 20.0, "end": 30.0, "mode": "full", "portrait": "P", "from": 10.0, "speed": 1.0, "grow_in": False, "grow_out": True}]}}
+    lay = DrawingLayer(script, W, H)
+    at_the_joint = (lay.apply(black(), 19.95).mean(), lay.apply(black(), 20.05).mean())
+    assert min(at_the_joint) > 100 and abs(at_the_joint[0] - at_the_joint[1]) < 15, "the whole screen stays the drawing across the joint"
+    assert lay.apply(black(), 10.05).mean() < 60 < lay.apply(black(), 15.0).mean(), "it grew once at the start"
+
+
+def test_a_portrait_made_for_a_longer_time_plays_as_fast_as_the_planner_says_not_at_its_own_length(made, monkeypatch):
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.drawing_settings(), "base_seconds", made["seconds"] / 4)   # the portrait is four times as long as a base drawing
+    lay = layer(made, speed=1.0)
+    lay.apply(black(), 10.0 + made["seconds"] / 4 / 2)                                    # half a base drawing later: half way through the video
+    assert abs(lay._last["P"][0] - made["frames"] / 2) <= 1

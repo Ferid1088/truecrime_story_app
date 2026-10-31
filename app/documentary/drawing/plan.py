@@ -44,16 +44,23 @@ class DrawingPlan:
 
 
 def intervals_of(shots: list[dict]) -> list[Interval]:
-    """The moments the drawing is on screen: a window over every picture and clip, the whole screen in every gap of the configured length
-    (a black stretch is a gap, flagged bare or not); shorter gaps are covered by the neighbouring pictures, cards hide the drawing."""
+    """The moments the drawing is on screen: a window over every picture and clip, the whole screen in every black stretch that is left
+    once the neighbouring pictures have covered the gaps they could (a gap under `gap_full_seconds`), cards hide the drawing. Gaps one
+    after the other are one gap."""
     cfg = ai_config.drawing_settings()
     out = []
     for shot in sorted(shots, key=lambda s: s["start"]):
         if shot.get("kind") in ("image", "video"):
             out.append(Interval(shot["start"], shot["end"], "window"))
-        elif (shot.get("bare") or shot.get("kind") == "black") and shot["end"] - shot["start"] >= cfg.gap_full_seconds:
+        elif (shot.get("bare") or shot.get("kind") == "black") and shot["end"] - shot["start"] >= cfg.leftover_gap_seconds:
             out.append(Interval(shot["start"], shot["end"], "full"))
-    return out
+    merged: list[Interval] = []
+    for item in out:                                          # gaps one after the other are one gap: the window grows once
+        if merged and item.mode == "full" and merged[-1].mode == "full" and item.start - merged[-1].end < 1e-3:
+            merged[-1].end = item.end
+        else:
+            merged.append(item)
+    return merged
 
 
 def _simulate(intervals: list[Interval], pool: list[Portrait], speed: float, limit: int) -> DrawingPlan:
@@ -149,7 +156,7 @@ def estimated_shots(duration: float, gaps: list[dict], card_seconds: float) -> l
     """The film's shots as far as the picture plan knows them (before the production script exists): every gap as it is, and the
     pictures spread over the rest of the film, less the seconds the cards take."""
     cfg = ai_config.drawing_settings()
-    ordered = sorted(gaps, key=lambda g: g["start"])
+    ordered = sorted((g for g in gaps if g["end"] - g["start"] >= cfg.gap_full_seconds), key=lambda g: g["start"])   # shorter gaps: neighbours
     spans, t = [], 0.0
     for g in ordered:
         spans.append((t, g["start"]))
@@ -163,5 +170,5 @@ def estimated_shots(duration: float, gaps: list[dict], card_seconds: float) -> l
             shots.append({"kind": "image", "start": a, "end": a + (b - a) * pictures})
         if gap is not None:
             shots.append({"kind": "black", "start": gap["start"], "end": gap["end"],
-                          "bare": gap["end"] - gap["start"] >= cfg.gap_full_seconds})
+                          "bare": True})
     return shots

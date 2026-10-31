@@ -3086,6 +3086,9 @@ class DrawingConfig(BaseModel):
     min_speed: float = Field(gt=0.0)
     max_speed: float = Field(gt=0.0)
     gap_full_seconds: float = Field(gt=0.0)
+    # A black stretch the neighbouring pictures could not cover (they may not be held longer than a picture may stay) is drawn full screen
+    # when it is at least this long; a shorter one stays black for a moment.
+    leftover_gap_seconds: float = Field(gt=0.0)
     window_opacity: float = Field(gt=0.0, le=1.0)
     full_opacity: float = Field(gt=0.0, le=1.0)
     window: DrawingWindowConfig

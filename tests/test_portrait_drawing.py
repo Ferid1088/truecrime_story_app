@@ -95,7 +95,7 @@ def test_a_portrait_being_made_that_stopped_reporting_is_shown_as_interrupted_an
     assert S.state_of(asset)["status"] == "drawing"
 
 
-def _checked_case(db, ready, drawing=(), duration=6000.0, photos=3):
+def _checked_case(db, ready, drawing=(), duration=1500.0, photos=3):
     record = {"needed": 3, "speed": 1.0, "order": [], "uncovered": [],
               "pool": [{"code": f"P{n}", "earned_from": 0.0, "refused": None} for n in range(1, photos + 1)],
               "estimate": {"duration": duration, "gaps": [], "card_seconds": 0.0}}
@@ -134,7 +134,7 @@ def test_while_a_portrait_is_being_made_nothing_more_is_ordered_and_when_enough_
 
 def test_when_every_chosen_photo_is_made_and_still_not_enough_the_owner_is_to_choose_more(db_session, monkeypatch):
     monkeypatch.setattr(S, "start", lambda asset: True)
-    case = _checked_case(db_session, ready=["P1", "P2"], photos=2)
+    case = _checked_case(db_session, ready=["P1", "P2"], photos=2, duration=3000.0)
     result = S.check(db_session, case.id)
     assert result["enough"] is False and result["exhausted"] is True and result["ordered"] == []
 
@@ -144,4 +144,4 @@ def test_a_film_the_made_portraits_cannot_fill_even_at_the_slowest_speed_does_no
 
     long_film = [{"kind": "image", "start": 0.0, "end": 6000.0}]
     assert DP.plan_drawing(long_film, [DP.Portrait("A", 1)]).fits is False
-    assert DP.plan_drawing(long_film, [DP.Portrait(c, n) for n, c in enumerate("ABCD", 1)]).fits is True
+    assert DP.plan_drawing(long_film, [DP.Portrait(c, n) for n, c in enumerate("ABCDEFGHI", 1)]).fits is True

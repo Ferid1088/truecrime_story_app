@@ -39,7 +39,7 @@ def test_the_number_of_portraits_and_the_speed_make_every_drawing_finish_by_the_
     plan = DP.plan_drawing(film(), pool)
     cfg = ai_config.drawing_settings()
     assert not plan.uncovered and cfg.min_speed <= plan.speed <= cfg.max_speed
-    assert 2 <= len(plan.portraits) <= 3 and all(p["finished"] is not None for p in plan.portraits)
+    assert 6 <= len(plan.portraits) <= 8 and all(p["finished"] is not None for p in plan.portraits)
     assert [p["code"] for p in plan.portraits] == [f"P{n}" for n in range(1, len(plan.portraits) + 1)], "owner's priority order"
     assert all(abs(a["end"] - b["start"]) < 1e-6 or a["end"] <= b["start"] for a, b in zip(plan.segments, plan.segments[1:]))
 
@@ -68,7 +68,7 @@ def test_a_film_without_gaps_needs_no_portrait_for_a_gap_and_the_drawing_may_be_
 
 
 def test_a_film_too_short_to_finish_even_one_portrait_uses_one_at_the_fastest_speed():
-    plan = DP.plan_drawing([pic(0, 300)], [DP.Portrait("A", 1), DP.Portrait("B", 2)])
+    plan = DP.plan_drawing([pic(0, 150)], [DP.Portrait("A", 1), DP.Portrait("B", 2)])
     assert plan.fits and len(plan.portraits) == 1 and plan.speed == ai_config.drawing_settings().max_speed
     assert plan.portraits[0]["finished"] is None, "it is not finished: the film ends first"
 
@@ -76,3 +76,15 @@ def test_a_film_too_short_to_finish_even_one_portrait_uses_one_at_the_fastest_sp
 def test_a_black_stretch_of_four_seconds_or_more_is_a_gap_whether_or_not_it_is_flagged_bare():
     shots = [pic(0, 20), {"kind": "black", "start": 20.0, "end": 26.0}, {"kind": "black", "start": 26.0, "end": 28.0}, pic(28, 40)]
     assert [(i.start, i.end, i.mode) for i in DP.intervals_of(shots)] == [(0, 20, "window"), (20.0, 26.0, "full"), (28, 40, "window")]
+
+
+def test_gaps_one_after_the_other_are_one_gap_so_the_window_grows_once():
+    shots = [pic(0, 20), gap(20, 30), gap(30, 41), pic(41, 60)]
+    assert [(i.start, i.end, i.mode) for i in DP.intervals_of(shots)] == [(0, 20, "window"), (20, 41, "full"), (41, 60, "window")]
+
+
+def test_the_settings_of_the_owners_decisions_of_31_october():
+    cfg = ai_config.drawing_settings()
+    assert cfg.gap_full_seconds == 8.0, "a gap under 8 s is covered by the neighbours, from 8 s the portrait"
+    assert cfg.base_seconds == 380.0, "three times faster than the 19 minutes"
+    assert cfg.pencil.length == 18.0 and cfg.pencil.thickness == 3.6, "four times bigger than 4.5 x 0.9 px"

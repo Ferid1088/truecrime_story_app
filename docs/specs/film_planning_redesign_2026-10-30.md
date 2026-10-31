@@ -291,3 +291,17 @@ Still open: the rights note (point 5 of section 15, the owner's decision) and th
    top-right for Persian and Arabic, where the logo is on the left), the side of the "illustration" label, the card pauses, the gaps and
    the speed (0.5x to 2x) the planner chooses for that language's film. If a language's film is too short or too long for the speed range,
    fewer or more portraits are used (the priority order decides).
+
+
+## 19. Owner's decisions of 2026-10-31 (after the first full film with the drawing)
+
+1. A gap shorter than **8 s** is covered by the neighbouring pictures (within the 27 s a picture may stay); from **8 s** the portrait fills the
+   screen. A black stretch the neighbours could not cover (too long for their limit) that is at least 3 s long is drawn rather than left black.
+2. The pencil is **4 times bigger** (18 x 3.6 px on a 1280-wide frame, was 4.5 x 0.9).
+3. The drawing is **3 times faster**: one portrait takes 380 s of drawing time at normal speed (was 1140 s). Portraits already made keep their
+   video; the compositor plays them at the planner's pace, so nothing has to be made again.
+4. **Gaps one after the other are one gap**: the window grows once at the first and shrinks once after the last (it does not return to the corner
+   between them). Black stretches next to each other are merged in the script too.
+5. **Person photos at the first mention**: an inspector checks, before the planner plans, which persons the text names for the first time,
+   finds their approved photos that are no spoiler there, saves them in a table (text position, photo) and hands the table to the main planner,
+   which uses them where its own rules allow.

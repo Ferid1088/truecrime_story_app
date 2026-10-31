@@ -123,7 +123,7 @@ def test_when_the_picture_before_is_at_its_limit_the_picture_after_starts_earlie
 
 
 def test_two_black_stretches_next_to_each_other_are_one_gap_and_a_long_gap_or_the_films_fade_is_left_alone():
-    shots = [image(0, 10, "A"), black(10, 12), black(12, 15), image(15, 30, "B")]       # 5 s together: a drawing gap, not covered
+    shots = [image(0, 10, "A"), black(10, 14), black(14, 19), image(19, 30, "B")]       # 9 s together: a drawing gap, not covered
     assert PR.cover_short_gaps(shots) == [] and [s["kind"] for s in shots] == ["image", "black", "image"]
     fade = [image(0, 10, "A"), black(10, 12)]
     assert PR.cover_short_gaps(fade, 12.0) == [] and fade[-1]["kind"] == "black"

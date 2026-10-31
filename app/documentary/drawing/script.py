@@ -53,13 +53,16 @@ def build(db: Session, case: Case, plan_row: VisualPlan, script: dict, language:
     for code in codes:
         state = S.state_of(assets[code])
         portraits[code] = {"video": state["video"], "pen": state["pen"], "fps": state["fps"], "frames": state["frames"],
-                           "width": PD.CW, "height": PD.CH}
+                           "seconds": state.get("seconds"), "width": PD.CW, "height": PD.CH}
     segments = []
     for i, seg in enumerate(plan.segments):
         before = plan.segments[i - 1] if i else None
         after = plan.segments[i + 1] if i + 1 < len(plan.segments) else None
+        same_gap_before = before is not None and before["mode"] == "full" and seg["mode"] == "full" and seg["start"] - before["end"] < CONTIGUOUS
+        same_gap_after = after is not None and after["mode"] == "full" and seg["mode"] == "full" and after["start"] - seg["end"] < CONTIGUOUS
         segments.append({**seg, "fade_in": before is None or seg["start"] - before["end"] > CONTIGUOUS,
-                         "fade_out": after is None or after["start"] - seg["end"] > CONTIGUOUS})
+                         "fade_out": after is None or after["start"] - seg["end"] > CONTIGUOUS,
+                         "grow_in": not same_gap_before, "grow_out": not same_gap_after})
     cfg = ai_config.drawing_settings()
     fraction = cfg.window.width / cfg.window.reference_width
     for overlay in script.get("overlays") or []:                       # the "illustration" label goes beside the window

@@ -1,9 +1,9 @@
 {
   "drawing": {
-    "base_seconds": 1140.0,
+    "base_seconds": 380.0,
     "min_speed": 0.5,
     "max_speed": 2.0,
-    "gap_full_seconds": 4.0,
+    "gap_full_seconds": 8.0,
     "window_opacity": 0.6,
     "full_opacity": 1.0,
     "window": {
@@ -16,9 +16,10 @@
     "grow_seconds": 0.8,
     "fade_seconds": 0.4,
     "pencil": {
-      "length": 4.5,
-      "thickness": 0.9,
+      "length": 18.0,
+      "thickness": 3.6,
       "angle_degrees": 36
-    }
+    },
+    "leftover_gap_seconds": 3.0
   }
 }

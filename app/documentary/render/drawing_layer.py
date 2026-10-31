@@ -104,8 +104,10 @@ class DrawingLayer:
         """How far the window has grown to the whole screen: only in a gap, over `grow_seconds` at each end."""
         if seg["mode"] != "full":
             return 0.0
-        g = self.cfg.grow_seconds
-        return min(_ease((t - seg["start"]) / g), _ease((seg["end"] - t) / g))
+        g = self.cfg.grow_seconds                        # (gaps one after the other grow once at the first start and shrink once at the last end)
+        grow = _ease((t - seg["start"]) / g) if seg.get("grow_in", True) else 1.0
+        shrink = _ease((seg["end"] - t) / g) if seg.get("grow_out", True) else 1.0
+        return min(grow, shrink)
 
     def _visibility(self, seg: dict, t: float) -> float:
         f = self.cfg.fade_seconds
@@ -121,7 +123,8 @@ class DrawingLayer:
         if seg is None:
             return frame
         code, meta = seg["portrait"], self.portraits[seg["portrait"]]
-        index = int((seg["from"] + (t - seg["start"]) * seg["speed"]) * float(meta["fps"]))
+        progress = (seg["from"] + (t - seg["start"]) * seg["speed"]) / self.cfg.base_seconds       # how far the drawing has come, 0 to 1
+        index = int(progress * float(meta.get("seconds") or self.cfg.base_seconds) * float(meta["fps"]))
         paper = self._frame(code, index)
         k = self._grow(seg, t)
         small_x = self.W - self.win_w if self.rtl else 0
