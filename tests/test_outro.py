@@ -131,3 +131,27 @@ def test_a_mono_film_stays_mono_and_the_voice_is_not_changed_by_a_single_sample_
     assert OUTRO.audio_format(out) == (RATE, "mono")
     before, original = samples(out)[:int(34 * RATE)], samples(base)[:int(34 * RATE)]
     assert np.allclose(before, original, atol=1e-4), "the voice is exactly the voice"
+
+
+def test_every_language_closes_with_its_own_channel_logo_while_the_music_is_the_same_for_all(db_session, tmp_path):
+    from app.documentary.render.logo import logo_path
+
+    shot = {"kind": "outro", "start": 0.0, "end": 30.0}
+    frames = {}
+    for language, channel in ai_config.channels.items():
+        if logo_path(language) is None:
+            continue
+        maker = FrameMaker({"language": language, "shots": [], "width": 640, "height": 360}, 640, 360)
+        frames[language] = maker.shot_frame(shot, 20.0).astype(int)
+    assert len(frames) >= 2
+    languages = list(frames)
+    for i, a in enumerate(languages):
+        for b in languages[i + 1:]:
+            assert np.abs(frames[a] - frames[b]).mean() > 0.3, f"{a} and {b} show different logos at the end"
+    db_session.query(MusicTrack).delete()
+    track = tmp_path / "bridge.wav"
+    tone(track, 5, 440)
+    db_session.add(MusicTrack(kind="bridge", mood="uncertainty", variant=1, file_path=str(track), track_code="shared_test",
+                              situation="an unresolved interlude", tags_json='["bridge"]'))
+    db_session.commit()
+    assert OUTRO.track_path(db_session) == track, "one track, whatever the language: the music has no language in it"
