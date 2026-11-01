@@ -40,9 +40,17 @@ def repair(shots: list[dict], duration: float | None, board: list[dict] | None =
     return report
 
 
-def problems(shots: list[dict], duration: float | None = None) -> list[str]:
-    """What is still wrong with the timeline, in plain words (nothing when `repair` has done its work)."""
+def problems(shots: list[dict], duration: float | None = None, host: list[dict] | None = None) -> list[str]:
+    """What is still wrong with the timeline, in plain words (nothing when `repair` has done its work). `host` is the film's host items:
+    the avatar's video starts where its audio does and runs as long as its clip."""
     found: list[str] = []
+    for shot in (s for s in shots if s.get("host_scene_id")):
+        clip = float(shot.get("clip_end") or 0.0) - float(shot.get("clip_start") or 0.0)
+        if abs((shot["end"] - shot["start"]) - clip) > 0.5:
+            found.append(f"the host's video at {shot['start']:.1f}s runs {shot['end'] - shot['start']:.1f}s but its clip is {clip:.1f}s")
+        item = next((h for h in host or [] if h.get("scene_id") == shot["host_scene_id"]), None)
+        if item is not None and abs(item["start"] - shot["start"]) > 0.05:
+            found.append(f"the host's video starts at {shot['start']:.1f}s but its audio is at {item['start']:.1f}s")
     ordered = sorted(shots, key=lambda s: (s["start"], s["end"]))
     for before, after in zip(ordered, ordered[1:], strict=False):
         if after["start"] > before["end"] + EPS:

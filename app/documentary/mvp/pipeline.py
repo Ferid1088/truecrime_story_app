@@ -534,7 +534,7 @@ def stage_coverage(db: Session, needs_plan: VisualPlan, script: dict, manifest: 
         verdict["blocking"].append("the film carries no host avatar (the host is required)")
     if music["planned"] != music["in_film"]:
         verdict["blocking"].append(f"{music['planned']} music placement(s) planned, {music['in_film']} in the film")
-    verdict["blocking"] += PF.problems(script.get("shots") or [], script.get("duration"))      # what the planner's repair left (nothing, when it did its work)
+    verdict["blocking"] += PF.problems(script.get("shots") or [], script.get("duration"), script.get("host"))      # what the planner's repair left (nothing, when it did its work)
     verdict["review_ready"] = not verdict["blocking"]
     return {**report, **verdict, "host": host, "music": music}
 

@@ -88,7 +88,7 @@ class DocumentaryCritics:
                 report["after_fixes"] = deterministic_checks(script, assets, previous)
                 row.script_json = json.dumps(script, ensure_ascii=False)
                 record_media_usage(db, row, script)
-        report["preflight"] = PF.problems(script.get("shots") or [], script.get("duration"))      # nothing is rendered with a hole, a repeat or a stretch of black
+        report["preflight"] = PF.problems(script.get("shots") or [], script.get("duration"), script.get("host"))      # nothing is rendered with a hole, a repeat or a stretch of black
         from app.db.models import Case, VisualPlan
         from app.documentary.drawing import script as DRS
 

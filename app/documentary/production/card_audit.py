@@ -93,12 +93,13 @@ def audit(shots: list[dict], board: list[dict] | None = None) -> list[dict]:
     holes: list[dict] = []
     for a, b in zip(shots, shots[1:], strict=False):
         if a["end"] < b["start"] - 0.01:
-            if not _is_card(a):
+            if not _is_card(a) and not a.get("host_scene_id"):
                 a["end"] = b["start"]
-            elif not _is_card(b):
+            elif not _is_card(b) and not b.get("host_scene_id"):
                 _start_at(b, a["end"])
-            else:                                          # two cards with a hole between them: the first is held longer
-                a["end"] = round(min(b["start"], a["start"] + limits(a)[1]), 3)
+            else:               # two cards, or the host's video (its audio is at its own time: it is never moved or stretched): a card is held longer
+                if _is_card(a):
+                    a["end"] = round(min(b["start"], a["start"] + limits(a)[1]), 3)
                 if a["end"] < b["start"] - 0.01:
                     holes.append(bare(a["end"], b["start"], a.get("beat_id")))
                     done.append({"fix": "gap_between_cards", "start": a["end"], "seconds": round(b["start"] - a["end"], 1)})

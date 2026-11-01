@@ -276,9 +276,9 @@ def cover_short_gaps(shots: list[dict], film_end: float | None = None) -> list[d
         if g["kind"] != "black" or not 0.05 < length < gap or g["start"] < 0.5 or g["end"] > end - 0.5:
             i += 1
             continue
-        holds_before = before is not None and before["kind"] in HOLDS_LONGER and not before.get("zoom_video")
+        holds_before = before is not None and before["kind"] in HOLDS_LONGER and not before.get("zoom_video") and not before.get("host_scene_id")
         starts_earlier = after is not None and after["kind"] == "image"
-        freezes_before = before is not None and before["kind"] == "video" and not before.get("zoom_video")
+        freezes_before = before is not None and before["kind"] == "video" and not before.get("zoom_video") and not before.get("host_scene_id")
         if holds_before and before["kind"] in CARD_KINDS and starts_earlier:
             mid = round(g["start"] + length / 2, 3)
             before["end"], after["start"] = mid, mid

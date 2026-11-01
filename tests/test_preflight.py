@@ -91,3 +91,11 @@ def test_a_graphic_that_no_longer_fits_leaves_a_hole_and_the_repair_after_it_clo
     assert PF.problems(shots, 100) == []
     ordered = sorted(shots, key=lambda s: s["start"])
     assert all(abs(b["start"] - a["end"]) < 0.06 for a, b in zip(ordered, ordered[1:], strict=False)), "the film is continuous again"
+
+
+def test_a_host_video_that_is_not_at_its_audio_or_longer_than_its_clip_is_a_problem():
+    avatar = {**shot("video", 2311.9, 2396.5, clip_start=0.0, clip_end=17.76), "host_scene_id": 196}
+    assert any("runs 84.6s but its clip is 17.8s" in p for p in PF.problems([avatar], None, [{"scene_id": 196, "start": 2359.5}]))
+    assert any("audio is at 2359.5s" in p for p in PF.problems([avatar], None, [{"scene_id": 196, "start": 2359.5}]))
+    right = {**shot("video", 2359.5, 2377.26, clip_start=0.0, clip_end=17.76), "host_scene_id": 196}
+    assert PF.problems([right], None, [{"scene_id": 196, "start": 2359.5}]) == []
