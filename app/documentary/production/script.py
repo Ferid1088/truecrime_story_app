@@ -1426,9 +1426,14 @@ def link_music_usage(db: Session, film_key: str, language: str, production_scrip
 
 
 def satisfy_requirements(db: Session, plan_row: VisualPlan, script: dict, assets: dict[str, VisualAsset]) -> list[dict]:
-    """A requirement that the compiled film left without its approved picture gets one (mvp/satisfy.py)."""
+    """A requirement that the compiled film left without its approved picture gets one (mvp/satisfy.py). A film in a language other than
+    English has no requirements of its own: it shows the English film's pictures only."""
+    from app.documentary.mvp import reference as REF
     from app.documentary.mvp.coverage import counted_requirements
     from app.documentary.mvp.satisfy import ScriptRequirementPass
+
+    if REF.is_reference_film(db, plan_row):
+        return []
 
     needs = db.get(VisualPlan, json.loads(plan_row.validation_json or "{}").get("mvp", {}).get("needs_plan_id") or 0)
     if needs is None:

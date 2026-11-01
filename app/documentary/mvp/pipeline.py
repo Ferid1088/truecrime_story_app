@@ -317,7 +317,7 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
         verified = await verify_pending(db, case, needs_plan, requirements)
         report = await direct()
         report["topup"] = {**made, "judged": verified["judged"]}
-    if report["gaps"] and ai_config.mvp().moments.enabled:
+    if report["gaps"] and ai_config.mvp().moments.enabled and not REF.is_reference_film(db, needs_plan):      # no new clips are cut for another language
         used = {s["asset_id"] for b in json.loads(target.plan_json or "{}").get("beats") or []
                 for s in b["shots"] if s.get("asset_id")}
         moments = await MC.MomentCutter(db, case, needs_plan.id, language).run(report["gaps"], used)
@@ -343,7 +343,8 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     report["name_forms"] = name_forms
     report["people"] = {"with_photos": len({h["entity_key"] for h in inspection.rows}), "photos": len(inspection.rows),
                         "without_photo": inspection.without}
-    report["must_use"] = place_must_use(db, case.id, needs_plan, target)
+    report["must_use"] = ({"skipped": "the pictures are the English film's"} if REF.is_reference_film(db, needs_plan)
+                          else place_must_use(db, case.id, needs_plan, target))
     kept = {k: report[k] for k in ("moments", "topical", "overlays", "timing", "described", "people", "must_use") if k in report}
     if kept:                   # what the extra passes did stays with the plan (the report above is the plan's own)
         validation = json.loads(target.validation_json or "{}")

@@ -65,3 +65,24 @@ def test_another_language_gets_only_what_the_english_plan_approved_never_what_it
     assert codes == {"B01": ["EN_APPROVED_FIRST"], "B02": ["EN_APPROVED_FIRST"], "B04": ["EN_APPROVED_LAST"], "B05": ["EN_APPROVED_LAST"]}
     assert all(i.serves == [] for items in pool.values() for i in items)
     assert "FA_ONLY_APPROVED" not in {i.code for items in DR.approved_items(db_session, english).values() for i in items}, "nor does it leak into the English film"
+
+
+def test_a_film_in_another_language_gets_no_requirement_pictures_of_its_own_plan(db_session, monkeypatch):
+    from app.documentary.mvp import satisfy as SA
+    from app.documentary.production.script import satisfy_requirements
+
+    ran = []
+    monkeypatch.setattr(SA.ScriptRequirementPass, "run", lambda self: ran.append(self.required) or [])
+    case, english = _film(db_session, "en", [100, 100])
+    _, persian = _film(db_session, "fa", [100, 100], case)
+    rows = {}
+    for key, needs in (("en", english), ("fa", persian)):
+        rows[key] = VisualPlan(case_id=case.id, blueprint_id=needs.blueprint_id, version=2, requirements_json="{}",
+                               validation_json=json.dumps({"mvp": {"language": key, "needs_plan_id": needs.id}}))
+        db_session.add(rows[key])
+    db_session.commit()
+    _candidate(db_session, case, persian, "B01", "FA_ONLY", "approved")
+    script = {"shots": [], "firewall": None}
+    assert satisfy_requirements(db_session, rows["fa"], script, {}) == [] and ran == [], "the Persian plan's requirements are not satisfied"
+    satisfy_requirements(db_session, rows["en"], script, {})
+    assert len(ran) == 1, "the English film's are"
