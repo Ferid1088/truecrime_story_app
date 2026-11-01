@@ -62,18 +62,18 @@
     "default_style": "neutral_documentary",
     "styles": {
       "host_conversational": {
-        "stability": 0.4,
+        "stability": 0.2,
         "similarity_boost": 0.75,
         "style": 0.0,
         "use_speaker_boost": true,
-        "speed": 1.02
+        "speed": 1.12
       },
       "neutral_documentary": {
-        "stability": 0.45,
+        "stability": 0.3,
         "similarity_boost": 0.75,
         "style": 0.05,
         "use_speaker_boost": true,
-        "speed": 0.9
+        "speed": 1.05
       },
       "factual": {
         "stability": 0.5,
@@ -104,32 +104,32 @@
         "speed": 0.87
       },
       "v3_neutral": {
-        "stability": 0.5,
+        "stability": 0.3,
         "similarity_boost": 0.75,
         "style": 0.0,
         "use_speaker_boost": true,
-        "speed": 0.94
+        "speed": 1.05
       },
       "v3_unease": {
-        "stability": 0.5,
+        "stability": 0.3,
         "similarity_boost": 0.75,
         "style": 0.0,
         "use_speaker_boost": true,
-        "speed": 0.92
+        "speed": 1.05
       },
       "v3_tension": {
-        "stability": 0.5,
+        "stability": 0.3,
         "similarity_boost": 0.75,
         "style": 0.0,
         "use_speaker_boost": true,
-        "speed": 0.9
+        "speed": 1.05
       },
       "v3_climax": {
-        "stability": 0.5,
+        "stability": 0.3,
         "similarity_boost": 0.75,
         "style": 0.0,
         "use_speaker_boost": true,
-        "speed": 0.9
+        "speed": 1.05
       }
     },
     "seed": 1,

@@ -141,8 +141,8 @@
         "G10_THUMBS_UP",
         "G11_OK_SIGN"
       ],
-      "max_hand_gestures_per_minute": 6,
-      "min_gap_seconds": 10.0,
+      "max_hand_gestures_per_minute": 3,
+      "min_gap_seconds": 20.0,
       "sentence_start_quiet_seconds": 1.0,
       "max_gesture_seconds": 3.0,
       "max_expressiveness": "low"
