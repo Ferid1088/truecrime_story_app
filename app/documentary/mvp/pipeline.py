@@ -507,11 +507,16 @@ def stage_complete(plan_row: VisualPlan, language: str) -> dict:
             "degraded": f"{len(gaps)} moment(s) ({seconds}s) of the {language} film are still bare, in beats {shown}"}
 
 
+def music_in_film(script: dict) -> int:
+    """The music placements of the film's story: the closing track of the ending is no placement of the audio plan."""
+    return sum(1 for cue in script.get("music") or [] if cue.get("role") != "outro")
+
+
 def stage_coverage(db: Session, needs_plan: VisualPlan, script: dict, manifest: dict) -> dict:
     report = CV.measure(script, needs_plan, db, manifest["timeline"].get("sentences") or [])
     verdict = CV.verdict(report)
     planned_music = len((manifest.get("mix") or {}).get("placements") or [])
-    music = {"planned": planned_music, "in_film": len(script.get("music") or [])}
+    music = {"planned": planned_music, "in_film": music_in_film(script)}
     host = {"required": host_required(), "avatar_in_film": bool(script.get("avatar_used")),
             "seconds": round(sum(h.get("seconds", 0.0) for h in (script.get("host") or [])
                                  if isinstance(h, dict)), 1)}

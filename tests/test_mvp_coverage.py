@@ -114,3 +114,11 @@ def test_a_picture_held_longer_to_cover_a_gap_is_not_a_picture_held_too_long(db_
     covered = {**shot(0, 33), "gap_cover_seconds": 6.0}                      # 27 s of its own + 6 s of a gap its neighbour could not
     assert C.measure({"duration": 33.0, "shots": [covered]}, plan, db_session, [])["long_stills"] == []
     assert len(C.measure({"duration": 33.0, "shots": [shot(0, 33)]}, plan, db_session, [])["long_stills"]) == 1
+
+
+def test_the_closing_track_of_the_ending_is_no_placement_of_the_audio_plan():
+    from app.documentary.mvp.pipeline import music_in_film
+
+    script = {"music": [{"role": "score", "mood": "mystery"}, {"role": "score", "mood": "neutral"},
+                        {"role": "outro", "mood": "reflective"}]}
+    assert music_in_film(script) == 2 and music_in_film({}) == 0

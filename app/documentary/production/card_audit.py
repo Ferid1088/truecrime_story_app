@@ -3,12 +3,13 @@ limits of its kind, and no other shot cuts into it. The render shows, at every m
 starts inside a card cuts the card short (the board showed for 0.4 s) and a card stretched far beyond its limit hides the
 pictures under it. This runs on the finished timeline (and again after the critic's fixes): a card too long is shortened to its
 limit, a shot that starts inside a card starts when the card ends, a card that cannot have its minimum is taken out, and the
-gaps this leaves are closed by the picture before them."""
+gaps this leaves are closed by the picture before them (two cards with a hole between them leave a bare moment: the gap rules cover it)."""
 
 from __future__ import annotations
 
 from app.core.ai_config import ai_config
 from app.documentary.graphics import theme as T
+from app.documentary.production.picture_rules import bare
 
 CARD_KINDS = ("graphic", "detective_board")
 EPS = 1e-3
@@ -89,6 +90,7 @@ def audit(shots: list[dict], board: list[dict] | None = None) -> list[dict]:
             done.append({"fix": "removed_too_short", "kind": card["kind"], "start": card["start"],
                          "seconds": round(card["end"] - card["start"], 1)})
     shots.sort(key=lambda s: (s["start"], s["end"]))
+    holes: list[dict] = []
     for a, b in zip(shots, shots[1:], strict=False):
         if a["end"] < b["start"] - 0.01:
             if not _is_card(a):
@@ -98,5 +100,8 @@ def audit(shots: list[dict], board: list[dict] | None = None) -> list[dict]:
             else:                                          # two cards with a hole between them: the first is held longer
                 a["end"] = round(min(b["start"], a["start"] + limits(a)[1]), 3)
                 if a["end"] < b["start"] - 0.01:
+                    holes.append(bare(a["end"], b["start"], a.get("beat_id")))
                     done.append({"fix": "gap_between_cards", "start": a["end"], "seconds": round(b["start"] - a["end"], 1)})
+    shots.extend(holes)                                    # a hole is a bare moment, never a stretch no shot covers
+    shots.sort(key=lambda s: (s["start"], s["end"]))
     return done

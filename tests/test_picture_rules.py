@@ -187,3 +187,29 @@ def test_a_picture_that_is_long_enough_or_not_between_two_gaps_or_a_clip_is_not_
     assert PR.hold_pictures_between_gaps(next_to_card) == []
     clip = [black(0, 20), {"kind": "video", "start": 20.0, "end": 25.0}, black(25, 70)]
     assert PR.hold_pictures_between_gaps(clip) == []
+
+
+def graphic(start, end, fact, reuse=None):
+    return {"kind": "graphic", "start": start, "end": end, "beat_id": "B01", "graphic": {"data": {"claims": [{"fact_id": fact}]}},
+            **({"detective_reuse_reason": reuse} if reuse else {})}
+
+
+def test_the_evidence_of_one_graphic_is_not_shown_again_on_a_later_graphic():
+    shots = [graphic(0, 20, "B26-4"), graphic(36, 56, "B26-4"), graphic(60, 80, "B30-1")]
+    done = PR.drop_repeated_graphics(shots)
+    assert done == [{"fix": "repeated_graphic_removed", "start": 36.0, "evidence": ["B26-4"]}]
+    assert [s["kind"] for s in shots] == ["graphic", "black", "graphic"] and shots[1]["bare"]
+
+
+def test_a_graphic_the_detective_director_brought_back_on_purpose_stays():
+    shots = [graphic(0, 20, "B26-4"), graphic(36, 56, "B26-4", reuse="the same page again to compare")]
+    assert PR.drop_repeated_graphics(shots) == [] and [s["kind"] for s in shots] == ["graphic", "graphic"]
+
+
+def test_a_card_after_the_drawings_gap_cuts_in_instead_of_fading_up_from_black():
+    gap = {"kind": "black", "start": 0, "end": 20, "transition_in": "CROSSFADE"}
+    card = {"kind": "graphic", "start": 20, "end": 40, "transition_in": "FADE_BLACK"}
+    after_picture = {"kind": "graphic", "start": 60, "end": 80, "transition_in": "FADE_BLACK"}
+    picture = {"kind": "image", "start": 40, "end": 60, "transition_in": "CROSSFADE"}
+    assert PR.cut_in_after_gaps([gap, card, picture, after_picture]) == 1
+    assert card["transition_in"] == "NONE" and after_picture["transition_in"] == "FADE_BLACK"

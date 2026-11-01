@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.core.media_tools import ffmpeg_bin, ffprobe_bin
 from app.db.models import MvpRequirement, VisualAsset, VisualPlan
+from app.documentary.production.picture_rules import fact_ids
 from app.documentary.visuals.spoilers import Firewall
 from app.documentary.visuals.usage import UsageTracker, asset_facts
 
@@ -84,20 +85,6 @@ def measure(script: dict, plan: VisualPlan, db: Session, sentences: list[dict]) 
         "requirements": requirement_coverage(db, plan, shots, tracker, Firewall.from_json(script.get("firewall"))),
         "graphics": graphic_checks(script),
     }
-
-
-def fact_ids(value) -> set[str]:
-    """Every fact id a graphic's data names (they say what evidence the page shows)."""
-    found: set[str] = set()
-    if isinstance(value, dict):
-        if isinstance(value.get("fact_id"), str):
-            found.add(value["fact_id"])
-        for v in value.values():
-            found |= fact_ids(v)
-    elif isinstance(value, list):
-        for v in value:
-            found |= fact_ids(v)
-    return found
 
 
 def graphic_checks(script: dict) -> dict:

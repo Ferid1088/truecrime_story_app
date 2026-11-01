@@ -56,3 +56,13 @@ def test_a_clean_timeline_is_left_alone():
     shots = [image(0, 10), graphic(10, 26), image(26, 40), board(40, 60), image(60, 70)]
     before = [dict(s) for s in shots]
     assert CA.audit(shots) == [] and shots == before
+
+
+def test_a_hole_that_holding_the_first_card_longer_cannot_close_is_a_bare_moment_not_a_stretch_no_shot_covers():
+    shots = [board(0, 24.0), graphic(30.5, 51.0)]
+    done = CA.audit(shots)
+    assert [d["fix"] for d in done] == ["gap_between_cards"]
+    hole = [s for s in shots if s["kind"] == "black"]
+    assert len(hole) == 1 and hole[0]["bare"] and hole[0]["start"] == 24.0 and hole[0]["end"] == 30.5
+    ordered = sorted(shots, key=lambda s: s["start"])
+    assert all(abs(b["start"] - a["end"]) < 0.011 for a, b in zip(ordered, ordered[1:], strict=False)), "no hole is left"

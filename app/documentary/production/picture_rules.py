@@ -63,6 +63,36 @@ class NameForms:
         return named_by(text, slug) or self._found(text, slug, ("full", "first"))
 
 
+def fact_ids(value) -> set[str]:
+    """Every fact id a graphic's data names (they say what evidence the page shows)."""
+    found: set[str] = set()
+    if isinstance(value, dict):
+        if isinstance(value.get("fact_id"), str):
+            found.add(value["fact_id"])
+        for v in value.values():
+            found |= fact_ids(v)
+    elif isinstance(value, list):
+        for v in value:
+            found |= fact_ids(v)
+    return found
+
+
+def drop_repeated_graphics(shots: list[dict]) -> list[dict]:
+    """No evidence is shown on two graphics: the later one becomes a bare moment (the gap rules cover it), unless the Detective Director
+    placed it with an explicit reason to come back to it. Returns what was dropped."""
+    seen: set[str] = set()
+    done = []
+    for shot in sorted((s for s in shots if s.get("kind") == "graphic"), key=lambda s: s["start"]):
+        ids = fact_ids((shot.get("graphic") or {}).get("data"))
+        if ids & seen and not shot.get("detective_reuse_reason"):
+            shots[shots.index(shot)] = bare(shot["start"], shot["end"], shot.get("beat_id"))
+            done.append({"fix": "repeated_graphic_removed", "start": round(shot["start"], 1), "evidence": sorted(ids & seen)})
+            continue
+        seen |= ids
+    shots.sort(key=lambda s: (s["start"], s["end"]))
+    return done
+
+
 def bare(start: float, end: float, beat_id: str | None) -> dict:
     """A moment with no picture: black for now, the drawing covers it."""
     return {"kind": "black", "command": "BLACK_SCREEN", "beat_id": beat_id, "start": round(start, 3), "end": round(end, 3),
@@ -212,6 +242,17 @@ def hold_pictures_between_gaps(shots: list[dict]) -> list[dict]:
                 shots.remove(gap)
         i = shots.index(pic) + 1
     return done
+
+
+def cut_in_after_gaps(shots: list[dict]) -> int:
+    """A shot that comes after a gap (the pencil drawing's full screen) cuts in: fading it in from black would show a second of dark
+    frames where the drawing has just left. Returns how many shots were changed."""
+    changed = 0
+    for before, shot in zip(shots, shots[1:], strict=False):
+        if before["kind"] == "black" and shot.get("transition_in") == "FADE_BLACK":
+            shot["transition_in"] = "NONE"
+            changed += 1
+    return changed
 
 
 def cover_short_gaps(shots: list[dict], film_end: float | None = None) -> list[dict]:

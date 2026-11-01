@@ -72,10 +72,12 @@ class DocumentaryCritics:
             report["fixes"] = apply_fixes(script, problems, assets)
             if report["fixes"]:
                 # a fix may have moved a card: every card gets its own time again
+                report["repeated_graphics"] = PR.drop_repeated_graphics(script.get("shots") or [])
                 report["card_audit"] = CA.audit(script.get("shots") or [], script.get("board"))
                 report["picture_limit"] = PR.limit_picture_seconds(script.get("shots") or [])     # and no picture stays too long
                 report["between_gaps"] = PR.hold_pictures_between_gaps(script.get("shots") or [])
                 report["short_gaps"] = PR.cover_short_gaps(script.get("shots") or [], script.get("duration"))
+                report["cut_in_after_gaps"] = PR.cut_in_after_gaps(script.get("shots") or [])
                 finalize_graphics(script.get("shots") or [], script.get("language"))      # a card held longer gets its cues for its new length
                 for n, sh in enumerate(script.get("shots") or []):
                     sh["index"] = n
