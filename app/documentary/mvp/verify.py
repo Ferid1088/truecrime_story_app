@@ -17,7 +17,7 @@ from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.db.models import Case, MvpCandidate, MvpRequirement, VisualAsset
 from app.documentary import storage
-from app.documentary.mvp.media import image_for_check
+from app.documentary.mvp.media import checked_image
 from app.documentary.visuals import images as IM
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
@@ -227,7 +227,7 @@ async def model_judge(case: Case, asset: VisualAsset, entities: list[dict], fact
         "entity_list": entities, "facts": [{"id": f["id"], "claim": f["claim"]} for f in facts],
     }
     try:
-        image = IM.data_url(await asyncio.to_thread(image_for_check, asset))
+        image = IM.data_url(await checked_image(asset))
         gen = get_generation_provider()
         timeout = ai_config.mvp().call_timeout_s
         with track_run(db, case.id, "Main Visual Planner: verify", input_summary=asset.asset_code) as run:

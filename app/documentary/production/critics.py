@@ -217,6 +217,8 @@ def previous_productions(db: Session, row: ProductionScript,
             script = json.loads(r.script_json or "{}")
         except (TypeError, ValueError):
             continue
+        if not all(isinstance(s, dict) and "start" in s for s in script.get("shots") or []):
+            continue                                       # a script of another case that is not a timeline cannot be compared with
         out.append({"id": r.id, "case_id": r.case_id, "script": script})
         if len(out) >= n:
             break

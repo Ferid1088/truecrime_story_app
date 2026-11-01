@@ -52,7 +52,10 @@ def test_every_approved_picture_gets_a_card_once_and_a_failed_answer_is_not_a_ca
         return answers[len(calls) - 1], SimpleNamespace(model="m", provider="p", usage=None)
 
     monkeypatch.setattr(DS, "run_agent", fake_run_agent)
-    monkeypatch.setattr(DS, "image_for_check", lambda a: "unused")
+    async def unused_image(asset):
+        return "unused"
+
+    monkeypatch.setattr(DS, "checked_image", unused_image)
     monkeypatch.setattr(DS.IM, "data_url", lambda p: "data:image/png;base64,")
     monkeypatch.setattr(DS, "get_generation_provider", lambda: object())
     monkeypatch.setattr(DS, "stamp_run", lambda run, res, role: None)
@@ -64,3 +67,17 @@ def test_every_approved_picture_gets_a_card_once_and_a_failed_answer_is_not_a_ca
     answers[:] = [{"shows": "A man.", "people": [], "setting": "y", "kind": "portrait"}]
     again = asyncio.run(DS.describe_approved(db_session, case, photos, ENTITIES))
     assert again["described"] == 1 and len(calls) == 1, "the picture that has a card is not asked again"
+
+
+def test_the_picture_check_runs_on_a_plain_copy_of_the_asset_never_the_orm_object(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.db.models import VisualAsset
+    from app.documentary.mvp import media
+
+    seen = []
+    monkeypatch.setattr(media, "image_for_check", lambda asset: seen.append(asset) or "thumb.jpg")
+    asset = VisualAsset(asset_type="photo", thumbnail_path="t.jpg", local_path="p.jpg", case_id=1, asset_code="VIS_1")
+    assert asyncio.run(media.checked_image(asset)) == "thumb.jpg"
+    assert isinstance(seen[0], SimpleNamespace) and seen[0].asset_code == "VIS_1" and seen[0].thumbnail_path == "t.jpg"

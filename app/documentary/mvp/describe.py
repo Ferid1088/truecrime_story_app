@@ -14,7 +14,7 @@ from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.core.concurrency import limit_size
 from app.db.models import Case, VisualAsset, VisualPlan
-from app.documentary.mvp.media import image_for_check
+from app.documentary.mvp.media import checked_image
 from app.documentary.visuals import images as IM
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
@@ -61,7 +61,7 @@ async def describe_asset(db: Session, case: Case, asset: VisualAsset, entities: 
                "entity_list": [{k: e.get(k) for k in ("key", "name", "type", "description", "not_this") if e.get(k)}
                                for e in entities]}
     try:
-        image = IM.data_url(await asyncio.to_thread(image_for_check, asset))
+        image = IM.data_url(await checked_image(asset))
         with track_run(db, case.id, "Main Visual Planner: describe", input_summary=asset.asset_code) as run:
             data, res = await asyncio.wait_for(
                 run_agent("mvp.describe", get_generation_provider(), json.dumps(payload, ensure_ascii=False), images=[image]),

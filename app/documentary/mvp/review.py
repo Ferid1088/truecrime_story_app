@@ -113,6 +113,21 @@ def decide(db: Session, review: MvpFilmReview, decision: str, note: str | None =
     return review
 
 
+def approve_with_findings(db: Session, review: MvpFilmReview, render_sha256: str, note: str | None = None) -> MvpFilmReview:
+    """The owner's approval of a rendered film the checks did not pass: the owner has watched it and accepts what the checks found. Valid only
+    on the exact file (its checksum is read from the disk again) and only for a film the checks held back; the findings are kept in the note."""
+    if review.state != "PRODUCING" or not review.render_path:
+        raise ReviewError(f"the film is {review.state}: only a rendered film the checks held back can be approved with findings")
+    if not Path(review.render_path).exists() or sha256_of(Path(review.render_path)) != render_sha256 or render_sha256 != review.render_sha256:
+        raise ReviewError("the approval names a different render than the one the checks held back")
+    findings = "; ".join(json.loads(review.validation_json or "{}").get("blocking") or [])
+    review.state = "APPROVED"
+    review.owner_note = f"Approved by the owner with open findings: {findings}" + (f". {note}" if note else "")
+    review.decided_at = datetime.now().astimezone()
+    db.commit()
+    return review
+
+
 def invalidate_if_changed(db: Session, review: MvpFilmReview, render_path: Path) -> bool:
     """An approval holds only for the exact approved bytes: a different file voids it."""
     if review.state == "APPROVED" and review.render_sha256 != sha256_of(render_path):

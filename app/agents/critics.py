@@ -12,8 +12,7 @@ from app.documentary.visuals.usage import annotate, asset_facts, record_media_us
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 from app.documentary.graphics.shots import finalize as finalize_graphics
-from app.documentary.production import card_audit as CA
-from app.documentary.production import picture_rules as PR
+from app.documentary.production import preflight as PF
 from app.documentary.production.critics import (
     CRITIC_FOCUS,
     CRITIC_ROLES,
@@ -72,12 +71,10 @@ class DocumentaryCritics:
             report["fixes"] = apply_fixes(script, problems, assets)
             if report["fixes"]:
                 # a fix may have moved a card: every card gets its own time again
-                report["repeated_graphics"] = PR.drop_repeated_graphics(script.get("shots") or [])
-                report["card_audit"] = CA.audit(script.get("shots") or [], script.get("board"))
-                report["picture_limit"] = PR.limit_picture_seconds(script.get("shots") or [])     # and no picture stays too long
-                report["between_gaps"] = PR.hold_pictures_between_gaps(script.get("shots") or [])
-                report["short_gaps"] = PR.cover_short_gaps(script.get("shots") or [], script.get("duration"))
-                report["cut_in_after_gaps"] = PR.cut_in_after_gaps(script.get("shots") or [])
+                sound = PF.repair(script.get("shots") or [], script.get("duration"), script.get("board"))
+                report["card_audit"] = sound.pop("card_audit")                 # a fix may have moved a card: every card gets its own time again
+                report["picture_limit"] = sound.pop("held_too_long")           # and no picture stays too long
+                report.update(sound)
                 finalize_graphics(script.get("shots") or [], script.get("language"))      # a card held longer gets its cues for its new length
                 for n, sh in enumerate(script.get("shots") or []):
                     sh["index"] = n
@@ -88,6 +85,7 @@ class DocumentaryCritics:
                 report["after_fixes"] = deterministic_checks(script, assets, previous)
                 row.script_json = json.dumps(script, ensure_ascii=False)
                 record_media_usage(db, row, script)
+        report["preflight"] = PF.problems(script.get("shots") or [], script.get("duration"))      # nothing is rendered with a hole, a repeat or a stretch of black
         from app.db.models import Case, VisualPlan
         from app.documentary.drawing import script as DRS
 

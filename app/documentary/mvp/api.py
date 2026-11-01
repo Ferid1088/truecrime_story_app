@@ -24,6 +24,7 @@ class Decision(BaseModel):
     decision: str
     note: str | None = None
     render_sha256: str | None = None
+    accept_findings: bool = False          # the owner has watched a film the checks held back and accepts what they found
 
 
 def review_dict(row: MvpFilmReview) -> dict:
@@ -45,6 +46,10 @@ def decide(review_id: int, payload: Decision, db: Session = Depends(get_db)):
     if row is None:
         raise HTTPException(404, "Review not found")
     try:
+        if payload.accept_findings:
+            if payload.decision != "APPROVED" or not payload.render_sha256:
+                raise RV.ReviewError("accepting findings is an approval and names the render's checksum")
+            return review_dict(RV.approve_with_findings(db, row, payload.render_sha256, payload.note))
         return review_dict(RV.decide(db, row, payload.decision, payload.note, payload.render_sha256))
     except RV.ReviewError as e:
         raise HTTPException(409, str(e)) from e

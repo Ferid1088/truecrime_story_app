@@ -94,7 +94,10 @@ def test_a_calls_timeout_never_includes_waiting_for_a_vision_slot(db_session, mo
     monkeypatch.setattr(V, "run_agent", slow_agent)
     monkeypatch.setattr(V, "get_generation_provider", lambda: object())
     monkeypatch.setattr(V.IM, "data_url", lambda p: "data:image/jpeg;base64,AA==")
-    monkeypatch.setattr(V, "image_for_check", lambda a: None)
+    async def no_image(asset):
+        return None
+
+    monkeypatch.setattr(V, "checked_image", no_image)
     monkeypatch.setattr(P.ND, "build_pack", lambda db, case_id: ({"facts": []}, []))
     monkeypatch.setattr(P, "entities_with_dossiers", lambda db, case_, reqs: [{"key": "e", "name": "E", "type": "person"}])
     out = asyncio.run(P.verify_pending(db_session, case, plan, {"entities": [], "beats": []}))

@@ -294,6 +294,7 @@ def cover_short_gaps(shots: list[dict], film_end: float | None = None) -> list[d
             before["end"] = g["end"]                                    # the renderer holds the clip's last frame once its shot outlasts it
             before["frozen_tail_seconds"] = round(before.get("frozen_tail_seconds", 0.0) + length, 3)
         else:
+            g["left_black"] = True                                      # neither neighbour can hold it: it stays, reported (never drawn)
             done.append({"fix": "short_gap_left", "start": round(g["start"], 1), "seconds": round(length, 1),
                          "before": before["kind"] if before else None, "after": after["kind"] if after else None})
             i += 1

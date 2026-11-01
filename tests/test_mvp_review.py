@@ -97,3 +97,25 @@ def test_a_new_run_starts_the_review_over_but_never_touches_a_decision(db_sessio
     RV.supersede(db_session, case.id, "en")                # the owner's decision stays
     db_session.refresh(review)
     assert review.state == "APPROVED" and review.render_sha256
+
+
+def test_the_owner_can_approve_a_film_the_checks_held_back_on_its_exact_file(db_session, tmp_path):
+    case = _case(db_session)
+    review, film = _to_validating(db_session, case, tmp_path)
+    RV.submit_for_review(db_session, review, production_script_id=None, render_path=film,
+                         validation={"review_ready": False, "blocking": ["3 graphic item(s) shown more than once"]})
+    assert review.state == "PRODUCING"
+    with pytest.raises(RV.ReviewError, match="different render"):
+        RV.approve_with_findings(db_session, review, "0" * 64)
+    RV.approve_with_findings(db_session, review, review.render_sha256, "watched it")
+    assert RV.english_approved(db_session, case.id)
+    assert "3 graphic item(s) shown more than once" in review.owner_note and "watched it" in review.owner_note
+    with pytest.raises(RV.ReviewError, match="only a rendered film"):
+        RV.approve_with_findings(db_session, review, review.render_sha256)
+
+
+def test_a_film_that_waits_for_review_is_decided_the_usual_way_not_with_findings(db_session, tmp_path):
+    review, film = _to_validating(db_session, _case(db_session), tmp_path)
+    RV.submit_for_review(db_session, review, production_script_id=None, render_path=film, validation={"review_ready": True})
+    with pytest.raises(RV.ReviewError, match="only a rendered film"):
+        RV.approve_with_findings(db_session, review, review.render_sha256)
