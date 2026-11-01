@@ -1289,3 +1289,36 @@ def test_memory_api_lists_usage_edits_deactivates_and_deletes_only_editor_memori
     db_session.expire_all()
     assert db_session.get(HostMemory, editor_id) is None
     assert client.delete(f"/api/documentary/host/memory/{planned_id}").status_code == 200
+
+
+def test_a_plan_made_from_the_english_structure_keeps_its_sections_and_recomputes_the_seconds_for_another_language():
+    from app.documentary.host import structure_of
+
+    english_story, german_story = story("en"), story("de")
+    english, _ = validate_host_plan(plan_raw(), english_story)
+    row = SimpleNamespace(plan_json=json.dumps(english))
+    derived, report = validate_host_plan(structure_of(row), german_story)
+    assert not report["errors"]
+    assert [(s["id"], s["role"], s["position"], s["beat_id"]) for s in derived["segments"]] == \
+           [(s["id"], s["role"], s["position"], s["beat_id"]) for s in english["segments"]]
+    assert len(derived["segments"]) == 4
+
+
+def test_the_english_host_plan_of_the_case_is_found_through_its_blueprint(db_session):
+    from app.db.models import EditorialBlueprint, HostPlan
+    from app.documentary.host import english_host_plan
+
+    case, master, _ = _plan_story(db_session, "en")
+    german = _version(db_session, case, master, "de")
+    blueprints = {}
+    for version in (master, german):
+        bp = EditorialBlueprint(case_id=case.id, story_version_id=version.id, version=1, status="valid", evidence_fingerprint="x",
+                                central_question="q", editorial_thesis="t", human_thread="h", blueprint_json="{}", validation_json="{}")
+        db_session.add(bp)
+        db_session.flush()
+        db_session.add(HostPlan(case_id=case.id, blueprint_id=bp.id, version=1, status="valid", plan_json=json.dumps(plan_raw()),
+                                validation_json="{}", persona_file="p", persona_sha256="s"))
+        blueprints[version.language] = bp
+    db_session.commit()
+    found = english_host_plan(db_session, case.id)
+    assert found is not None and found.blueprint_id == blueprints["en"].id

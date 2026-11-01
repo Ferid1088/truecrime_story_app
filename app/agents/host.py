@@ -30,6 +30,7 @@ from app.documentary.host import (
     dialogue_issues,
     director_input,
     director_system_prompt,
+    english_host_plan,
     estimate_seconds,
     meaning_input,
     meaning_problems,
@@ -40,6 +41,7 @@ from app.documentary.host import (
     recent_segments,
     remember,
     segment_output,
+    structure_of,
     writer_input,
     writer_system_prompt,
 )
@@ -85,8 +87,14 @@ class HostDirector:
         payload = director_input(story, narration)
         system = director_system_prompt(self.cfg, narration)
 
-        raw, res = await self._json(db, case.id, "Host Director", "host_director", system, payload)
-        plan, report = validate_host_plan(raw, story, self.cfg)
+        plan, report, res, raw = None, {"errors": [True]}, None, {}
+        english = english_host_plan(db, case.id) if (master.language or "en") != ai_config.language_pipeline.draft_language else None
+        if english is not None:        # the film of another language has the host sections of the English film, when they fit its story
+            plan, report = validate_host_plan(structure_of(english), story, self.cfg)
+            report["origin"] = f"the English film's host plan {english.id}"
+        if plan is None or report["errors"]:
+            raw, res = await self._json(db, case.id, "Host Director", "host_director", system, payload)
+            plan, report = validate_host_plan(raw, story, self.cfg)
         repairs = 0
         while report["errors"] and repairs < self.cfg.max_repair_iterations:
             repairs += 1

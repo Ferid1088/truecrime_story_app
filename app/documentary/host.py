@@ -561,6 +561,23 @@ def latest_host_plan(db: Session, blueprint_id: int) -> HostPlan | None:
             .order_by(HostPlan.version.desc()).first())
 
 
+def english_host_plan(db: Session, case_id: int) -> HostPlan | None:
+    """The newest usable host plan of the case's English film (the draft language): every other language's film has the same host sections."""
+    draft = ai_config.language_pipeline.draft_language
+    return (db.query(HostPlan)
+            .join(EditorialBlueprint, EditorialBlueprint.id == HostPlan.blueprint_id)
+            .join(StoryVersion, StoryVersion.id == EditorialBlueprint.story_version_id)
+            .filter(HostPlan.case_id == case_id, StoryVersion.language == draft, HostPlan.status != "invalid")
+            .order_by(HostPlan.version.desc()).first())
+
+
+def structure_of(plan_row: HostPlan) -> dict:
+    """A stored plan as the structure the director would give: its appearances (role, position, after which act, why)."""
+    return {"notes": "the structure of the English film", "segments": [
+        {"id": s["id"], "position": s["position"], "role": s["role"], "after_act": s.get("beat_id"), "reason": s.get("reason", "")}
+        for s in json.loads(plan_row.plan_json or "{}").get("segments") or []]}
+
+
 def latest_story_host_plan(db: Session, story_plan_id: int) -> HostPlan | None:
     """The newest usable host plan of a story plan (a story without a blueprint)."""
     return (db.query(HostPlan)
