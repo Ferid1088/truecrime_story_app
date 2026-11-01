@@ -120,11 +120,18 @@ class LanguageChain:
                     "narration budget reached "
                     f"({ai_config.documentary.max_tts_characters_per_job} characters)")
             plan = performance_for_version(db, version)
+            if lang in ai_config.voice.prepared_languages:           # the film's pronunciation dictionary goes with every block
+                from app.documentary import voice_prepare as VP
+
+                plan["pronunciation_dictionary"] = await VP.ensure_dictionary(db, version, lang)
             m = await render_documentary_audio(
                 plan, case_id=case.id, story_version_id=version.id,
                 max_seconds=pilot_seconds if pilot else None, db=db,
                 renderer=VoiceRenderer(db=db, budget_case_id=case.id,
-                                       budget_stage=f"tts:{lang}", arbiter=PronunciationEditor(),
+                                       budget_stage=f"tts:{lang}",
+                                       use_asr=lang not in ai_config.voice.prepared_languages,       # a prepared language is not listened to afterwards
+                                       use_listener=lang not in ai_config.voice.prepared_languages,
+                                       arbiter=None if lang in ai_config.voice.prepared_languages else PronunciationEditor(),
                                        documentary_job_id=job.id,
                                        budget_pilot_seconds=pilot_seconds if pilot else None))
             holder["m"] = m

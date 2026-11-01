@@ -411,6 +411,7 @@ def test_voice_render_sends_tags_checks_display_and_runs_in_parallel(tmp_path, m
     from test_voice_render import FakeASR, FakeTTS
 
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
+    monkeypatch.setattr(ai_config.voice, "prepared_languages", [])       # the checks run for a language that is not prepared before it is voiced
     tts = FakeTTS()
     active = {"now": 0, "max": 0}
     inner = tts.synthesize
@@ -661,6 +662,8 @@ def test_voice_render_fixes_a_misread_word_and_checks_again(tmp_path, monkeypatc
     from pathlib import Path as _P  # noqa: F401
 
     from test_voice_render import FakeASR, FakeTTS
+
+    monkeypatch.setattr(ai_config.voice, "prepared_languages", [])       # the pronunciation loop runs for a language that is not prepared
 
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
     monkeypatch.setattr(PR, "span_times", lambda al, text, span, t0: (0.65, 1.15))

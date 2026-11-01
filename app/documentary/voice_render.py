@@ -187,6 +187,7 @@ class VoiceRenderer:
         self.documentary_job_id = documentary_job_id
         self.budget_pilot_seconds = budget_pilot_seconds
         self._budget_usage_missing = False
+        self.dictionaries: list[dict] = []        # the film's pronunciation dictionary locators (a prepared language)
         self.asr_error: str | None = None
         # phoneme listener for the pronunciation loop (loaded when needed)
         self._listener = listener
@@ -211,7 +212,8 @@ class VoiceRenderer:
         base = Path(ai_config.voice.work_dir)
         if not base.is_absolute():
             base = ROOT / base
-        return base / str(case_id) / "audio" / language / f"v{story_version_id}"
+        prepared = "_prepared" if language in ai_config.voice.prepared_languages else ""      # the earlier narration of the version stays where it is
+        return base / str(case_id) / "audio" / language / f"v{story_version_id}{prepared}"
 
     def out_dir(self, case_id: int, language: str, story_version_id: int) -> Path:
         return self.out_dir_for(case_id, language, story_version_id)
@@ -223,6 +225,7 @@ class VoiceRenderer:
                 "text": req.text, "prev": req.previous_text, "next": req.next_text,
                 "voice": req.voice_id, "model": req.model_id,
                 **({"lang": req.language_code} if req.language_code else {}),
+                **({"dictionaries": req.pronunciation_dictionaries} if req.pronunciation_dictionaries else {}),
                 "settings": req.settings, "seed": req.seed, "format": output_format,
             },
             sort_keys=True, ensure_ascii=False,
@@ -320,7 +323,7 @@ class VoiceRenderer:
                            if block.get("sentences") else [])
 
         asr = None
-        if self.asr is not None:
+        if self.asr is not None and language not in self.cfg.prepared_languages:
             # The check compares what people should hear (no tags, no
             # harakat added for pronunciation) with what Whisper heard.
             heard_text = await self._heard(wav, meta, meta_path, language)
@@ -390,18 +393,19 @@ class VoiceRenderer:
         from app.documentary.pronunciation import apply_fixes, risky_occurrences
 
         takes: list[dict] = []
+        prepared = language in self.cfg.prepared_languages       # edited before the voice: one take, nothing is listened to afterwards
         sentences = [{**x, "tts": scrub_forbidden(x["tts"])} if x.get("tts") else dict(x)
                      for x in b.get("sentences") or []]
         # `synonyms=False`: the words are frozen (the host's text); only what the voice is
         # given may change
         occurrences = (risky_occurrences(sentences, synonyms)
                        if self.pron_cfg.enabled and language in self.pron_cfg.languages
-                       and sentences else [])
+                       and sentences and not prepared else [])
         if occurrences and self.listener() is None:
             occurrences = []
         text = scrub_forbidden(b.get("tts_text") or b["text"])
         asr_cfg = self.asr_cfg.for_language(language)
-        asr_retakes = asr_cfg.auto_retakes if asr_cfg.mode == "strict" else 0
+        asr_retakes = asr_cfg.auto_retakes if asr_cfg.mode == "strict" and not prepared else 0
         rounds = self.pron_cfg.max_rounds if occurrences else 0
         fixes: list[dict] = []
         for attempt in range(1 + asr_retakes + rounds):
@@ -417,6 +421,7 @@ class VoiceRenderer:
                 next_text=b.get("next_text") or "",
                 seed=seed, language=language,
                 language_code=lang_cfg.language_code,
+                pronunciation_dictionaries=list(self.dictionaries) if prepared else [],
             )
             take = await self._take(blk, req, blocks_dir, language)
             if occurrences:
@@ -478,6 +483,8 @@ class VoiceRenderer:
     ) -> dict:
         language = plan["language"]
         lang_cfg = self.cfg.for_language(language)
+        if language in self.cfg.prepared_languages:
+            self.dictionaries = list(plan.get("pronunciation_dictionary") or [])
         # An explicit style overrides the performance script (A/B tests);
         # otherwise each block uses its own style, else the default.
         for name in {style} | {b.get("style") for b in plan["blocks"]}:

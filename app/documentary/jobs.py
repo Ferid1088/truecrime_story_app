@@ -426,10 +426,19 @@ class DocumentaryPipeline(StageRunner):
                         f"spoken version not approved after {outcome.attempts - 1} redo(s): "
                         + ", ".join(map(str, outcome.reasons)))
                 v = current
+                prepared = None
+                if lang in ai_config.voice.prepared_languages:       # edited, checked and given its pronunciation rules before it is voiced
+                    from app.documentary import voice_prepare as VP
+
+                    before = v
+                    v = await VP.prepare_version(db, case, v, lang)
+                    prepared = {"from_version_id": before.id if v.id != before.id else None,
+                                "rules": len((json.loads(v.narrative_structure or "{}").get("prepared") or {}).get("rules") or []),
+                                "reused": v.id == before.id}
                 gates = json.loads(v.critic_notes or "{}").get("quality_gates") or {}
                 return {"version_id": v.id, "status": v.status, "verdict": "approved",
                         "redos": len(history), "rejected_before": history,
-                        "failures": gates.get("failures", [])}
+                        "failures": gates.get("failures", []), **({"prepared": prepared} if prepared else {})}
 
             try:
                 d = await self._stage(f"spoken:{lang}", make_spoken)

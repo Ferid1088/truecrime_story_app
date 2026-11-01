@@ -146,6 +146,10 @@ REQUIRED_ROLES = {
     "mvp_person_inspector",
     # Before the film is directed in a language with its own script: how that language's narration writes the names of the case's people and places.
     "name_forms_reader",
+    # Before a prepared language (Persian) is voiced: its final text with the pronunciation rules of the risky words, and the check that the
+    # text is faithful to the English source.
+    "voice_prepare_editor",
+    "voice_prepare_checker",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",
@@ -1493,6 +1497,9 @@ class ElevenLabsConfig(BaseModel):
     max_retries: int = Field(default=2, ge=0, le=5)
     # Models that reject previous_text / next_text (request stitching).
     no_context_models: list[str] = ["eleven_v4"]
+    # Languages whose requests carry previous_text / next_text even for a model in no_context_models (the continuity of the intonation
+    # between blocks; the text is never spoken). Checked against the real API on 2026-11-01 for eleven_v4 and Persian.
+    context_languages: list[str] = []
     # Models that accept language_code (language enforcement).
     language_code_models: list[str] = ["eleven_v4", "eleven_turbo_v2_5",
                                        "eleven_flash_v2_5"]
@@ -1504,6 +1511,9 @@ class VoiceConfig(BaseModel):
     provider: str = "elevenlabs"
     elevenlabs: ElevenLabsConfig = Field(default_factory=ElevenLabsConfig)
     languages: dict[str, VoiceLanguageConfig] = {}
+    # Languages whose narration is prepared before it is voiced (voice_prepare.py: the text is edited, its pronunciation rules go to a
+    # dictionary of the film) and is voiced exactly once per block: no speech-to-text, no phoneme listener, no retake for a score.
+    prepared_languages: list[str] = []
     default_style: str = "neutral_documentary"
     styles: dict[str, VoiceStyle] = Field(
         default_factory=lambda: {"neutral_documentary": VoiceStyle()}
@@ -2350,6 +2360,20 @@ class VideoAuditConfig(BaseModel):
     frames_per_second: float = Field(default=1.0, gt=0.0, le=4.0)
     max_frames: int = Field(default=20, ge=3, le=40)
     frame_width: int = Field(default=384, ge=160, le=1280)
+
+
+class VoicePrepareConfig(BaseModel):
+    """The preparation of a narration before it is voiced (voice_prepare.py): the editor's chunks, the sanity limits of an edited sentence and
+    the English source given to the editor and the checker."""
+
+    sentences_per_call: int = Field(default=24, ge=4, le=80)
+    # an edited sentence keeps its content: it may not be much shorter or longer than the draft
+    min_length_ratio: float = Field(default=0.55, gt=0.0, le=1.0)
+    max_length_ratio: float = Field(default=1.7, ge=1.0, le=4.0)
+    source_chars: int = Field(default=3500, ge=500)
+    dictionary_name: str = "truecrime-{language}-case-{case_id}-v{version_id}"
+    # characters an IPA pronunciation of a rule may use (letters of the Latin and IPA blocks, length marks, spaces)
+    ipa_pattern: str = r"^[A-Za-z\u00C0-\u02FF\u1D00-\u1DBF\u02B0-\u02FF'ˈˌ.\- ]+$"
 
 
 class NamesConfig(BaseModel):
@@ -4186,6 +4210,7 @@ class AIConfig(BaseModel):
         default_factory=VisualVerificationConfig)
     video_audit: VideoAuditConfig = Field(default_factory=VideoAuditConfig)
     names: NamesConfig = Field(default_factory=NamesConfig)
+    voice_prepare: VoicePrepareConfig = Field(default_factory=VoicePrepareConfig)
     chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)
     detective_board: DetectiveBoardConfig = Field(default_factory=DetectiveBoardConfig)
     detective_toolkit: DetectiveToolkitConfig = Field(default_factory=DetectiveToolkitConfig)

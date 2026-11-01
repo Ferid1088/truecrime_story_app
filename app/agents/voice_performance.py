@@ -176,7 +176,7 @@ class VoicePerformanceDirector:
         # 4. pronunciation key: the words a voice could misread, with the
         #    reading the meaning needs (used by the listening loop)
         pron_report = None
-        if pcfg.enabled and language in pcfg.languages:
+        if pcfg.enabled and language in pcfg.languages and language not in ai_config.voice.prepared_languages:       # a prepared language has its rules already
             from app.documentary.pronunciation import PronunciationEditor
 
             need = [r for r in records if r["directed"] and r.get("risky") is None]

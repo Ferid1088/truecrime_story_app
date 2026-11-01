@@ -529,7 +529,7 @@ def test_the_host_of_another_language_wears_the_english_films_outfit_and_poses(d
     monkeypatch.setattr(outfit_library, "ROOT", tmp_path)
     monkeypatch.setattr(LK.storage, "ROOT", tmp_path)
     case = _case(db_session)
-    for studio in ("en", "de"):
+    for studio in ("en", "de", "ar"):
         db_session.query(OutfitItem).filter_by(studio=studio, outfit_slug="navySuit").delete()
     db_session.commit()
     items = {}

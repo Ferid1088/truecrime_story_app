@@ -525,6 +525,20 @@
       "description": "Before the film is directed in a language with its own script: how the narration writes each person and place of the case (full, first and last name).",
       "used_by": "app/documentary/names.py"
     },
+    "documentary.voice_prepare.edit": {
+      "role": "voice_prepare_editor",
+      "prompt": "documentary/voice_prepare/editor_fa_system",
+      "output": "json",
+      "description": "Before a prepared language (Persian) is voiced: each sentence's final text and the pronunciation rules of its risky words.",
+      "used_by": "app/documentary/voice_prepare.py"
+    },
+    "documentary.voice_prepare.check": {
+      "role": "voice_prepare_checker",
+      "prompt": "documentary/voice_prepare/check_fa_system",
+      "output": "json",
+      "description": "Before a prepared language is voiced: whether each beat's final text is faithful to the English source (meaning, names, numbers, facts).",
+      "used_by": "app/documentary/voice_prepare.py"
+    },
     "mvp.overlay_scan": {
       "role": "mvp_overlay_scanner",
       "prompt": "documentary/mvp/overlay_scan_system",

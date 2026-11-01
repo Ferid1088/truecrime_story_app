@@ -25,6 +25,9 @@
       ],
       "audio_tag_models": [
         "eleven_v4"
+      ],
+      "context_languages": [
+        "fa"
       ]
     },
     "languages": {
@@ -137,7 +140,10 @@
     "tail_pad_ms": 150,
     "between_blocks_ms": 200,
     "between_sections_ms": 1400,
-    "work_dir": "data/cases"
+    "work_dir": "data/cases",
+    "prepared_languages": [
+      "fa"
+    ]
   },
   "asr_check": {
     "enabled": true,

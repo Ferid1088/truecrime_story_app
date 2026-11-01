@@ -1144,6 +1144,7 @@ def test_settings_show_channels_and_credential_presence_only(client, monkeypatch
     monkeypatch.setenv("HEYGEN_API_KEY", "secret-heygen-value")
     monkeypatch.setenv("TrueCrime_Avatar_ID_Heygen", "avatar-123")
     monkeypatch.delenv("TrueCrime_ELEVENLABS_API_KEY", raising=False)
+    monkeypatch.delenv("TRUECRIME_ELEVENLABS_API_KEY", raising=False)
     s = client.get("/api/documentary/settings").json()
     assert s["channels"]["de"]["name"] == "Fallspur"
     assert s["credentials"] == {"elevenlabs": False, "avatar": {

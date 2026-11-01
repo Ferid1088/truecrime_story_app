@@ -122,6 +122,8 @@
         "mvp_picture_describer": "sol",
         "mvp_person_inspector": "premium",
         "name_forms_reader": "premium",
+        "voice_prepare_editor": "premium",
+        "voice_prepare_checker": "premium",
         "mvp_timing_classifier": "premium",
         "mvp_scene_director": "premium",
         "detective_text_analyser": "writer",
@@ -421,6 +423,14 @@
     "name_forms_reader": {
       "temperature": 0.0,
       "max_tokens": 8000
+    },
+    "voice_prepare_editor": {
+      "temperature": 0.2,
+      "max_tokens": 16000
+    },
+    "voice_prepare_checker": {
+      "temperature": 0.0,
+      "max_tokens": 6000
     },
     "mvp_picture_describer": {
       "temperature": 0.0,

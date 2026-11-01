@@ -509,5 +509,12 @@
     ],
     "learning_min_published_shorts": 30,
     "learning_min_episodes": 5
+  },
+  "voice_prepare": {
+    "sentences_per_call": 24,
+    "min_length_ratio": 0.55,
+    "max_length_ratio": 1.7,
+    "source_chars": 3500,
+    "dictionary_name": "truecrime-{language}-case-{case_id}-v{version_id}"
   }
 }

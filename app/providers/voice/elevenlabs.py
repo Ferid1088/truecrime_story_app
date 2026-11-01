@@ -48,11 +48,13 @@ class ElevenLabsVoiceProvider(VoiceProvider):
             "model_id": req.model_id,
             "voice_settings": dict(req.settings),
         }
-        context_ok = req.model_id not in self.cfg.no_context_models
+        context_ok = req.model_id not in self.cfg.no_context_models or (req.language or "") in self.cfg.context_languages
         if req.previous_text and context_ok:
             body["previous_text"] = req.previous_text
         if req.next_text and context_ok:
             body["next_text"] = req.next_text
+        if req.pronunciation_dictionaries:
+            body["pronunciation_dictionary_locators"] = [dict(x) for x in req.pronunciation_dictionaries]
         if req.seed is not None:
             body["seed"] = int(req.seed)
         if req.language_code and req.model_id in self.cfg.language_code_models:
@@ -90,6 +92,26 @@ class ElevenLabsVoiceProvider(VoiceProvider):
             400: "invalid_request", 429: "rate_limited",
         }.get(status, "provider_error" if status >= 500 else "invalid_request")
         return VoiceProviderError(kind, f"ElevenLabs {status}: {msg}")
+
+    async def create_pronunciation_dictionary(self, name: str, rules: list[dict]) -> dict:
+        """A pronunciation dictionary with these rules (POST /v1/pronunciation-dictionaries/add-from-rules; the key needs the
+        pronunciation_dictionaries_write permission). Returns {"id", "version_id"}. No characters are billed."""
+        if not self.is_configured():
+            raise VoiceProviderError("missing_credentials", f"{self.cfg.secret_env} is not set (.env).")
+        url = f"{self.cfg.base_url.rstrip('/')}/v1/pronunciation-dictionaries/add-from-rules"
+        try:
+            async with httpx.AsyncClient(timeout=self.cfg.request_timeout_s) as client:
+                r = await client.post(url, headers={"xi-api-key": self.api_key, "Content-Type": "application/json"},
+                                      json={"name": name, "rules": rules})
+        except httpx.HTTPError as e:
+            raise VoiceProviderError("unreachable", f"ElevenLabs unreachable: {e}") from e
+        try:
+            data = r.json()
+        except ValueError:
+            data = {"raw": r.text[:300]}
+        if r.status_code != 200 or not data.get("id") or not data.get("version_id"):
+            raise self._error(r.status_code, data)
+        return {"id": data["id"], "version_id": data["version_id"]}
 
     async def synthesize(self, req: VoiceRequest) -> VoiceRenderResult:
         if not self.is_configured():

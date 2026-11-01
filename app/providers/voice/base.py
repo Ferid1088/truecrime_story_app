@@ -31,6 +31,9 @@ class VoiceRequest:
     # Sent as language_code to models that support it (config:
     # voice.elevenlabs.language_code_models).
     language_code: str | None = None
+    # ElevenLabs pronunciation dictionary locators ({"pronunciation_dictionary_id", "version_id"}), sent as
+    # pronunciation_dictionary_locators.
+    pronunciation_dictionaries: list[dict] = field(default_factory=list)
 
 
 @dataclass
