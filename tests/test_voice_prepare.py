@@ -157,7 +157,7 @@ def fakes(monkeypatch):
         calls.append(role)
         if role == "voice_prepare_editor":
             return {"sentences": [{"i": s["i"], **EDITS[s["i"]]} for beat in payload["beats"] for s in beat["sentences"]]}
-        return {"beats": [{"beat_id": b["beat_id"], "ok": True, "problems": []} for b in payload["beats"]]}
+        return {"sentences": [{"i": s["i"], "ok": True, "problems": []} for beat in payload["beats"] for s in beat["sentences"]]}
 
     monkeypatch.setattr(VP, "_ask", ask)
     monkeypatch.setattr(VP, "english_sources", lambda db, version: {"B01": "At 2 a.m. Caleb called 911. The garage door was open.", "B02": "Ashley was in bed."})
@@ -188,7 +188,7 @@ def test_an_uncertain_word_a_failed_preflight_or_a_checker_problem_stops_before_
     async def with_uncertain(db, case_id, label, payload, role, runner):
         if role == "voice_prepare_editor":
             return {"sentences": [{"i": s["i"], **uncertain[s["i"]]} for beat in payload["beats"] for s in beat["sentences"]]}
-        return {"beats": [{"beat_id": b["beat_id"], "ok": True, "problems": []} for b in payload["beats"]]}
+        return {"sentences": [{"i": s["i"], "ok": True, "problems": []} for beat in payload["beats"] for s in beat["sentences"]]}
 
     monkeypatch.setattr(VP, "_ask", with_uncertain)
     with pytest.raises(VP.PreparationUncertain) as stopped:
@@ -198,8 +198,7 @@ def test_an_uncertain_word_a_failed_preflight_or_a_checker_problem_stops_before_
     async def checker_objects(db, case_id, label, payload, role, runner):
         if role == "voice_prepare_editor":
             return {"sentences": [{"i": s["i"], **EDITS[s["i"]]} for beat in payload["beats"] for s in beat["sentences"]]}
-        return {"beats": [{"beat_id": "B01", "ok": False, "problems": [{"kind": "number", "quote": "۹۱۱", "why": "the source says 911 twice"}]},
-                          {"beat_id": "B02", "ok": True, "problems": []}]}
+        return {"sentences": [{"i": 2, "ok": False, "problems": [{"kind": "number", "quote": "۹۱۱", "why": "the source says 911 twice"}]}]}
 
     shutil.rmtree(ai_config.voice.work_dir, ignore_errors=True)       # the editor's earlier answer is not read again
     monkeypatch.setattr(VP, "_ask", checker_objects)
@@ -367,17 +366,19 @@ def test_the_editor_and_the_checker_get_a_task_line_before_their_input_never_the
         seen.append((name, body))
         if name.endswith("edit"):
             return {"sentences": [{"i": s["i"], **EDITS[s["i"]]} for s in json.loads(body.split("INPUT:\n", 1)[1])["beats"][0]["sentences"]]}, SimpleNamespace(model="m")
-        return {"beats": [{"beat_id": "B01", "ok": True, "problems": []}]}, SimpleNamespace(model="m")
+        return {"sentences": [{"i": 0, "ok": True, "problems": []}]}, SimpleNamespace(model="m")
 
     monkeypatch.setattr(VP, "run_agent", run_agent)
     monkeypatch.setattr(VP, "get_generation_provider", lambda: object())
     monkeypatch.setattr(VP, "stamp_run", lambda *a: None)
     sentences = [VP.Sentence(0, "B01", 0, "ساعت دو بامداد بود.")]
     asyncio.run(VP.edit(db_session, case, "fa", sentences, {"B01": "At 2 a.m."}, {}))
-    sentences[0].final = "ساعت دو بامداد بود."
+    sentences[0].final = "ساعت دو بامداد بود، بعد از نیمه‌شب."          # a changed sentence goes to the checker
     assert asyncio.run(VP.verify(db_session, case, "fa", sentences, {"B01": "At 2 a.m."})) == []
     assert [name for name, _ in seen] == ["documentary.voice_prepare.edit", "documentary.voice_prepare.check"]
     assert all(body.startswith("TASK:") and "\n\nINPUT:\n{" in body for _, body in seen)
+    unchanged = [VP.Sentence(0, "B01", 0, "همان.", "همان.")]
+    assert asyncio.run(VP.verify(db_session, case, "fa", unchanged, {"B01": "x"})) == [] and len(seen) == 2, "an unchanged sentence (the approved text) is not checked again"
 
 
 def test_a_word_written_down_one_way_most_of_the_time_keeps_that_way_when_one_sentence_wrote_it_the_other():
@@ -427,7 +428,7 @@ def test_a_sentence_that_fails_a_check_goes_back_to_the_editor_alone_with_its_pr
 
     async def ask(db, case_id, label, payload, role, runner):
         if role == "voice_prepare_checker":
-            return {"beats": [{"beat_id": b["beat_id"], "ok": True, "problems": []} for b in payload["beats"]]}
+            return {"sentences": [{"i": s["i"], "ok": True, "problems": []} for beat in payload["beats"] for s in beat["sentences"]]}
         asked = [s for beat in payload["beats"] for s in beat["sentences"]]
         seen.append(([s["i"] for s in asked], {s["i"]: s.get("problems_to_fix") for s in asked}))
         out = []

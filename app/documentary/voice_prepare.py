@@ -133,8 +133,16 @@ def english_sources(db: Session, version: StoryVersion) -> dict[str, str]:
     english_text = {s["id"]: s["text"] for s in beat_sections(version_sections(master), json.loads(theirs.blueprint_json or "{}"))}
     english_spans = REF.beat_spans(theirs.blueprint_json)
     limit = ai_config.voice_prepare.source_chars
-    return {beat: " ".join(english_text.get(b, "") for b in REF.matching_beats(span, english_spans))[:limit]
-            for beat, span in REF.beat_spans(mine.blueprint_json).items()}
+    order = list(english_spans)
+
+    def window(span: tuple[float, float]) -> list[str]:
+        """The English beats of this stretch and the one before and after (the two films cut their beats at other points)."""
+        hit = [order.index(b) for b in REF.matching_beats(span, english_spans)]
+        if not hit:
+            return []
+        return order[max(min(hit) - 1, 0):min(max(hit) + 2, len(order))]
+
+    return {beat: " ".join(english_text.get(b, "") for b in window(span))[:limit] for beat, span in REF.beat_spans(mine.blueprint_json).items()}
 
 
 def tones_of(db: Session, version: StoryVersion) -> dict[str, dict]:
@@ -377,27 +385,38 @@ async def edit(db: Session, case: Case, language: str, sentences: list[Sentence]
 
 
 async def verify(db: Session, case: Case, language: str, sentences: list[Sentence], sources: dict[str, str]) -> list[dict]:
-    """The checker: each beat's final text against the English source. Returns the problems (the run stops on any)."""
-    beats = [{"beat_id": b, "english_source": sources.get(b, ""),
-              "persian_final": " ".join(s.final for s in sentences if s.beat_id == b)}
-             for b in dict.fromkeys(s.beat_id for s in sentences)]
-    size = 12
-    chunks = [beats[k:k + size] for k in range(0, len(beats), size)]
-    results = await gather_limited(None, [_ask(db, case.id, f"Voice preparation ({language}): check", {"language": language, "beats": c},
-                                               "voice_prepare_checker", lambda gen, body: run_agent("documentary.voice_prepare.check", gen, CHECK_TASK + body))
+    """The checker: every sentence the editor changed, against its draft and the English source (the unchanged sentences are the approved text).
+    Returns the problems (the run stops on any)."""
+    changed = [s for s in sentences if s.final != s.draft]
+    if not changed:
+        return []
+    size = ai_config.voice_prepare.check_sentences_per_call
+    chunks = [changed[k:k + size] for k in range(0, len(changed), size)]
+
+    def payload(chunk: list[Sentence]) -> dict:
+        beats: list[dict] = []
+        for sent in chunk:
+            if not beats or beats[-1]["beat_id"] != sent.beat_id:
+                beats.append({"beat_id": sent.beat_id, "english_source": sources.get(sent.beat_id, ""), "sentences": []})
+            beats[-1]["sentences"].append({"i": sent.i, "draft": sent.draft, "final": sent.final})
+        return {"language": language, "beats": beats}
+
+    results = await gather_limited(None, [_ask(db, case.id, f"Voice preparation ({language}): check", payload(c), "voice_prepare_checker",
+                                               lambda gen, body: run_agent("documentary.voice_prepare.check", gen, CHECK_TASK + body))
                                           for c in chunks], return_exceptions=True)
     problems: list[dict] = []
     for chunk, result in zip(chunks, results, strict=True):
         if isinstance(result, Exception):
             raise result if isinstance(result, PreparationFailed) else PreparationFailed(f"the checker failed: {type(result).__name__}: {result}"[:300])
-        answered = {b.get("beat_id"): b for b in result.get("beats") or [] if isinstance(b, dict)}
-        for beat in chunk:
-            verdict = answered.get(beat["beat_id"])
+        answered = {x.get("i"): x for x in result.get("sentences") or [] if isinstance(x, dict)}
+        for sent in chunk:
+            verdict = answered.get(sent.i)
+            where = f"sentence {sent.i} ({sent.beat_id})"
             if verdict is None:
-                problems.append({"where": f"beat {beat['beat_id']}", "what": "the checker gave no verdict"})
+                problems.append({"where": where, "what": "the checker gave no verdict"})
             elif verdict.get("ok") is not True or verdict.get("problems"):
                 for p in verdict.get("problems") or [{"kind": "unsure", "why": "not confirmed"}]:
-                    problems.append({"where": f"beat {beat['beat_id']}", "what": f"{p.get('kind')}: {p.get('why')} ({str(p.get('quote') or '')[:80]})"})
+                    problems.append({"where": where, "what": f"{p.get('kind')}: {p.get('why')} ({str(p.get('quote') or '')[:80]})"})
     return problems
 
 

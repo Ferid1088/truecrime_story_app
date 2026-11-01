@@ -2367,10 +2367,11 @@ class VoicePrepareConfig(BaseModel):
     the English source given to the editor and the checker."""
 
     sentences_per_call: int = Field(default=24, ge=4, le=80)
+    check_sentences_per_call: int = Field(default=30, ge=4, le=100)
     # an edited sentence keeps its content: it may not be much shorter or longer than the draft
     min_length_ratio: float = Field(default=0.55, gt=0.0, le=1.0)
     max_length_ratio: float = Field(default=1.7, ge=1.0, le=4.0)
-    source_chars: int = Field(default=3500, ge=500)
+    source_chars: int = Field(default=7000, ge=500)
     dictionary_name: str = "truecrime-{language}-case-{case_id}-v{version_id}"
     # characters an IPA pronunciation of a rule may use (letters of the Latin and IPA blocks, length marks, spaces)
     ipa_pattern: str = r"^[A-Za-z\u00C0-\u02FF\u0300-\u036F\u1D00-\u1DBF'ˈˌ.\- ]+$"

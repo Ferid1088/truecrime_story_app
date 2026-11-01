@@ -514,11 +514,12 @@
     "sentences_per_call": 24,
     "min_length_ratio": 0.55,
     "max_length_ratio": 1.7,
-    "source_chars": 3500,
+    "source_chars": 7000,
     "dictionary_name": "truecrime-{language}-case-{case_id}-v{version_id}",
     "approved_readings": {},
     "chunk_retries": 2,
     "same_reading_similarity": 0.6,
-    "repair_rounds": 2
+    "repair_rounds": 2,
+    "check_sentences_per_call": 30
   }
 }
