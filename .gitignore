@@ -93,3 +93,5 @@ data/shared_assets/
 
 # Visual funnel reports and their picture sheets (third-party pictures)
 data/reports/
+.env.*
+.envy
