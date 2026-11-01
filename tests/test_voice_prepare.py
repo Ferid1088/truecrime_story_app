@@ -444,3 +444,40 @@ def test_a_sentence_that_fails_a_check_goes_back_to_the_editor_alone_with_its_pr
     assert seen[0][0] == [0, 1, 2, 3] and seen[1][0] == [1], "the second call carries only the failing sentence"
     assert "911" in seen[1][1][1][0] or "۹۱۱" in seen[1][1][1][0] or "number" in seen[1][1][1][0]
     assert "کالب با ۹۱۱ تماس گرفت." in new.story_text
+
+
+def test_a_sentence_the_checker_flags_goes_back_to_the_editor_alone_and_the_run_only_stops_when_the_problem_stays(db_session, monkeypatch):
+    case, old = _version(db_session)
+    edited: list[tuple[list[int], dict]] = []
+    verdicts = [False, True]
+
+    async def ask(db, case_id, label, payload, role, runner):
+        if role == "voice_prepare_checker":
+            ok = verdicts.pop(0) if verdicts else False
+            return {"sentences": [{"i": s["i"], "ok": ok, "problems": [] if ok else [{"kind": "meaning", "quote": "باز", "why": "part of became all"}]}
+                                  for beat in payload["beats"] for s in beat["sentences"]]}
+        asked = [s for beat in payload["beats"] for s in beat["sentences"]]
+        edited.append(([s["i"] for s in asked], {s["i"]: s.get("problems_to_fix") for s in asked}))
+        out = []
+        for s in asked:
+            item = {"i": s["i"], **EDITS[s["i"]]}
+            if s["i"] == 2 and len(edited) == 2:
+                item["final_text"] = "درِ گاراژ بازِ بازِ بود."          # the editor's second answer
+            out.append(item)
+        return {"sentences": out}
+
+    monkeypatch.setattr(VP, "_ask", ask)
+    monkeypatch.setattr(VP, "english_sources", lambda db, version: {"B01": "The garage door was open.", "B02": "x"})
+    monkeypatch.setattr(VP, "tones_of", lambda db, version: {})
+    new = asyncio.run(VP.prepare_version(db_session, case, old, "fa"))
+    assert edited[0][0] == [0, 1, 2, 3] and edited[1][0] == [2] and "part of became all" in edited[1][1][2][0]
+    assert "بازِ بازِ" in new.story_text
+    # a problem that stays after the editor's rounds stops the run before any version is made
+    verdicts.clear()
+    before = db_session.query(StoryVersion).count()
+    shutil.rmtree(ai_config.voice.work_dir, ignore_errors=True)
+    case2, old2 = _version(db_session)
+    before = db_session.query(StoryVersion).count()
+    with pytest.raises(VP.PreparationUncertain, match="part of became all"):
+        asyncio.run(VP.prepare_version(db_session, case2, old2, "fa"))
+    assert db_session.query(StoryVersion).count() == before

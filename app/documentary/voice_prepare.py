@@ -413,10 +413,10 @@ async def verify(db: Session, case: Case, language: str, sentences: list[Sentenc
             verdict = answered.get(sent.i)
             where = f"sentence {sent.i} ({sent.beat_id})"
             if verdict is None:
-                problems.append({"where": where, "what": "the checker gave no verdict"})
+                problems.append({"i": sent.i, "where": where, "what": "the checker gave no verdict"})
             elif verdict.get("ok") is not True or verdict.get("problems"):
                 for p in verdict.get("problems") or [{"kind": "unsure", "why": "not confirmed"}]:
-                    problems.append({"where": where, "what": f"{p.get('kind')}: {p.get('why')} ({str(p.get('quote') or '')[:80]})"})
+                    problems.append({"i": sent.i, "where": where, "what": f"{p.get('kind')}: {p.get('why')} ({str(p.get('quote') or '')[:80]})"})
     return problems
 
 
@@ -458,6 +458,17 @@ async def prepare_version(db: Session, case: Case, version: StoryVersion, langua
     if issues:
         raise PreparationUncertain(issues)
     issues = await verify(db, case, language, sentences, sources)
+    for _round in range(ai_config.voice_prepare.repair_rounds):      # a sentence the checker flags goes back to the editor alone, with the problem
+        if not issues:
+            break
+        flagged: dict[int, list[str]] = {}
+        for issue in issues:
+            flagged.setdefault(issue["i"], []).append(issue["what"])
+        await edit(db, case, language, sentences, sources, tones, only=[s for s in sentences if s.i in flagged], problems=flagged)
+        again = [i for sent in sentences if sent.i in flagged for i in check_sentence(sent, names)]
+        if again:
+            raise PreparationUncertain(again)
+        issues = await verify(db, case, language, sentences, sources)
     if issues:
         raise PreparationUncertain(issues)
     sections = assemble(sentences)
