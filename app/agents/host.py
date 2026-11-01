@@ -46,7 +46,7 @@ from app.documentary.host import (
     writer_system_prompt,
 )
 from app.documentary.host_firewall import reveal_issues
-from app.documentary.host_planning import story_seconds, validate_host_plan
+from app.documentary.host_planning import inherit, story_seconds, validate_host_plan
 from app.documentary.host_story import HostStory, load_story
 from app.documentary.identity_line import ends_with_identity, identity_line, strip_identity, with_identity
 from app.providers.generation import get_generation_provider
@@ -91,6 +91,7 @@ class HostDirector:
         english = english_host_plan(db, case.id) if (master.language or "en") != ai_config.language_pipeline.draft_language else None
         if english is not None:        # the film of another language has the host sections of the English film, when they fit its story
             plan, report = validate_host_plan(structure_of(english), story, self.cfg)
+            report = inherit(report)
             report["origin"] = f"the English film's host plan {english.id}"
         if plan is None or report["errors"]:
             raw, res = await self._json(db, case.id, "Host Director", "host_director", system, payload)

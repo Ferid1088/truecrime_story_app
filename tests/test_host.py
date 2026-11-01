@@ -1322,3 +1322,13 @@ def test_the_english_host_plan_of_the_case_is_found_through_its_blueprint(db_ses
     db_session.commit()
     found = english_host_plan(db_session, case.id)
     assert found is not None and found.blueprint_id == blueprints["en"].id
+
+
+def test_a_plan_copied_from_the_english_film_does_not_fail_on_where_another_blueprint_puts_a_payoff():
+    from app.documentary.host_planning import inherit
+
+    report = {"status": "invalid", "warnings": [], "errors": [{"code": "interrupts_before_payoff", "segment": "S3", "next_act": "act5"}]}
+    kept = inherit(report)
+    assert kept["status"] == "valid" and kept["errors"] == [] and kept["inherited_findings"][0]["code"] == "interrupts_before_payoff"
+    real = inherit({"status": "invalid", "warnings": [], "errors": [{"code": "unknown_act", "segment": "S2"}, {"code": "interrupts_hook"}]})
+    assert real["status"] == "invalid" and [e["code"] for e in real["errors"]] == ["unknown_act"]

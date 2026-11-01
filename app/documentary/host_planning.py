@@ -47,6 +47,19 @@ def seconds_between(story: HostStory, first_cutoff: int, second_cutoff: int) -> 
     return words / wpm * 60
 
 
+INHERITED_OK = ("interrupts_hook", "interrupts_before_payoff")
+
+
+def inherit(report: dict) -> dict:
+    """A plan copied from the English film keeps the English film's sections: the findings about where a hook or a payoff lies are taken from
+    each language's own blueprint (they can differ although the story is the same), so for such a plan they are recorded, not errors."""
+    kept = [e for e in report["errors"] if e["code"] not in INHERITED_OK]
+    report["inherited_findings"] = [e for e in report["errors"] if e["code"] in INHERITED_OK]
+    report["errors"] = kept
+    report["status"] = "invalid" if kept else ("needs_review" if report["warnings"] else "valid")
+    return report
+
+
 def validate_host_plan(raw: dict, story: HostStory, cfg: HostConfig | None = None
                        ) -> tuple[dict, dict]:
     """The director's structure, checked against the story and the config. Errors go back to the
