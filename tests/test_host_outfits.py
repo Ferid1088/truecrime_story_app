@@ -519,3 +519,64 @@ def test_the_outfit_migration_keeps_the_looks_that_were_there(tmp_path):
         tables = {r[0] for r in c.execute(text("select name from sqlite_master where type='table'"))}
     assert "host_outfits" not in tables
     engine.dispose()
+
+
+def test_the_host_of_another_language_wears_the_english_films_outfit_and_poses(db_session, monkeypatch, tmp_path):
+    from app.db.models import HostOutfit, OutfitItem
+    from app.documentary import looks as LK
+    from app.outfits import library as outfit_library
+
+    monkeypatch.setattr(outfit_library, "ROOT", tmp_path)
+    monkeypatch.setattr(LK.storage, "ROOT", tmp_path)
+    case = _case(db_session)
+    for studio in ("en", "de"):
+        db_session.query(OutfitItem).filter_by(studio=studio, outfit_slug="navySuit").delete()
+    db_session.commit()
+    items = {}
+    for studio in ("en", "de"):
+        for situation, stance in (("sitCrossed", "sitting"), ("sitHands", "sitting")):
+            path = tmp_path / "data" / "outfits" / studio / "navySuit" / f"{studio}_navySuit_{situation}.png"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"\x89PNG\r\n\x1a\n" + studio.encode() + situation.encode())
+            row = OutfitItem(studio=studio, outfit_slug="navySuit", situation=situation, status="available", stance=stance,
+                             file_path=str(path.relative_to(tmp_path)), sha256=studio + situation)
+            db_session.add(row)
+            items[studio, situation] = row
+    db_session.commit()
+    OF.apply_choice(db_session, case.id, "en", "registry:en/navySuit", [items["en", "sitCrossed"].id], "owner")
+
+    assert OF.follow_english_outfit(db_session, case.id, "en")["followed"] is False
+    done = OF.follow_english_outfit(db_session, case.id, "de")
+    assert done["followed"] and done["ref"] == "de/navySuit" and done["photos"] >= 1
+    german = db_session.query(HostOutfit).filter_by(case_id=case.id, language="de", status="selected").one()
+    assert german.outfit_ref == "de/navySuit" and OF.selected_library_item_ids(db_session, german) == [items["de", "sitCrossed"].id], "the English film's pose"
+    assert OF.follow_english_outfit(db_session, case.id, "de")["reason"] == "the language has its own outfit"
+    assert OF.follow_english_outfit(db_session, case.id, "ar")["followed"] is False, "a language with no such outfit keeps what it has"
+
+
+def test_an_outfit_the_owner_chose_for_a_language_is_never_replaced_by_the_english_films(db_session, monkeypatch, tmp_path):
+    from app.db.models import HostOutfit, OutfitItem
+    from app.documentary import looks as LK
+    from app.outfits import library as outfit_library
+
+    monkeypatch.setattr(outfit_library, "ROOT", tmp_path)
+    monkeypatch.setattr(LK.storage, "ROOT", tmp_path)
+    case = _case(db_session)
+    for studio, slug in (("en", "navySuit"), ("de", "navySuit"), ("de", "brownSweater")):
+        db_session.query(OutfitItem).filter_by(studio=studio, outfit_slug=slug).delete()
+    db_session.commit()
+    rows = {}
+    for studio, slug in (("en", "navySuit"), ("de", "navySuit"), ("de", "brownSweater")):
+        path = tmp_path / "data" / "outfits" / studio / slug / f"{studio}_{slug}_sitCrossed.png"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"\x89PNG\r\n\x1a\n" + studio.encode() + slug.encode())
+        rows[studio, slug] = OutfitItem(studio=studio, outfit_slug=slug, situation="sitCrossed", status="available", stance="sitting",
+                                        file_path=str(path.relative_to(tmp_path)), sha256=studio + slug)
+        db_session.add(rows[studio, slug])
+    db_session.commit()
+    OF.apply_choice(db_session, case.id, "en", "registry:en/navySuit", [rows["en", "navySuit"].id], "owner")
+    OF.apply_choice(db_session, case.id, "de", "registry:de/brownSweater", [rows["de", "brownSweater"].id], "owner")      # the owner's own choice for German
+    assert OF.follow_english_outfit(db_session, case.id, "de") == {"followed": False, "reason": "the language has its own outfit",
+                                                                    "outfit_id": db_session.query(HostOutfit).filter_by(
+                                                                        case_id=case.id, language="de", status="selected").one().id}
+    assert db_session.query(HostOutfit).filter_by(case_id=case.id, language="de", status="selected").one().outfit_ref == "de/brownSweater"

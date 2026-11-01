@@ -488,6 +488,36 @@ def resolve_choice(db: Session, case_id: int, language: str, key: str) -> tuple[
     return outfit, ref
 
 
+def follow_english_outfit(db: Session, case_id: int, language: str) -> dict:
+    """The default for a film in another language that has no outfit chosen yet: the host wears what the host of the English film wears, the
+    same library outfit and the same poses. An outfit the owner chose for the language (in the autopilot's start dialog or later) is never
+    changed, and nothing changes when the language has no such outfit in the library."""
+    draft = ai_config.language_pipeline.draft_language
+    if language == draft:
+        return {"followed": False, "reason": "the English film"}
+    english = (db.query(HostOutfit).filter(HostOutfit.case_id == case_id, HostOutfit.language == draft, HostOutfit.status == "selected")
+               .order_by(HostOutfit.id.desc()).first())
+    if english is None or not english.outfit_ref or "/" not in english.outfit_ref:
+        return {"followed": False, "reason": "the English film has no library outfit selected"}
+    slug = english.outfit_ref.split("/", 1)[1]
+    ref = f"{language}/{slug}"
+    try:
+        OutfitRegistry().resolve(ref)
+    except KeyError:
+        return {"followed": False, "reason": f"{language} has no outfit {slug} in the library"}
+    current = (db.query(HostOutfit).filter(HostOutfit.case_id == case_id, HostOutfit.language == language, HostOutfit.status == "selected").first())
+    if current is not None:
+        return {"followed": False, "reason": "the language has its own outfit", "outfit_id": current.id}
+    situations = {row.situation for row in db.query(OutfitItem).filter(OutfitItem.id.in_(selected_library_item_ids(db, english)))}
+    items = {row.situation: row for row in db.query(OutfitItem).filter(
+        OutfitItem.studio == language, OutfitItem.outfit_slug == slug, OutfitItem.status == "available")}
+    chosen = sorted(items[s].id for s in situations if s in items)
+    if not chosen:
+        return {"followed": False, "reason": f"{language}'s {slug} has none of the English film's poses"}
+    done = apply_choice(db, case_id, language, f"registry:{ref}", chosen, f"the English film's outfit ({english.outfit_ref})")
+    return {"followed": True, "outfit_id": done["outfit"].id, "ref": ref, "photos": len(done["attached"])}
+
+
 def apply_choice(db: Session, case_id: int, language: str, key: str, item_ids: list[int],
                  approved_by: str, select: bool = True) -> dict:
     """Use this outfit and these library photos: the outfit is made when the case has none yet and (with `select`)

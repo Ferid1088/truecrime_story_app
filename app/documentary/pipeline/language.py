@@ -78,6 +78,9 @@ class LanguageChain:
             if row is None or row.host_plan_id != plan_row.id:
                 row = await get_stage_agent("host").write(db, case, version, plan_row)
             rep = json.loads(row.validation_json or "{}")
+            from app.documentary.outfits import follow_english_outfit
+
+            follow_english_outfit(db, case.id, lang)        # the host wears the English film's outfit, in every other language too
             # the scenes (channel studio + framing, text frozen) are
             # planned now; voice and avatar run per scene on request
             from app.documentary.host_scenes import plan_host_scenes
