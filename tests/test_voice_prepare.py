@@ -364,3 +364,15 @@ def test_the_editor_and_the_checker_get_a_task_line_before_their_input_never_the
     assert asyncio.run(VP.verify(db_session, case, "fa", sentences, {"B01": "At 2 a.m."})) == []
     assert [name for name, _ in seen] == ["documentary.voice_prepare.edit", "documentary.voice_prepare.check"]
     assert all(body.startswith("TASK:") and "\n\nINPUT:\n{" in body for _, body in seen)
+
+
+def test_a_word_written_down_one_way_most_of_the_time_keeps_that_way_when_one_sentence_wrote_it_the_other():
+    def rule(kind, pron):
+        return [{"surface": "تیپ‌سیتی", "type": kind, "pronunciation": pron, "reason": ""}]
+
+    sentences = [sentence(0, "x", "تیپ‌سیتی", rule("phoneme", "tipsiti")), sentence(1, "x", "تیپ‌سیتی", rule("phoneme", "tipsiti")),
+                 sentence(2, "x", "تیپ‌سیتی", rule("alias", "تیپ سیتی"))]
+    rules, conflicts = VP.dictionary_rules(sentences)
+    assert conflicts == [] and rules == [{"string_to_replace": "تیپ‌سیتی", "type": "phoneme", "alphabet": "ipa", "phoneme": "tipsiti"}]
+    split = [sentences[0], sentences[2]]
+    assert "two readings" in VP.dictionary_rules(split)[1][0]["what"], "an even split is a real doubt"

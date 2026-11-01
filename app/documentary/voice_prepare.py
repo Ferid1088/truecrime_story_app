@@ -226,6 +226,10 @@ def dictionary_rules(sentences: list[Sentence]) -> tuple[list[dict], list[dict]]
     conflicts: list[dict] = []
     for surface, entries in seen.items():
         kinds = Counter((r["type"], r["pronunciation"]) for _, r in entries)
+        by_type = Counter(r["type"] for _, r in entries)
+        main_type, main_count = by_type.most_common(1)[0]
+        if len(by_type) > 1 and main_count >= 2 * (len(entries) - main_count):      # the way a word is written down is the same way most of the time
+            kinds = Counter({k: n for k, n in kinds.items() if k[0] == main_type})
         if len(kinds) == 1 or (len({t for t, _ in kinds}) == 1 and _same_reading([p for _, p in kinds])):
             (kind, reading), _ = kinds.most_common(1)[0]
             chosen[surface] = {"surface": surface, "type": kind, "pronunciation": reading}
