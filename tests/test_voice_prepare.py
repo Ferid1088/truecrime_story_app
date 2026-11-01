@@ -376,3 +376,16 @@ def test_a_word_written_down_one_way_most_of_the_time_keeps_that_way_when_one_se
     assert conflicts == [] and rules == [{"string_to_replace": "تیپ‌سیتی", "type": "phoneme", "alphabet": "ipa", "phoneme": "tipsiti"}]
     split = [sentences[0], sentences[2]]
     assert "two readings" in VP.dictionary_rules(split)[1][0]["what"], "an even split is a real doubt"
+
+
+def test_the_readings_the_editor_decided_itself_are_listed_the_least_sure_first_and_the_approved_ones_are_not(monkeypatch):
+    def rule(surface, pron, conf, basis="english"):
+        return {"surface": surface, "type": "phoneme", "pronunciation": pron, "reason": "", "basis": basis, "confidence": conf}
+
+    monkeypatch.setattr(ai_config.voice_prepare, "approved_readings", {"fa": {"کالب": {"type": "phoneme", "pronunciation": "kɑːleb"}}})
+    sentences = [sentence(0, "x", "کالب باتنر", [rule("باتنر", "bɑːtner", "high", "spelling")]), sentence(1, "x", "ریزمیلر باتنر", [rule("ریزمیلر", "rizmiler", "low"),
+                                                                                                                   rule("باتنر", "bɑːtner", "medium", "spelling")]),
+                 sentence(2, "x", "کالب")]
+    VP.apply_approved(sentences, "fa")
+    decided = VP.decisions_of(sentences)
+    assert [(d["surface"], d["confidence"], d["sentences"]) for d in decided] == [("ریزمیلر", "low", 1), ("باتنر", "medium", 2)], "the approved word is not listed"

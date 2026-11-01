@@ -432,8 +432,10 @@ class DocumentaryPipeline(StageRunner):
 
                     before = v
                     v = await VP.prepare_version(db, case, v, lang)
-                    prepared = {"from_version_id": before.id if v.id != before.id else None,
-                                "rules": len((json.loads(v.narrative_structure or "{}").get("prepared") or {}).get("rules") or []),
+                    made = json.loads(v.narrative_structure or "{}").get("prepared") or {}
+                    prepared = {"from_version_id": before.id if v.id != before.id else None, "rules": len(made.get("rules") or []),
+                                "decided_by_the_editor": len(made.get("decided_by_the_editor") or []),
+                                "low_confidence": [d["surface"] for d in made.get("decided_by_the_editor") or [] if d.get("confidence") == "low"],
                                 "reused": v.id == before.id}
                 gates = json.loads(v.critic_notes or "{}").get("quality_gates") or {}
                 return {"version_id": v.id, "status": v.status, "verdict": "approved",

@@ -189,7 +189,9 @@ def clean_rules(raw) -> list[dict]:
         if (isinstance(rule, dict) and isinstance(rule.get("surface"), str) and rule["surface"].strip()
                 and rule.get("type") in RULE_TYPES and isinstance(rule.get("pronunciation"), str) and rule["pronunciation"].strip()):
             out.append({"surface": normalize(rule["surface"]), "type": rule["type"], "pronunciation": rule["pronunciation"].strip(),
-                        "reason": str(rule.get("reason") or "")[:300]})
+                        "reason": str(rule.get("reason") or "")[:300],
+                        "basis": rule.get("basis") if rule.get("basis") in ("approved", "spelling", "english") else "english",
+                        "confidence": rule.get("confidence") if rule.get("confidence") in ("high", "medium", "low") else "low"})
     return out
 
 
@@ -202,6 +204,23 @@ def apply_approved(sentences: list[Sentence], language: str) -> None:
         for surface, reading in approved.items():
             if whole_word(surface).search(sent.final):
                 sent.rules.append({"surface": surface, "type": reading["type"], "pronunciation": reading["pronunciation"], "reason": "approved by the owner"})
+
+
+def decisions_of(sentences: list[Sentence]) -> list[dict]:
+    """The readings the editor decided by itself (not approved by the owner), one line per word, the least sure first: what to look at after the
+    run, never a reason to stop it. {surface, pronunciation, basis, confidence, sentences}."""
+    order = {"low": 0, "medium": 1, "high": 2}
+    seen: dict[str, dict] = {}
+    for sent in sentences:
+        for rule in sent.rules:
+            if rule.get("basis") == "approved" or rule.get("reason") == "approved by the owner":
+                continue
+            line = seen.setdefault(rule["surface"], {"surface": rule["surface"], "pronunciation": rule["pronunciation"], "basis": rule.get("basis", "english"),
+                                                     "confidence": rule.get("confidence", "low"), "sentences": 0})
+            line["sentences"] += 1
+            if order[rule.get("confidence", "low")] < order[line["confidence"]]:
+                line["confidence"] = rule.get("confidence", "low")
+    return sorted(seen.values(), key=lambda d: (order[d["confidence"]], d["surface"]))
 
 
 def _same_reading(readings: list[str]) -> bool:
@@ -374,7 +393,7 @@ async def prepare_version(db: Session, case: Case, version: StoryVersion, langua
     extra = {k: struct[k] for k in ("blueprint_id", "source_version_id", "beat_sections", "pilot_seconds", "pilot_beat_ids", "evidence_fingerprint")
              if k in struct}
     prepared = {"from_version_id": version.id, "rules": rules, "changed_sentences": sum(1 for s in sentences if s.final != s.draft),
-                "sentences": len(sentences), "dictionary": None}
+                "sentences": len(sentences), "dictionary": None, "decided_by_the_editor": decisions_of(sentences)}
     prepared_version = save_story_version(
         db, case, plan, sections, text, 0.0, None, "not_evaluated", {"quality_gates": {"pass": True, "failures": []}, "prepared_from": version.id},
         language, None, kind="spoken", master_version_id=version.master_version_id,
