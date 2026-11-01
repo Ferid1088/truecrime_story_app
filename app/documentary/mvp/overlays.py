@@ -19,6 +19,7 @@ from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.db.models import Case, MvpCandidate, VisualAsset
 from app.documentary import storage
+from app.documentary.mvp.media import snapshot
 from app.documentary.mvp import clip_edges as CE
 from app.documentary.mvp import verify as VF
 from app.documentary.visuals import pieces as PC
@@ -287,7 +288,7 @@ class OverlayScanner:
         head, tail = CE.sample_times(start, end)
         try:
             path = storage.resolve(asset.local_path)
-            frames = await asyncio.to_thread(self._edge_frames or self.edge_frames_of, asset, head + tail)
+            frames = await asyncio.to_thread(self._edge_frames or self.edge_frames_of, snapshot(asset), head + tail)
             answer = await self.ask_edges(asset, head, tail, frames, start, end)
             cuts = await asyncio.to_thread(self._cuts or self.cuts_of, path)
         except Exception as e:  # noqa: BLE001 - a failed check is made again, never taken as "no edges"
@@ -348,7 +349,7 @@ class OverlayScanner:
             self.stopped_for_budget = True              # a paid call is never started past the case's cap
             return None
         try:
-            frames = await asyncio.to_thread(self._frames, asset)
+            frames = await asyncio.to_thread(self._frames, snapshot(asset))
             data = await self.ask(asset, frames)
         except Exception as e:  # noqa: BLE001 - a failed scan is retried, never taken as "clean"
             self.errors.append(f"{asset.asset_code}: {e}")
@@ -376,7 +377,7 @@ class OverlayScanner:
             self.stopped_for_budget = True
             return None
         try:
-            frames = await asyncio.to_thread(self._frames, asset)
+            frames = await asyncio.to_thread(self._frames, snapshot(asset))
             width, height = Image.open(io.BytesIO(frames[0])).size
             return await self.verify_cut(asset, frames, scan, width, height)
         except Exception as e:  # noqa: BLE001

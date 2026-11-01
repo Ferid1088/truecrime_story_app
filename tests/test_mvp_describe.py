@@ -81,3 +81,12 @@ def test_the_picture_check_runs_on_a_plain_copy_of_the_asset_never_the_orm_objec
     asset = VisualAsset(asset_type="photo", thumbnail_path="t.jpg", local_path="p.jpg", case_id=1, asset_code="VIS_1")
     assert asyncio.run(media.checked_image(asset)) == "thumb.jpg"
     assert isinstance(seen[0], SimpleNamespace) and seen[0].asset_code == "VIS_1" and seen[0].thumbnail_path == "t.jpg"
+
+
+def test_a_snapshot_has_every_column_of_the_asset_so_a_worker_thread_never_needs_the_session():
+    from app.db.models import VisualAsset
+    from app.documentary.mvp.media import snapshot
+
+    copy = snapshot(VisualAsset(asset_type="video", local_path="v.mp4", clip_start=1.5, clip_end=9.0, duration_seconds=7.5, asset_code="VIS_2"))
+    assert (copy.asset_type, copy.clip_start, copy.clip_end, copy.duration_seconds) == ("video", 1.5, 9.0, 7.5)
+    assert set(vars(copy)) == set(VisualAsset.__table__.columns.keys())

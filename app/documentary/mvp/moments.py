@@ -30,6 +30,7 @@ from app.core.ai_config import ai_config
 from app.core.concurrency import limit_size
 from app.db.models import Case, MvpCandidate, MvpRequirement, VisualAsset
 from app.documentary import storage
+from app.documentary.mvp.media import snapshot
 from app.documentary.mvp import verify as VF
 from app.documentary.mvp.needs import fold
 from app.documentary.visuals import pieces as PC
@@ -315,7 +316,7 @@ class MomentCutter:
 
     async def check(self, moment: Moment, asset: VisualAsset) -> dict:
         """The independent verdict on the finished cut: start, middle and end frames of the stored window."""
-        frames = await asyncio.to_thread(PC.piece_frames, asset, 1.0, 6, self.cfg.frame_width)
+        frames = await asyncio.to_thread(PC.piece_frames, snapshot(asset), 1.0, 6, self.cfg.frame_width)
         payload = {"said": moment.said[:SAID_CHARS], "seconds": moment.seconds, "name": asset.title,
                    "description": asset.description,
                    "frame_times": [round(i * ((asset.duration_seconds or 1) / max(len(frames), 1)), 1)

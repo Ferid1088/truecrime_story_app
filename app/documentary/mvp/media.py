@@ -48,11 +48,15 @@ def image_for_check(asset: VisualAsset):
     return sheet if sheet is not None else thumb
 
 
+def snapshot(asset: VisualAsset) -> SimpleNamespace:
+    """A plain copy of the asset's columns, to hand to a worker thread: an ORM object is never touched from another thread, where a lazy
+    load would use the job's database session while the main thread is committing."""
+    return SimpleNamespace(**{column: getattr(asset, column) for column in VisualAsset.__table__.columns.keys()})
+
+
 async def checked_image(asset: VisualAsset):
-    """`image_for_check` run on a worker thread (it reads files and may cut frames) over a plain copy of the few fields it reads: an ORM object
-    is never touched from another thread, where a lazy load would use the job's database session while this thread is committing."""
-    fields = ("asset_type", "thumbnail_path", "local_path", "case_id", "asset_code", "clip_start", "clip_end", "duration_seconds")
-    return await asyncio.to_thread(image_for_check, SimpleNamespace(**{name: getattr(asset, name) for name in fields}))
+    """`image_for_check` run on a worker thread (it reads files and may cut frames) over a copy of the asset."""
+    return await asyncio.to_thread(image_for_check, snapshot(asset))
 
 
 async def gateway_available(gen) -> tuple[bool, str | None]:
