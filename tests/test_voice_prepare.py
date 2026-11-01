@@ -308,3 +308,26 @@ def test_english_is_still_checked_and_voiced_the_old_way(tmp_path, monkeypatch):
         _plan([_block("EN_a_01", "act1", "The house was empty and every room had been scrubbed clean.")]), case_id=9, story_version_id=4))
     assert asr.calls >= 1 and manifest["blocks"][0]["asr"] is not None and tts.requests[0].pronunciation_dictionaries == []
     assert (tmp_path / "9" / "audio" / "en" / "v4" / "manifest.json").exists()
+
+
+def test_the_editor_and_the_checker_get_a_task_line_before_their_input_never_the_bare_json(db_session, monkeypatch):
+    from types import SimpleNamespace
+
+    case, old = _version(db_session)
+    seen: list[tuple[str, str]] = []
+
+    async def run_agent(name, gen, body):
+        seen.append((name, body))
+        if name.endswith("edit"):
+            return {"sentences": [{"i": s["i"], **EDITS[s["i"]]} for s in json.loads(body.split("INPUT:\n", 1)[1])["beats"][0]["sentences"]]}, SimpleNamespace(model="m")
+        return {"beats": [{"beat_id": "B01", "ok": True, "problems": []}]}, SimpleNamespace(model="m")
+
+    monkeypatch.setattr(VP, "run_agent", run_agent)
+    monkeypatch.setattr(VP, "get_generation_provider", lambda: object())
+    monkeypatch.setattr(VP, "stamp_run", lambda *a: None)
+    sentences = [VP.Sentence(0, "B01", 0, "ساعت دو بامداد بود.")]
+    asyncio.run(VP.edit(db_session, case, "fa", sentences, {"B01": "At 2 a.m."}, {}))
+    sentences[0].final = "ساعت دو بامداد بود."
+    assert asyncio.run(VP.verify(db_session, case, "fa", sentences, {"B01": "At 2 a.m."})) == []
+    assert [name for name, _ in seen] == ["documentary.voice_prepare.edit", "documentary.voice_prepare.check"]
+    assert all(body.startswith("TASK:") and "\n\nINPUT:\n{" in body for _, body in seen)

@@ -38,6 +38,11 @@ log = logging.getLogger(__name__)
 ZWNJ = "‌"
 DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 RULE_TYPES = ("phoneme", "alias")
+# what the model is asked to do with the input that follows (the agents of this app always get a task line before the input)
+EDIT_TASK = ("TASK: for every sentence of the input return its final Persian text and its pronunciation rules, exactly as your instructions say. "
+             "Return JSON only, with the key \"sentences\" and one object for every input sentence.\n\nINPUT:\n")
+CHECK_TASK = ("TASK: for every beat of the input say whether the Persian text is faithful to the English source, exactly as your instructions say. "
+              "Return JSON only, with the key \"beats\".\n\nINPUT:\n")
 
 
 class PreparationFailed(RuntimeError):
@@ -242,7 +247,7 @@ async def edit(db: Session, case: Case, language: str, sentences: list[Sentence]
             after = sentences[sent.i + 1].draft if sent.i + 1 < len(sentences) else ""
             beats[-1]["sentences"].append({"i": sent.i, "draft": sent.draft, "previous": before, "next": after})
         return await _ask(db, case.id, f"Voice preparation ({language}): editor", {"language": language, "beats": beats}, "voice_prepare_editor",
-                          lambda gen, body: run_agent("documentary.voice_prepare.edit", gen, body))
+                          lambda gen, body: run_agent("documentary.voice_prepare.edit", gen, EDIT_TASK + body))
 
     results = await gather_limited(None, [one(c) for c in chunks], return_exceptions=True)
     by_i = {s.i: s for s in sentences}
@@ -266,7 +271,7 @@ async def verify(db: Session, case: Case, language: str, sentences: list[Sentenc
     size = 12
     chunks = [beats[k:k + size] for k in range(0, len(beats), size)]
     results = await gather_limited(None, [_ask(db, case.id, f"Voice preparation ({language}): check", {"language": language, "beats": c},
-                                               "voice_prepare_checker", lambda gen, body: run_agent("documentary.voice_prepare.check", gen, body))
+                                               "voice_prepare_checker", lambda gen, body: run_agent("documentary.voice_prepare.check", gen, CHECK_TASK + body))
                                           for c in chunks], return_exceptions=True)
     problems: list[dict] = []
     for chunk, result in zip(chunks, results, strict=True):
