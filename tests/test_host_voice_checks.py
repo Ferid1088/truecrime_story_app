@@ -8,6 +8,7 @@ from test_studio import FakeVoice, _renderer, _segments, _silence_mp3
 
 from app.core.ai_config import ai_config
 from app.documentary import pronunciation as PR
+from app.documentary import storage
 
 # ---------------------------------------------------------------------------
 # configuration and the editor per language
@@ -169,6 +170,7 @@ def _fa_scene(db_session, tmp_path, monkeypatch):
     from app.documentary.host_scenes import plan_host_scenes
 
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
+    monkeypatch.setattr(ai_config.voice, "prepared_languages", [])         # the checks of the other languages; a prepared one is below
     row = _segments(db_session, "fa")
     return plan_host_scenes(db_session, row)[0]
 
@@ -375,3 +377,29 @@ def test_the_writer_and_the_critic_read_the_same_register_note_of_a_language():
         assert ai_config.host.language_rules[language].register_note in writer_system_prompt(language)
         assert ai_config.host.language_rules[language].register_note in critic_system_prompt(language)
     assert register_of("en") == "" and "register of" not in writer_system_prompt("en") and "register of" not in critic_system_prompt("en")
+
+
+def test_a_prepared_language_host_voice_carries_the_films_dictionary_and_is_not_listened_to(db_session, tmp_path, monkeypatch):
+    from app.documentary import voice_prepare as VP
+    from app.documentary.host_scenes import _step_voice
+
+    scene = _fa_scene(db_session, tmp_path, monkeypatch)
+    monkeypatch.setattr(ai_config.voice, "prepared_languages", ["fa"])
+    locators = [{"pronunciation_dictionary_id": "D1", "version_id": "V1"}]
+    calls = []
+
+    async def ensure(db, version, language, provider=None):
+        calls.append(language)
+        return locators
+
+    monkeypatch.setattr(VP, "ensure_dictionary", ensure)
+    editor, renderer = FakeEditor(), CheckingRenderer(tmp_path)
+    asyncio.run(_step_voice(db_session, scene, renderer, editor))
+    assert renderer.dictionaries == locators and editor.calls == 0          # no pronunciation key for a prepared language
+    saved = storage.resolve(scene.voice_path)
+    assert json.loads(saved.with_name(saved.name + ".json").read_text())["dictionaries"] == locators
+    again = asyncio.run(_step_voice(db_session, scene, renderer, editor))
+    assert "skipped" in again and len(renderer.blocks) == 1                 # the same dictionary: the saved audio stays
+    locators[:] = [{"pronunciation_dictionary_id": "D1", "version_id": "V2"}]
+    asyncio.run(_step_voice(db_session, scene, renderer, editor))
+    assert len(renderer.blocks) == 2                                        # a changed dictionary: the host is voiced again

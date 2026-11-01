@@ -143,6 +143,9 @@
     "work_dir": "data/cases",
     "prepared_languages": [
       "fa"
+    ],
+    "review_languages": [
+      "fa"
     ]
   },
   "asr_check": {

@@ -1514,6 +1514,8 @@ class VoiceConfig(BaseModel):
     # Languages whose narration is prepared before it is voiced (voice_prepare.py: the text is edited, its pronunciation rules go to a
     # dictionary of the film) and is voiced exactly once per block: no speech-to-text, no phoneme listener, no retake for a score.
     prepared_languages: list[str] = []
+    # Languages whose narration the owner hears and approves before the film goes on (the picture planning and the render wait for it).
+    review_languages: list[str] = []
     default_style: str = "neutral_documentary"
     styles: dict[str, VoiceStyle] = Field(
         default_factory=lambda: {"neutral_documentary": VoiceStyle()}

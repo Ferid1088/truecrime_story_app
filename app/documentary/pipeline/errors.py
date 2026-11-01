@@ -37,6 +37,11 @@ class AwaitingPictureReview(RuntimeError):
     was unsure about, and is resumable once they have."""
 
 
+class AwaitingVoiceReview(RuntimeError):
+    """The narration of a language that the owner hears first is made: the run stops before the pictures are planned and the film is rendered,
+    and is resumable once the owner has listened and approved it."""
+
+
 class AwaitingPortrait(RuntimeError):
     """A gap of the film has no portrait that may be shown (every photo the owner chose is refused or would give the story away at
     that moment): the run stops before anything is rendered and is resumable once the owner has chosen another first photo."""

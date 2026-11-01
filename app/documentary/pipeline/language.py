@@ -182,6 +182,10 @@ class LanguageChain:
             raise LanguageFailed(f"A planning job uses the narration of an earlier run, and the {lang} version has "
                                  "none: run a pilot or a full film first.") from e
 
+        if not planning:
+            from app.documentary import voice_review as VRV
+
+            VRV.guard(version, lang)         # a language the owner hears first: the run waits here, before the pictures are planned
         await visual_ready.wait()
         if "error" in visual_state:
             raise LanguageFailed("visual plan failed")

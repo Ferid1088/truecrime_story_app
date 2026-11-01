@@ -255,6 +255,12 @@ def failure_details(message: str, error_code: str | None = None) -> dict:
             "next_action": ("Open Review pictures: moments of the film have no picture, video or graphic. Approve "
                             "pictures the planner rejected or was unsure about, then resume."),
         }
+    if error_code == "awaiting_voice_review" or "Awaiting voice review" in message:
+        return {
+            "resume_allowed": True,
+            "resume_disabled_reason": None,
+            "next_action": "Listen to the narration (the link is in the message), approve it, then resume: nothing is planned or rendered before.",
+        }
     if error_code == "awaiting_outfit":
         return {
             "resume_allowed": True,

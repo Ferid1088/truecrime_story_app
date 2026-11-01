@@ -656,6 +656,48 @@ def get_speech_structure(version_id: int, db: Session = Depends(get_db)):
     return {"version_id": v.id, "language": v.language, "beats": speech_structure(v)}
 
 
+@router.get("/api/documentary/versions/{version_id}/voice-review")
+def get_voice_review(version_id: int, db: Session = Depends(get_db)):
+    """Whether the owner must hear this narration first, the audio links, and whether this exact audio is approved."""
+    from app.documentary import voice_review
+
+    return voice_review.state(_version_of(db, version_id))
+
+
+@router.get("/api/documentary/versions/{version_id}/audio/{name}")
+def get_version_audio(version_id: int, name: str, db: Session = Depends(get_db)):
+    from app.documentary import voice_review
+
+    version = _version_of(db, version_id)
+    file = voice_review.AUDIO.get(name)
+    path = voice_review.folder(version) / file if file else None
+    if not path or not path.exists():
+        raise HTTPException(status_code=404, detail="Audio not found")
+    return serve_file(path, media_type="audio/mpeg")
+
+
+class VoiceReviewIn(BaseModel):
+    note: str | None = None
+
+
+@router.post("/api/documentary/versions/{version_id}/voice-review")
+def approve_voice_review(version_id: int, body: VoiceReviewIn, db: Session = Depends(get_db)):
+    """The owner has listened to this narration and approves it (tied to the exact audio file)."""
+    from app.documentary import voice_review
+
+    try:
+        return voice_review.approve(_version_of(db, version_id), body.note)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+
+def _version_of(db: Session, version_id: int) -> StoryVersion:
+    version = db.get(StoryVersion, version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="Version not found")
+    return version
+
+
 @router.get("/api/cases/{case_id}/documentary/jobs")
 def list_documentary_jobs(case_id: int, db: Session = Depends(get_db)):
     _case(db, case_id)

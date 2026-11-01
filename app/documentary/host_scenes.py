@@ -240,21 +240,32 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None)
     meta = _loads(scene.voice_meta_json, {})
     # the host speaks in its own style (host.voice_style), not the narration's
     settings = ai_config.voice.styles[ai_config.host.voice_style].model_dump()
+    prepared = scene.language in ai_config.voice.prepared_languages
+    dictionaries = []
+    if prepared:         # the host says the same names as the narration: the film's pronunciation dictionary goes with its voice too
+        from app.documentary import voice_prepare as VP
+        from app.db.models import StoryVersion
+
+        version = db.get(StoryVersion, scene.story_version_id)
+        dictionaries = await VP.ensure_dictionary(db, version, scene.language) if version is not None else []
     p = storage.resolve(scene.voice_path) if scene.voice_path else None
     if (p is not None and p.exists() and meta.get("text_sha256") == scene.text_sha256
             and meta.get("voice_id") == scene.voice_id and meta.get("model_id") == vcfg.model_id
-            and meta.get("settings") == settings and _sha(p.read_bytes()) == scene.voice_sha256
+            and meta.get("settings") == settings and meta.get("dictionaries", []) == dictionaries
+            and _sha(p.read_bytes()) == scene.voice_sha256
             and "flags" in _loads(scene.voice_checks_json, {})):
-        return {"skipped": "saved audio matches the text, voice and settings"}
+        return {"skipped": "saved audio matches the text, voice, settings and dictionary"}
     from app.documentary.pronunciation import PronunciationEditor
 
     renderer = renderer or VoiceRenderer(db=db, budget_case_id=scene.case_id,
                                          budget_stage=f"tts:host:{scene.language}",
-                                         arbiter=PronunciationEditor())
+                                         use_asr=not prepared, use_listener=not prepared,        # a prepared language is not listened to afterwards
+                                         arbiter=None if prepared else PronunciationEditor())
+    renderer.dictionaries = dictionaries
     sentences = _sentences(scene.text)
     pron = ai_config.pronunciation
     keyed = (await _pronunciation_key(db, scene, sentences, editor)
-             if pron.enabled and scene.language in pron.languages else {})
+             if pron.enabled and scene.language in pron.languages and not prepared else {})
     d = scene_dir(scene)
     block = {"block_id": f"host{scene.id}", "text": " ".join(sentences), "beats": [],
              "sentences": [{"speech": t, "display": t, "tts": t, "level": None,
@@ -269,7 +280,7 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None)
     al = take["alignment"]
     seconds = round(max(al["ends"]), 3) if al.get("ends") else None
     meta = {"text_sha256": scene.text_sha256, "voice_id": scene.voice_id,
-            "model_id": vcfg.model_id, "settings": settings,
+            "model_id": vcfg.model_id, "settings": settings, "dictionaries": dictionaries,
             "request_id": take.get("request_id"), "character_cost": take.get("character_cost"),
             "audio_format": ai_config.voice.elevenlabs.output_format, "seconds": seconds,
             "created_at": utc_now().isoformat()}
