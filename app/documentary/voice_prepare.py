@@ -233,33 +233,33 @@ def _same_reading(readings: list[str]) -> bool:
 
 
 def dictionary_rules(sentences: list[Sentence]) -> tuple[list[dict], list[dict]]:
-    """The rules of the whole film as ElevenLabs dictionary rules, one per word, and the conflicts: the same word that needs two clearly
-    different readings (a dictionary cannot choose by sentence). A word given nearly the same reading in different sentences has one reading:
-    the most frequent. The owner's approved readings win."""
+    """The rules of the whole film as ElevenLabs dictionary rules, one per word, and the words whose sentences gave different readings that
+    were settled by the app. A dictionary has one reading for a word: the most frequent reading wins (a reading of the same kind and nearly the
+    same sound counts as one), a tie goes to the more confident reading, then to the first; the owner's approved readings win over all. Returns
+    (rules, settled) with settled = [{surface, chosen, others, sentences}]."""
     from collections import Counter
 
+    order = {"high": 2, "medium": 1, "low": 0}
     seen: dict[str, list[tuple[Sentence, dict]]] = {}
     for sent in sentences:
         for rule in sent.rules:
             seen.setdefault(rule["surface"], []).append((sent, rule))
     chosen: dict[str, dict] = {}
-    conflicts: list[dict] = []
+    settled: list[dict] = []
     for surface, entries in seen.items():
-        kinds = Counter((r["type"], r["pronunciation"]) for _, r in entries)
-        by_type = Counter(r["type"] for _, r in entries)
-        main_type, main_count = by_type.most_common(1)[0]
-        if len(by_type) > 1 and main_count >= 2 * (len(entries) - main_count):      # the way a word is written down is the same way most of the time
-            kinds = Counter({k: n for k, n in kinds.items() if k[0] == main_type})
-        if len(kinds) == 1 or (len({t for t, _ in kinds}) == 1 and _same_reading([p for _, p in kinds])):
-            (kind, reading), _ = kinds.most_common(1)[0]
-            chosen[surface] = {"surface": surface, "type": kind, "pronunciation": reading}
-        else:
-            sent = entries[0][0]
-            conflicts.append({"where": f"sentence {sent.i} ({sent.beat_id})",
-                              "what": f"«{surface}» needs two readings: " + " and ".join(p for _, p in kinds)})
+        votes = Counter((r["type"], r["pronunciation"]) for _, r in entries)
+        weight = {k: (n, max(order.get(r.get("confidence", "low"), 0) for _, r in entries if (r["type"], r["pronunciation"]) == k))
+                  for k, n in votes.items()}
+        if len(votes) > 1 and len({t for t, _ in votes}) == 1 and _same_reading([p for _, p in votes]):
+            votes = Counter({max(votes, key=lambda k: votes[k]): sum(votes.values())})      # the same reading said slightly differently
+            weight = {k: (n, 2) for k, n in votes.items()}
+        kind, reading = max(votes, key=lambda k: weight[k])
+        chosen[surface] = {"surface": surface, "type": kind, "pronunciation": reading}
+        if len(votes) > 1:
+            settled.append({"surface": surface, "chosen": reading, "others": [p for (_, p) in votes if p != reading], "sentences": len(entries)})
     rules = [{"string_to_replace": r["surface"], "type": "phoneme", "alphabet": "ipa", "phoneme": r["pronunciation"]} if r["type"] == "phoneme"
              else {"string_to_replace": r["surface"], "type": "alias", "alias": r["pronunciation"]} for r in chosen.values()]
-    return rules, conflicts
+    return rules, settled
 
 
 # ---------------------------------------------------------------------------
@@ -435,8 +435,7 @@ async def prepare_version(db: Session, case: Case, version: StoryVersion, langua
     for sent in sentences:
         issues += [{"where": f"sentence {sent.i} ({sent.beat_id})", "what": f"uncertain: {u.get('surface')}: {u.get('question')}"} for u in sent.uncertain]
         issues += check_sentence(sent, names)
-    rules, conflicts = dictionary_rules(sentences)
-    issues += conflicts
+    rules, settled = dictionary_rules(sentences)
     if issues:
         raise PreparationUncertain(issues)
     issues = await verify(db, case, language, sentences, sources)
@@ -449,7 +448,8 @@ async def prepare_version(db: Session, case: Case, version: StoryVersion, langua
     extra = {k: struct[k] for k in ("blueprint_id", "source_version_id", "beat_sections", "pilot_seconds", "pilot_beat_ids", "evidence_fingerprint")
              if k in struct}
     prepared = {"from_version_id": version.id, "rules": rules, "changed_sentences": sum(1 for s in sentences if s.final != s.draft),
-                "sentences": len(sentences), "dictionary": None, "decided_by_the_editor": decisions_of(sentences)}
+                "sentences": len(sentences), "dictionary": None, "decided_by_the_editor": decisions_of(sentences),
+                "settled_by_majority": settled}
     prepared_version = save_story_version(
         db, case, plan, sections, text, 0.0, None, "not_evaluated", {"quality_gates": {"pass": True, "failures": []}, "prepared_from": version.id},
         language, None, kind="spoken", master_version_id=version.master_version_id,

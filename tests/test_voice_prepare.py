@@ -66,15 +66,22 @@ def test_a_rule_must_belong_to_a_word_of_the_text_not_match_part_of_another_word
     assert any("not an IPA reading" in i["what"] for i in VP.check_sentence(sentence(0, "کالب آمد.", "کالب آمد.", [persian_phoneme])))
 
 
-def test_the_films_rules_become_one_dictionary_and_a_word_with_two_readings_is_a_conflict():
+def test_the_films_rules_become_one_dictionary_and_a_word_with_different_readings_gets_the_most_frequent_one():
     a = sentence(0, "x", "کالب", [{"surface": "کالب", "type": "phoneme", "pronunciation": "kɑːleb", "reason": ""}])
     b = sentence(1, "x", "کالب", [{"surface": "کالب", "type": "phoneme", "pronunciation": "kɑːleb", "reason": ""},
                                    {"surface": "گاراژ", "type": "alias", "pronunciation": "گاراج", "reason": ""}])
-    rules, conflicts = VP.dictionary_rules([a, b])
-    assert conflicts == [] and rules == [{"string_to_replace": "کالب", "type": "phoneme", "alphabet": "ipa", "phoneme": "kɑːleb"},
-                                          {"string_to_replace": "گاراژ", "type": "alias", "alias": "گاراج"}]
+    rules, settled = VP.dictionary_rules([a, b])
+    assert settled == [] and rules == [{"string_to_replace": "کالب", "type": "phoneme", "alphabet": "ipa", "phoneme": "kɑːleb"},
+                                       {"string_to_replace": "گاراژ", "type": "alias", "alias": "گاراج"}]
     c = sentence(2, "x", "کالب", [{"surface": "کالب", "type": "phoneme", "pronunciation": "mɒnstər", "reason": ""}])
-    assert "two readings" in VP.dictionary_rules([a, c])[1][0]["what"], "clearly different readings of one word cannot be one rule"
+    d = sentence(3, "x", "کالب", [{"surface": "کالب", "type": "phoneme", "pronunciation": "mɒnstər", "reason": ""}])
+    e = sentence(4, "x", "کالب", [{"surface": "کالب", "type": "phoneme", "pronunciation": "kɑːleb", "reason": "", "confidence": "high"}])
+    rules, settled = VP.dictionary_rules([a, c, d])
+    assert rules[0]["phoneme"] == "mɒnstər" and settled == [{"surface": "کالب", "chosen": "mɒnstər", "others": ["kɑːleb"], "sentences": 3}], "two votes beat one"
+    rules, settled = VP.dictionary_rules([a, c, d, e])
+    assert rules[0]["phoneme"] == "kɑːleb", "two votes against two: the more confident reading wins"
+    rules, settled = VP.dictionary_rules([a, c])
+    assert rules[0]["phoneme"] == "kɑːleb" and settled[0]["others"] == ["mɒnstər"], "a tie goes to the first"
 
 
 def test_a_name_given_almost_the_same_reading_in_different_sentences_has_one_reading_the_most_frequent_and_an_approved_reading_wins(monkeypatch):
@@ -82,8 +89,8 @@ def test_a_name_given_almost_the_same_reading_in_different_sentences_has_one_rea
         return [{"surface": "کالب", "type": "phoneme", "pronunciation": pron, "reason": ""}]
 
     sentences = [sentence(0, "x", "کالب", rule("kɑːleb")), sentence(1, "x", "کالب", rule("kɑːleb")), sentence(2, "x", "کالب", rule("kɑleb"))]
-    rules, conflicts = VP.dictionary_rules(sentences)
-    assert conflicts == [] and rules == [{"string_to_replace": "کالب", "type": "phoneme", "alphabet": "ipa", "phoneme": "kɑːleb"}]
+    rules, settled = VP.dictionary_rules(sentences)
+    assert settled == [] and rules == [{"string_to_replace": "کالب", "type": "phoneme", "alphabet": "ipa", "phoneme": "kɑːleb"}]
     monkeypatch.setattr(ai_config.voice_prepare, "approved_readings", {"fa": {"کالب": {"type": "alias", "pronunciation": "کِیلِب"}}})
     quiet = [sentence(0, "x", "کالب آمد", rule("kɑːleb")), sentence(1, "x", "او آمد")]
     VP.apply_approved(quiet, "fa")
@@ -379,10 +386,8 @@ def test_a_word_written_down_one_way_most_of_the_time_keeps_that_way_when_one_se
 
     sentences = [sentence(0, "x", "تیپ‌سیتی", rule("phoneme", "tipsiti")), sentence(1, "x", "تیپ‌سیتی", rule("phoneme", "tipsiti")),
                  sentence(2, "x", "تیپ‌سیتی", rule("alias", "تیپ سیتی"))]
-    rules, conflicts = VP.dictionary_rules(sentences)
-    assert conflicts == [] and rules == [{"string_to_replace": "تیپ‌سیتی", "type": "phoneme", "alphabet": "ipa", "phoneme": "tipsiti"}]
-    split = [sentences[0], sentences[2]]
-    assert "two readings" in VP.dictionary_rules(split)[1][0]["what"], "an even split is a real doubt"
+    rules, settled = VP.dictionary_rules(sentences)
+    assert rules == [{"string_to_replace": "تیپ‌سیتی", "type": "phoneme", "alphabet": "ipa", "phoneme": "tipsiti"}] and settled[0]["others"] == ["تیپ سیتی"]
 
 
 def test_the_readings_the_editor_decided_itself_are_listed_the_least_sure_first_and_the_approved_ones_are_not(monkeypatch):
