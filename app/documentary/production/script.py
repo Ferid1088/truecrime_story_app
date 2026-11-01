@@ -1311,6 +1311,8 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     picture_fixes["held_too_long"] += sound.pop("held_too_long")   # (closing a hole may have stretched a picture again)
     picture_fixes.update(sound)
     graphics_dropped = finalize_graphics(final, language)
+    if graphics_dropped:                   # a card that no longer fits leaves a stretch no shot covers: the timeline is made sound again
+        picture_fixes["after_dropped_graphics"] = PF.repair(final, duration, board_appearances)
     for n, sh in enumerate(final):
         sh["index"] = n
         if n == 0:

@@ -72,3 +72,22 @@ def test_a_script_of_another_case_that_is_not_a_timeline_is_not_compared_with(db
     mine = script_of(cases[2], [])
     compared = [p["id"] for p in previous_productions(db_session, mine, n=1000)]
     assert good.id in compared and broken.id not in compared
+
+
+def test_a_graphic_that_no_longer_fits_leaves_a_hole_and_the_repair_after_it_closes_it(monkeypatch):
+    from app.documentary.graphics import shots as GS
+    from app.documentary.graphics.base import GraphicUnavailable
+
+    def too_short(spec, seconds, language):
+        raise GraphicUnavailable("the page needs more seconds")
+
+    monkeypatch.setattr(GS, "render_for", too_short)
+    card = graphic(30, 47.1, "F9")
+    card["graphic"]["type"] = "fact_card"
+    shots = [shot("image", 0, 30), card, shot("detective_board", 47.1, 68), shot("image", 68, 100)]
+    dropped = GS.finalize(shots, "fa")
+    assert dropped and any("covered by no shot" in p for p in PF.problems(shots, 100)), "the dropped card left a stretch nothing covers"
+    PF.repair(shots, 100)
+    assert PF.problems(shots, 100) == []
+    ordered = sorted(shots, key=lambda s: s["start"])
+    assert all(abs(b["start"] - a["end"]) < 0.06 for a, b in zip(ordered, ordered[1:], strict=False)), "the film is continuous again"

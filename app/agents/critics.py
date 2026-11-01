@@ -75,7 +75,10 @@ class DocumentaryCritics:
                 report["card_audit"] = sound.pop("card_audit")                 # a fix may have moved a card: every card gets its own time again
                 report["picture_limit"] = sound.pop("held_too_long")           # and no picture stays too long
                 report.update(sound)
-                finalize_graphics(script.get("shots") or [], script.get("language"))      # a card held longer gets its cues for its new length
+                dropped = finalize_graphics(script.get("shots") or [], script.get("language"))      # a card held longer gets its cues for its new length
+                if dropped:                    # a card that no longer fits leaves a stretch no shot covers: the timeline is made sound again
+                    report["after_dropped_graphics"] = PF.repair(script.get("shots") or [], script.get("duration"), script.get("board"))
+                    script["graphics_dropped"] = [*(script.get("graphics_dropped") or []), *dropped]
                 for n, sh in enumerate(script.get("shots") or []):
                     sh["index"] = n
                 # appearance numbers and justifications follow the fixed cut
