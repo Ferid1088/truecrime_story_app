@@ -481,3 +481,15 @@ def test_a_sentence_the_checker_flags_goes_back_to_the_editor_alone_and_the_run_
     with pytest.raises(VP.PreparationUncertain, match="part of became all"):
         asyncio.run(VP.prepare_version(db_session, case2, old2, "fa"))
     assert db_session.query(StoryVersion).count() == before
+
+
+def test_a_checker_verdict_without_a_problem_is_fine_even_when_it_leaves_out_ok(db_session, monkeypatch):
+    case, old = _version(db_session)
+    sentences = [VP.Sentence(0, "B01", 0, "قدیمی.", "تازه."), VP.Sentence(1, "B01", 0, "قدیمی دو.", "تازه دو.")]
+
+    async def ask(db, case_id, label, payload, role, runner):
+        return {"sentences": [{"i": 0, "problems": []}, {"i": 1, "ok": False, "problems": []}]}
+
+    monkeypatch.setattr(VP, "_ask", ask)
+    found = asyncio.run(VP.verify(db_session, case, "fa", sentences, {"B01": "x"}))
+    assert [f["i"] for f in found] == [1] and "without a reason" in found[0]["what"]

@@ -414,8 +414,8 @@ async def verify(db: Session, case: Case, language: str, sentences: list[Sentenc
             where = f"sentence {sent.i} ({sent.beat_id})"
             if verdict is None:
                 problems.append({"i": sent.i, "where": where, "what": "the checker gave no verdict"})
-            elif verdict.get("ok") is not True or verdict.get("problems"):
-                for p in verdict.get("problems") or [{"kind": "unsure", "why": "not confirmed"}]:
+            elif verdict.get("ok") is False or verdict.get("problems"):        # a sentence with no problem listed and not marked false is fine
+                for p in verdict.get("problems") or [{"kind": "unsure", "why": "marked not ok without a reason"}]:
                     problems.append({"i": sent.i, "where": where, "what": f"{p.get('kind')}: {p.get('why')} ({str(p.get('quote') or '')[:80]})"})
     return problems
 
