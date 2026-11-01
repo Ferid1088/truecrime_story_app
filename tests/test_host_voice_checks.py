@@ -363,3 +363,15 @@ def test_asr_is_strict_for_persian_and_arabic_and_only_warns_on_names_and_number
     wrong_number = compare_transcript(script, "Then Detective Harlan found 14 boxes in the old "
                                       "garage near the lake today", "en", cfg)
     assert wrong_number["sensitive_diffs"]
+
+
+def test_the_writer_and_the_critic_read_the_same_register_note_of_a_language():
+    from app.core.ai_config import ai_config
+    from app.documentary.host import critic_system_prompt, register_of, writer_system_prompt
+
+    note = ai_config.host.language_rules["fa"].register_note
+    assert note and "می‌دونی" in note and "شما" in note
+    for language in ("fa", "ar", "de"):
+        assert ai_config.host.language_rules[language].register_note in writer_system_prompt(language)
+        assert ai_config.host.language_rules[language].register_note in critic_system_prompt(language)
+    assert register_of("en") == "" and "register of" not in writer_system_prompt("en") and "register of" not in critic_system_prompt("en")

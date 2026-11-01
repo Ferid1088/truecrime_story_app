@@ -1866,6 +1866,9 @@ class HostLanguageRules(BaseModel):
     handover_patterns: list[str] = Field(default_factory=list)
     # Sentence-ending marks that make a sentence a question.
     question_marks: list[str] = Field(default_factory=lambda: ["?"])
+    # How a friend speaks in this language, in concrete forms: given to the writer and to the critic alike, so that what the writer
+    # produces and what the critic calls "native" and "informal" are the same register.
+    register_note: str = ""
     # Stock constructions the persona avoids (case-insensitive regexes).
     stock_phrases: list[str] = Field(default_factory=list)
 

@@ -42,7 +42,7 @@ defines for {name}. Short sentences, one breath each. Share what you think, what
 you cannot stop thinking about; ask the viewer real questions. Never summarize facts like a police
 report; a fact appears only inside a thought, a doubt or a question. Refer to what happened in
 the acts before (not only the last one), react personally, and build tension toward what comes
-next without answering anything.
+next without answering anything.{register}
 
 BY ROLE
 - opening: the hook. The first sentence grabs (short, concrete, a surprise, a tension or a

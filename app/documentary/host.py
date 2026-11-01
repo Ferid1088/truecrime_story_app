@@ -244,6 +244,12 @@ def director_input(story: HostStory, narration_seconds: float) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def register_of(language: str, cfg: HostConfig | None = None) -> str:
+    """How a friend speaks in this language (host.language_rules.<language>.register_note), as the paragraph the writer and the critic both read."""
+    note = (cfg or ai_config.host).language_rules[language].register_note
+    return f"\n  The register of {LANG_NAMES.get(language, language)} (the critic judges by the same note): {note}" if note else ""
+
+
 def writer_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
     cfg = cfg or ai_config.host
     name = LANG_NAMES.get(language, language)
@@ -251,7 +257,7 @@ def writer_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
     brand = (prompt("documentary/host/writer_system_prompt_2")
              .format(name_2=channel.name, name=name)) if channel else ""
     return prompt("documentary/host/writer_system_prompt").format(
-        persona_prompt=persona_prompt(cfg), name=name, brand=brand,
+        persona_prompt=persona_prompt(cfg), name=name, brand=brand, register=register_of(language, cfg),
         opening_first_sentence=cfg.opening_max_first_sentence_words,
         dimensions=", ".join(DIMENSIONS))
 
@@ -435,7 +441,7 @@ def critic_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
     Discipline, Memory and Anti-Repetition rules and its own Quality Check),
     inserted whole after its instructions."""
     name = LANG_NAMES.get(language, language)
-    return (prompt("documentary/host/critic_system_prompt").format(name=name)
+    return (prompt("documentary/host/critic_system_prompt").format(name=name, register=register_of(language, cfg))
             + "\n\nTHE PERSONA YOU JUDGE AGAINST (the host must follow all of it; its Quality "
               "Check list is your checklist):\n\n" + persona_prompt(cfg))
 

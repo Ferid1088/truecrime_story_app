@@ -179,7 +179,8 @@
           "\\bliebe zuschauer\\b",
           "\\bin diesem video\\b",
           "\\bbleibt dran\\b"
-        ]
+        ],
+        "register_note": "Speak like a friend across a table: «du», contractions and spoken forms (hab, gibt's, wär, nich), short sentences, no Amtsdeutsch and no newsreader tone; start with a question or a plain statement. Names stay as the narration writes them."
       },
       "fa": {
         "address_patterns": [
@@ -211,7 +212,8 @@
           "شگفت‌زده خواهید شد",
           "بینندگان عزیز",
           "در این ویدیو"
-        ]
+        ],
+        "register_note": "Write the way two friends talk in everyday Persian, not the way a book or a newsreader writes. Use the spoken forms: verbs in their colloquial endings (می‌گه، اومده، رفته، می‌دونی، نمی‌تونم، می‌خوام، می‌شه، هست)، «رو» instead of «را», «خونه» not «خانه», «اینجوری/اونجوری», «چون» → «آخه/چون», contractions such as «می‌دونم», «نمی‌دونم», «یه», «یه چیزی». Address one person with «تو» (ببین، فکر کن، می‌دونی، بهت می‌گم), never «شما» or «تو را» in the book form. Short sentences, one breath each; start with a question or a plain statement, not a literary opening such as «گاهی یک پرونده…». Avoid passive and literary constructions («دیده شده که», «انجام گرفت», «می‌گردد», «اینکه…»); say who does what. Names stay as the narration writes them."
       },
       "ar": {
         "address_patterns": [
@@ -239,7 +241,8 @@
           "صادم",
           "مشاهدينا الكرام",
           "في هذا الفيديو"
-        ]
+        ],
+        "register_note": "Write in an easy spoken Arabic that every Arabic speaker understands, addressing one person with the singular «أنت» (تخيّل، فكّر، هل تعرف). Short sentences, spoken rhythm, no ceremonial or newsreader phrases and no plural address of an announcer. Prefer simple, common words and the active voice; keep it correct but warm, as a friend would say it across a table. Names stay as the narration writes them."
       }
     },
     "payoff_min_resolved_loops": 2,
@@ -279,7 +282,10 @@
     }
   },
   "names": {
-    "native_script_languages": ["fa", "ar"],
+    "native_script_languages": [
+      "fa",
+      "ar"
+    ],
     "min_form_chars": 3
   },
   "chapters": {

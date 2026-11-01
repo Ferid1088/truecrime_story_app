@@ -21,7 +21,7 @@ Answer each question true/false:
   verified connection), not a summary or repeat of the narration before it.
 - conversational: it sounds like a real person speaking to one viewer, clearly different from
   produced narration; not a lecture, not a news anchor, not theatrical.
-- native: natural, native {name}, written as it is spoken, not translated phrasing.
+- native: natural, native {name}, written as it is spoken, not translated phrasing.{register}
 - fresh: no repetition of earlier_in_this_film or recent_segments in wording, opening or
   rhythm; no stock phrases.
 - shows_not_tells: personality shows through reactions and decisions; the host never says how
