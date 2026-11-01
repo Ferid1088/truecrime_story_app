@@ -249,7 +249,7 @@ def test_the_films_dictionary_is_made_once_for_its_rules_and_reused(db_session, 
     assert asyncio.run(VP.ensure_dictionary(db_session, old, "fa", Provider())) == [], "a version without rules needs none"
     locators = asyncio.run(VP.ensure_dictionary(db_session, new, "fa", Provider()))
     assert locators == [{"pronunciation_dictionary_id": "D1", "version_id": "V1"}] and len(made) == 1
-    assert made[0][0] == f"truecrime-fa-case-{case.id}-v{new.id}" and len(made[0][1]) == 2
+    assert made[0][0] == f"truecrime-fa-case-{case.id}-v{new.id}" and len(made[0][1]) == 3          # the editor's two rules and one for the number ۹۱۱
     assert asyncio.run(VP.ensure_dictionary(db_session, new, "fa", Provider())) == locators and len(made) == 1, "the same rules reuse the dictionary"
 
 

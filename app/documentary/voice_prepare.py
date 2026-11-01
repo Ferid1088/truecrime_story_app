@@ -31,6 +31,7 @@ from app.core.concurrency import gather_limited
 from app.db.models import Case, EditorialBlueprint, StoryVersion
 from app.documentary import names as NS
 from app.documentary.mvp import reference as REF
+from app.documentary.persian_numbers import NUMBER, to_words, value_of
 from app.documentary.voice_performance import speech_structure
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
@@ -509,10 +510,18 @@ def carry_host(db: Session, old: StoryVersion, new: StoryVersion) -> None:
     db.commit()
 
 
+def number_rules(text: str, taken: set[str]) -> list[dict]:
+    """One alias rule per whole number of the text that is not in `taken` ("۹۱۱" -> "نهصد و یازده"): a voice reads bare digits one by one. A number that is
+    part of a longer number of the text (۱۱ in ۲۰۱۱) gets no rule: a rule might match inside the longer one, and the longer number has its own."""
+    tokens = sorted({m.group() for m in NUMBER.finditer(text)} - taken, key=lambda t: (len(t), t))
+    longest = sorted(tokens, key=len, reverse=True)
+    return [{"string_to_replace": t, "type": "alias", "alias": to_words(value_of(t))}
+            for t in tokens if not any(t != o and t in o for o in longest)]
+
+
 async def ensure_dictionary(db: Session, version: StoryVersion, language: str, provider=None) -> list[dict]:
     """The film's pronunciation dictionary at ElevenLabs, as the locators every block of the film is sent with: made once for these rules (a
     dictionary of the same rules is reused), and kept with the version. Nothing for a version without rules."""
-    
     from app.providers.voice import get_voice_provider
 
     struct = json.loads(version.narrative_structure or "{}")
@@ -520,6 +529,8 @@ async def ensure_dictionary(db: Session, version: StoryVersion, language: str, p
     rules = prepared.get("rules") or []
     if not rules:
         return []
+    words = [r for r in rules if not NUMBER.fullmatch(r["string_to_replace"])]       # a number is always read as a number, whatever the editor chose
+    rules = words + number_rules(version.story_text or "", set())
     fingerprint = hashlib.sha256(json.dumps(rules, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
     known = prepared.get("dictionary") or {}
     if known.get("fingerprint") != fingerprint:

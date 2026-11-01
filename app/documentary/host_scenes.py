@@ -239,7 +239,7 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None)
         raise ST.StudioError(f"no voice configured for {scene.language}")
     meta = _loads(scene.voice_meta_json, {})
     # the host speaks in its own style (host.voice_style), not the narration's
-    settings = ai_config.voice.styles[ai_config.host.voice_style].model_dump()
+    settings = ai_config.voice.settings_for(ai_config.host.voice_style, scene.language)
     prepared = scene.language in ai_config.voice.prepared_languages
     dictionaries = []
     if prepared:         # the host says the same names as the narration: the film's pronunciation dictionary goes with its voice too

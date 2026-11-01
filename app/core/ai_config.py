@@ -1516,6 +1516,14 @@ class VoiceConfig(BaseModel):
     prepared_languages: list[str] = []
     # Languages whose narration the owner hears and approves before the film goes on (the picture planning and the render wait for it).
     review_languages: list[str] = []
+    # The finished narration of a language is played this much faster (pitch kept) after the provider made it: the provider's own speed stops at 1.2.
+    post_speed: dict[str, float] = {}
+    # Styles of one language that replace the same-named style of `styles` (Persian: stability 0.30 and the provider's top speed).
+    language_styles: dict[str, dict[str, VoiceStyle]] = Field(default_factory=dict)
+
+    def settings_for(self, style: str, language: str) -> dict:
+        """The provider voice settings of a style in a language."""
+        return (self.language_styles.get(language, {}).get(style) or self.styles[style]).model_dump()
     default_style: str = "neutral_documentary"
     styles: dict[str, VoiceStyle] = Field(
         default_factory=lambda: {"neutral_documentary": VoiceStyle()}

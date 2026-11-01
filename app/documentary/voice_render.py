@@ -188,6 +188,7 @@ class VoiceRenderer:
         self.budget_pilot_seconds = budget_pilot_seconds
         self._budget_usage_missing = False
         self.dictionaries: list[dict] = []        # the film's pronunciation dictionary locators (a prepared language)
+        self.narration = False                    # set while the film's narration is rendered: only it gets the language's post speed
         self.asr_error: str | None = None
         # phoneme listener for the pronunciation loop (loaded when needed)
         self._listener = listener
@@ -306,13 +307,16 @@ class VoiceRenderer:
             storage.write_atomic(meta_path, json.dumps(meta, ensure_ascii=False))
 
         al = meta["alignment"]
+        tempo = self.cfg.post_speed.get(language, 1.0) if self.narration else 1.0
+        if tempo != 1.0:         # every time of the take is a time of the sped-up audio
+            al = {"characters": al["characters"], "starts": [t / tempo for t in al["starts"]], "ends": [t / tempo for t in al["ends"]]}
         words = words_from_alignment(al["characters"], al["starts"], al["ends"])
-        raw_duration = await asyncio.to_thread(A.probe_duration, raw)
+        raw_duration = await asyncio.to_thread(A.probe_duration, raw) / tempo
         speech_start = words[0]["start"] if words else 0.0
         speech_end = words[-1]["end"] if words else raw_duration
         t0 = max(0.0, speech_start - self.cfg.lead_pad_ms / 1000)
         t1 = min(raw_duration, speech_end + self.cfg.tail_pad_ms / 1000)
-        await asyncio.to_thread(A.to_wav, raw, wav, self.loud.sample_rate, t0, t1)
+        await asyncio.to_thread(A.to_wav, raw, wav, self.loud.sample_rate, t0, t1, tempo)
         duration = await asyncio.to_thread(A.probe_duration, wav)
         local_words = [
             {**w, "start": round(w["start"] - t0, 3), "end": round(w["end"] - t0, 3)}
@@ -482,6 +486,7 @@ class VoiceRenderer:
         force_block_ids: list[str] | None = None,
     ) -> dict:
         language = plan["language"]
+        self.narration = True
         lang_cfg = self.cfg.for_language(language)
         if language in self.cfg.prepared_languages:
             self.dictionaries = list(plan.get("pronunciation_dictionary") or [])
@@ -505,7 +510,7 @@ class VoiceRenderer:
             # reproducible; normal renders reuse the cached take.
             seed = self.cfg.seed + (10 if b["block_id"] in force else 0)
             return await self.speak_block(b, language, lang_cfg,
-                                          self.cfg.styles[block_style(b)].model_dump(), seed,
+                                          self.cfg.settings_for(block_style(b), language), seed,
                                           blocks_dir)
 
         # All blocks at once: the provider's limit (concurrency

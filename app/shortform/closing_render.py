@@ -93,7 +93,7 @@ class HeyGenClosingRenderer:
         from app.documentary.voice_render import VoiceRenderer
 
         vcfg = ai_config.voice.languages[language]
-        settings = ai_config.voice.styles[ai_config.host.voice_style].model_dump()
+        settings = ai_config.voice.settings_for(ai_config.host.voice_style, language)
         renderer = VoiceRenderer(db=db, budget_case_id=case_id, budget_stage=f"tts:closing:{language}",
                                  arbiter=PronunciationEditor())
         block = {"block_id": f"closing-{language}", "text": " ".join(sentences), "beats": [],

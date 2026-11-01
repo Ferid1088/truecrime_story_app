@@ -248,6 +248,35 @@ def test_render_trims_times_checks_and_normalizes(workdir):
     assert m["flags"] == []
 
 
+def test_a_post_speed_plays_the_take_faster_and_every_time_follows_it(workdir, monkeypatch):
+    monkeypatch.setattr(ai_config.voice, "post_speed", {"en": 1.25})
+    cfg = ai_config.voice
+    pads = (cfg.lead_pad_ms + cfg.tail_pad_ms) / 1000
+    speech = len(TEXT_A) * SPEECH_PER_CHAR
+
+    def block_of(renderer):
+        m = _render(renderer, [_block("EN_a_01", "act1", TEXT_A)])
+        return m["blocks"][0], m["timeline"]["words"]
+
+    fast, words = block_of(VoiceRenderer(provider=FakeTTS(), asr=FakeASR()))
+    assert abs(fast["actual_seconds"] - (speech / 1.25 + pads)) < 0.08
+    assert abs(words[-1]["end"] - (speech / 1.25 + cfg.lead_pad_ms / 1000)) < 0.08, "the word times are those of the sped-up audio"
+    take = asyncio.run(VoiceRenderer(provider=FakeTTS(), asr=FakeASR())._take(          # a host appearance: not the narration
+        {"block_id": "host1", "text": TEXT_A}, VoiceRequest(text=TEXT_A, voice_id="v", model_id="m", settings={}, language="en"),
+        workdir / "takes", "en"))
+    assert abs(take["alignment"]["ends"][-1] - (LEAD + speech)) < 0.01, "the host keeps the provider's speed, nothing is sped up afterwards"
+
+
+def test_persian_has_its_own_voice_styles_and_every_other_language_keeps_the_common_ones():
+    voice = ai_config.voice
+    for style in (ai_config.host.voice_style, voice.default_style):
+        assert voice.settings_for(style, "fa")["speed"] == 1.2
+        for language in ("en", "de", "ar"):
+            assert voice.settings_for(style, language) == voice.styles[style].model_dump()
+    assert voice.settings_for(voice.default_style, "fa")["stability"] == 0.3 and voice.settings_for(ai_config.host.voice_style, "fa")["stability"] == 0.2
+    assert voice.styles[voice.default_style].speed < 1.0, "the other languages are as they were before the Persian changes"
+
+
 def test_neighbour_text_and_style_reach_the_provider(workdir):
     tts = FakeTTS()
     b = _block("EN_a_01", "act1", TEXT_A)

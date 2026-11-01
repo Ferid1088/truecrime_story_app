@@ -45,11 +45,13 @@ def probe_duration(path: str | Path) -> float:
 
 def to_wav(
     src: str | Path, dst: str | Path, sample_rate: int,
-    start: float | None = None, end: float | None = None,
+    start: float | None = None, end: float | None = None, tempo: float = 1.0,
 ) -> Path:
-    """Decode (and optionally trim) to mono 16-bit PCM WAV. Trimming is
-    sample-accurate because -ss/-to come after -i."""
+    """Decode (and optionally speed up, pitch kept, and trim) to mono 16-bit PCM WAV. Trimming is
+    sample-accurate because -ss/-to come after -i; with a tempo, start and end are seconds of the sped-up audio."""
     args = ["ffmpeg", "-y", "-v", "error", "-i", str(src)]
+    if tempo != 1.0:
+        args += ["-filter:a", f"atempo={tempo:.4f}"]
     if start is not None:
         args += ["-ss", f"{max(start, 0.0):.3f}"]
     if end is not None:
