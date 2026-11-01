@@ -119,7 +119,7 @@
     "word_tolerance": 0.2,
     "duration_tolerance": 0.1,
     "voice_style": "host_conversational",
-    "max_repair_iterations": 2,
+    "max_repair_iterations": 4,
     "opening_max_first_sentence_words": 16,
     "language_rules": {
       "en": {
@@ -213,7 +213,7 @@
           "بینندگان عزیز",
           "در این ویدیو"
         ],
-        "register_note": "Write the way two friends talk in everyday Persian, not the way a book or a newsreader writes. Use the spoken forms: verbs in their colloquial endings (می‌گه، اومده، رفته، می‌دونی، نمی‌تونم، می‌خوام، می‌شه، هست)، «رو» instead of «را», «خونه» not «خانه», «اینجوری/اونجوری», «چون» → «آخه/چون», contractions such as «می‌دونم», «نمی‌دونم», «یه», «یه چیزی». Address one person with «تو» (ببین، فکر کن، می‌دونی، بهت می‌گم), never «شما» or «تو را» in the book form. Short sentences, one breath each; start with a question or a plain statement, not a literary opening such as «گاهی یک پرونده…». Avoid passive and literary constructions («دیده شده که», «انجام گرفت», «می‌گردد», «اینکه…»); say who does what. Names stay as the narration writes them. Rhythm: in every appearance put one or two very short sentences of at most six words between the longer ones (a reaction, a doubt, a pause: «نمی‌دونم.» «عجیبه.» «صبر کن.»), and make the other sentences clearly different in length."
+        "register_note": "Write the way two friends talk in everyday Persian, not the way a book or a newsreader writes. Use the spoken forms: verbs in their colloquial endings (می‌گه، اومده، رفته، می‌دونی، نمی‌تونم، می‌خوام، می‌شه، هست)، «رو» instead of «را», «خونه» not «خانه», «اینجوری/اونجوری», «چون» → «آخه/چون», contractions such as «می‌دونم», «نمی‌دونم», «یه», «یه چیزی». Address one person with «تو» (ببین، فکر کن، می‌دونی، بهت می‌گم), never «شما» or «تو را» in the book form. Short sentences, one breath each; start with a question or a plain statement, not a literary opening such as «گاهی یک پرونده…». Avoid passive and literary constructions («دیده شده که», «انجام گرفت», «می‌گردد», «اینکه…»); say who does what. Names stay as the narration writes them. Rhythm: in every appearance put one or two very short sentences of at most six words between the longer ones (a reaction, a doubt, a pause: «نمی‌دونم.» «عجیبه.» «صبر کن.»), and make the other sentences clearly different in length. Always the spoken «یه» and never the written «یک» for 'a/one' (یه تماس، یه نفر), «از بین» not «از میان», «اینکه/که» sparingly. Never a word that makes light of a death or of what the victim lived through (not «ناراحتی»): speak of it plainly and with weight."
       },
       "ar": {
         "address_patterns": [
