@@ -62,14 +62,34 @@ test.describe("Owner film review", () => {
     await expect.poll(() => decision).toMatchObject({ decision: "APPROVED", render_sha256: "ab".repeat(32) });
   });
 
-  test("a film that is not awaiting review offers no decision buttons", async ({ page }) => {
+  test("a film the checks held back can be approved by the owner with its findings accepted", async ({ page }) => {
+    await mockPage(page);
+    const held = { ...REVIEW, state: "PRODUCING",
+      validation: { ...REVIEW.validation, review_ready: false, blocking: ["3 graphic item(s) shown more than once"] } };
+    let decision: Record<string, unknown> | null = null;
+    await page.route("**/api/cases/1/mvp/reviews", (r: Route) =>
+      r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([held]) }));
+    await page.route("**/api/mvp/reviews/7/decision", (r: Route) => {
+      decision = r.request().postDataJSON();
+      return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...held, state: "APPROVED" }) });
+    });
+    await page.goto("/documentary/1");
+    await page.getByRole("tab", { name: "Visual Planner" }).click();
+    const card = page.getByTestId("film-review-en");
+    await expect(card).toContainText("3 graphic item(s) shown more than once");
+    await expect(card.getByRole("button", { name: "Revision required" })).toHaveCount(0);
+    await card.getByRole("button", { name: "Approve this film (accept the findings above)" }).click();
+    await expect.poll(() => decision).toMatchObject({ decision: "APPROVED", render_sha256: "ab".repeat(32), accept_findings: true });
+  });
+
+  test("a film that has no render offers no decision buttons", async ({ page }) => {
     await mockPage(page);
     await page.route("**/api/cases/1/mvp/reviews", (r: Route) =>
       r.fulfill({ status: 200, contentType: "application/json",
-        body: JSON.stringify([{ ...REVIEW, state: "PRODUCING" }]) }));
+        body: JSON.stringify([{ ...REVIEW, state: "PRODUCING", render_path: null, render_sha256: null }]) }));
     await page.goto("/documentary/1");
     await page.getByRole("tab", { name: "Visual Planner" }).click();
     await expect(page.getByTestId("film-review-en")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Approve this exact film" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Approve this/ })).toHaveCount(0);
   });
 });

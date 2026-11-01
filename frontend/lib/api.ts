@@ -1076,9 +1076,9 @@ export const mvpApi = {
     post<MvpCandidate>(`/api/mvp/candidates/${candidateId}/decision`, { decision, note }),
   reviews: (caseId: number) => request<MvpFilmReview[]>(`/api/cases/${caseId}/mvp/reviews`),
   decideFilm: (reviewId: number, decision: "APPROVED" | "REVISION_REQUIRED" | "REJECTED",
-    renderSha256: string, note?: string) =>
+    renderSha256: string, note?: string, acceptFindings = false) =>
     post<MvpFilmReview>(`/api/mvp/reviews/${reviewId}/decision`, {
-      decision, note, render_sha256: renderSha256,
+      decision, note, render_sha256: renderSha256, accept_findings: acceptFindings,
     }),
 };
 

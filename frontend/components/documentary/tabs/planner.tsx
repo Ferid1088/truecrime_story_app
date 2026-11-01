@@ -156,14 +156,16 @@ function FilmReviewCard({ review, onChange }: { review: MvpFilmReview; onChange:
   const [note, setNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const awaiting = review.state === "AWAITING_OWNER_REVIEW";
+  // A rendered film the checks held back can still be approved by the owner, who then accepts what the checks found.
+  const heldBack = review.state === "PRODUCING" && !!review.render_sha256;
   const v = review.validation;
 
-  async function decide(decision: "APPROVED" | "REVISION_REQUIRED" | "REJECTED") {
+  async function decide(decision: "APPROVED" | "REVISION_REQUIRED" | "REJECTED", acceptFindings = false) {
     if (!review.render_sha256) return;
     setBusy(true);
     setMessage(null);
     try {
-      await mvpApi.decideFilm(review.id, decision, review.render_sha256, note || undefined);
+      await mvpApi.decideFilm(review.id, decision, review.render_sha256, note || undefined, acceptFindings);
       onChange();
     } catch (e) {
       setMessage(e instanceof ApiError ? e.message : "Could not save the decision.");
@@ -240,6 +242,20 @@ function FilmReviewCard({ review, onChange }: { review: MvpFilmReview; onChange:
                 Reject
               </Button>
             </div>
+          </div>
+        )}
+        {heldBack && (
+          <div className="space-y-2">
+            <textarea
+              className="w-full rounded border p-2 text-sm"
+              rows={2}
+              placeholder="Your note (optional)"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+            <Button type="button" disabled={busy} onClick={() => void decide("APPROVED", true)}>
+              Approve this film (accept the findings above)
+            </Button>
           </div>
         )}
         {review.decided_at && (
