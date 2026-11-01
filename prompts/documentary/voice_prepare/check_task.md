@@ -1,0 +1,1 @@
+TASK: for every beat of the input say whether the Persian text is faithful to the English source, exactly as your instructions say. Return JSON only, with the key "beats".

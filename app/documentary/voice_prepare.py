@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from app.agents.runner import run_agent
 from app.agents.story import save_story_version, stored_sections
 from app.core.ai_config import ai_config
+from app.core.prompts import prompt
 from app.core.concurrency import gather_limited
 from app.db.models import Case, EditorialBlueprint, StoryVersion
 from app.documentary import names as NS
@@ -39,10 +40,8 @@ ZWNJ = "‌"
 DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 RULE_TYPES = ("phoneme", "alias")
 # what the model is asked to do with the input that follows (the agents of this app always get a task line before the input)
-EDIT_TASK = ("TASK: for every sentence of the input return its final Persian text and its pronunciation rules, exactly as your instructions say. "
-             "Return JSON only, with the key \"sentences\" and one object for every input sentence.\n\nINPUT:\n")
-CHECK_TASK = ("TASK: for every beat of the input say whether the Persian text is faithful to the English source, exactly as your instructions say. "
-              "Return JSON only, with the key \"beats\".\n\nINPUT:\n")
+EDIT_TASK = prompt("documentary/voice_prepare/edit_task") + "\n\nINPUT:\n"
+CHECK_TASK = prompt("documentary/voice_prepare/check_task") + "\n\nINPUT:\n"
 
 
 class PreparationFailed(RuntimeError):
