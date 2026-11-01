@@ -193,19 +193,46 @@ def clean_rules(raw) -> list[dict]:
     return out
 
 
+def apply_approved(sentences: list[Sentence], language: str) -> None:
+    """The readings the owner approved are used exactly: a rule for such a word is replaced by the approved one, and a word of the final text
+    that has an approved reading gets its rule even when the editor gave none."""
+    approved = ai_config.voice_prepare.approved_readings.get(language) or {}
+    for sent in sentences:
+        sent.rules = [r for r in sent.rules if r["surface"] not in approved]
+        for surface, reading in approved.items():
+            if whole_word(surface).search(sent.final):
+                sent.rules.append({"surface": surface, "type": reading["type"], "pronunciation": reading["pronunciation"], "reason": "approved by the owner"})
+
+
+def _same_reading(readings: list[str]) -> bool:
+    """Whether these readings of one word are one reading said slightly differently (a name's IPA written twice by a model)."""
+    from difflib import SequenceMatcher
+
+    threshold = ai_config.voice_prepare.same_reading_similarity
+    return all(SequenceMatcher(None, a, b).ratio() >= threshold for a in readings for b in readings)
+
+
 def dictionary_rules(sentences: list[Sentence]) -> tuple[list[dict], list[dict]]:
-    """The rules of the whole film as ElevenLabs dictionary rules, one per word, and the conflicts: the same word that needs two different
-    readings (a dictionary cannot choose by sentence)."""
-    chosen: dict[str, dict] = {}
-    conflicts: list[dict] = []
+    """The rules of the whole film as ElevenLabs dictionary rules, one per word, and the conflicts: the same word that needs two clearly
+    different readings (a dictionary cannot choose by sentence). A word given nearly the same reading in different sentences has one reading:
+    the most frequent. The owner's approved readings win."""
+    from collections import Counter
+
+    seen: dict[str, list[tuple[Sentence, dict]]] = {}
     for sent in sentences:
         for rule in sent.rules:
-            known = chosen.get(rule["surface"])
-            if known is None:
-                chosen[rule["surface"]] = rule
-            elif (known["type"], known["pronunciation"]) != (rule["type"], rule["pronunciation"]):
-                conflicts.append({"where": f"sentence {sent.i} ({sent.beat_id})",
-                                  "what": f"«{rule['surface']}» needs two readings: {known['pronunciation']} and {rule['pronunciation']}"})
+            seen.setdefault(rule["surface"], []).append((sent, rule))
+    chosen: dict[str, dict] = {}
+    conflicts: list[dict] = []
+    for surface, entries in seen.items():
+        kinds = Counter((r["type"], r["pronunciation"]) for _, r in entries)
+        if len(kinds) == 1 or (len({t for t, _ in kinds}) == 1 and _same_reading([p for _, p in kinds])):
+            (kind, reading), _ = kinds.most_common(1)[0]
+            chosen[surface] = {"surface": surface, "type": kind, "pronunciation": reading}
+        else:
+            sent = entries[0][0]
+            conflicts.append({"where": f"sentence {sent.i} ({sent.beat_id})",
+                              "what": f"«{surface}» needs two readings: " + " and ".join(p for _, p in kinds)})
     rules = [{"string_to_replace": r["surface"], "type": "phoneme", "alphabet": "ipa", "phoneme": r["pronunciation"]} if r["type"] == "phoneme"
              else {"string_to_replace": r["surface"], "type": "alias", "alias": r["pronunciation"]} for r in chosen.values()]
     return rules, conflicts
@@ -237,6 +264,8 @@ async def edit(db: Session, case: Case, language: str, sentences: list[Sentence]
     size = ai_config.voice_prepare.sentences_per_call
     chunks = [sentences[k:k + size] for k in range(0, len(sentences), size)]
 
+    approved = ai_config.voice_prepare.approved_readings.get(language) or {}
+
     async def one(chunk: list[Sentence]) -> dict:
         beats = []
         for sent in chunk:
@@ -246,21 +275,32 @@ async def edit(db: Session, case: Case, language: str, sentences: list[Sentence]
             before = sentences[sent.i - 1].draft if sent.i else ""
             after = sentences[sent.i + 1].draft if sent.i + 1 < len(sentences) else ""
             beats[-1]["sentences"].append({"i": sent.i, "draft": sent.draft, "previous": before, "next": after})
-        return await _ask(db, case.id, f"Voice preparation ({language}): editor", {"language": language, "beats": beats}, "voice_prepare_editor",
+        return await _ask(db, case.id, f"Voice preparation ({language}): editor",
+                          {"language": language, "approved_readings": approved, "beats": beats}, "voice_prepare_editor",
                           lambda gen, body: run_agent("documentary.voice_prepare.edit", gen, EDIT_TASK + body))
 
-    results = await gather_limited(None, [one(c) for c in chunks], return_exceptions=True)
-    by_i = {s.i: s for s in sentences}
-    for chunk, result in zip(chunks, results, strict=True):
-        if isinstance(result, Exception):
-            raise result if isinstance(result, PreparationFailed) else PreparationFailed(f"the editor failed: {type(result).__name__}: {result}"[:300])
+    def fill(chunk: list[Sentence], result: dict) -> None:
+        by_i = {s.i: s for s in chunk}
         for item in result.get("sentences") or []:
             sent = by_i.get(item.get("i")) if isinstance(item, dict) else None
-            if sent is None or sent not in chunk:
+            text = item.get("final_text") or item.get("text") or item.get("final") if isinstance(item, dict) else None
+            if sent is None or not isinstance(text, str):
                 continue
-            sent.final = normalize(item.get("final_text") or "")
+            sent.final = normalize(text)
             sent.rules = [{**r, "surface": normalize(r["surface"])} for r in clean_rules(item.get("pronunciation_rules"))]
             sent.uncertain = [u for u in item.get("uncertain_items") or [] if isinstance(u, dict)]
+
+    todo = chunks
+    for _attempt in range(1 + ai_config.voice_prepare.chunk_retries):       # a chunk whose answer misses sentences is asked again
+        results = await gather_limited(None, [one(c) for c in todo], return_exceptions=True)
+        for chunk, result in zip(todo, results, strict=True):
+            if isinstance(result, Exception):
+                raise result if isinstance(result, PreparationFailed) else PreparationFailed(f"the editor failed: {type(result).__name__}: {result}"[:300])
+            fill(chunk, result)
+        todo = [c for c in todo if any(not s.final for s in c)]
+        if not todo:
+            break
+    apply_approved(sentences, language)
 
 
 async def verify(db: Session, case: Case, language: str, sentences: list[Sentence], sources: dict[str, str]) -> list[dict]:

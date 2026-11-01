@@ -2373,7 +2373,13 @@ class VoicePrepareConfig(BaseModel):
     source_chars: int = Field(default=3500, ge=500)
     dictionary_name: str = "truecrime-{language}-case-{case_id}-v{version_id}"
     # characters an IPA pronunciation of a rule may use (letters of the Latin and IPA blocks, length marks, spaces)
-    ipa_pattern: str = r"^[A-Za-z\u00C0-\u02FF\u1D00-\u1DBF\u02B0-\u02FF'ˈˌ.\- ]+$"
+    ipa_pattern: str = r"^[A-Za-z\u00C0-\u02FF\u0300-\u036F\u1D00-\u1DBF'ˈˌ.\- ]+$"
+    # two readings of the same word that are this similar (0..1) are one reading said twice: the most frequent one is used everywhere
+    same_reading_similarity: float = Field(default=0.6, ge=0.0, le=1.0)
+    # the readings the owner approved (never guessed): {language: {word: {"type": "phoneme" | "alias", "pronunciation": "..."}}}
+    approved_readings: dict[str, dict[str, dict[str, str]]] = Field(default_factory=dict)
+    # a chunk whose answer is missing sentences is asked again this many times
+    chunk_retries: int = Field(default=2, ge=0, le=4)
 
 
 class NamesConfig(BaseModel):

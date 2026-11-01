@@ -11,6 +11,8 @@ FOR EVERY SENTENCE return its final text.
 
 PRONUNCIATION RULES: only for words a voice could misread: names of people and places, numbers and reference numbers, foreign or English words, words whose short vowels are ambiguous in Persian script (the vowels the meaning of THIS sentence needs), and ezafe constructions that must be heard (for example «درِ گاراژ»). Do not fill the text with full diacritics, and do not change a spelling just to force a reading. For each such word return {surface (exactly as it appears in your final text), type ("phoneme" with an IPA reading, or "alias" with a plain respelling in Persian letters), pronunciation, reason}. Use "phoneme" (IPA, for example kɑːleb) for names and ambiguous vowels; use "alias" when an IPA reading would be unreliable.
 
+APPROVED READINGS: the input may contain approved_readings {word: {type, pronunciation}}, readings the owner has approved. They are facts: never question them and never give a different reading for those words. Give one reading to one word everywhere: the same name always gets the same pronunciation.
+
 NEVER GUESS. When the pronunciation of a word is genuinely ambiguous and neither the English source, the sentence nor the context decides it, do not write a rule: put it in uncertain_items as {surface, question} and the run stops there for a person.
 
 ANSWER (JSON only, nothing before or after it): {"sentences": [{"i": 0, "final_text": "...", "pronunciation_rules": [{"surface": "...", "type": "phoneme", "pronunciation": "...", "reason": "..."}], "uncertain_items": []}]} - one object for every sentence you were given, with the same i.

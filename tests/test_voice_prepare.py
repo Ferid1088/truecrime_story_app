@@ -73,8 +73,41 @@ def test_the_films_rules_become_one_dictionary_and_a_word_with_two_readings_is_a
     rules, conflicts = VP.dictionary_rules([a, b])
     assert conflicts == [] and rules == [{"string_to_replace": "کالب", "type": "phoneme", "alphabet": "ipa", "phoneme": "kɑːleb"},
                                           {"string_to_replace": "گاراژ", "type": "alias", "alias": "گاراج"}]
-    c = sentence(2, "x", "کالب", [{"surface": "کالب", "type": "phoneme", "pronunciation": "keɪleb", "reason": ""}])
-    assert "two readings" in VP.dictionary_rules([a, c])[1][0]["what"]
+    c = sentence(2, "x", "کالب", [{"surface": "کالب", "type": "phoneme", "pronunciation": "mɒnstər", "reason": ""}])
+    assert "two readings" in VP.dictionary_rules([a, c])[1][0]["what"], "clearly different readings of one word cannot be one rule"
+
+
+def test_a_name_given_almost_the_same_reading_in_different_sentences_has_one_reading_the_most_frequent_and_an_approved_reading_wins(monkeypatch):
+    def rule(pron):
+        return [{"surface": "کالب", "type": "phoneme", "pronunciation": pron, "reason": ""}]
+
+    sentences = [sentence(0, "x", "کالب", rule("kɑːleb")), sentence(1, "x", "کالب", rule("kɑːleb")), sentence(2, "x", "کالب", rule("kɑleb"))]
+    rules, conflicts = VP.dictionary_rules(sentences)
+    assert conflicts == [] and rules == [{"string_to_replace": "کالب", "type": "phoneme", "alphabet": "ipa", "phoneme": "kɑːleb"}]
+    monkeypatch.setattr(ai_config.voice_prepare, "approved_readings", {"fa": {"کالب": {"type": "alias", "pronunciation": "کِیلِب"}}})
+    quiet = [sentence(0, "x", "کالب آمد", rule("kɑːleb")), sentence(1, "x", "او آمد")]
+    VP.apply_approved(quiet, "fa")
+    assert quiet[0].rules == [{"surface": "کالب", "type": "alias", "pronunciation": "کِیلِب", "reason": "approved by the owner"}] and quiet[1].rules == []
+    assert VP.dictionary_rules(quiet)[0] == [{"string_to_replace": "کالب", "type": "alias", "alias": "کِیلِب"}]
+
+
+def test_an_editor_answer_that_misses_sentences_or_uses_another_key_is_asked_again_and_read_tolerantly(db_session, monkeypatch):
+    from types import SimpleNamespace
+
+    case, old = _version(db_session)
+    answers = [{"sentences": [{"i": 0, "text": "ساعت دو بامداد بود."}]}, {"sentences": [{"i": 1, "final_text": "کالب با ۹۱۱ تماس گرفت."}]}]
+    asked: list[int] = []
+
+    async def run_agent(name, gen, body):
+        asked.append(len(json.loads(body.split("INPUT:\n", 1)[1])["beats"][0]["sentences"]))
+        return answers.pop(0), SimpleNamespace(model="m")
+
+    monkeypatch.setattr(VP, "run_agent", run_agent)
+    monkeypatch.setattr(VP, "get_generation_provider", lambda: object())
+    monkeypatch.setattr(VP, "stamp_run", lambda *a: None)
+    sentences = [VP.Sentence(0, "B01", 0, "ساعت دو بامداد بود."), VP.Sentence(1, "B01", 0, "کالب با ۹۱۱ تماس گرفت.")]
+    asyncio.run(VP.edit(db_session, case, "fa", sentences, {"B01": "x"}, {}))
+    assert [s.final for s in sentences] == ["ساعت دو بامداد بود.", "کالب با ۹۱۱ تماس گرفت."] and asked == [2, 2]
 
 
 def test_the_sections_of_the_prepared_version_keep_the_beats_and_paragraphs_of_the_old_one():
