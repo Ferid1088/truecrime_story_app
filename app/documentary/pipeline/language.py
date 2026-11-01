@@ -193,9 +193,12 @@ class LanguageChain:
                           else mvp_host)
 
         async def mvp_direct():
+            from app.documentary.mvp import reference as REF
+
             try:
-                MVP.stage_owner_attention(db, needs_plan, lang)          # review 1: everything
-                await MVP.stage_cut(db, case, needs_plan, state["bp"], lang)     # then trim and cut; review 2: only those
+                if not REF.is_reference_film(db, needs_plan):      # the English film's pictures were reviewed in the English film
+                    MVP.stage_owner_attention(db, needs_plan, lang)          # review 1: everything
+                    await MVP.stage_cut(db, case, needs_plan, state["bp"], lang)     # then trim and cut; review 2: only those
             except AwaitingPictureReview:
                 MVP.request_review(db, needs_plan)
                 raise

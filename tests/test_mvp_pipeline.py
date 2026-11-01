@@ -224,6 +224,7 @@ def test_the_marks_are_cut_away_before_the_pictures_are_labelled_for_their_place
         return {}
 
     target = SimpleNamespace(plan_json="{}", validation_json="{}")
+    monkeypatch.setattr(PL.REF, "is_reference_film", lambda db, plan: False)     # an English film (the plan here is a stand-in)
     monkeypatch.setattr(PL, "scan_overlays", scan)
     monkeypatch.setattr(PL, "label_timing", label)
     async def describe(db, case, assets, entities):

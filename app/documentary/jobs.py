@@ -592,9 +592,18 @@ class DocumentaryPipeline(StageRunner):
         async def visual_chain():
             from app.documentary.mvp import pipeline as MVP
 
+            from app.documentary.mvp import reference as REF
+
             try:
-                await self._stage("mvp_verify", lambda: MVP.stage_library_and_verify(db, case, vp_row))
-                await self._stage("mvp_research", lambda: MVP.stage_research(db, case, vp_row))
+                if REF.is_reference_film(db, vp_row):      # a language other than English uses what the English film approved: nothing is checked or searched
+                    async def english_material() -> dict:
+                        return {"skipped": True, "reason": "the pictures and videos are the English film's: nothing is checked or searched for this language"}
+
+                    await self._stage("mvp_verify", english_material)
+                    await self._stage("mvp_research", english_material)
+                else:
+                    await self._stage("mvp_verify", lambda: MVP.stage_library_and_verify(db, case, vp_row))
+                    await self._stage("mvp_research", lambda: MVP.stage_research(db, case, vp_row))
                 visual_state["row"] = vp_row
             except BaseException as e:
                 visual_state["error"] = e

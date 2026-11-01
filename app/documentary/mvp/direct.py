@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
-from app.db.models import Case, MvpCandidate, MvpRequirement, RevealNode, VisualAsset, VisualPlan
+from app.db.models import Case, EditorialBlueprint, MvpCandidate, MvpRequirement, RevealNode, VisualAsset, VisualPlan
 from app.documentary.mvp import describe as DS
 from app.documentary.mvp import moments as MC
 from app.documentary.mvp import neighbours as NC
@@ -125,8 +125,36 @@ def make_slots(window: dict) -> list[dict]:
     return merged
 
 
+def reference_items(db: Session, plan: VisualPlan) -> dict[str, list[Item]]:
+    """The items of a film in a language other than English: those approved in the English film's plan, given to this film's beats by their
+    place in the story. What the English plan approved case-wide stays case-wide. Nothing of this plan's own is added."""
+    from app.documentary.mvp import reference as REF
+
+    english = REF.english_needs_plan(db, plan.case_id)
+    if english is None:
+        return {}
+    mine = db.get(EditorialBlueprint, plan.blueprint_id)
+    theirs = db.get(EditorialBlueprint, english.blueprint_id)
+    english_items = approved_items(db, english)
+    english_spans = REF.beat_spans(theirs.blueprint_json)
+    out: dict[str, list[Item]] = {CASE_WIDE: list(english_items.get(CASE_WIDE, []))}
+    for beat, span in REF.beat_spans(mine.blueprint_json).items():
+        seen: set[int] = set()
+        for source in REF.matching_beats(span, english_spans):
+            for item in english_items.get(source, []):
+                if item.asset.id not in seen:
+                    seen.add(item.asset.id)
+                    out.setdefault(beat, []).append(Item(item.asset, item.role, item.entity, item.rank, [], item.moment))
+    return {key: items for key, items in out.items() if items}
+
+
 def approved_items(db: Session, plan: VisualPlan) -> dict[str, list[Item]]:
-    """beat_id -> approved items, evidence before context, best priority first, deduplicated."""
+    """beat_id -> approved items, evidence before context, best priority first, deduplicated. A film in a language other than English has
+    only what the English film's plan approved (mvp/reference.py)."""
+    from app.documentary.mvp import reference as REF
+
+    if REF.is_reference_film(db, plan):
+        return reference_items(db, plan)
     priority = {"high": 0, "medium": 1, "low": 2}
     rows = (db.query(MvpCandidate, MvpRequirement)
             .join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
@@ -170,12 +198,16 @@ def earlier_approvals(db: Session, plan: VisualPlan, here: dict[str, list[Item]]
     """Pictures approved in an earlier planning round of the case that this plan has no approval for. An approval is a decision about
     the picture, not about one round's requirement: the owner's review lists them all, so the planner may use them too (it shows
     them where the words name their person or place, or where they relate to a bare moment). A picture the owner rejected last, or
-    that this plan judged and refused, is left out."""
+    that this plan judged and refused, is left out. Only plans made for an English story count: the English film's approvals are the
+    ones every film may use."""
     from app.documentary.mvp import verify as VF
+
+    from app.documentary.mvp import reference as REF
 
     have = {i.asset.id for group in here.values() for i in group}
     rows = (db.query(MvpCandidate, MvpRequirement).join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
-            .filter(MvpRequirement.case_id == plan.case_id).all())
+            .filter(MvpRequirement.case_id == plan.case_id,
+                    MvpRequirement.visual_plan_id.in_(REF.english_plan_ids(db, plan.case_id) | {plan.id})).all())
     by_asset: dict[int, list[tuple[MvpCandidate, MvpRequirement]]] = {}
     for cand, req in rows:
         by_asset.setdefault(cand.visual_asset_id, []).append((cand, req))

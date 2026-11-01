@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.core.media_tools import ffmpeg_bin, ffprobe_bin
 from app.db.models import MvpRequirement, VisualAsset, VisualPlan
+from app.documentary.mvp import reference as REF
 from app.documentary.production.picture_rules import fact_ids
 from app.documentary.visuals.spoilers import Firewall
 from app.documentary.visuals.usage import UsageTracker, asset_facts
@@ -82,7 +83,9 @@ def measure(script: dict, plan: VisualPlan, db: Session, sentences: list[dict]) 
         "longest_black": round(longest_black, 2), "long_stills": long_stills,
         "over_reused": over_reused,
         "unapproved_assets": unapproved, "weak_sentences": weak[:50], "weak_sentence_count": len(weak),
-        "requirements": requirement_coverage(db, plan, shots, tracker, Firewall.from_json(script.get("firewall"))),
+        "requirements": ({"covered": 0, "shortage": 0, "uncovered": 0, "uncovered_ids": [], "shortage_ids": [], "used_up_ids": []}
+                         if REF.is_reference_film(db, plan) else        # the English film's pictures serve the English film's requirements
+                         requirement_coverage(db, plan, shots, tracker, Firewall.from_json(script.get("firewall")))),
         "graphics": graphic_checks(script),
     }
 

@@ -24,6 +24,7 @@ from app.db.models import (
     VisualPlan,
 )
 from app.documentary import names as NS
+from app.documentary.mvp import reference as REF
 from app.documentary.production import preflight as PF
 from app.documentary.detective import buildable as BD
 from app.documentary.detective import timeline as TL
@@ -307,7 +308,7 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
                                     cover_last=last, timeline=timeline, sequence=sequence, person_hints=inspection.rows)
 
     report = await direct()
-    for _ in range(ai_config.mvp().topup.passes):
+    for _ in range(0 if REF.is_reference_film(db, needs_plan) else ai_config.mvp().topup.passes):     # no new candidates for a language other than English
         if not report["gaps"]:
             break
         made = build_gap_candidates(db, needs_plan, requirements, {g["beat"] for g in report["gaps"]})
