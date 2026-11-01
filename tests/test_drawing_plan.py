@@ -94,3 +94,18 @@ def test_the_settings_of_the_owners_decisions_of_31_october():
     assert cfg.gap_full_seconds == 8.0, "a gap under 8 s is covered by the neighbours, from 8 s the portrait"
     assert cfg.base_seconds == 380.0, "three times faster than the 19 minutes"
     assert cfg.pencil.length == 18.0 and cfg.pencil.thickness == 3.6, "four times bigger than 4.5 x 0.9 px"
+
+
+def test_a_film_in_another_language_uses_the_portraits_already_made_and_adds_new_ones_only_for_the_gaps_they_cannot_cover():
+    made = {"M1", "M2", "M3", "M4"}
+    pool = [DP.Portrait("N1", 1), DP.Portrait("M1", 2), DP.Portrait("M2", 3), DP.Portrait("N2", 4), DP.Portrait("M3", 5), DP.Portrait("M4", 6),
+            DP.Portrait("N3", 7)]
+    plan = DP.plan_drawing(film(), pool, made)
+    assert plan.fits and not plan.uncovered
+    assert {p["code"] for p in plan.portraits} <= made, "the English film's portraits cover the film: no new portrait"
+    late = [DP.Portrait("M1", 2, earned_from=900.0), DP.Portrait("M2", 3, earned_from=900.0),
+            DP.Portrait("M3", 5, earned_from=900.0), DP.Portrait("N1", 1), DP.Portrait("N2", 4), DP.Portrait("N3", 7)]
+    needs_new = DP.plan_drawing(film(), late, {"M1", "M2", "M3"})
+    codes = {p["code"] for p in needs_new.portraits}
+    assert needs_new.fits and not needs_new.uncovered and "N1" in codes, "the gap before the made portraits' people are named gets a new one"
+    assert "N3" not in codes, "and no more new portraits than that"

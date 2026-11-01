@@ -107,9 +107,22 @@ def _simulate(intervals: list[Interval], pool: list[Portrait], speed: float, lim
     return plan
 
 
-def plan_drawing(shots: list[dict], pool: list[Portrait]) -> DrawingPlan:
-    """The drawing for this film: the number of portraits and the speed that make every drawing finish by the film's end, nearest
+def plan_drawing(shots: list[dict], pool: list[Portrait], made: set[str] | None = None) -> DrawingPlan:
+    """The drawing for this film. With `made` (the portraits that already exist, those of the English film) the film uses only those when they
+    cover every gap; when they do not, new portraits are added one at a time, in the owner's priority order, and only as many as the gaps
+    that have no portrait need.
+
+    The drawing for this film: the number of portraits and the speed that make every drawing finish by the film's end, nearest
     to normal speed, with no gap left without a portrait. When no number works, the plan with the fewest uncovered gaps."""
+    if made is not None:
+        usable_new = sorted((p for p in pool if p.refused is None and p.code not in made), key=lambda p: p.priority)
+        have = [p for p in pool if p.code in made and p.refused is None]
+        plan = None
+        for extra in range(len(usable_new) + 1):
+            plan = plan_drawing(shots, have + usable_new[:extra])
+            if plan.fits and not plan.uncovered:
+                return plan
+        return plan if plan is not None else plan_drawing(shots, pool)
     cfg = ai_config.drawing_settings()
     intervals = intervals_of(shots)
     usable = [p for p in pool if p.refused is None]
