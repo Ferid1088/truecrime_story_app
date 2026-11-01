@@ -75,7 +75,13 @@ async def zoom_asset(db: Session, case: Case, language: str, info: dict,
     key = spec_key(language, place, returns, variant, float(info["lat"]), float(info["lon"]))
     existing = find(db, case.id, key)
     if existing is not None and Path(storage.ROOT / (existing.local_path or "")).exists():
-        return existing
+        return existing          # a map already made for this language (or the English film's own) is used
+    draft = ai_config.language_pipeline.draft_language
+    if language != draft:           # every other language shows the English film's map file: no new map is rendered for it
+        english = find(db, case.id, spec_key(draft, place, returns, variant, float(info["lat"]), float(info["lon"])))
+        if english is not None and Path(storage.ROOT / (english.local_path or "")).exists():
+            return english
+        raise ZoomMapUnavailable("the English film's map of this place is not made yet")
     missing = RUNTIME.missing(cfg)
     if missing:
         raise ZoomMapUnavailable(f"map runtime missing: {', '.join(missing)}")
