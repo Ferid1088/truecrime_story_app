@@ -2380,6 +2380,8 @@ class VoicePrepareConfig(BaseModel):
     approved_readings: dict[str, dict[str, dict[str, str]]] = Field(default_factory=dict)
     # a chunk whose answer is missing sentences is asked again this many times
     chunk_retries: int = Field(default=2, ge=0, le=4)
+    # a sentence that fails a preflight check is sent back to the editor alone, with its problems, this many times
+    repair_rounds: int = Field(default=2, ge=0, le=4)
 
 
 class NamesConfig(BaseModel):

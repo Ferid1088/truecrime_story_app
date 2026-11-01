@@ -13,11 +13,13 @@ right when they reach ElevenLabs:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -281,12 +283,66 @@ async def _ask(db: Session, case_id: int, label: str, payload: dict, role: str, 
     return data if isinstance(data, dict) else {}
 
 
-async def edit(db: Session, case: Case, language: str, sentences: list[Sentence], sources: dict[str, str], tones: dict[str, dict]) -> None:
-    """The editor over all sentences, a chunk at a time (its answer fills `final`, `rules` and `uncertain` of each sentence)."""
-    size = ai_config.voice_prepare.sentences_per_call
-    chunks = [sentences[k:k + size] for k in range(0, len(sentences), size)]
+class EditCache:
+    """The editor's answers kept on disk by their input (the draft, its neighbours, the English source, the approved readings, the editor's
+    prompt and the problems it was asked to fix): a rerun only pays for the sentences whose input changed."""
 
+    def __init__(self, case_id: int, language: str):
+        from app.documentary.voice_render import ROOT
+
+        base = Path(ai_config.voice.work_dir)
+        self.path = (base if base.is_absolute() else ROOT / base) / str(case_id) / "prepare" / f"{language}_edits.json"
+        try:
+            self.data: dict[str, dict] = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            self.data = {}
+
+    @staticmethod
+    def key(language: str, sent: Sentence, before: str, after: str, source: str, approved: dict, problems: list[str]) -> str:
+        from app.core.prompts import prompt_sha256
+
+        material = json.dumps([language, sent.draft, before, after, source, approved, problems, prompt_sha256("documentary/voice_prepare/editor_fa_system")],
+                              ensure_ascii=False, sort_keys=True)
+        return hashlib.sha256(material.encode()).hexdigest()
+
+    def save(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps(self.data, ensure_ascii=False), encoding="utf-8")
+
+
+async def edit(db: Session, case: Case, language: str, sentences: list[Sentence], sources: dict[str, str], tones: dict[str, dict],
+               only: list[Sentence] | None = None, problems: dict[int, list[str]] | None = None) -> None:
+    """The editor over the sentences (all, or `only` those, each with the `problems` it must fix), a chunk at a time. Its answer fills `final`,
+    `rules` and `uncertain` of each sentence; an answer given before for the same input is read from the cache."""
+    targets = sentences if only is None else only
+    problems = problems or {}
     approved = ai_config.voice_prepare.approved_readings.get(language) or {}
+    cache = EditCache(case.id, language)
+
+    def neighbours(sent: Sentence) -> tuple[str, str]:
+        return (sentences[sent.i - 1].draft if sent.i else "", sentences[sent.i + 1].draft if sent.i + 1 < len(sentences) else "")
+
+    def key_of(sent: Sentence) -> str:
+        before, after = neighbours(sent)
+        return cache.key(language, sent, before, after, sources.get(sent.beat_id, ""), approved, problems.get(sent.i, []))
+
+    def fill(sent: Sentence, item: dict) -> bool:
+        text = item.get("final_text") or item.get("text") or item.get("final")
+        if not isinstance(text, str) or not text.strip():
+            return False
+        sent.final = normalize(text)
+        sent.rules = [{**r, "surface": normalize(r["surface"])} for r in clean_rules(item.get("pronunciation_rules"))]
+        sent.uncertain = [u for u in item.get("uncertain_items") or [] if isinstance(u, dict)]
+        return True
+
+    pending: list[Sentence] = []
+    for sent in targets:
+        sent.final, sent.rules, sent.uncertain = "", [], []
+        hit = cache.data.get(key_of(sent))
+        if not (hit and fill(sent, hit)):
+            pending.append(sent)
+    size = ai_config.voice_prepare.sentences_per_call
+    chunks = [pending[k:k + size] for k in range(0, len(pending), size)]
 
     async def one(chunk: list[Sentence]) -> dict:
         beats = []
@@ -294,35 +350,30 @@ async def edit(db: Session, case: Case, language: str, sentences: list[Sentence]
             if not beats or beats[-1]["beat_id"] != sent.beat_id:
                 beats.append({"beat_id": sent.beat_id, "english_source": sources.get(sent.beat_id, ""), "tone": tones.get(sent.beat_id, {}),
                               "sentences": []})
-            before = sentences[sent.i - 1].draft if sent.i else ""
-            after = sentences[sent.i + 1].draft if sent.i + 1 < len(sentences) else ""
-            beats[-1]["sentences"].append({"i": sent.i, "draft": sent.draft, "previous": before, "next": after})
+            before, after = neighbours(sent)
+            beats[-1]["sentences"].append({"i": sent.i, "draft": sent.draft, "previous": before, "next": after,
+                                           **({"problems_to_fix": problems[sent.i]} if problems.get(sent.i) else {})})
         return await _ask(db, case.id, f"Voice preparation ({language}): editor",
                           {"language": language, "approved_readings": approved, "beats": beats}, "voice_prepare_editor",
                           lambda gen, body: run_agent("documentary.voice_prepare.edit", gen, EDIT_TASK + body))
-
-    def fill(chunk: list[Sentence], result: dict) -> None:
-        by_i = {s.i: s for s in chunk}
-        for item in result.get("sentences") or []:
-            sent = by_i.get(item.get("i")) if isinstance(item, dict) else None
-            text = item.get("final_text") or item.get("text") or item.get("final") if isinstance(item, dict) else None
-            if sent is None or not isinstance(text, str):
-                continue
-            sent.final = normalize(text)
-            sent.rules = [{**r, "surface": normalize(r["surface"])} for r in clean_rules(item.get("pronunciation_rules"))]
-            sent.uncertain = [u for u in item.get("uncertain_items") or [] if isinstance(u, dict)]
 
     todo = chunks
     for _attempt in range(1 + ai_config.voice_prepare.chunk_retries):       # a chunk whose answer misses sentences is asked again
         results = await gather_limited(None, [one(c) for c in todo], return_exceptions=True)
         for chunk, result in zip(todo, results, strict=True):
             if isinstance(result, Exception):
+                cache.save()
                 raise result if isinstance(result, PreparationFailed) else PreparationFailed(f"the editor failed: {type(result).__name__}: {result}"[:300])
-            fill(chunk, result)
+            by_i = {x["i"]: x for x in result.get("sentences") or [] if isinstance(x, dict) and isinstance(x.get("i"), int)}
+            for sent in chunk:
+                item = by_i.get(sent.i)
+                if item is not None and fill(sent, item):
+                    cache.data[key_of(sent)] = item
         todo = [c for c in todo if any(not s.final for s in c)]
         if not todo:
             break
-    apply_approved(sentences, language)
+    cache.save()
+    apply_approved(sentences if only is None else targets, language)
 
 
 async def verify(db: Session, case: Case, language: str, sentences: list[Sentence], sources: dict[str, str]) -> list[dict]:
@@ -372,8 +423,14 @@ async def prepare_version(db: Session, case: Case, version: StoryVersion, langua
     sources = english_sources(db, version)
     if not sources or not any(sources.values()):
         raise PreparationUncertain([{"where": "the film", "what": "there is no English source to compare the Persian text with"}])
-    await edit(db, case, language, sentences, sources, tones_of(db, version))
+    tones = tones_of(db, version)
+    await edit(db, case, language, sentences, sources, tones)
     names = NS.load(db, case.id, language)
+    for _round in range(ai_config.voice_prepare.repair_rounds):      # a sentence that fails a check goes back to the editor alone, with its problems
+        failing = {sent.i: [i["what"] for i in check_sentence(sent, names)] for sent in sentences if check_sentence(sent, names)}
+        if not failing:
+            break
+        await edit(db, case, language, sentences, sources, tones, only=[s for s in sentences if s.i in failing], problems=failing)
     issues: list[dict] = []
     for sent in sentences:
         issues += [{"where": f"sentence {sent.i} ({sent.beat_id})", "what": f"uncertain: {u.get('surface')}: {u.get('question')}"} for u in sent.uncertain]
@@ -425,8 +482,7 @@ def carry_host(db: Session, old: StoryVersion, new: StoryVersion) -> None:
 async def ensure_dictionary(db: Session, version: StoryVersion, language: str, provider=None) -> list[dict]:
     """The film's pronunciation dictionary at ElevenLabs, as the locators every block of the film is sent with: made once for these rules (a
     dictionary of the same rules is reused), and kept with the version. Nothing for a version without rules."""
-    import hashlib
-
+    
     from app.providers.voice import get_voice_provider
 
     struct = json.loads(version.narrative_structure or "{}")

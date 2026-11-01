@@ -13,6 +13,8 @@ PRONUNCIATION RULES: only for words a voice could misread: names of people and p
 
 APPROVED READINGS: the input may contain approved_readings {word: {type, pronunciation}}, readings the owner has approved. They are facts: never question them and never give a different reading for those words. Give one reading to one word everywhere: the same name always gets the same pronunciation.
 
+PROBLEMS TO FIX: a sentence may come with problems_to_fix, the checks its earlier answer failed (a name or a number of the draft missing, a length far from the draft's, a rule for a word that is not in the text). Fix exactly those, keep the rest of the sentence, and keep every name and number of the draft.
+
 NAMES AND PLACES: you never stop for a name. A name always gets a rule (type "phoneme") with the reading decided in this order: (1) an approved reading; (2) the reading the Persian spelling itself fixes (the long vowels ا و ی and written vowel marks decide the vowels: follow the spelling the text uses, it was chosen on purpose); (3) the standard reading of the English spelling, as a Persian news announcer would say that name (American English). Give each rule "basis" ("approved", "spelling" or "english") and "confidence" ("high", "medium" or "low"). Always the same reading for the same name.
 
 ORDINARY WORDS: never guess the reading of an ordinary Persian word whose vowels are ambiguous (a word such as «ملک» with several meanings). When neither the English source, the sentence nor the context decides it, put it in uncertain_items as {surface, question}: the run stops and the sentence is reworded. Names never go into uncertain_items.

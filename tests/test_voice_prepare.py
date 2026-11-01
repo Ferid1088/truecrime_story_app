@@ -136,6 +136,12 @@ def _version(db):
     return case, old
 
 
+@pytest.fixture(autouse=True)
+def work_dir(tmp_path, monkeypatch):
+    """The editor's answers are cached on disk: in a test they go to a temporary folder, never to the real data."""
+    monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
+
+
 @pytest.fixture
 def fakes(monkeypatch):
     calls: list[str] = []
@@ -188,6 +194,7 @@ def test_an_uncertain_word_a_failed_preflight_or_a_checker_problem_stops_before_
         return {"beats": [{"beat_id": "B01", "ok": False, "problems": [{"kind": "number", "quote": "۹۱۱", "why": "the source says 911 twice"}]},
                           {"beat_id": "B02", "ok": True, "problems": []}]}
 
+    shutil.rmtree(ai_config.voice.work_dir, ignore_errors=True)       # the editor's earlier answer is not read again
     monkeypatch.setattr(VP, "_ask", checker_objects)
     with pytest.raises(VP.PreparationUncertain, match="number"):
         asyncio.run(VP.prepare_version(db_session, case, old, "fa"))
@@ -389,3 +396,45 @@ def test_the_readings_the_editor_decided_itself_are_listed_the_least_sure_first_
     VP.apply_approved(sentences, "fa")
     decided = VP.decisions_of(sentences)
     assert [(d["surface"], d["confidence"], d["sentences"]) for d in decided] == [("ریزمیلر", "low", 1), ("باتنر", "medium", 2)], "the approved word is not listed"
+
+
+def test_an_answer_given_before_for_the_same_input_is_read_from_the_cache_and_costs_nothing(db_session, monkeypatch):
+    case, old = _version(db_session)
+    asked: list[int] = []
+
+    async def ask(db, case_id, label, payload, role, runner):
+        asked.append(sum(len(b["sentences"]) for b in payload["beats"]))
+        return {"sentences": [{"i": s["i"], **EDITS[s["i"]]} for beat in payload["beats"] for s in beat["sentences"]]}
+
+    monkeypatch.setattr(VP, "_ask", ask)
+    first = VP.sentences_of(old)
+    asyncio.run(VP.edit(db_session, case, "fa", first, {"B01": "x", "B02": "y"}, {}))
+    second = VP.sentences_of(old)
+    asyncio.run(VP.edit(db_session, case, "fa", second, {"B01": "x", "B02": "y"}, {}))
+    assert asked == [4] and [s.final for s in second] == [s.final for s in first], "the second run asked nothing"
+    asyncio.run(VP.edit(db_session, case, "fa", VP.sentences_of(old), {"B01": "a different source", "B02": "y"}, {}))
+    assert asked == [4, 3], "only the sentences whose input changed (the beat B01 has three sentences) are asked again"
+
+
+def test_a_sentence_that_fails_a_check_goes_back_to_the_editor_alone_with_its_problem_and_is_then_accepted(db_session, fakes, monkeypatch):
+    case, old = _version(db_session)
+    seen: list[tuple[list[int], dict]] = []
+
+    async def ask(db, case_id, label, payload, role, runner):
+        if role == "voice_prepare_checker":
+            return {"beats": [{"beat_id": b["beat_id"], "ok": True, "problems": []} for b in payload["beats"]]}
+        asked = [s for beat in payload["beats"] for s in beat["sentences"]]
+        seen.append(([s["i"] for s in asked], {s["i"]: s.get("problems_to_fix") for s in asked}))
+        out = []
+        for s in asked:
+            item = {"i": s["i"], **EDITS[s["i"]]}
+            if len(seen) == 1 and s["i"] == 1:
+                item["final_text"] = "او تماس گرفت."           # the first answer loses the number 911
+            out.append(item)
+        return {"sentences": out}
+
+    monkeypatch.setattr(VP, "_ask", ask)
+    new = asyncio.run(VP.prepare_version(db_session, case, old, "fa"))
+    assert seen[0][0] == [0, 1, 2, 3] and seen[1][0] == [1], "the second call carries only the failing sentence"
+    assert "911" in seen[1][1][1][0] or "۹۱۱" in seen[1][1][1][0] or "number" in seen[1][1][1][0]
+    assert "کالب با ۹۱۱ تماس گرفت." in new.story_text
