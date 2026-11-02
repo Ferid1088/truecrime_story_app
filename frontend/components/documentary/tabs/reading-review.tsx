@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { isRtl, langLabel } from "@/lib/format";
@@ -107,6 +107,12 @@ export function ReadingReviewTab({ settings, overview, refreshKey, language, onL
   const [chosen, setChosen] = useState<Record<number, Pending | undefined>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The tab opens on the language that has a narration being prepared, not on one that has none.
+  const fallback = versionId == null ? settings.languages.find((l) => overview.languages[l] != null) : undefined;
+  useEffect(() => {
+    if (fallback) onLanguageChange(fallback);
+  }, [fallback, onLanguageChange]);
 
   const picker = (
     <LanguagePicker

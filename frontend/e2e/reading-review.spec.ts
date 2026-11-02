@@ -49,7 +49,7 @@ test.describe("the reading review", () => {
       return r.fulfill(ok({ version_id: 7, language: "fa", open, answered: rows.length - open, doubts: rows }));
     });
     await page.goto("/documentary/1?tab=Reading%20Review");
-    await page.getByRole("button", { name: /Persian/ }).click();
+    await expect(page.getByText("Reading review — Persian")).toBeVisible();     // opens on the language that has a narration, no click needed
     await expect(page.getByTestId("reading-doubt")).toHaveCount(2);
     await expect(page.getByText("2 open · 0 answered")).toBeVisible();
     const first = page.getByTestId("reading-doubt").nth(0);
