@@ -26,6 +26,6 @@ async def run(db: Session, case: Case, version: StoryVersion, language: str) -> 
                "open_doubts": result.open_doubts}
     if result.open_doubts:
         raise AwaitingReadingReview(
-            f"Awaiting reading review: {result.open_doubts} words of the {language} narration are in doubt. Answer them all in the Reading review "
-            f"(GET /api/documentary/versions/{version.id}/reading-doubts), then resume. Nothing is voiced before.")
+            f"Awaiting reading review: {result.open_doubts} words of the {language} narration are in doubt. Answer them all in the Reading Review tab, "
+            "then resume. Nothing is voiced before.")
     return summary

@@ -93,7 +93,7 @@ class ReadingStage:
             if d.get("block") != item.block_id:
                 continue
             word = next((w for w in item.words if w.key == d["word"].replace("‌", "")), None)
-            if word is not None:
+            if word is not None and not word.number:           # digits are read by code: there is nothing to ask
                 out.append(Doubt(word.n, word.surface, str(d.get("question") or ""), readings[word.n].latin))
         return out
 

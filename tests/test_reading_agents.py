@@ -125,6 +125,13 @@ def test_the_checker_never_questions_a_name_the_table_fixes_or_a_proposal_equal_
     assert [r.latin for r in out] == ["sārā", "beham", "goft"] and doubts == [] and arbiter.seen == []
 
 
+def test_a_doubt_of_the_reader_about_digits_is_not_asked_because_code_reads_numbers():
+    words = BlockInput("B1", "S1", "تماس ۹۱۱ رو شنید", "")
+    found = [{"block": "B1", "word": "۹۱۱", "question": "English or Persian digits?"}, {"block": "B1", "word": "شنید", "question": "which?"}]
+    got = ReadingStage.reader_doubts(words, found, readings("tamās", "NUM", "ro", "shenid"))
+    assert [(d.surface, d.editor_latin) for d in got] == [("شنید", "shenid")]
+
+
 def test_the_blocks_of_a_plan_get_their_neighbours_and_the_english_of_their_section():
     blocks = [{"block_id": "B1", "section_id": "B1.g01", "beats": [{"beat_id": "B1"}], "text": "[calm] یک دو سه"},
               {"block_id": "B2", "section_id": "B2.g01", "tts_text": "چهار"}]
@@ -230,7 +237,7 @@ def test_the_reading_stage_stops_the_run_before_the_voice_while_words_are_in_dou
     monkeypatch.setattr(RS.ReadingStage, "run", fake_run(ReadingResult({}, 3, {"B1": ["a note"]})))
     with pytest.raises(AwaitingReadingReview) as stopped:
         asyncio.run(RS.run(None, Case(), Version(), "fa"))
-    assert "3 words" in str(stopped.value) and "/api/documentary/versions/7/reading-doubts" in str(stopped.value)
+    assert "3 words" in str(stopped.value) and "Reading Review tab" in str(stopped.value)
     assert "Reading review" in failure_details(str(stopped.value))["next_action"]
 
     monkeypatch.setattr(RS.ReadingStage, "run", fake_run(ReadingResult({}, 0, {"B1": ["a note", "b note"]})))
