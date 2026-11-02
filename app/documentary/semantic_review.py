@@ -31,6 +31,8 @@ log = logging.getLogger(__name__)
 
 ERROR_TYPES = {"meaning", "omission", "addition", "date", "number", "name", "url", "path", "technical_term", "pronunciation", "delivery"}
 BLOCKING = {"critical", "major"}
+TAG = re.compile(r"\[[^\[\]]*\]\s*")
+NOTATION_ALOUD = re.compile(r"slash|اسلش", re.IGNORECASE)
 URL = re.compile(r"https?://\S+|www\.\S+")
 PATH = re.compile(r"(?<![\w/])(?:/[\w.\-]+){1,}/?")
 SENTENCE_END = re.compile(r"(?<=[.!?؟…])\s+")
@@ -71,18 +73,100 @@ def normalise(raw: dict) -> dict:
         confidence = max(0.0, min(1.0, float(raw.get("confidence"))))
     except (TypeError, ValueError):
         confidence = 0.0
+    for check in raw.get("word_checks") or []:           # a word the reviewer was told to listen to and found wrong is an error even when it left it out of `errors`
+        if isinstance(check, dict) and (check.get("ok") is False or (check.get("joined") is False and len(str(check.get("word") or "").split()) > 1)) and not any(check.get("word") and check["word"] in (e["expected"] + e["heard"]) for e in errors):
+            errors.append({"type": "pronunciation", "severity": "major", "expected": str(check.get("word") or ""), "heard": str(check.get("heard") or ""),
+                           "reason": str(check.get("problem") or ("a pause inside the name: it is not said as one unit" if check.get("joined") is False
+                                                                  else "the word is not said right"))})
     passed = (raw.get("verdict") == "pass" and not any(e["severity"] in BLOCKING for e in errors)
               and confidence >= ai_config.semantic_review.min_confidence)
     rules = [{"surface": str(r["surface"]), "replacement": str(r["replacement"])} for r in raw.get("corrected_pronunciation_rules") or []
              if isinstance(r, dict) and r.get("surface") and r.get("replacement")]
     text, delivery = raw.get("corrected_text"), raw.get("corrected_delivery_instruction")
-    return {"verdict": "pass" if passed else "fail", "confidence": confidence, "errors": errors,
+    missing = [{"phrase": str(m["phrase"]), "head": str(m["head"]), "heard": str(m.get("heard") or "")} for m in raw.get("ezafe_missing") or []
+               if isinstance(m, dict) and m.get("phrase") and m.get("head")]
+    for m in missing:            # a place where grammar needs an ezafe that is not said is an error
+        errors.append({"type": "pronunciation", "severity": "major", "expected": m["phrase"] + " (with the ezafe)", "heard": m["heard"],
+                       "reason": f"the ezafe after {m['head']} is not said"})
+    passed = passed and not missing
+    aloud = bool(raw.get("notation_read_aloud")) or any(NOTATION_ALOUD.search(e["heard"]) for e in errors)     # the voice reads a pronunciation rule out as symbols
+    return {"verdict": "pass" if passed else "fail", "confidence": confidence, "errors": errors, "ezafe_missing": missing, "notation_read_aloud": aloud,
             "corrected_text": text if isinstance(text, str) and text.strip() else None, "corrected_pronunciation_rules": rules,
             "corrected_delivery_instruction": delivery if isinstance(delivery, str) and delivery in ai_config.semantic_review.delivery_tags else None}
 
 
+EZAFE = re.compile(r"[\w\u200c]+(?:\u0650|\u0654|\u06c0|\u0647\u0654)(?=\s)")
+
+
+DIACRITICS = re.compile("[\u064b-\u0652\u0670\u0654]")
+VOWEL_ENDINGS = "اآویئهۀ\u200c"           # after these the ezafe is a real "ye" ("بیرونی" + ye): the word is left as it is
+
+
+def ezafe_respelling(word: str) -> str | None:
+    """The word written as the voice should say it with an ezafe after a consonant: the word without its marks and with "ه" ("درِ" -> "دره", said
+    "dare"). A word that ends in a vowel keeps its "ye" and gets no respelling."""
+    stem = DIACRITICS.sub("", word).replace("\u06c0", "ه")
+    if not stem or stem[-1] in VOWEL_ENDINGS:
+        return None
+    return stem + "ه"
+
+
+def missing_ezafe_respelling(word: str) -> str | None:
+    """The word written so that its missing ezafe is said: after a consonant "ه" ("در" -> "دره", "dare"), after a silent "ه" the "ye" ("خانه" ->
+    "خانه‌ی"), after "ا" or "و" a "ی" ("پا" -> "پای"). After "ی" the reviewer's own respelling is used."""
+    stem = DIACRITICS.sub("", word)
+    if not stem:
+        return None
+    if stem[-1] == "ه":
+        return stem + "\u200cی"
+    if stem[-1] in "او":
+        return stem + "ی"
+    return None if stem[-1] in "یئآ\u200c" else stem + "ه"
+
+
+def ezafe_fixes(tts_text: str, review: dict) -> list[dict]:
+    """The respelling of every phrase whose ezafe the reviewer reports as missing or said wrong where the text has no ezafe mark. A word that
+    already carries the mark is not respelled: "درِ" -> "دره" was heard as "asre-ye" in a live test, worse than the mark."""
+    have = {r["surface"] for r in review["corrected_pronunciation_rules"]}
+    fixes = []
+    for m in review.get("ezafe_missing") or []:          # a phrase whose ezafe is not said: only this phrase is respelled ("در" alone is also "in")
+        head, phrase = m["head"], m["phrase"]
+        spelled = missing_ezafe_respelling(head)
+        if spelled and phrase in tts_text and phrase.split()[0] == head and phrase not in have:
+            fixes.append({"surface": phrase, "replacement": spelled + phrase[len(head):]})
+    return fixes
+
+
+def words_to_check(tts_text: str, rules: list[dict]) -> list[str]:
+    """The words the reviewer must listen to one by one: those that carry an ezafe mark (the voice may add a "ye" or drop the "e") and those with a
+    pronunciation rule of the film."""
+    found = [m.group() for m in EZAFE.finditer(tts_text)]
+    found += [r["string_to_replace"] for r in rules if whole_word(r["string_to_replace"]).search(tts_text)]
+    return list(dict.fromkeys(found))
+
+
 def whole_word(surface: str) -> re.Pattern:
     return re.compile(rf"(?<![\w‌]){re.escape(surface)}(?![\w‌])")
+
+
+def without_dictionary(block: dict, rules: list[dict]) -> tuple[dict, list[str]]:
+    """The block for a voice that reads the pronunciation notation aloud ("slash F-E-V-R-I-G-E slash"): it goes to the voice without the film's
+    dictionary, the words whose rule is a respelling are written as that respelling in the voice text, and when it happens again the audio tags
+    go too. What people read is not touched."""
+    sentences = [dict(s) for s in block.get("sentences") or []]
+    forms = [s.get("tts") or s["speech"] for s in sentences]
+    applied = ["without the dictionary"]
+    for rule in rules:
+        if rule.get("type") == "alias" and rule.get("alias") and any(whole_word(rule["string_to_replace"]).search(f) for f in forms):
+            pattern = whole_word(rule["string_to_replace"])
+            forms = [pattern.sub(rule["alias"], f) for f in forms]
+            applied.append(f"respelled {rule['string_to_replace']}")
+    if block.get("no_dictionary"):
+        forms = [TAG.sub("", f).strip() for f in forms]
+        applied.append("without audio tags")
+    out = {**block, "no_dictionary": True, "sentences": [{**s, "tts": f} for s, f in zip(sentences, forms)]}
+    out["tts_text"] = " ".join(forms)
+    return out, applied
 
 
 def corrected_block(block: dict, review: dict) -> tuple[dict, list[str], list[dict]]:
@@ -138,7 +222,7 @@ class Reviewer:
         return {"source_text": (block.get("source_text") or self.sources.get(section, ""))[:cfg.source_chars],
                 "scene_context": self.tones.get(section) or block.get("scene_context") or {},
                 "display_text": display, "tts_text": tts, "protected_items": protected_items(display, tts),
-                "pronunciation_rules": self.rules, "previous_text": (block.get("previous_text") or "")[-cfg.neighbour_chars:] if cfg.neighbour_chars else "",
+                "pronunciation_rules": self.rules, "words_to_check": words_to_check(tts, self.rules), "previous_text": (block.get("previous_text") or "")[-cfg.neighbour_chars:] if cfg.neighbour_chars else "",
                 "next_text": (block.get("next_text") or "")[:cfg.neighbour_chars], "allowed_delivery_tags": cfg.delivery_tags}
 
     async def listen(self, context: dict, audio: Path, label: str) -> dict:
@@ -179,7 +263,11 @@ class Reviewer:
             if attempt == cfg.max_corrections:
                 record["failure"] = "still failing after the allowed corrections"
                 break
+            review = {**review, "corrected_pronunciation_rules": review["corrected_pronunciation_rules"] + ezafe_fixes(self.context(result["block"])["tts_text"], review)}
             fixed, applied, respelled = corrected_block(result["block"], review)
+            if review["notation_read_aloud"]:
+                fixed, extra = without_dictionary(fixed, self.rules)
+                applied += extra
             record["reviews"][-1]["applied"] = applied
             if {e["type"] for e in review["errors"]} & set(cfg.learn_types):
                 pending += respelled

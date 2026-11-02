@@ -494,3 +494,17 @@ def test_a_checker_verdict_without_a_problem_is_fine_even_when_it_leaves_out_ok(
     monkeypatch.setattr(VP, "_ask", ask)
     found = asyncio.run(VP.verify(db_session, case, "fa", sentences, {"B01": "x"}))
     assert [f["i"] for f in found] == [1] and "without a reason" in found[0]["what"]
+
+
+def test_the_rules_the_reviewer_is_shown_are_those_the_voice_was_sent(db_session, fakes):
+    case, old = _version(db_session)
+    new = asyncio.run(VP.prepare_version(db_session, case, old, "fa"))
+
+    class Provider:
+        async def create_pronunciation_dictionary(self, name, rules):
+            return {"id": "D1", "version_id": "V1"}
+
+    assert VP.sent_rules(new) == []
+    asyncio.run(VP.ensure_dictionary(db_session, new, "fa", Provider()))
+    sent = {r["string_to_replace"]: r.get("alias") or r.get("phoneme") for r in VP.sent_rules(new)}
+    assert sent["۹۱۱"] == "نهصد و یازده" and sent["کالب"] == "kɑːleb"

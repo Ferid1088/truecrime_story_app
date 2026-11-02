@@ -31,6 +31,7 @@ from app.core.concurrency import gather_limited
 from app.db.models import Case, EditorialBlueprint, StoryVersion
 from app.documentary import names as NS
 from app.documentary.mvp import reference as REF
+from app.documentary.lexicon import plain_reading
 from app.documentary.persian_numbers import NUMBER, to_words, value_of
 from app.documentary.voice_performance import speech_structure
 from app.providers.generation import get_generation_provider
@@ -266,7 +267,7 @@ def dictionary_rules(sentences: list[Sentence]) -> tuple[list[dict], list[dict]]
         chosen[surface] = {"surface": surface, "type": kind, "pronunciation": reading}
         if len(votes) > 1:
             settled.append({"surface": surface, "chosen": reading, "others": [p for (_, p) in votes if p != reading], "sentences": len(entries)})
-    rules = [{"string_to_replace": r["surface"], "type": "phoneme", "alphabet": "ipa", "phoneme": r["pronunciation"]} if r["type"] == "phoneme"
+    rules = [{"string_to_replace": r["surface"], "type": "phoneme", "alphabet": "ipa", "phoneme": plain_reading(r["pronunciation"])} if r["type"] == "phoneme"
              else {"string_to_replace": r["surface"], "type": "alias", "alias": r["pronunciation"]} for r in chosen.values()]
     return rules, settled
 
@@ -510,6 +511,16 @@ def carry_host(db: Session, old: StoryVersion, new: StoryVersion) -> None:
     db.commit()
 
 
+def plain_rules(rules: list[dict]) -> list[dict]:
+    """The rules with readings written as one word: no hyphen, and no space in the reading of a name of several words (a space is a pause)."""
+    def phoneme(r: dict) -> str:
+        reading = plain_reading(r["phoneme"])
+        return "".join(reading.split()) if len(r["string_to_replace"].split()) > 1 else reading
+
+    return [{**r, "phoneme": phoneme(r)} if r.get("type") == "phoneme" and r.get("phoneme")
+            else {**r, "alias": plain_reading(r["alias"])} if r.get("type") == "alias" and r.get("alias") else r for r in rules]
+
+
 def number_rules(text: str, taken: set[str]) -> list[dict]:
     """One alias rule per whole number of the text that is not in `taken` ("۹۱۱" -> "نهصد و یازده"): a voice reads bare digits one by one. A number that is
     part of a longer number of the text (۱۱ in ۲۰۱۱) gets no rule: a rule might match inside the longer one, and the longer number has its own."""
@@ -517,6 +528,11 @@ def number_rules(text: str, taken: set[str]) -> list[dict]:
     longest = sorted(tokens, key=len, reverse=True)
     return [{"string_to_replace": t, "type": "alias", "alias": to_words(value_of(t))}
             for t in tokens if not any(t != o and t in o for o in longest)]
+
+
+def sent_rules(version: StoryVersion) -> list[dict]:
+    """The rules of the dictionary the film's voice is sent with (not the editor's first answer: numbers, the lexicon and hyphens are settled)."""
+    return ((json.loads(version.narrative_structure or "{}").get("prepared") or {}).get("dictionary") or {}).get("rules") or []
 
 
 async def ensure_dictionary(db: Session, version: StoryVersion, language: str, provider=None) -> list[dict]:
@@ -533,13 +549,13 @@ async def ensure_dictionary(db: Session, version: StoryVersion, language: str, p
 
     kept = LEX.rules_for(db, language, version.story_text or "")                    # what earlier films proved: the editor's own reading of such a word gives way
     words = [r for r in rules if not NUMBER.fullmatch(r["string_to_replace"]) and r["string_to_replace"] not in {k["string_to_replace"] for k in kept}]
-    rules = words + kept + number_rules(version.story_text or "", set())
+    rules = plain_rules(words + kept + number_rules(version.story_text or "", set()))
     fingerprint = hashlib.sha256(json.dumps(rules, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
     known = prepared.get("dictionary") or {}
-    if known.get("fingerprint") != fingerprint:
+    if known.get("fingerprint") != fingerprint or known.get("rules") != rules:
         name = ai_config.voice_prepare.dictionary_name.format(language=language, case_id=version.case_id, version_id=version.id)
         made = await (provider or get_voice_provider()).create_pronunciation_dictionary(name, rules)
-        known = {"id": made["id"], "version_id": made["version_id"], "fingerprint": fingerprint, "name": name}
+        known = {"id": made["id"], "version_id": made["version_id"], "fingerprint": fingerprint, "name": name, "rules": rules}
         prepared["dictionary"] = known
         struct["prepared"] = prepared
         version.narrative_structure = json.dumps(struct, ensure_ascii=False)

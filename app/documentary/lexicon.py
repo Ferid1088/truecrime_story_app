@@ -19,6 +19,15 @@ MARKS = re.compile("[ً-ْٰ]")
 WORD = re.compile(r"[\w‌]+")
 
 
+JOINERS = re.compile("[-\u2010\u2011\u2013\u2014\u203f]")
+
+
+def plain_reading(reading: str) -> str:
+    """A reading written as one word: no hyphen between its parts ("dær-e" -> "dære"). The voice may say a hyphen as a sound of its own
+    ("dareye"), so a reading never carries one."""
+    return JOINERS.sub("", reading)
+
+
 def whole_word(surface: str) -> re.Pattern:
     return re.compile(rf"(?<![\w‌]){re.escape(surface)}(?![\w‌])")
 
@@ -44,7 +53,7 @@ def learn(db: Session, language: str, rules: list[dict], case_id: int | None, so
     replaced by a reviewer's. Returns the rules kept."""
     kept: list[dict] = []
     for rule in rules:
-        surface, reading = rule["surface"], rule["replacement"]
+        surface, reading = rule["surface"], plain_reading(rule["replacement"])
         if not learnable(surface, reading):
             continue
         row = db.query(PronunciationLexicon).filter_by(language=language, surface=surface).first()
@@ -67,7 +76,7 @@ def confirm(db: Session, language: str, rules: list[dict], text: str, case_id: i
     kept: list[dict] = []
     for rule in rules:
         surface, kind = rule["string_to_replace"], rule["type"]
-        reading = rule.get("alias") if kind == "alias" else rule.get("phoneme")
+        reading = plain_reading(rule.get("alias") if kind == "alias" else rule.get("phoneme") or "")
         if (not reading or re.fullmatch(r"[0-9۰-۹٠-٩]+", surface) or len(WORD.findall(surface)) != 1 or has_ezafe(surface)
                 or not whole_word(surface).search(text) or len(reading) > 240):
             continue

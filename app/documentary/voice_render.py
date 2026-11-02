@@ -428,7 +428,7 @@ class VoiceRenderer:
                 next_text=b.get("next_text") or "",
                 seed=seed, language=language,
                 language_code=lang_cfg.language_code,
-                pronunciation_dictionaries=list(self.dictionaries) if prepared else [],
+                pronunciation_dictionaries=list(self.dictionaries) if prepared and not b.get("no_dictionary") else [],
             )
             take = await self._take(blk, req, blocks_dir, language)
             if occurrences:

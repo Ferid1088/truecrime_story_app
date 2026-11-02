@@ -135,7 +135,7 @@ class LanguageChain:
             if SR.required(lang):           # after the voice-repair loop of each block, a model listens to it and judges it against the source
                 from app.documentary import voice_prepare as VP
 
-                prepared_rules = (json.loads(version.narrative_structure or "{}").get("prepared") or {}).get("rules") or []
+                prepared_rules = VP.sent_rules(version)
                 renderer.reviewer = SR.Reviewer(db, case.id, VP.english_sources(db, version), VP.tones_of(db, version), prepared_rules)
             m = await render_documentary_audio(
                 plan, case_id=case.id, story_version_id=version.id,

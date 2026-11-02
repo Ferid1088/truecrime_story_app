@@ -108,3 +108,17 @@ def test_a_respelling_that_makes_a_block_pass_is_learned_and_an_ezafe_fix_is_not
     result = asyncio.run(s.reviewer.run(first, s.speak, 1, LANG))
     assert [x["surface"] for x in result["semantic_review"]["learned"]] == ["اشلی"], "the ezafe on رفت is not kept"
     assert rows(db_session) == {"اشلی": ("alias", "اَشْلی", "reviewer", 1)}
+
+
+def test_a_reading_never_carries_a_hyphen_in_the_dictionary_or_the_lexicon(db_session):
+    assert LEX.plain_reading("dær-e") == "dære" and LEX.plain_reading("zæbɑːne‑ye") == "zæbɑːneye" and LEX.plain_reading("tʃæt dʒi pi ti") == "tʃæt dʒi pi ti"
+    rules = [{"string_to_replace": "درِ", "type": "phoneme", "alphabet": "ipa", "phoneme": "dær-e"}, {"string_to_replace": "ب", "type": "alias", "alias": "x-y"}]
+    assert [r.get("phoneme") or r.get("alias") for r in VP.plain_rules(rules)] == ["dære", "xy"]
+    kept = LEX.confirm(db_session, LANG, [{"string_to_replace": "حالت", "type": "phoneme", "alphabet": "ipa", "phoneme": "hɑːlæt-e"}], "حالت", None)
+    assert kept and rows(db_session)["حالت"][1] == "hɑːlæte"
+
+
+def test_the_reading_of_a_name_of_several_words_has_no_space_because_a_space_is_a_pause():
+    rules = [{"string_to_replace": "کانینگهام کورت", "type": "phoneme", "alphabet": "ipa", "phoneme": "kɑːniŋhɑːm koːrt"},
+             {"string_to_replace": "کالب", "type": "phoneme", "alphabet": "ipa", "phoneme": "kɑːleb"}]
+    assert [r["phoneme"] for r in VP.plain_rules(rules)] == ["kɑːniŋhɑːmkoːrt", "kɑːleb"]

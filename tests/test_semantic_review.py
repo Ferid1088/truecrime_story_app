@@ -196,3 +196,79 @@ def test_a_reviewed_language_is_voiced_once_per_block_without_speech_to_text_or_
     plan = {"language": "fa", "blocks": [_block("FA_a_01", "B01", "The house was empty and every room had been scrubbed clean.")]}
     asyncio.run(renderer.render(plan, case_id=7, story_version_id=4))
     assert len(tts.requests) == 1
+
+
+def test_the_words_to_listen_to_one_by_one_are_the_ezafe_words_and_those_with_a_rule():
+    rules = [{"string_to_replace": "کالب", "type": "alias", "alias": "کِیلِب"}, {"string_to_replace": "تیپ", "type": "alias", "alias": "x"}]
+    assert SR.words_to_check("درِ گاراژ بود و کالب آمد. بازِ بود", rules) == ["درِ", "بازِ", "کالب"]
+    assert SR.words_to_check("کالب آمد و در بود", rules) == ["کالب"], "a word without an ezafe mark is not listened to alone"
+    assert SR.words_to_check("درِ گاراژ بازِ بود", []) == ["درِ", "بازِ"]
+
+
+def test_a_word_the_reviewer_found_wrong_is_an_error_even_when_it_left_it_out_of_the_errors():
+    got = SR.normalise(raw(word_checks=[{"word": "درِ", "heard": "dare-ye", "ok": False, "problem": "an extra ye"}, {"word": "بازِ", "heard": "baz-e", "ok": True}]))
+    assert got["verdict"] == "fail" and got["errors"] == [{"type": "pronunciation", "severity": "major", "expected": "درِ", "heard": "dare-ye", "reason": "an extra ye"}]
+    listed = SR.normalise(raw(errors=[{"type": "pronunciation", "severity": "major", "expected": "درِ", "heard": "dare-ye", "reason": "x"}],
+                              word_checks=[{"word": "درِ", "heard": "dare-ye", "ok": False}]))
+    assert len(listed["errors"]) == 1, "not listed twice"
+
+
+def test_a_pause_inside_a_name_of_several_words_is_an_error():
+    got = SR.normalise(raw(word_checks=[{"word": "کانینگهام کورت", "heard": "kaningham [pause] kort", "ok": True, "joined": False}]))
+    assert got["verdict"] == "fail" and got["errors"][0]["reason"] == "a pause inside the name: it is not said as one unit"
+    assert SR.normalise(raw(word_checks=[{"word": "کانینگهام کورت", "ok": True, "joined": True}]))["verdict"] == "pass"
+
+
+def test_a_word_that_already_carries_the_ezafe_mark_is_not_respelled_with_he_because_that_was_heard_worse():
+    assert SR.ezafe_respelling("درِ") == "دره" and SR.ezafe_respelling("بیرونیِ") is None
+    review = SR.normalise(raw("fail", [{"type": "pronunciation", "severity": "major", "expected": "درِ گاراژ", "heard": "dareye garaj", "reason": "an extra ye after در"}]))
+    assert SR.ezafe_fixes("درِ بیرونیِ گاراژ باز بود", review) == []
+
+
+def test_joined_false_counts_only_for_a_name_of_several_words():
+    single = SR.normalise(raw(word_checks=[{"word": "آمریکا", "heard": "amrika", "ok": True, "joined": False}]))
+    assert single["verdict"] == "pass" and single["errors"] == []
+
+
+def test_a_place_where_grammar_needs_an_ezafe_that_is_not_said_is_an_error_and_only_that_phrase_is_respelled():
+    assert SR.missing_ezafe_respelling("در") == "دره" and SR.missing_ezafe_respelling("خانه") == "خانه‌ی" and SR.missing_ezafe_respelling("پا") == "پای"
+    assert SR.missing_ezafe_respelling("بیرونی") is None
+    review = SR.normalise(raw(ezafe_missing=[{"phrase": "در باز", "head": "در", "heard": "dar baz"}]))
+    assert review["verdict"] == "fail" and review["errors"][0]["reason"] == "the ezafe after در is not said"
+    text = "یه در باز. در گاراژ بود."
+    assert SR.ezafe_fixes(text, review) == [{"surface": "در باز", "replacement": "دره باز"}]
+    fixed, _, _ = SR.corrected_block(block(("یه در باز.", "در گاراژ بود.")), {**review, "corrected_pronunciation_rules": SR.ezafe_fixes(text, review)})
+    assert [s["tts"] for s in fixed["sentences"]] == ["یه دره باز.", "در گاراژ بود."], "the preposition in the next sentence stays"
+    assert SR.ezafe_fixes("غیر", review) == [], "a phrase that is not in the text is not respelled"
+
+
+def test_an_ezafe_said_with_an_extra_ye_where_the_text_has_no_mark_is_respelled_for_that_phrase_only():
+    review = SR.normalise(raw(ezafe_missing=[{"phrase": "شهرستان میامی", "head": "شهرستان", "heard": "shahrestan-eye miami"}]))
+    assert SR.ezafe_fixes("در شهرستان میامی بود.", review) == [{"surface": "شهرستان میامی", "replacement": "شهرستانه میامی"}]
+
+
+def test_a_voice_that_reads_the_pronunciation_notation_aloud_gets_the_block_without_the_dictionary_and_then_without_tags():
+    review = SR.normalise(raw("fail", [{"type": "pronunciation", "severity": "major", "expected": "فوریه", "heard": "اسلش اف ای وی اسلش", "reason": "read as symbols"}]))
+    assert review["notation_read_aloud"] is True and SR.normalise(raw())["notation_read_aloud"] is False
+    rules = [{"string_to_replace": "کالب", "type": "alias", "alias": "کالِبْ"}, {"string_to_replace": "فوریه", "type": "phoneme", "alphabet": "ipa", "phoneme": "fevrije"}]
+    blk = block(("[calm] کالب در فوریه آمد.", "او رفت."))
+    fixed, applied = SR.without_dictionary(blk, rules)
+    assert fixed["no_dictionary"] is True and fixed["sentences"][0]["tts"] == "[calm] کالِبْ در فوریه آمد." and applied == ["without the dictionary", "respelled کالب"]
+    assert [s["display"] for s in fixed["sentences"]] == ["[calm] کالب در فوریه آمد.", "او رفت."], "what people read is not touched"
+    again, applied = SR.without_dictionary(fixed, rules)
+    assert again["sentences"][0]["tts"] == "کالِبْ در فوریه آمد." and "without audio tags" in applied
+
+
+def test_a_block_marked_without_the_dictionary_is_sent_without_it(tmp_path, monkeypatch):
+    from test_voice_render import FakeTTS, _block
+
+    from app.documentary.voice_render import VoiceRenderer
+
+    monkeypatch.setattr(ai_config.voice, "prepared_languages", ["fa"])
+    tts = FakeTTS()
+    renderer = VoiceRenderer(provider=tts, use_asr=False, use_listener=False)
+    renderer.dictionaries = [{"pronunciation_dictionary_id": "D", "version_id": "V"}]
+    plain = _block("FA_a_01", "B01", "The house was empty and every room had been scrubbed clean.")
+    asyncio.run(renderer.speak_block(plain, "fa", ai_config.voice.for_language("en"), {}, 1, tmp_path / "t1"))
+    asyncio.run(renderer.speak_block({**plain, "no_dictionary": True}, "fa", ai_config.voice.for_language("en"), {}, 1, tmp_path / "t2"))
+    assert [r.pronunciation_dictionaries for r in tts.requests] == [renderer.dictionaries, []]
