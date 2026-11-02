@@ -175,7 +175,8 @@ class CaseMonitor(Monitor):
                         "again by itself while it is alive. If it stays like this the worker is down: run "
                         "scripts/dev_up.sh --status.", Action("Open the Run tab", "tab", "Run"))
                 running = next((s for s in view["stages"] if s["status"] == "running"), None)
-                if running and (running["seconds"] or 0) > self.cfg.stuck_stage_minutes * 60:
+                limit = self.cfg.stuck_stage_minutes_by_stage.get(stage_base(running["name"]), self.cfg.stuck_stage_minutes) if running else 0
+                if running and (running["seconds"] or 0) > limit * 60:
                     self.raise_issue(
                         "attention", "stage",
                         f"Stage {running['name']} has run for {int(running['seconds'] // 60)} min",

@@ -3417,6 +3417,8 @@ class MonitoringConfig(BaseModel):
 
     refresh_seconds: float = Field(gt=0.0)
     stuck_stage_minutes: float = Field(gt=0.0)
+    # A stage that legitimately takes longer than the rest (by stage name, without the language) has its own limit.
+    stuck_stage_minutes_by_stage: dict[str, float] = {}
     queued_wait_seconds: float = Field(gt=0.0)
     budget_warn_fraction: float = Field(gt=0.0, le=1.0)
     provider_window_minutes: float = Field(gt=0.0)

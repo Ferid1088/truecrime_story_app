@@ -183,3 +183,16 @@ def test_a_job_that_waits_for_the_reading_review_is_an_alarm_that_opens_the_read
     assert ("tab", "Reading Review") in kinds and ("resume", str(job.id)) in kinds
     assert ("href", f"/documentary/{case.id}/review") not in kinds, "it is not a picture review"
     assert snap["state"] == "attention" and any("waiting for you" in t for t in _titles(snap))
+
+
+def test_the_reading_stage_has_its_own_longer_limit_before_it_counts_as_stuck(db_session):
+    case = _case(db_session)
+    started = (utc_now() - timedelta(minutes=40)).isoformat()
+    _job(db_session, case, "running", "reading:fa", [{"name": "reading:fa", "status": "running", "started_at": started}],
+         worker_id="w1", heartbeat_at=utc_now())
+    assert not any("has run for" in t for t in _titles(_snapshot(case))), "40 minutes is normal for the reading of a whole film"
+    case = _case(db_session)
+    started = (utc_now() - timedelta(minutes=120)).isoformat()
+    _job(db_session, case, "running", "reading:fa", [{"name": "reading:fa", "status": "running", "started_at": started}],
+         worker_id="w1", heartbeat_at=utc_now())
+    assert any("Stage reading:fa has run for" in t for t in _titles(_snapshot(case)))

@@ -2,6 +2,9 @@
   "monitoring": {
     "refresh_seconds": 5,
     "stuck_stage_minutes": 20,
+    "stuck_stage_minutes_by_stage": {
+      "reading": 90
+    },
     "queued_wait_seconds": 90,
     "budget_warn_fraction": 0.8,
     "provider_window_minutes": 15,
