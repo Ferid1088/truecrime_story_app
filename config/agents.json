@@ -636,6 +636,20 @@
       "output": "json",
       "description": "Decides one word the editor and the checker read differently, or sends it to the owner as a doubt.",
       "used_by": "app/documentary/reading/checker.py"
+    },
+    "documentary.reading.listen": {
+      "role": "reading_listener",
+      "prompt": "documentary/reading/listen_system",
+      "output": "json",
+      "description": "Listens to a voiced block of the Persian narration, given only its plain words, and writes down in Latin letters what the voice actually said, word by word.",
+      "used_by": "app/documentary/reading/listener.py"
+    },
+    "documentary.reading.judge": {
+      "role": "reading_judge",
+      "prompt": "documentary/reading/judge_system",
+      "output": "json",
+      "description": "For a word that two listeners both heard differently from its written reading, decides whether the voice or the reading is wrong.",
+      "used_by": "app/documentary/reading/judge.py"
     }
   }
 }

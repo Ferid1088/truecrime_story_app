@@ -136,7 +136,9 @@
         "reading_reader": "reading_premium",
         "reading_editor": "reading_premium",
         "reading_checker": "sol",
-        "reading_arbiter": "reading_premium"
+        "reading_arbiter": "reading_premium",
+        "reading_listener": "audio_listener",
+        "reading_judge": "reading_premium"
       },
       "fallbacks": {
         "cheap": [
@@ -486,6 +488,14 @@
     "reading_arbiter": {
       "temperature": 0.0,
       "max_tokens": 2000
+    },
+    "reading_listener": {
+      "temperature": 0.0,
+      "max_tokens": 6000
+    },
+    "reading_judge": {
+      "temperature": 0.0,
+      "max_tokens": 3000
     }
   }
 }

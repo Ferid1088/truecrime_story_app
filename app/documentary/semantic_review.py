@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.core.prompts import prompt_sha256
+from app.documentary.reading.block import beats_of
 from app.documentary import audio as A
 from app.documentary import lexicon as LEX
 from app.documentary.persian_numbers import NUMBER
@@ -165,9 +166,10 @@ class Reviewer:
         sentences = block.get("sentences") or []
         display = " ".join(s.get("display") or s["speech"] for s in sentences) or block.get("display_text") or block["text"]
         tts = block.get("tts_text") or " ".join(s.get("tts") or s["speech"] for s in sentences) or block["text"]
-        section = block.get("section_id")
-        return {"source_text": (block.get("source_text") or self.sources.get(section, ""))[:cfg.source_chars],
-                "scene_context": self.tones.get(section) or block.get("scene_context") or {},
+        beats = beats_of(block)                    # the sources and the tones are of the story's beats, not of the block's section ("B08.g02" tells beat B08)
+        source = "\n\n".join(self.sources[beat] for beat in beats if self.sources.get(beat))
+        return {"source_text": (block.get("source_text") or source)[:cfg.source_chars],
+                "scene_context": next((self.tones[beat] for beat in beats if self.tones.get(beat)), None) or block.get("scene_context") or {},
                 "display_text": display, "tts_text": tts, "protected_items": protected_items(display, tts),
                 "pronunciation_rules": self.rules, "previous_text": (block.get("previous_text") or "")[-cfg.neighbour_chars:] if cfg.neighbour_chars else "",
                 "next_text": (block.get("next_text") or "")[:cfg.neighbour_chars], "allowed_delivery_tags": cfg.delivery_tags}

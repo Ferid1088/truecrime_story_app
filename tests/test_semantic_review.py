@@ -305,3 +305,11 @@ def test_a_missing_or_wrong_ezafe_fails_the_block_and_is_never_rewritten_into_an
 # ---------------------------------------------------------------------------
 # the last check: each word that needs one, listened to alone
 # ---------------------------------------------------------------------------
+
+
+def test_the_source_and_the_tone_of_a_block_are_those_of_the_beats_it_tells_not_of_its_section_id(tmp_path):
+    reviewer = SR.Reviewer(None, 1, {"B08": "He opened the door.", "B09": "Then he left."}, {"B08": {"purpose": "the door"}})
+    blk = {**block(), "section_id": "B08.g02", "beats": [{"beat_id": "B08"}, {"beat_id": "B09"}]}
+    context = reviewer.context(blk)
+    assert context["source_text"] == "He opened the door.\n\nThen he left." and context["scene_context"] == {"purpose": "the door"}
+    assert reviewer.context({**block(), "section_id": "B09.g01"})["source_text"] == "Then he left."

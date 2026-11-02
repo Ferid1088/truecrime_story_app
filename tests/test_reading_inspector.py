@@ -1,7 +1,7 @@
 import pytest
 
-from app.documentary.reading.inspector import Finding, inspect_block, windows
-from app.documentary.reading.phones import compare, expected_sounds, heard_sounds
+from app.documentary.reading.inspector import Finding, candidates, confirm, windows
+from app.documentary.reading.phones import compare, expected_sounds, heard_sounds, same_heard
 from app.documentary.reading.words import tokenize
 
 # the phones are what the local recogniser wrote for the takes of film 15 (v289), words cut by the voice's own word times
@@ -38,18 +38,35 @@ def test_the_window_of_a_word_follows_the_voices_words_by_place_or_by_the_words_
     assert windows(spoken[:1] + spoken[2:], words) == {0: (0, 0.5), 2: (2, 2.5), 3: (3, 3.5)}
 
 
-def test_a_block_is_inspected_word_by_word_in_the_window_of_each_word():
-    frames = [("a", 0.0, 0.1), ("z", 0.1, 0.2), ("o", 1.0, 1.1), ("h", 1.1, 1.2), ("d", 1.2, 1.3), ("h", 2.0, 2.1), ("a", 2.1, 2.2), ("r", 2.2, 2.3), ("f", 2.3, 2.4)]
-    spoken = [{"word": "از", "start": 0.0, "end": 0.3}, {"word": "عهد", "start": 0.95, "end": 1.35}, {"word": "حرف", "start": 1.95, "end": 2.45}]
-    found = inspect_block("b", "از عهد حرف", ["az", "'ahd", "harf"], spoken, frames)
-    assert found == [Finding("b", 1, "عهد", "a h d", "o h d")]
+def test_a_word_the_blind_listener_heard_differently_is_a_finding_only_when_the_recogniser_hears_it_differently_too():
+    words = tokenize("از عهد حرف زد")
+    readings = ["az", "'ahd", "harf", "zad"]
+    heard = {0: "az", 1: "ohd", 2: "harf", 3: "zad"}
+    assert candidates(words, readings, heard) == [1]
+    spoken = [{"word": w.surface, "start": float(i), "end": i + 0.5} for i, w in enumerate(words)]
+    ohd = [("o", 1.0, 1.1), ("h", 1.1, 1.2), ("d", 1.2, 1.3)]
+    ahd = [("a", 1.0, 1.1), ("h", 1.1, 1.2), ("d", 1.2, 1.3)]
+    assert confirm("b", words, readings, heard, spoken, ohd) == ([Finding("b", 1, "عهد", "'ahd", "ohd", "o h d")], [])
+    assert confirm("b", words, readings, heard, spoken, ahd) == ([], [Finding("b", 1, "عهد", "'ahd", "ohd", "a h d")])
 
 
-def test_a_number_is_never_inspected_and_a_block_with_another_word_count_is_refused():
-    assert inspect_block("b", "۹۱۱", ["NUM"], [{"word": "۹۱۱", "start": 0, "end": 1}], [("a", 0, 1)]) == []
+def test_the_consonants_inside_a_word_are_compared_for_the_candidates_a_cluster_that_is_not_in_the_reading_is_a_fault():
+    assert not compare("pat", "p r a t".split(), consonants=True).ok
+    assert compare("prat", "p r a t".split(), consonants=True).ok
+    assert compare("kard", "k a r d b".split(), consonants=True).ok
+
+
+def test_what_a_listener_wrote_says_the_reading_apart_from_its_spelling():
+    assert same_heard("baham", "baham.", "بهم") and not same_heard("baham", "beham", "بهم")
+    assert same_heard("qāzi", "ghāzi,", "قاضی") and same_heard("o", "va", "و")
+    assert not same_heard("bāz", "bāz-e", "باز") and not same_heard("khāne-ye", "khāne", "خانه")
+
+
+def test_a_number_is_never_a_candidate_and_a_block_with_another_word_count_is_refused():
+    assert candidates(tokenize("۹۱۱"), ["NUM"], {0: "nohsado yāzdah"}) == []
     with pytest.raises(ValueError):
-        inspect_block("b", "از عهد", ["az"], [], [])
+        confirm("b", tokenize("از عهد"), ["az"], {}, [], [])
 
 
-def test_a_consonant_fault_is_not_found_because_only_the_vowels_are_compared():
+def test_a_consonant_fault_outside_the_cluster_rule_is_not_found_by_the_vowel_comparison():
     assert compare("pat", "p r a t".split()).ok

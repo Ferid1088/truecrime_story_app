@@ -31,8 +31,14 @@ async def render_documentary_audio(
         plan, case_id=case_id, story_version_id=story_version_id,
         max_seconds=max_seconds, style=style, force_block_ids=force_block_ids,
     )
-    if with_music and plan.get("directed"):
-        out = renderer.out_dir(case_id, plan["language"], story_version_id)
+    if with_music:
+        manifest = await mix_narration(manifest, plan, renderer.out_dir(case_id, plan["language"], story_version_id), mixer=mixer, db=db)
+    return manifest
+
+
+async def mix_narration(manifest: dict, plan: dict, out, *, mixer: DocumentaryMixer | None = None, db: Session | None = None) -> dict:
+    """The music mix under a rendered narration (a plan that is not directed has none)."""
+    if plan.get("directed"):
         extra = {"db": db} if db is not None else {}
         manifest["mix"] = await (mixer or DocumentaryMixer()).mix(manifest, plan, out, **extra)
         manifest["audio_notes"] = plan.get("audio_notes")

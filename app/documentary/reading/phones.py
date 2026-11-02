@@ -47,7 +47,16 @@ def vowels_of(sounds: list[str]) -> list[str]:
     return [{"u": "o", "āy": "ā"}.get(s, s) for s in sounds if s in VOWELS]
 
 
-def compare(reading: str, phones: list[str]) -> Verdict:
+def inner(sounds: list[str]) -> list[str]:
+    """The sounds from the first vowel to the last, with the consonant before the first vowel when it is the second of a cluster ("pr" in "prat");
+    the other consonants at the edges are the neighbours'."""
+    at = [k for k, s in enumerate(sounds) if s in VOWELS]
+    if not at:
+        return []
+    return sounds[max(at[0] - 1, 0) if at[0] >= 2 else at[0]:at[-1] + 1]
+
+
+def compare(reading: str, phones: list[str], consonants: bool = False) -> Verdict:
     """The vowels a word is said with against the vowels of its reading. The faults a Persian narration has are vowels (a short vowel that is
     another, a syllable more or less, an ezafe that is missing or added); the consonants at the edges of the word's time window are the
     neighbours', so only the vowels are compared, and a vowel of the neighbour at either edge is not a fault (an added final "e" is: it is the
@@ -63,4 +72,32 @@ def compare(reading: str, phones: list[str]) -> Verdict:
         if tag == "delete" and a0 == 0:
             continue                                                       # the window starts after the first vowel
         return Verdict(False, *shown)
+    if consonants and not _consonants_agree(inner(want), inner(got)):
+        return Verdict(False, *shown)
     return Verdict(True, *shown)
+
+
+def _consonants_agree(want: list[str], got: list[str]) -> bool:
+    for tag, a0, a1, b0, b1 in SequenceMatcher(a=want, b=got, autojunk=False).get_opcodes():
+        gone, extra = want[a0:a1], got[b0:b1]
+        if tag == "equal" or all(s in VOWELS for s in gone + extra):
+            continue
+        if tag == "replace" and len(gone) == len(extra) and all(x == y or frozenset((x, y)) in SAME or (x in VOWELS and y in VOWELS)
+                                                                  for x, y in zip(gone, extra, strict=True)):
+            continue
+        return False
+    return True
+
+
+def same_heard(reading: str, heard: str, plain: str) -> bool:
+    """Whether what a listener wrote in Latin letters says the written reading: the same vowels and consonants, the same ezafe; the spelling of
+    the listener's punctuation, "q" and "gh", a doubled consonant and the two forms of the word "and" are not differences."""
+    if plain == "و":
+        return re.sub(r"[^a-zā]", "", heard.lower()) in {"o", "va", "vo"}
+
+    def form(text: str) -> tuple[list[str], bool]:
+        stem, ezafe = split_ezafe(re.sub(r"[.,:;!?،؛]+$", "", split_pause(text.strip())[0]).lstrip("-"))
+        return expected_sounds(stem.replace("-", "")), bool(ezafe)
+
+    (want, ezafe_want), (got, ezafe_got) = form(reading), form(heard)
+    return want == got and ezafe_want == ezafe_got

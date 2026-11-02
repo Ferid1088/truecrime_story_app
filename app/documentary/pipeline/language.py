@@ -141,9 +141,15 @@ class LanguageChain:
 
                 prepared_rules = VP.sent_rules(version)
                 renderer.reviewer = SR.Reviewer(db, case.id, VP.english_sources(db, version), VP.tones_of(db, version), prepared_rules)
+            listened = RS.required(lang) and not pilot          # the narration of a language with a reading text is listened to before the music is mixed
             m = await render_documentary_audio(
                 plan, case_id=case.id, story_version_id=version.id,
-                max_seconds=pilot_seconds if pilot else None, db=db, renderer=renderer)
+                max_seconds=pilot_seconds if pilot else None, db=db, renderer=renderer, with_music=not listened)
+            if listened:
+                from app.documentary.production.audio import mix_narration
+
+                folder = renderer.out_dir(case.id, lang, version.id)
+                m = await mix_narration(await RS.listen_and_fix(db, case, version, lang, renderer, plan, m, folder), plan, folder, db=db)
             holder["m"] = m
             paid[lang] = int(m.get("characters_paid") or 0)
             out = {"seconds": m.get("duration_seconds"),

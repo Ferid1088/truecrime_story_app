@@ -190,6 +190,7 @@ class VoiceRenderer:
         self._budget_usage_missing = False
         self.dictionaries: list[dict] = []        # the film's pronunciation dictionary locators (a prepared language)
         self.reviewer = None                      # the semantic audio reviewer (semantic_review.Reviewer) of a reviewed language
+        self.seed_bumps: dict[str, int] = {}      # block -> retakes already made by the reading loop (each is a new seed)
         self.voicing = None                       # the reading loop's Voicing of a language it covers: the fixed words go to the voice as IPA
         self.narration = False                    # set while the film's narration is rendered: only it gets the language's post speed
         self.asr_error: str | None = None
@@ -515,7 +516,7 @@ class VoiceRenderer:
         async def one_block(b: dict) -> dict:
             # A forced re-render is a NEW take (different seed), still
             # reproducible; normal renders reuse the cached take.
-            seed = self.cfg.seed + (10 if b["block_id"] in force else 0)
+            seed = self.cfg.seed + (10 if b["block_id"] in force else 0) + self.seed_bumps.get(b["block_id"], 0)
             settings = self.cfg.settings_for(block_style(b), language)
 
             async def speak(block: dict, take_seed: int) -> dict:

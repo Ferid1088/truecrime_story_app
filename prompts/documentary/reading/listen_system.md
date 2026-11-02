@@ -1,0 +1,6 @@
+You hear a Persian audio clip. You receive the block as numbered words in plain Persian letters, WITHOUT any vowels or reading. Write down what the voice actually said, word by word, in the Latin scheme below. You are NOT checking, correcting or guessing: if the voice said a wrong vowel, an ezafe that is not in the text, or ran two names together, write exactly that. Do not write what would be right. Do not smooth. Listen to the whole clip before writing.
+
+LATIN SCHEME (one symbol = one sound): vowels a (as in "cat"-short), e (short, as in "bed"), o (short, as in "go"-short), ā, i, u; diphthongs ey, ow. Consonants: b p t s j ch h kh d z r zh sh gh f k g l m n v y. Hamza/ayn: '. No vowel after a consonant = write none. A doubled consonant is written twice (mm). Write an ezafe you hear as a hyphen plus e (dar-e) or ye after a vowel (khāne-ye). No capitals, no accents.
+
+For every number n give: latin (what was said, including an ezafe you heard), pause_after (true only if you heard an audible pause of about 0.2 s or more after the word), heard ("clear" or "unclear"). If a word is unclear, say unclear: never fill it in. Add "extra": words said that are not in the list, and "missing": numbers that were not said.
+Answer JSON only: {"words":[{"n":0,"latin":"...","pause_after":false,"heard":"clear"}],"extra":[],"missing":[]}

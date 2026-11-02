@@ -156,6 +156,8 @@ REQUIRED_ROLES = {
     "reading_editor",
     "reading_checker",
     "reading_arbiter",
+    "reading_listener",
+    "reading_judge",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",
@@ -2405,6 +2407,10 @@ class ReadingConfig(BaseModel):
     retry_pause_s: float = Field(default=5.0, ge=0.0)
     # How many blocks are written and checked at the same time.
     parallel_blocks: int = Field(default=6, ge=1, le=32)
+    # How many blocks are listened to at the same time (the blind listener is a model call, the recogniser is local).
+    listen_parallel_blocks: int = Field(default=4, ge=1, le=16)
+    # The recogniser's phones of a word are taken from its time window widened by this much on each side (seconds).
+    window_edge_s: float = Field(default=0.03, ge=0.0, le=0.2)
 
 
 class SemanticReviewConfig(BaseModel):

@@ -19,6 +19,9 @@ class Voicing:
     fixed: dict[str, str]                       # plain word -> its reading (the owner's approvals of the language)
     readings: dict[str, list[str]]              # block -> the reading of each word (for the ezafe and the order of the words)
 
+    def with_fixed(self, more: dict[str, str]) -> Voicing:
+        return Voicing({**self.fixed, **more}, self.readings)
+
     def text(self, block_id: str, text: str) -> str:
         """The block's text with each fixed word as /ipa/. A block whose words are not the words of its reading is left as written."""
         words, readings = tokenize(text), self.readings.get(block_id)
