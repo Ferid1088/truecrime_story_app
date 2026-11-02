@@ -2376,6 +2376,26 @@ class VideoAuditConfig(BaseModel):
     frame_width: int = Field(default=384, ge=160, le=1280)
 
 
+class ReadingConfig(BaseModel):
+    """The reading loop of a spoken language (app/documentary/reading): the reading text (one Latin reading per word) is written and checked before
+    the voice; the voice is then listened to blind and every difference is fixed for the failing words only."""
+
+    # The languages that get the reading text and the reading loop (the others keep their own checks).
+    languages: list[str] = []
+    # How many blocks the reader takes in one call when it builds the film table (the table of the chunks is merged afterwards).
+    chunk_blocks: int = Field(default=40, ge=1)
+    # How many times a failing word is fixed, voiced and listened to again before the problem is only logged.
+    max_rounds: int = Field(default=3, ge=0, le=10)
+    # How many times the editor writes a block again when the code checks (the same words in the same order, the name rules) reject its answer.
+    max_writer_retries: int = Field(default=3, ge=0, le=10)
+    # True: two different persons side by side in the text get a pause between them.
+    pause_between_names: bool = True
+    # True: the local phoneme recogniser listens too, as a second opinion that has no language-model habit.
+    second_opinion_phoneme: bool = True
+    # Where the reading texts and the records of a film are kept next to its voice.
+    folder: str = "reading"
+
+
 class SemanticReviewConfig(BaseModel):
     """The semantic audio review (semantic_review.py): a model listens to a voiced block (and to the voice of an avatar video) and judges it
     against the source text. The languages it applies to, how often a failed block is corrected, and what the reviewer may suggest."""
@@ -4261,6 +4281,7 @@ class AIConfig(BaseModel):
     names: NamesConfig = Field(default_factory=NamesConfig)
     voice_prepare: VoicePrepareConfig = Field(default_factory=VoicePrepareConfig)
     semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)
+    reading: ReadingConfig = Field(default_factory=ReadingConfig)
     chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)
     detective_board: DetectiveBoardConfig = Field(default_factory=DetectiveBoardConfig)
     detective_toolkit: DetectiveToolkitConfig = Field(default_factory=DetectiveToolkitConfig)

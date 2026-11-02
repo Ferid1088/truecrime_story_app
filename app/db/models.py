@@ -3226,6 +3226,49 @@ class PronunciationLexicon(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
 
 
+class ReadingApproval(Base):
+    """How one word of a spoken language is read (a Latin reading with its vowels and ezafe), fixed by the owner or the reader and kept across
+    films: a name, a place, a foreign word, a spoken form, or one sense of a word that is written the same as another."""
+
+    __tablename__ = "reading_approvals"
+    __table_args__ = (UniqueConstraint("language", "surface", "kind", "sense", name="uq_reading_approvals"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    language: Mapped[str] = mapped_column(String(20))
+    surface: Mapped[str] = mapped_column(String(160))
+    kind: Mapped[str] = mapped_column(String(16))                           # person | place | foreign | homograph | spoken_form
+    sense: Mapped[str] = mapped_column(String(120), default="")             # which meaning, for a homograph
+    latin: Mapped[str] = mapped_column(String(240))
+    source: Mapped[str] = mapped_column(String(20), default="owner")        # owner | reader
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class ReadingDoubt(Base):
+    """A word of one film's reading text that the editor and the checker could not settle: it waits, with all the others, for the owner's review
+    before the film is voiced."""
+
+    __tablename__ = "reading_doubts"
+    __table_args__ = (UniqueConstraint("story_version_id", "block_id", "word_n", name="uq_reading_doubts"),
+                      Index("ix_reading_doubts_version_status", "story_version_id", "status"))
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"))
+    story_version_id: Mapped[int] = mapped_column(ForeignKey("story_versions.id"))
+    block_id: Mapped[str] = mapped_column(String(40))
+    word_n: Mapped[int] = mapped_column(Integer)
+    surface: Mapped[str] = mapped_column(String(160))
+    sentence: Mapped[str] = mapped_column(Text, default="")
+    question: Mapped[str] = mapped_column(Text, default="")
+    editor_latin: Mapped[str] = mapped_column(String(240), default="")
+    checker_latin: Mapped[str] = mapped_column(String(240), default="")
+    status: Mapped[str] = mapped_column(String(12), default="open")         # open | answered
+    answer_latin: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    answered_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
 class MvpFilmReview(Base):
     """The persisted owner-review state of one rendered film. A film is a review candidate until
     the owner approves its exact checksum; nothing runs past AWAITING_OWNER_REVIEW without it."""
