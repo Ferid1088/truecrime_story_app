@@ -267,6 +267,23 @@ def test_a_post_speed_plays_the_take_faster_and_every_time_follows_it(workdir, m
     assert abs(take["alignment"]["ends"][-1] - (LEAD + speech)) < 0.01, "the host keeps the provider's speed, nothing is sped up afterwards"
 
 
+def test_a_language_can_shorten_its_breath_pauses_and_its_tail_pad_while_music_moments_keep_theirs(workdir, monkeypatch):
+    monkeypatch.setattr(ai_config.voice, "breath_gap_scale", {"en": 0.5})
+    monkeypatch.setattr(ai_config.voice, "tail_pad_ms_by_language", {"en": 0})
+    blocks = [{**_block(f"EN_a_0{i}", "act1", TEXT_A), "pause_after_ms": 1000, "pause_after_kind": kind}
+              for i, kind in enumerate(("paragraph", "breath", "music_bridge"))] + [_block("EN_a_03", "act1", TEXT_B)]
+    m = _render(VoiceRenderer(provider=FakeTTS(), asr=FakeASR()), blocks)
+    gaps = [m["timeline"]["blocks"][i + 1]["start"] - m["timeline"]["blocks"][i]["end"] for i in range(3)]
+    assert [round(g, 2) for g in gaps] == [0.5, 0.5, 1.0]
+    speech = len(TEXT_A) * SPEECH_PER_CHAR
+    assert abs(m["blocks"][0]["actual_seconds"] - (speech + ai_config.voice.lead_pad_ms / 1000)) < 0.08
+
+
+def test_only_persian_has_shorter_breath_pauses_and_tail_pad():
+    assert ai_config.voice.breath_gap_scale == {"fa": 0.6}
+    assert ai_config.voice.tail_pad_ms_by_language == {"fa": 80}
+
+
 def test_persian_has_its_own_voice_styles_and_every_other_language_keeps_the_common_ones():
     voice = ai_config.voice
     for style in (ai_config.host.voice_style, voice.default_style):

@@ -37,6 +37,7 @@ from app.providers.voice import VoiceProvider, VoiceRequest, get_voice_provider
 log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
+BREATH_KINDS = ('paragraph', 'breath')     # the pauses a language's `breath_gap_scale` shortens; chapter breaks and music moments keep theirs
 
 
 def _rel(path: str | Path) -> str:
@@ -317,7 +318,7 @@ class VoiceRenderer:
         speech_start = words[0]["start"] if words else 0.0
         speech_end = words[-1]["end"] if words else raw_duration
         t0 = max(0.0, speech_start - self.cfg.lead_pad_ms / 1000)
-        t1 = min(raw_duration, speech_end + self.cfg.tail_pad_ms / 1000)
+        t1 = min(raw_duration, speech_end + self.cfg.tail_pad_ms_by_language.get(language, self.cfg.tail_pad_ms) / 1000)
         await asyncio.to_thread(A.to_wav, raw, wav, self.loud.sample_rate, t0, t1, tempo)
         duration = await asyncio.to_thread(A.probe_duration, wav)
         local_words = [
@@ -562,6 +563,8 @@ class VoiceRenderer:
             if i + 1 < len(results):
                 if b.get("pause_after_ms") is not None:
                     gap_ms = int(b["pause_after_ms"])  # performance script
+                    if b.get("pause_after_kind") in BREATH_KINDS:
+                        gap_ms = round(gap_ms * self.cfg.breath_gap_scale.get(language, 1.0))
                 else:
                     same = results[i + 1]["block"]["section_id"] == b["section_id"]
                     gap_ms = (self.cfg.between_blocks_ms if same
