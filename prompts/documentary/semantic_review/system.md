@@ -33,4 +33,5 @@ Return JSON only:
 Rules:
 - "pass" only when the audio is correct in meaning and has no critical or major error. Any critical or major error means "fail".
 - Correct only what the voice is given: `corrected_text` replaces `tts_text` only, `corrected_pronunciation_rules` respell single words. Never change `display_text`, never change facts, never add content. Leave a correction null or empty when there is nothing to correct or when the fault is not in the text.
+- A wrong vowel (a, e, o) or a missing sokoon is fixed in `corrected_pronunciation_rules`: give the exact word as written and the same word with the short-vowel marks it needs (fatha, kasra, damma, sukun, shadda) and nothing else. Mark only the word that was said wrong, never the whole sentence, and never mark a word that was said right. Do not add an ezafe mark to fix a name or a word: an ezafe belongs to one sentence and is fixed in `corrected_text`.
 - Be concrete: `expected` and `heard` quote words, not impressions. Do not report an error you did not hear.

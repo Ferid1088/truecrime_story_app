@@ -3207,6 +3207,25 @@ class EntityNameForm(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class PronunciationLexicon(Base):
+    """A word of one language and how the voice must say it, kept across films: a reading the listening review proved right (the voice said the
+    word wrong, then right after the respelling) or one the owner gave. Every film's pronunciation dictionary starts from it."""
+
+    __tablename__ = "pronunciation_lexicon"
+    __table_args__ = (UniqueConstraint("language", "surface", name="uq_pronunciation_lexicon"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    language: Mapped[str] = mapped_column(String(20))
+    surface: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(12), default="alias")       # alias | phoneme
+    reading: Mapped[str] = mapped_column(String(240))
+    source: Mapped[str] = mapped_column(String(20), default="reviewer")  # reviewer | owner
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True)
+    hits: Mapped[int] = mapped_column(Integer, default=1)                 # how many times the same reading was proven
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
 class MvpFilmReview(Base):
     """The persisted owner-review state of one rendered film. A film is a review candidate until
     the owner approves its exact checksum; nothing runs past AWAITING_OWNER_REVIEW without it."""

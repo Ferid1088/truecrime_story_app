@@ -529,8 +529,11 @@ async def ensure_dictionary(db: Session, version: StoryVersion, language: str, p
     rules = prepared.get("rules") or []
     if not rules:
         return []
-    words = [r for r in rules if not NUMBER.fullmatch(r["string_to_replace"])]       # a number is always read as a number, whatever the editor chose
-    rules = words + number_rules(version.story_text or "", set())
+    from app.documentary import lexicon as LEX
+
+    kept = LEX.rules_for(db, language, version.story_text or "")                    # what earlier films proved: the editor's own reading of such a word gives way
+    words = [r for r in rules if not NUMBER.fullmatch(r["string_to_replace"]) and r["string_to_replace"] not in {k["string_to_replace"] for k in kept}]
+    rules = words + kept + number_rules(version.story_text or "", set())
     fingerprint = hashlib.sha256(json.dumps(rules, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
     known = prepared.get("dictionary") or {}
     if known.get("fingerprint") != fingerprint:

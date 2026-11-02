@@ -2388,6 +2388,8 @@ class SemanticReviewConfig(BaseModel):
     delivery_tags: list[str] = []
     # A review below this confidence counts as a fail even when the verdict says pass.
     min_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    # A respelling that made a failed block pass is kept in the pronunciation lexicon when the review's error was of one of these types.
+    learn_types: list[str] = []
     # Where the records and the audio of a reviewed language are kept next to the film's voice (a new version folder: earlier voices stay).
     folder_suffix: str = "_reviewed"
 

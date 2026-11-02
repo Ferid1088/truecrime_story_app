@@ -519,7 +519,7 @@ class VoiceRenderer:
 
             result = await speak(b, seed)
             if self.reviewer is not None:          # after the voice-repair loop: a model listens to the block
-                result = await self.reviewer.run(result, speak, seed)
+                result = await self.reviewer.run(result, speak, seed, language)
             return result
 
         # All blocks at once: the provider's limit (concurrency

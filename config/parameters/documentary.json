@@ -526,7 +526,7 @@
     "languages": [
       "fa"
     ],
-    "max_corrections": 2,
+    "max_corrections": 3,
     "source_chars": 3000,
     "neighbour_chars": 400,
     "delivery_tags": [
@@ -536,6 +536,10 @@
       "[softly]"
     ],
     "min_confidence": 0.5,
-    "folder_suffix": "_reviewed"
+    "folder_suffix": "_reviewed",
+    "learn_types": [
+      "name",
+      "pronunciation"
+    ]
   }
 }

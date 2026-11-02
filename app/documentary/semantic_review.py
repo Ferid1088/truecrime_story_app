@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.documentary import audio as A
+from app.documentary import lexicon as LEX
 from app.documentary.persian_numbers import NUMBER
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
@@ -84,12 +85,14 @@ def whole_word(surface: str) -> re.Pattern:
     return re.compile(rf"(?<![\w‌]){re.escape(surface)}(?![\w‌])")
 
 
-def corrected_block(block: dict, review: dict) -> tuple[dict, list[str]]:
-    """The block with the reviewer's corrections applied to what the voice is given (the sentences' tts forms), and what was applied. The
+def corrected_block(block: dict, review: dict) -> tuple[dict, list[str], list[dict]]:
+    """The block with the reviewer's corrections applied to what the voice is given (the sentences' tts forms), what was applied, and the
+    respellings among it ({"surface", "replacement"}). The
     sentences' speech and display text, which people read, are never touched. A corrected text is taken only when it has the same
     sentences as the block."""
     sentences = [dict(s) for s in block.get("sentences") or []]
     applied: list[str] = []
+    respelled: list[dict] = []
     forms = [s.get("tts") or s["speech"] for s in sentences]
     text = review.get("corrected_text")
     if text and sentences:
@@ -104,15 +107,16 @@ def corrected_block(block: dict, review: dict) -> tuple[dict, list[str]]:
         if any(pattern.search(f) for f in forms):
             forms = [pattern.sub(rule["replacement"], f) for f in forms]
             applied.append(f"respelled {rule['surface']}")
+            respelled.append(rule)
     tag = review.get("corrected_delivery_instruction")
     if tag and forms and not forms[0].startswith(tag):
         forms[0] = f"{tag} {forms[0]}"
         applied.append(f"tag {tag}")
     if not sentences:
-        return block, []
+        return block, [], []
     out = {**block, "sentences": [{**s, "tts": f} for s, f in zip(sentences, forms)]}
     out["tts_text"] = " ".join(forms)
-    return out, [a for a in applied if not a.startswith("text ignored")] + [a for a in applied if a.startswith("text ignored")]
+    return out, [a for a in applied if not a.startswith("text ignored")] + [a for a in applied if a.startswith("text ignored")], respelled
 
 
 class Reviewer:
@@ -152,7 +156,7 @@ class Reviewer:
             raise SemanticReviewFailed([{"block_id": label, "reason": f"the review could not be made: {type(e).__name__}: {e}"[:200]}]) from e
         return normalise(got if isinstance(got, dict) else {})
 
-    async def run(self, result: dict, speak: Callable[[dict, int], Awaitable[dict]], seed: int) -> dict:
+    async def run(self, result: dict, speak: Callable[[dict, int], Awaitable[dict]], seed: int, language: str = "fa") -> dict:
         """The review of a voiced block, with the corrections: `result` is what the voice-repair loop made, `speak(block, seed)` runs that loop
         again for a corrected block. Returns the result that is kept; its record says whether it was approved."""
         cfg = ai_config.semantic_review
@@ -160,6 +164,7 @@ class Reviewer:
         record = {"block_id": block["block_id"], "voice_attempts": 1, "semantic_review_attempts": 0, "voice_review_result": "fail",
                   "avatar_review_result": "not_applicable", "errors": [], "final_status": "failed", "reviews": []}
         self.records[block["block_id"]] = record
+        pending: list[dict] = []           # respellings the next review has to prove before the lexicon keeps them
         for attempt in range(cfg.max_corrections + 1):
             review = await self.listen(self.context(result["block"]), Path(result["take"]["wav_path"]), block["block_id"])
             record["semantic_review_attempts"] += 1
@@ -167,12 +172,17 @@ class Reviewer:
             record["errors"] = review["errors"]
             if review["verdict"] == "pass":
                 record["voice_review_result"], record["final_status"] = "pass", "approved"
+                if self.db is not None:
+                    record["learned"] = (LEX.learn(self.db, language, pending, self.case_id)
+                                         + LEX.confirm(self.db, language, self.rules, self.context(result["block"])["tts_text"], self.case_id))
                 break
             if attempt == cfg.max_corrections:
                 record["failure"] = "still failing after the allowed corrections"
                 break
-            fixed, applied = corrected_block(result["block"], review)
+            fixed, applied, respelled = corrected_block(result["block"], review)
             record["reviews"][-1]["applied"] = applied
+            if {e["type"] for e in review["errors"]} & set(cfg.learn_types):
+                pending += respelled
             seed += 1                      # a correction that changes nothing in the request is still a new take
             result = await speak(fixed, seed)
             record["voice_attempts"] += 1

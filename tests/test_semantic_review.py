@@ -69,17 +69,17 @@ def test_dates_numbers_urls_and_paths_are_protected_items():
 def test_a_correction_changes_what_the_voice_is_given_and_never_what_people_read():
     review = SR.normalise(raw("fail", [error()], corrected_pronunciation_rules=[{"surface": "اشلی", "replacement": "اَشْلی"}],
                               corrected_delivery_instruction="[calm]"))
-    fixed, applied = SR.corrected_block(block(), review)
+    fixed, applied, respelled = SR.corrected_block(block(), review)
     assert fixed["sentences"][0]["tts"] == "[calm] اَشْلی آمد." and fixed["sentences"][1]["tts"] == "او رفت."
     assert [s["display"] for s in fixed["sentences"]] == ["اشلی آمد.", "او رفت."] and [s["speech"] for s in fixed["sentences"]] == ["اشلی آمد.", "او رفت."]
-    assert fixed["tts_text"] == "[calm] اَشْلی آمد. او رفت." and applied == ["respelled اشلی", "tag [calm]"]
+    assert fixed["tts_text"] == "[calm] اَشْلی آمد. او رفت." and applied == ["respelled اشلی", "tag [calm]"] and respelled == [{"surface": "اشلی", "replacement": "اَشْلی"}]
 
 
 def test_a_corrected_text_is_taken_only_with_the_sentences_of_the_block():
     same = SR.normalise(raw("fail", [error()], corrected_text="اَشْلی آمد. او رفت."))
     assert SR.corrected_block(block(), same)[0]["sentences"][0]["tts"] == "اَشْلی آمد."
     other = SR.normalise(raw("fail", [error()], corrected_text="فقط یک جمله."))
-    fixed, applied = SR.corrected_block(block(), other)
+    fixed, applied, _ = SR.corrected_block(block(), other)
     assert fixed["sentences"][0]["tts"] == "اشلی آمد." and applied == ["text ignored: its sentences are not those of the block"]
 
 
@@ -140,7 +140,8 @@ def test_a_failed_block_goes_back_to_the_voice_with_the_correction_and_is_review
     assert record["reviews"][0]["verdict"] == "fail" and record["reviews"][0]["applied"] == ["respelled اشلی"]
 
 
-def test_after_two_corrections_a_block_that_still_fails_is_failed_and_the_loop_ends(tmp_path):
+def test_after_two_corrections_a_block_that_still_fails_is_failed_and_the_loop_ends(tmp_path, monkeypatch):
+    monkeypatch.setattr(ai_config.semantic_review, "max_corrections", 2)
     fail = raw("fail", [error()])
     s = Scenario(tmp_path, [fail, fail, fail, fail])
     record = s.run()["semantic_review"]
@@ -160,7 +161,7 @@ def test_the_render_keeps_every_record_and_does_not_assemble_the_film_when_a_blo
     from app.documentary.voice_render import VoiceRenderer
 
     renderer = VoiceRenderer(provider=FakeTTS(), asr=FakeASR())
-    renderer.reviewer = SR.Reviewer(None, 1, runner=Scenario(tmp_path, [raw("fail", [error()])] * 3).runner)
+    renderer.reviewer = SR.Reviewer(None, 1, runner=Scenario(tmp_path, [raw("fail", [error()])] * (ai_config.semantic_review.max_corrections + 1)).runner)
     plan = {"language": "fa", "blocks": [_block("FA_a_01", "B01", "The house was empty and every room had been scrubbed clean.")]}
     with pytest.raises(SR.SemanticReviewFailed, match="FA_a_01"):
         asyncio.run(renderer.render(plan, case_id=7, story_version_id=3))
