@@ -100,45 +100,6 @@ def normalise(raw: dict) -> dict:
 EZAFE = re.compile(r"[\w\u200c]+(?:\u0650|\u0654|\u06c0|\u0647\u0654)(?=\s)")
 
 
-DIACRITICS = re.compile("[\u064b-\u0652\u0670\u0654]")
-VOWEL_ENDINGS = "اآویئهۀ\u200c"           # after these the ezafe is a real "ye" ("بیرونی" + ye): the word is left as it is
-
-
-def ezafe_respelling(word: str) -> str | None:
-    """The word written as the voice should say it with an ezafe after a consonant: the word without its marks and with "ه" ("درِ" -> "دره", said
-    "dare"). A word that ends in a vowel keeps its "ye" and gets no respelling."""
-    stem = DIACRITICS.sub("", word).replace("\u06c0", "ه")
-    if not stem or stem[-1] in VOWEL_ENDINGS:
-        return None
-    return stem + "ه"
-
-
-def missing_ezafe_respelling(word: str) -> str | None:
-    """The word written so that its missing ezafe is said: after a consonant "ه" ("در" -> "دره", "dare"), after a silent "ه" the "ye" ("خانه" ->
-    "خانه‌ی"), after "ا" or "و" a "ی" ("پا" -> "پای"). After "ی" the reviewer's own respelling is used."""
-    stem = DIACRITICS.sub("", word)
-    if not stem:
-        return None
-    if stem[-1] == "ه":
-        return stem + "\u200cی"
-    if stem[-1] in "او":
-        return stem + "ی"
-    return None if stem[-1] in "یئآ\u200c" else stem + "ه"
-
-
-def ezafe_fixes(tts_text: str, review: dict) -> list[dict]:
-    """The respelling of every phrase whose ezafe the reviewer reports as missing or said wrong where the text has no ezafe mark. A word that
-    already carries the mark is not respelled: "درِ" -> "دره" was heard as "asre-ye" in a live test, worse than the mark."""
-    have = {r["surface"] for r in review["corrected_pronunciation_rules"]}
-    fixes = []
-    for m in review.get("ezafe_missing") or []:          # a phrase whose ezafe is not said: only this phrase is respelled ("در" alone is also "in")
-        head, phrase = m["head"], m["phrase"]
-        spelled = missing_ezafe_respelling(head)
-        if spelled and phrase in tts_text and phrase.split()[0] == head and phrase not in have:
-            fixes.append({"surface": phrase, "replacement": spelled + phrase[len(head):]})
-    return fixes
-
-
 def words_to_check(tts_text: str, rules: list[dict]) -> list[str]:
     """The words the reviewer must listen to one by one: those that carry an ezafe mark (the voice may add a "ye" or drop the "e") and those with a
     pronunciation rule of the film."""
@@ -284,7 +245,6 @@ class Reviewer:
             if attempt == cfg.max_corrections:
                 record["failure"] = "still failing after the allowed corrections"
                 break
-            review = {**review, "corrected_pronunciation_rules": review["corrected_pronunciation_rules"] + ezafe_fixes(self.context(result["block"])["tts_text"], review)}
             fixed, applied, respelled = corrected_block(result["block"], review)
             if review["notation_read_aloud"]:
                 fixed, extra = without_dictionary(fixed, self.rules)

@@ -2391,6 +2391,9 @@ class SemanticReviewConfig(BaseModel):
     # A review below this confidence counts as a fail even when the verdict says pass.
     min_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     # A review call that fails (the provider's hiccup) is made again this many times, with this pause, before the block counts as not reviewed.
+    # True: a block that still fails after the corrections does not stop the narration being assembled; it is flagged, listed for the owner, and
+    # nothing goes on until the owner has heard it and approved (the voice review). False: the film stops.
+    failed_blocks_wait_for_owner: bool = False
     call_retries: int = Field(default=3, ge=0, le=10)
     retry_pause_s: float = Field(default=5.0, ge=0.0)
     # A respelling that made a failed block pass is kept in the pronunciation lexicon when the review's error was of one of these types.

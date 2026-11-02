@@ -34,6 +34,16 @@ def checksum(version: StoryVersion) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
 
 
+def failed_blocks(version: StoryVersion) -> list[dict]:
+    """The blocks the listening review could not pass (the owner decides about them when hearing the narration)."""
+    try:
+        records = json.loads((folder(version) / "semantic_review.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [{"block_id": r["block_id"], "heard": [e["heard"][:60] for e in r.get("errors", [])][:3], "reason": r.get("failure", "")}
+            for r in records.values() if r.get("final_status") != "approved"]
+
+
 def state(version: StoryVersion) -> dict:
     """What the owner needs to review: whether it is required, the audio to listen to, and whether this exact audio is approved."""
     sha = checksum(version)
@@ -43,6 +53,7 @@ def state(version: StoryVersion) -> dict:
     except (OSError, ValueError):
         pass
     return {"required": required(version.language or "en"), "version_id": version.id, "language": version.language, "narration_sha256": sha,
+            "failed_blocks": failed_blocks(version),
             "audio": {name: f"/api/documentary/versions/{version.id}/audio/{name}" for name, file in AUDIO.items() if (folder(version) / file).exists()},
             "approved": bool(sha and record.get("narration_sha256") == sha), "approved_at": record.get("approved_at"), "note": record.get("note")}
 
@@ -63,6 +74,9 @@ def guard(version: StoryVersion, language: str) -> None:
     review = state(version)
     if not review["approved"]:
         link = review["audio"].get("narration") or review["audio"].get("documentary") or ""
+        held = ""
+        if review["failed_blocks"]:
+            held = f" {len(review['failed_blocks'])} blocks did not pass the listening review: " + ", ".join(b["block_id"] for b in review["failed_blocks"]) + "."
         raise AwaitingVoiceReview(
-            f"Awaiting voice review: the {language} narration is made ({link}). Listen to it, approve it "
+            f"Awaiting voice review: the {language} narration is made ({link}).{held} Listen to it, approve it "
             f"(POST /api/documentary/versions/{version.id}/voice-review), then resume. Nothing else is planned or rendered before.")

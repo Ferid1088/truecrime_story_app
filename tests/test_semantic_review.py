@@ -155,7 +155,8 @@ def test_after_two_corrections_a_block_that_still_fails_is_failed_and_the_loop_e
 # ---------------------------------------------------------------------------
 
 
-def test_the_render_keeps_every_record_and_does_not_assemble_the_film_when_a_block_fails(tmp_path):
+def test_the_render_keeps_every_record_and_does_not_assemble_the_film_when_a_block_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(ai_config.semantic_review, "failed_blocks_wait_for_owner", False)
     from test_voice_render import FakeASR, FakeTTS, _block
 
     from app.documentary.voice_render import VoiceRenderer
@@ -219,32 +220,9 @@ def test_a_pause_inside_a_name_of_several_words_is_an_error():
     assert SR.normalise(raw(word_checks=[{"word": "کانینگهام کورت", "ok": True, "joined": True}]))["verdict"] == "pass"
 
 
-def test_a_word_that_already_carries_the_ezafe_mark_is_not_respelled_with_he_because_that_was_heard_worse():
-    assert SR.ezafe_respelling("درِ") == "دره" and SR.ezafe_respelling("بیرونیِ") is None
-    review = SR.normalise(raw("fail", [{"type": "pronunciation", "severity": "major", "expected": "درِ گاراژ", "heard": "dareye garaj", "reason": "an extra ye after در"}]))
-    assert SR.ezafe_fixes("درِ بیرونیِ گاراژ باز بود", review) == []
-
-
 def test_joined_false_counts_only_for_a_name_of_several_words():
     single = SR.normalise(raw(word_checks=[{"word": "آمریکا", "heard": "amrika", "ok": True, "joined": False}]))
     assert single["verdict"] == "pass" and single["errors"] == []
-
-
-def test_a_place_where_grammar_needs_an_ezafe_that_is_not_said_is_an_error_and_only_that_phrase_is_respelled():
-    assert SR.missing_ezafe_respelling("در") == "دره" and SR.missing_ezafe_respelling("خانه") == "خانه‌ی" and SR.missing_ezafe_respelling("پا") == "پای"
-    assert SR.missing_ezafe_respelling("بیرونی") is None
-    review = SR.normalise(raw(ezafe_missing=[{"phrase": "در باز", "head": "در", "heard": "dar baz"}]))
-    assert review["verdict"] == "fail" and review["errors"][0]["reason"] == "the ezafe after در is not said"
-    text = "یه در باز. در گاراژ بود."
-    assert SR.ezafe_fixes(text, review) == [{"surface": "در باز", "replacement": "دره باز"}]
-    fixed, _, _ = SR.corrected_block(block(("یه در باز.", "در گاراژ بود.")), {**review, "corrected_pronunciation_rules": SR.ezafe_fixes(text, review)})
-    assert [s["tts"] for s in fixed["sentences"]] == ["یه دره باز.", "در گاراژ بود."], "the preposition in the next sentence stays"
-    assert SR.ezafe_fixes("غیر", review) == [], "a phrase that is not in the text is not respelled"
-
-
-def test_an_ezafe_said_with_an_extra_ye_where_the_text_has_no_mark_is_respelled_for_that_phrase_only():
-    review = SR.normalise(raw(ezafe_missing=[{"phrase": "شهرستان میامی", "head": "شهرستان", "heard": "shahrestan-eye miami"}]))
-    assert SR.ezafe_fixes("در شهرستان میامی بود.", review) == [{"surface": "شهرستان میامی", "replacement": "شهرستانه میامی"}]
 
 
 def test_a_voice_that_reads_the_pronunciation_notation_aloud_gets_the_block_without_the_dictionary_and_then_without_tags():
@@ -317,3 +295,34 @@ def test_a_block_that_cannot_be_reviewed_fails_alone_and_the_others_go_on(tmp_pa
     s.spoken.clear()
     assert record["final_status"] == "failed" and "could not be made" in record["failure"] and record["semantic_review_attempts"] == 0, "no correction for a block that was not judged"
     assert SR.failed_blocks({"B": record})[0]["reason"].startswith("the review could not be made")
+
+
+def test_when_the_owner_is_the_gate_a_failed_block_is_flagged_and_listed_and_the_narration_is_assembled(db_session, tmp_path, monkeypatch):
+    from test_voice_render import FakeASR, FakeTTS, _block
+
+    from app.documentary import voice_review as VRV
+    from app.documentary.pipeline.errors import AwaitingVoiceReview
+    from app.documentary.voice_render import VoiceRenderer
+
+    monkeypatch.setattr(ai_config.semantic_review, "failed_blocks_wait_for_owner", True)
+    monkeypatch.setattr(ai_config.voice, "review_languages", ["fa"])
+    renderer = VoiceRenderer(provider=FakeTTS(), asr=FakeASR())
+    renderer.reviewer = SR.Reviewer(None, 1, runner=Scenario(tmp_path, [raw("fail", [error()])] * (ai_config.semantic_review.max_corrections + 1)).runner)
+    plan = {"language": "fa", "blocks": [_block("FA_a_01", "B01", "The house was empty and every room had been scrubbed clean.")]}
+    manifest = asyncio.run(renderer.render(plan, case_id=7, story_version_id=6))
+    out = VoiceRenderer.out_dir_for(7, "fa", 6)
+    assert (out / "narration.mp3").exists() and manifest["semantic_review_failed"][0]["block_id"] == "FA_a_01"
+    assert "FA_a_01:semantic_review_failed" in manifest["flags"]
+    version = type("V", (), {"case_id": 7, "language": "fa", "id": 6})()
+    state = VRV.state(version)
+    assert [b["block_id"] for b in state["failed_blocks"]] == ["FA_a_01"] and not state["approved"]
+    with pytest.raises(AwaitingVoiceReview, match="1 blocks did not pass the listening review: FA_a_01"):
+        VRV.guard(version, "fa")
+
+
+def test_a_missing_or_wrong_ezafe_fails_the_block_and_is_never_rewritten_into_another_word():
+    review = SR.normalise(raw(ezafe_missing=[{"phrase": "X Y", "head": "X", "heard": "x-eye y"}]))
+    assert review["verdict"] == "fail" and review["errors"][0]["reason"] == "the ezafe after X is not said"
+    fixed, applied, respelled = SR.corrected_block(block(("X Y بود.", "او رفت.")), review)
+    assert [s["tts"] for s in fixed["sentences"]] == ["X Y بود.", "او رفت."] and respelled == [], "nothing is rewritten: the app makes another take"
+

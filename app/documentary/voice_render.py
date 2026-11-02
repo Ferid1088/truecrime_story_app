@@ -524,14 +524,15 @@ class VoiceRenderer:
 
         # All blocks at once: the provider's limit (concurrency
         # .elevenlabs_tts) and the speech-to-text limit pace the requests.
+        held: list[dict] = []
         results: list[dict] = list(await asyncio.gather(*(one_block(b) for b in chosen)))
         if self.reviewer is not None:
             from app.documentary import semantic_review as SR
 
             SR.save_records(out, self.reviewer.records)
-            failed = SR.failed_blocks(self.reviewer.records)
-            if failed:           # a block that does not pass is not published: the film is not assembled
-                raise SR.SemanticReviewFailed(failed)
+            held = SR.failed_blocks(self.reviewer.records)
+            if held and not ai_config.semantic_review.failed_blocks_wait_for_owner:      # a block that does not pass is not published: the film is not assembled
+                raise SR.SemanticReviewFailed(held)
 
         # --- per-block loudness -------------------------------------
         for r in results:
@@ -656,6 +657,8 @@ class VoiceRenderer:
                 block_flags.append("loudness_outlier")
             if b.get("oversize"):
                 block_flags.append("oversize_sentence")
+            if b["block_id"] in {h["block_id"] for h in held}:
+                block_flags.append("semantic_review_failed")
             pron = take.get("pronunciation") or []
             unresolved = [x for x in pron if x.get("ok") is False]
             if unresolved:
@@ -726,6 +729,7 @@ class VoiceRenderer:
                 "block_median_lufs": median,
             },
             "flags": flags,
+            "semantic_review_failed": held,
             "dynamic_eq": eq_report,
             "files": {
                 "narration_wav": _rel(final_wav), "narration_mp3": _rel(final_mp3),
