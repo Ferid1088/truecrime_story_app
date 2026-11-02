@@ -123,7 +123,7 @@ def test_logical_model_routing():
 def test_model_aliases_resolve():
     models = ai_config.generation_provider().models
     assert set(models) == {
-        "cheap", "research_intelligence", "writer", "premium", "sol", "luna", "embedding"}
+        "cheap", "research_intelligence", "writer", "premium", "sol", "luna", "embedding", "audio_listener"}
     for spec in models.values():
         assert "/" not in spec  # bare APIMaster model IDs
 
@@ -612,7 +612,7 @@ def test_apimaster_status_shape(client):
     body = r.json()
     assert body["provider"] == "apimaster"
     assert set(body["models"]) == {
-        "cheap", "research_intelligence", "writer", "premium", "sol", "luna", "embedding"}
+        "cheap", "research_intelligence", "writer", "premium", "sol", "luna", "embedding", "audio_listener"}
     assert body["routing"]["story_director"] == "premium"
     assert body["routing"]["grounding_validator"] == "cheap"
     assert "apk" not in json.dumps(body)
@@ -630,7 +630,7 @@ def test_settings_status_exposes_models_not_keys(client):
     gen = body["generation"]
     assert gen["provider"] == "apimaster"
     assert set(gen["models"]) == {
-        "cheap", "research_intelligence", "writer", "premium", "sol", "luna", "embedding"}
+        "cheap", "research_intelligence", "writer", "premium", "sol", "luna", "embedding", "audio_listener"}
     assert gen["routing"]["language_final_writer"] == "sol"
     res = body["research"]
     assert res["provider"] == "truecrime"

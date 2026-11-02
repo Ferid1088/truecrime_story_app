@@ -541,6 +541,8 @@
       "name",
       "pronunciation"
     ],
-    "avatar_max_regenerations": 2
+    "avatar_max_regenerations": 2,
+    "call_retries": 3,
+    "retry_pause_s": 5.0
   }
 }

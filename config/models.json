@@ -8,7 +8,8 @@
         "premium": "claude-sonnet-5-5",
         "embedding": "bge-m3",
         "sol": "gpt-6.1-sol",
-        "luna": "gpt-5.6-luna"
+        "luna": "gpt-5.6-luna",
+        "audio_listener": "gemini-3.8-flash"
       },
       "capabilities": {
         "gemini-3.8-flash": {
@@ -130,7 +131,7 @@
         "detective_text_analyser": "writer",
         "detective_card_maker": "writer",
         "detective_card_inspector": "writer",
-        "semantic_audio_reviewer": "cheap"
+        "semantic_audio_reviewer": "audio_listener"
       },
       "fallbacks": {
         "cheap": [

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
 import re
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
+from app.core.prompts import prompt_sha256
 from app.documentary import audio as A
 from app.documentary import lexicon as LEX
 from app.documentary.persian_numbers import NUMBER
@@ -230,15 +232,30 @@ class Reviewer:
         mp3 = audio.with_suffix(".review.mp3")
         if not mp3.exists():
             await asyncio.to_thread(A.to_review_mp3, audio, mp3)
-        data = "data:audio/mpeg;base64," + base64.b64encode(mp3.read_bytes()).decode()
         body = json.dumps(context, ensure_ascii=False)
+        saved = audio.with_suffix(".review.json")          # the same audio, context and instructions are never judged twice (a resumed run)
+        key = hashlib.sha256(mp3.read_bytes() + body.encode() + prompt_sha256("documentary/semantic_review/system").encode()).hexdigest()
         try:
-            with track_run(self.db, self.case_id, f"semantic review {label}", input_summary=label) as run:
-                got, res = await self.runner(get_generation_provider(), body, [data])
-                stamp_run(run, res, "semantic_audio_reviewer")
-        except GenerationError as e:
-            raise SemanticReviewFailed([{"block_id": label, "reason": f"the review could not be made: {type(e).__name__}: {e}"[:200]}]) from e
-        return normalise(got if isinstance(got, dict) else {})
+            cached = json.loads(saved.read_text(encoding="utf-8"))
+            if cached.get("key") == key:
+                return cached["result"]
+        except (OSError, ValueError, KeyError):
+            pass
+        data = "data:audio/mpeg;base64," + base64.b64encode(mp3.read_bytes()).decode()
+        cfg = ai_config.semantic_review
+        for attempt in range(cfg.call_retries + 1):
+            try:
+                with track_run(self.db, self.case_id, f"semantic review {label}", input_summary=label) as run:
+                    got, res = await self.runner(get_generation_provider(), body, [data])
+                    stamp_run(run, res, "semantic_audio_reviewer")
+                break
+            except GenerationError as e:
+                if attempt == cfg.call_retries:
+                    raise SemanticReviewFailed([{"block_id": label, "reason": f"the review could not be made: {type(e).__name__}: {e}"[:200]}]) from e
+                await asyncio.sleep(cfg.retry_pause_s)
+        result = normalise(got if isinstance(got, dict) else {})
+        saved.write_text(json.dumps({"key": key, "result": result}, ensure_ascii=False), encoding="utf-8")
+        return result
 
     async def run(self, result: dict, speak: Callable[[dict, int], Awaitable[dict]], seed: int, language: str = "fa") -> dict:
         """The review of a voiced block, with the corrections: `result` is what the voice-repair loop made, `speak(block, seed)` runs that loop
@@ -250,7 +267,11 @@ class Reviewer:
         self.records[block["block_id"]] = record
         pending: list[dict] = []           # respellings the next review has to prove before the lexicon keeps them
         for attempt in range(cfg.max_corrections + 1):
-            review = await self.listen(self.context(result["block"]), Path(result["take"]["wav_path"]), block["block_id"])
+            try:
+                review = await self.listen(self.context(result["block"]), Path(result["take"]["wav_path"]), block["block_id"])
+            except SemanticReviewFailed as e:           # this block could not be reviewed: it fails alone, the others go on
+                record["failure"] = e.failed[0]["reason"]
+                break
             record["semantic_review_attempts"] += 1
             record["reviews"].append({"attempt": attempt + 1, **review})
             record["errors"] = review["errors"]

@@ -272,3 +272,48 @@ def test_a_block_marked_without_the_dictionary_is_sent_without_it(tmp_path, monk
     asyncio.run(renderer.speak_block(plain, "fa", ai_config.voice.for_language("en"), {}, 1, tmp_path / "t1"))
     asyncio.run(renderer.speak_block({**plain, "no_dictionary": True}, "fa", ai_config.voice.for_language("en"), {}, 1, tmp_path / "t2"))
     assert [r.pronunciation_dictionaries for r in tts.requests] == [renderer.dictionaries, []]
+
+
+def test_the_reviewer_has_its_own_model_route_without_a_fallback_to_a_model_that_cannot_hear():
+    assert ai_config.model_for("semantic_audio_reviewer") == "gemini-3.8-flash" and ai_config.fallback_models_for("semantic_audio_reviewer") == []
+    assert ai_config.capabilities_of("gemini-3.8-flash").audio_input is True
+
+
+def test_a_failed_review_call_is_made_again_and_a_judged_block_is_not_judged_twice(tmp_path, monkeypatch):
+    from app.providers.generation.base import GenerationError
+
+    monkeypatch.setattr(ai_config.semantic_review, "retry_pause_s", 0.0)
+    calls = []
+
+    async def flaky(gen, body, audio):
+        calls.append(1)
+        if len(calls) < 3:
+            raise GenerationError("provider_error", "hiccup")
+        return raw(), object()
+
+    wav = make_wav(tmp_path / "block.wav")
+    reviewer = SR.Reviewer(None, 1, runner=flaky)
+    first = asyncio.run(reviewer.listen({"tts_text": "x"}, __import__("pathlib").Path(wav), "B1"))
+    assert first["verdict"] == "pass" and len(calls) == 3, "two hiccups, then the answer"
+    again = asyncio.run(reviewer.listen({"tts_text": "x"}, __import__("pathlib").Path(wav), "B1"))
+    assert again == first and len(calls) == 3, "the same audio and context come from the saved answer"
+    asyncio.run(reviewer.listen({"tts_text": "another context"}, __import__("pathlib").Path(wav), "B1"))
+    assert len(calls) == 4
+
+
+def test_a_block_that_cannot_be_reviewed_fails_alone_and_the_others_go_on(tmp_path, monkeypatch):
+    from app.providers.generation.base import GenerationError
+
+    monkeypatch.setattr(ai_config.semantic_review, "retry_pause_s", 0.0)
+
+    async def down(gen, body, audio):
+        raise GenerationError("provider_error", "down")
+
+    s = Scenario(tmp_path, [])
+    reviewer = SR.Reviewer(None, 1, runner=down)
+    first = asyncio.run(s.speak(block(), 1))
+    result = asyncio.run(reviewer.run(first, s.speak, 1))
+    record = result["semantic_review"]
+    s.spoken.clear()
+    assert record["final_status"] == "failed" and "could not be made" in record["failure"] and record["semantic_review_attempts"] == 0, "no correction for a block that was not judged"
+    assert SR.failed_blocks({"B": record})[0]["reason"].startswith("the review could not be made")
