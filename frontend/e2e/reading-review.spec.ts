@@ -67,4 +67,24 @@ test.describe("the reading review", () => {
     await expect(page.getByText("0 open · 2 answered")).toBeVisible();
     await expect(page.getByText("Every word is answered. Resume the job in the Run tab to voice the film.")).toBeVisible();
   });
+
+  test("when the job stopped for these answers, a button resumes that job", async ({ page }) => {
+    await mockApi(page);
+    const waiting = { id: 83, case_id: 1, mode: "full", final_version_id: null, pilot_seconds: null, render_profile: "preview", refresh_visuals: false, from_zero: false,
+      target_minutes: null, batch_id: null, production_type: "standard", follow_up_id: null, stage: null, progress: 0.5, stages: [], result: {}, status: "failed", languages: ["fa"], error: "AwaitingReadingReview: Awaiting reading review: 3 words are in doubt." };
+    await page.route("**/api/documentary/settings", (r: Route) => r.fulfill(ok(settings)));
+    await page.route("**/api/cases/1/documentary", (r: Route) => r.fulfill(ok({ ...overview, jobs: [waiting] })));
+    await page.route("**/api/cases/1/costs", (r: Route) => r.fulfill(ok(costs)));
+    await page.route("**/api/documentary/versions/7/reading-doubts", (r: Route) =>
+      r.fulfill(ok({ version_id: 7, language: "fa", open: 0, answered: 1, doubts: [{ ...doubt(1, "بهم", "beham", "baham"), status: "answered", answer_latin: "baham" }] })));
+    const resumed: string[] = [];
+    await page.route("**/api/documentary/jobs/83/resume", (r: Route) => {
+      resumed.push(r.request().method());
+      return r.fulfill(ok({ ...waiting, status: "queued" }));
+    });
+    await page.goto("/documentary/1?tab=Reading%20Review");
+    await expect(page.getByText("Every word is answered. Resume the job to voice the film.")).toBeVisible();
+    await page.getByRole("button", { name: "Resume job #83" }).click();
+    await expect.poll(() => resumed).toEqual(["POST"]);
+  });
 });

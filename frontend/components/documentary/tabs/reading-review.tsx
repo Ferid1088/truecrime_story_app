@@ -106,6 +106,7 @@ export function ReadingReviewTab({ settings, overview, refreshKey, language, onL
   const state = useApi(() => (versionId == null ? Promise.resolve(null) : api.readingDoubts(versionId)), [versionId, refreshKey]);
   const [chosen, setChosen] = useState<Record<number, Pending | undefined>>({});
   const [saving, setSaving] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // The tab opens on the language that has a narration being prepared, not on one that has none.
@@ -139,6 +140,23 @@ export function ReadingReviewTab({ settings, overview, refreshKey, language, onL
     return !!p && (p.choice !== "custom" || p.latin.trim() !== "");
   };
   const chosenCount = open.filter(ready).length;
+
+  // The job that stopped to wait for these answers: it can be resumed from here, the Resume button of the header is for a paused case.
+  const waiting = overview.jobs.find((j) => j.status === "failed" && j.languages.includes(language) && (j.error ?? "").includes("Awaiting reading review"));
+
+  async function resume() {
+    if (!waiting) return;
+    setResuming(true);
+    setError(null);
+    try {
+      await api.resumeDocumentaryJob(waiting.id);
+      state.refetch();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setResuming(false);
+    }
+  }
 
   async function save() {
     const answers: ReadingAnswer[] = open
@@ -191,7 +209,16 @@ export function ReadingReviewTab({ settings, overview, refreshKey, language, onL
             </div>
           )}
           {data.open === 0 && data.answered > 0 && (
-            <InlineAlert tone="warning">Every word is answered. Resume the job in the Run tab to voice the film.</InlineAlert>
+            <div className="space-y-2">
+              <InlineAlert tone="warning">
+                Every word is answered. {waiting ? "Resume the job to voice the film." : "Resume the job in the Run tab to voice the film."}
+              </InlineAlert>
+              {waiting && (
+                <Button onClick={resume} loading={resuming}>
+                  Resume job #{waiting.id}
+                </Button>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
