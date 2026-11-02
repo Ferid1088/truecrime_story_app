@@ -45,3 +45,8 @@ class AwaitingVoiceReview(RuntimeError):
 class AwaitingPortrait(RuntimeError):
     """A gap of the film has no portrait that may be shown (every photo the owner chose is refused or would give the story away at
     that moment): the run stops before anything is rendered and is resumable once the owner has chosen another first photo."""
+
+
+class AwaitingReadingReview(RuntimeError):
+    """The reading text of a language is written and checked, and words of it are still in doubt: the run stops before anything is voiced and is
+    resumable once the owner has answered every doubt in the Reading review."""

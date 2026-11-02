@@ -165,22 +165,34 @@ class LanguageChain:
                                    "check after retakes: " + ", ".join(failed[:6]))
             return out
 
+        def pass_turn():
+            index = sh.languages.index(lang)
+            if index + 1 < len(sh.music_turns):
+                sh.music_turns[index + 1].set()
+
         async def voice():
             turn = sh.music_turns[sh.languages.index(lang)]
             await turn.wait()
             try:
                 return await render_voice()
             finally:
-                index = sh.languages.index(lang)
-                if index + 1 < len(sh.music_turns):
-                    sh.music_turns[index + 1].set()
+                pass_turn()
 
         async def reuse_narration():
-            index = sh.languages.index(lang)
-            if index + 1 < len(sh.music_turns):
-                sh.music_turns[index + 1].set()
+            pass_turn()
             return await skipped("planning job: the narration of an earlier run is used")
 
+        from app.documentary.reading import stage as RS
+
+        async def reading():
+            return await RS.run(db, case, version, lang)
+
+        if not planning and RS.required(lang):           # the reading text is written and checked before anything is voiced; doubts wait for the owner
+            try:
+                await pipe._stage(f"reading:{lang}", reading)
+            except BaseException:
+                pass_turn()                  # the next language's turn does not wait for a stage that stopped
+                raise
         await pipe._stage(f"voice:{lang}", reuse_narration if planning else voice)
         try:
             manifest = holder.get("m") or _load_manifest(case.id, version)

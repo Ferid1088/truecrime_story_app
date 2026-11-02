@@ -128,6 +128,8 @@ import type {
   CaseControlApplyResult,
   CaseControlPreview,
   ShortQueueItem,
+  ReadingAnswer,
+  ReadingDoubts,
 } from "./types";
 
 import { API_BASE } from "./config";
@@ -557,6 +559,9 @@ export const api = {
       `/api/host-scenes/${sceneId}/outfit`, body),
   runHostScene: (id: number, until: "voice" | "avatar") =>
     post<HostScene>(`/api/host-scenes/${id}/run`, { until }),
+  readingDoubts: (versionId: number) => request<ReadingDoubts>(`/api/documentary/versions/${versionId}/reading-doubts`),
+  answerReadingDoubts: (versionId: number, answers: ReadingAnswer[]) =>
+    post<ReadingDoubts>(`/api/documentary/versions/${versionId}/reading-doubts`, { answers }),
   documentaryOverview: (caseId: number, versionId?: number | null, language?: string | null) =>
     request<DocumentaryOverview>(
       `/api/cases/${caseId}/documentary${query({ version_id: versionId ?? undefined, language: language ?? undefined })}`,

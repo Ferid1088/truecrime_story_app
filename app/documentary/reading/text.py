@@ -68,8 +68,7 @@ class ReadingStage:
         key = sha([(i.block_id, i.text) for i in self.items], prompts_sha(), ai_config.reading.chunk_blocks)
         if self.cache.get("reader_key") == key:
             return self.cache["reader"], self.cache["reader_doubts"]
-        english = {i.section: i.english for i in self.items}
-        table, doubts = await self.glossary.build([{"block": i.block_id, "section": i.section, "text": i.text} for i in self.items], english)
+        table, doubts = await self.glossary.build([{"block": i.block_id, "english": i.english, "text": i.text} for i in self.items])
         self.cache.update({"reader_key": key, "reader": table, "reader_doubts": doubts})
         self.save()
         return table, doubts

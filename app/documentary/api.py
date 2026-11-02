@@ -691,6 +691,37 @@ def approve_voice_review(version_id: int, body: VoiceReviewIn, db: Session = Dep
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
+class ReadingAnswerIn(BaseModel):
+    id: int
+    choice: Literal["editor", "checker", "custom"]
+    latin: str | None = None
+    everywhere: bool = False
+
+
+class ReadingAnswersIn(BaseModel):
+    answers: list[ReadingAnswerIn]
+
+
+@router.get("/api/documentary/versions/{version_id}/reading-doubts")
+def get_reading_doubts(version_id: int, db: Session = Depends(get_db)):
+    """The words of this narration's reading text that nobody could settle: the owner answers them all before the film is voiced."""
+    from app.documentary.reading import doubts as reading_doubts
+
+    return reading_doubts.state(db, _version_of(db, version_id))
+
+
+@router.post("/api/documentary/versions/{version_id}/reading-doubts")
+def answer_reading_doubts(version_id: int, body: ReadingAnswersIn, db: Session = Depends(get_db)):
+    """The owner's answers to the doubts (any number at once): the editor's reading, the checker's, or the owner's own; a word can be kept
+    for every film."""
+    from app.documentary.reading import doubts as reading_doubts
+
+    try:
+        return reading_doubts.answer_all(db, _version_of(db, version_id), [a.model_dump() for a in body.answers])
+    except reading_doubts.AnswerError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+
 def _version_of(db: Session, version_id: int) -> StoryVersion:
     version = db.get(StoryVersion, version_id)
     if not version:

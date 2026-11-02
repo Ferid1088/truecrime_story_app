@@ -100,6 +100,7 @@ const STAGE_LABELS: Record<string, string> = {
   mvp_direct: "Shot direction",
   mvp_complete: "Completeness check (every moment shown)",
   performance: "Narrator performance",
+  reading: "Reading review (names, vowels, ezafe)",
   voice: "Narration & Music Mix",
   production: "Production script",
   critique: "Critique & fixes",

@@ -67,8 +67,7 @@ def test_a_person_the_reader_finds_again_keeps_one_id_and_gets_the_new_titles_an
 def test_the_reader_asks_a_chunk_at_a_time_and_tells_each_what_the_earlier_ones_found(monkeypatch):
     monkeypatch.setattr(ai_config.reading, "chunk_blocks", 1)
     script = Script(lambda r: READER if r["blocks"][0]["block"] == "B1" else {"people": [], "doubts": [{"word": "ملک", "block": "B2", "question": "?"}]})
-    table, doubts = asyncio.run(Glossary(None, 1, script).build([{"block": "B1", "section": "S1", "text": "x"}, {"block": "B2", "section": "S2", "text": "y"}],
-                                                                  {"S1": "one", "S2": "two"}))
+    table, doubts = asyncio.run(Glossary(None, 1, script).build([{"block": "B1", "english": "one", "text": "x"}, {"block": "B2", "english": "two", "text": "y"}]))
     assert [p["id"] for p in table["people"]] == ["sara"] and len(script.seen) == 2
     assert script.seen[0]["known"]["people"] == [] and script.seen[1]["known"]["people"][0]["id"] == "sara" and script.seen[1]["english"] == "two"
     assert doubts == [{"word": "ملک", "block": "B2", "question": "?"}]
@@ -127,9 +126,11 @@ def test_the_checker_never_questions_a_name_the_table_fixes_or_a_proposal_equal_
 
 
 def test_the_blocks_of_a_plan_get_their_neighbours_and_the_english_of_their_section():
-    blocks = [{"block_id": "B1", "section_id": "S1", "text": "[calm] یک دو سه"}, {"block_id": "B2", "section_id": "S2", "tts_text": "چهار"}]
-    first, second = block_inputs(blocks, {"S1": "one", "S2": "two"}, 5)
+    blocks = [{"block_id": "B1", "section_id": "B1.g01", "beats": [{"beat_id": "B1"}], "text": "[calm] یک دو سه"},
+              {"block_id": "B2", "section_id": "B2.g01", "tts_text": "چهار"}]
+    first, second = block_inputs(blocks, {"B1": "one", "B2": "two"}, 5)
     assert (first.previous, first.next, first.english) == ("", "چهار", "one") and (second.previous, second.next) == ("دو سه", "")
+    assert second.english == "two", "a block without beats tells the beat its section is named after"
     assert [w.plain for w in first.words] == ["یک", "دو", "سه"]
 
 
@@ -153,7 +154,7 @@ def stage_env(db_session, tmp_path, monkeypatch):
 
 def stage(db, case, version, items, calls):
     class Reader:
-        async def build(self, blocks, english):
+        async def build(self, blocks):
             calls["reader"] += 1
             return READER, []
 
@@ -203,3 +204,35 @@ def test_an_answer_for_everywhere_is_kept_for_every_film_and_becomes_a_reading_c
     assert calls["write"] == 2, "a new approval changes the block's table, so the block is written again, and the editor's own answer is overwritten by it"
     final = asyncio.run(stage(db_session, case, version, items, calls).run())
     assert final.readings["B1"][1].latin == "baham" and final.open_doubts == 0
+
+
+def test_the_reading_stage_stops_the_run_before_the_voice_while_words_are_in_doubt(monkeypatch):
+    from app.documentary.jobs import failure_details
+    from app.documentary.pipeline.errors import AwaitingReadingReview
+    from app.documentary.reading import stage as RS
+    from app.documentary.reading.text import ReadingResult
+
+    monkeypatch.setattr(RS, "performance_for_version", lambda db, version: {"blocks": [{"block_id": "B1", "section_id": "B1.g01", "text": "سارا آمد"}]})
+    monkeypatch.setattr(RS.VP, "english_sources", lambda db, version: {"B1": "Sara came."})
+
+    class Version:
+        id = 7
+
+    class Case:
+        id = 1
+
+    def fake_run(result):
+        async def run(self):
+            return result
+        return run
+
+    monkeypatch.setattr(RS.ReadingStage, "__init__", lambda self, *a, **k: None)
+    monkeypatch.setattr(RS.ReadingStage, "run", fake_run(ReadingResult({}, 3, {"B1": ["a note"]})))
+    with pytest.raises(AwaitingReadingReview) as stopped:
+        asyncio.run(RS.run(None, Case(), Version(), "fa"))
+    assert "3 words" in str(stopped.value) and "/api/documentary/versions/7/reading-doubts" in str(stopped.value)
+    assert "Reading review" in failure_details(str(stopped.value))["next_action"]
+
+    monkeypatch.setattr(RS.ReadingStage, "run", fake_run(ReadingResult({}, 0, {"B1": ["a note", "b note"]})))
+    assert asyncio.run(RS.run(None, Case(), Version(), "fa")) == {"blocks": 1, "words": 2, "changed_by_code": 2, "open_doubts": 0}
+    assert RS.required("fa") and not RS.required("en")

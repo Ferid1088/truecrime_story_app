@@ -171,3 +171,15 @@ def test_a_job_that_waits_for_a_portrait_choice_gets_a_button_to_the_review_with
     assert ("Choose another first portrait", "href", f"/documentary/{case.id}/review?portraits=1") in kinds
     assert ("Resume the job", "resume", str(job.id)) in kinds
     assert any("is waiting for you" in t for t in _titles(snap)) and snap["state"] == "attention"
+
+
+def test_a_job_that_waits_for_the_reading_review_is_an_alarm_that_opens_the_reading_review_tab_and_resumes(db_session):
+    case = _case(db_session)
+    message = "RuntimeError: Awaiting reading review: 12 words of the fa narration are in doubt."
+    job = _job(db_session, case, "failed", "reading:fa", [{"name": "reading:fa", "status": "failed", "attempts": 1}], error=message,
+               result_json=json.dumps({"failure": failure_details(message)}))
+    snap = _snapshot(case)
+    kinds = {(a["kind"], a["target"]) for i in snap["issues"] for a in i["actions"]}
+    assert ("tab", "Reading Review") in kinds and ("resume", str(job.id)) in kinds
+    assert ("href", f"/documentary/{case.id}/review") not in kinds, "it is not a picture review"
+    assert snap["state"] == "attention" and any("waiting for you" in t for t in _titles(snap))

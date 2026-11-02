@@ -45,17 +45,16 @@ class Glossary:
         self.db, self.case_id = db, case_id
         self.runner = runner or (lambda gen, body: run_agent("documentary.reading.glossary", gen, body))
 
-    async def build(self, blocks: list[dict], english: dict[str, str]) -> tuple[dict, list[dict]]:
-        """(the reader's table, its doubts). `blocks` are {"block", "section", "text"}; `english` maps a section to its English text. The chunks
-        are asked one after the other, because each is given the table of the earlier ones."""
+    async def build(self, blocks: list[dict]) -> tuple[dict, list[dict]]:
+        """(the reader's table, its doubts). `blocks` are {"block", "english", "text"}. The chunks are asked one after the other, because each is
+        given the table of the earlier ones."""
         size = ai_config.reading.chunk_blocks
         table: dict = {PEOPLE: [], "places": [], "foreign": []}
         doubts: list[dict] = []
         for start in range(0, len(blocks), size):
             chunk = blocks[start:start + size]
-            sections = list(dict.fromkeys(b["section"] for b in chunk))
             payload = {"blocks": [{"block": b["block"], "text": b["text"]} for b in chunk],
-                       "english": "\n\n".join(english.get(s, "") for s in sections), "known": table}
+                       "english": "\n\n".join(dict.fromkeys(b["english"] for b in chunk if b["english"])), "known": table}
             reply = await ask(self.db, self.case_id, f"Reading: names ({start // size + 1})", payload, "reading_reader", self.runner)
             table = merge(table, reply)
             doubts += [d for d in reply.get("doubts") or [] if isinstance(d, dict) and d.get("word")]

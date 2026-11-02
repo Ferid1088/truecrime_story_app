@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.db.models import ReadingApproval, ReadingDoubt
+from app.db.models import ReadingApproval, ReadingDoubt, StoryVersion
 from app.documentary.reading.checker import Doubt
 from app.utils import utc_now
 
@@ -51,3 +51,37 @@ def answer(db: Session, row: ReadingDoubt, latin: str, everywhere: bool, languag
             found.latin = row.answer_latin
     db.commit()
     return row
+
+
+class AnswerError(ValueError):
+    """An answer that cannot be taken: a doubt that is not this film's, a choice without a reading."""
+
+
+def view(row: ReadingDoubt) -> dict:
+    return {"id": row.id, "block_id": row.block_id, "word_n": row.word_n, "surface": row.surface, "sentence": row.sentence,
+            "question": row.question, "editor_latin": row.editor_latin, "checker_latin": row.checker_latin, "status": row.status,
+            "answer_latin": row.answer_latin}
+
+
+def state(db: Session, version: StoryVersion) -> dict:
+    rows = (db.query(ReadingDoubt).filter(ReadingDoubt.story_version_id == version.id).order_by(ReadingDoubt.block_id, ReadingDoubt.word_n).all())
+    return {"version_id": version.id, "language": version.language, "open": sum(r.status == "open" for r in rows),
+            "answered": sum(r.status == "answered" for r in rows), "doubts": [view(r) for r in rows]}
+
+
+def answer_all(db: Session, version: StoryVersion, answers: list[dict]) -> dict:
+    """The owner's answers to a list of doubts in one go. Each is {"id", "choice": "editor" | "checker" | "custom", "latin", "everywhere"}.
+    Nothing is saved when any of them cannot be taken."""
+    rows = {r.id: r for r in db.query(ReadingDoubt).filter(ReadingDoubt.story_version_id == version.id).all()}
+    taken: list[tuple[ReadingDoubt, str, bool]] = []
+    for a in answers:
+        row = rows.get(a.get("id"))
+        if row is None:
+            raise AnswerError(f"doubt {a.get('id')} is not a doubt of this version")
+        latin = {"editor": row.editor_latin, "checker": row.checker_latin}.get(a.get("choice"), (a.get("latin") or "").strip())
+        if a.get("choice") not in ("editor", "checker", "custom") or not latin:
+            raise AnswerError(f"doubt {row.id} ({row.surface}): the choice {a.get('choice')!r} gives no reading")
+        taken.append((row, latin, bool(a.get("everywhere"))))
+    for row, latin, everywhere in taken:
+        answer(db, row, latin, everywhere, version.language)
+    return state(db, version)

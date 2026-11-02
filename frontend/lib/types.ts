@@ -3640,3 +3640,33 @@ export interface DrawingOverview {
   ready: number;
   drawing: number;
 }
+
+/** One word of the reading text that the editor and the checker could not settle. */
+export interface ReadingDoubt {
+  id: number;
+  block_id: string;
+  word_n: number;
+  surface: string;
+  sentence: string;
+  question: string;
+  editor_latin: string;
+  checker_latin: string;
+  status: "open" | "answered";
+  answer_latin: string | null;
+}
+
+/** GET /api/documentary/versions/{id}/reading-doubts */
+export interface ReadingDoubts {
+  version_id: number;
+  language: string;
+  open: number;
+  answered: number;
+  doubts: ReadingDoubt[];
+}
+
+export interface ReadingAnswer {
+  id: number;
+  choice: "editor" | "checker" | "custom";
+  latin?: string;
+  everywhere: boolean;
+}

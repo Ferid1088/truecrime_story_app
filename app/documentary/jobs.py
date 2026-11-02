@@ -262,6 +262,12 @@ def failure_details(message: str, error_code: str | None = None) -> dict:
             "next_action": ("Blocks of the voice did not pass the listening review after the corrections (semantic_review.json in the "
                             "voice folder lists what was heard). Resuming makes them again; passed blocks are kept."),
         }
+    if error_code == "awaiting_reading_review" or "Awaiting reading review" in message:
+        return {
+            "resume_allowed": True,
+            "resume_disabled_reason": None,
+            "next_action": "Open the Reading review tab: answer every word in doubt (one list), then resume. Nothing is voiced before.",
+        }
     if error_code == "awaiting_voice_review" or "Awaiting voice review" in message:
         return {
             "resume_allowed": True,
