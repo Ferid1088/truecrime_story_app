@@ -170,3 +170,20 @@ def test_a_word_only_one_listener_doubts_is_a_weak_flag_in_the_report_and_is_nev
 
     asyncio.run(loop.run(manifest("a"), revoice))
     assert loop.report["weak_flags"] == [{"block": "a", "word": "حرف", "reading": "harf", "listener": "harfe", "recogniser": "h a r f"}]
+
+
+def test_a_judgement_is_kept_and_not_paid_twice_and_a_block_the_judge_fails_on_stays_unclear(db_session, tmp_path, monkeypatch):
+    item = BlockInput("b", "s", "از عهد")
+    finding = Finding("b", 1, "عهد", "'ahd", "ohd", "o h d")
+    runner = Script({"words": [{"n": 1, "who": "voice"}]})
+    kept = tmp_path / "judge.json"
+    first = asyncio.run(Judge(db_session, 1, FilmTable.build({}), runner, kept).rule(item, [finding]))
+    again = asyncio.run(Judge(db_session, 1, FilmTable.build({}), runner, kept).rule(item, [finding]))
+    assert [r.who for r in first] == [r.who for r in again] == ["voice"] and len(runner.requests) == 1
+
+    async def broken(gen, body):
+        raise ASK.GenerationError("invalid_output", "truncated")
+
+    monkeypatch.setattr(ai_config.reading, "call_retries", 0)
+    stuck = asyncio.run(Judge(db_session, 1, FilmTable.build({}), broken, None).rule(item, [finding]))
+    assert [r.who for r in stuck] == ["unclear"] and "judge failed" in stuck[0].why

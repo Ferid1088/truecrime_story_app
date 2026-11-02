@@ -3,6 +3,8 @@ doubt (the owner answers them all in one review, then resumes)."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
@@ -61,7 +63,7 @@ async def listen_and_fix(db: Session, case: Case, version: StoryVersion, languag
     items, read = await result(db, case, version, language)
     voicing = await voicing_of(db, language, read)
     loop = ReadingLoop(db, case.id, language, items, inspector or Inspector(BlindListener(db, case.id, blind_runner)),
-                       Judge(db, case.id, read.table or FilmTable.build({}), judge_runner), voicing)
+                       Judge(db, case.id, read.table or FilmTable.build({}), judge_runner, Path(folder) / "reading_judge.json"), voicing)
     renderer.reviewer = None                      # the whole-block review is over: a block voiced again is judged by the loop
 
     async def revoice(block_ids: list[str], round_no: int) -> dict:

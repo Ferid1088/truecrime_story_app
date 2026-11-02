@@ -3,12 +3,16 @@ English source; what it cannot tell stays for the owner."""
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.agents.runner import run_agent
-from app.documentary.reading.ask import Runner, ask
+from app.core.prompts import prompt_sha256
+from app.documentary.reading.ask import ReadingFailed, Runner, ask
 from app.documentary.reading.block import BlockInput
 from app.documentary.reading.inspector import Finding
 from app.documentary.reading.table import FilmTable
@@ -25,9 +29,13 @@ class Ruling:
 
 
 class Judge:
-    def __init__(self, db: Session, case_id: int, table: FilmTable, runner: Runner | None = None):
-        self.db, self.case_id, self.table = db, case_id, table
+    def __init__(self, db: Session, case_id: int, table: FilmTable, runner: Runner | None = None, kept: Path | None = None):
+        self.db, self.case_id, self.table, self.kept = db, case_id, table, kept
         self.runner = runner or (lambda gen, body: run_agent("documentary.reading.judge", gen, body))
+        try:
+            self.answers: dict = json.loads(kept.read_text(encoding="utf-8")) if kept else {}
+        except (OSError, ValueError):
+            self.answers = {}
 
     async def rule(self, item: BlockInput, findings: list[Finding]) -> list[Ruling]:
         """A ruling for every finding of the block (a word the model does not answer stays unclear)."""
@@ -36,7 +44,16 @@ class Judge:
         payload = {"film_table": self.table.describe(item.words), "english_source": item.english, "previous": item.previous, "sentence": item.sentence(),
                    "next": item.next, "words": [{"n": f.n, "word": f.surface, "written_reading": f.expected, "listener_heard": f.heard, "recogniser_heard": f.phones}
                                                 for f in findings]}
-        raw = await ask(self.db, self.case_id, f"Reading: judge {item.block_id}", payload, "reading_judge", self.runner)
+        key = hashlib.sha256((json.dumps(payload, ensure_ascii=False, sort_keys=True) + prompt_sha256("documentary/reading/judge_system")).encode()).hexdigest()
+        raw = self.answers.get(key)
+        if raw is None:
+            try:
+                raw = await ask(self.db, self.case_id, f"Reading: judge {item.block_id}", payload, "reading_judge", self.runner)
+            except ReadingFailed as e:                  # one block the judge cannot rule on does not stop the loop: its words stay unclear
+                return [Ruling(f, "unclear", "", f"the judge failed: {e}"[:160]) for f in findings]
+            self.answers[key] = raw
+            if self.kept:
+                self.kept.write_text(json.dumps(self.answers, ensure_ascii=False), encoding="utf-8")
         answers = {a.get("n"): a for a in raw.get("words") or [] if isinstance(a, dict)}
         rulings = []
         for f in findings:
