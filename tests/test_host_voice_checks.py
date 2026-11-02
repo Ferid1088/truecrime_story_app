@@ -171,6 +171,7 @@ def _fa_scene(db_session, tmp_path, monkeypatch):
 
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
     monkeypatch.setattr(ai_config.voice, "prepared_languages", [])         # the checks of the other languages; a prepared one is below
+    monkeypatch.setattr(ai_config.semantic_review, "languages", [])
     row = _segments(db_session, "fa")
     return plan_host_scenes(db_session, row)[0]
 

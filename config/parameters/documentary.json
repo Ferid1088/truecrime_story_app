@@ -521,5 +521,21 @@
     "same_reading_similarity": 0.6,
     "repair_rounds": 2,
     "check_sentences_per_call": 30
+  },
+  "semantic_review": {
+    "languages": [
+      "fa"
+    ],
+    "max_corrections": 2,
+    "source_chars": 3000,
+    "neighbour_chars": 400,
+    "delivery_tags": [
+      "[calm]",
+      "[serious]",
+      "[slowly]",
+      "[softly]"
+    ],
+    "min_confidence": 0.5,
+    "folder_suffix": "_reviewed"
   }
 }

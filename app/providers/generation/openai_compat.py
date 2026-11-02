@@ -275,6 +275,13 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                 "gateway_request_id": request_id,
                 "choices": [{"message": {"content": "".join(parts)}, "finish_reason": finish}]}
 
+    @staticmethod
+    def _media_part(url: str) -> dict:
+        if url.startswith("data:audio/"):
+            header, data = url.split(",", 1)
+            return {"type": "input_audio", "input_audio": {"data": data, "format": header[len("data:audio/"):].split(";")[0].replace("mpeg", "mp3")}}
+        return {"type": "image_url", "image_url": {"url": url}}
+
     async def _chat(self, model: str, system: str, user: str, gen,
                     images: list[str] | None = None, prefix: str | None = None,
                     cache_key: str | None = None):
@@ -283,10 +290,10 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             if ai_config.capabilities_of(model).instructions_in_user_with_images:
                 user = f"{system}\n\nINPUT:\n{user}"
             # OpenAI-compatible multimodal message: text + image parts
-            # (data: URLs or https URLs).
-            content = [{"type": "text", "text": user}] + [
-                {"type": "image_url", "image_url": {"url": url}} for url in images
-            ]
+            # (data: URLs or https URLs); a data:audio/ URL becomes an input_audio part.
+            if any(u.startswith("data:audio/") for u in images) and not ai_config.capabilities_of(model).audio_input:
+                raise GenerationError("invalid_request", f"model {model} is not declared to take audio input (config/models.json)")
+            content = [{"type": "text", "text": user}] + [self._media_part(url) for url in images]
         body: dict[str, Any] = {
             "model": model,
             "temperature": gen.temperature,

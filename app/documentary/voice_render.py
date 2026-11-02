@@ -188,6 +188,7 @@ class VoiceRenderer:
         self.budget_pilot_seconds = budget_pilot_seconds
         self._budget_usage_missing = False
         self.dictionaries: list[dict] = []        # the film's pronunciation dictionary locators (a prepared language)
+        self.reviewer = None                      # the semantic audio reviewer (semantic_review.Reviewer) of a reviewed language
         self.narration = False                    # set while the film's narration is rendered: only it gets the language's post speed
         self.asr_error: str | None = None
         # phoneme listener for the pronunciation loop (loaded when needed)
@@ -214,7 +215,8 @@ class VoiceRenderer:
         if not base.is_absolute():
             base = ROOT / base
         prepared = "_prepared" if language in ai_config.voice.prepared_languages else ""      # the earlier narration of the version stays where it is
-        return base / str(case_id) / "audio" / language / f"v{story_version_id}{prepared}"
+        reviewed = ai_config.semantic_review.folder_suffix if language in ai_config.semantic_review.languages else ""
+        return base / str(case_id) / "audio" / language / f"v{story_version_id}{prepared}{reviewed}"
 
     def out_dir(self, case_id: int, language: str, story_version_id: int) -> Path:
         return self.out_dir_for(case_id, language, story_version_id)
@@ -327,7 +329,7 @@ class VoiceRenderer:
                            if block.get("sentences") else [])
 
         asr = None
-        if self.asr is not None and language not in self.cfg.prepared_languages:
+        if self.asr is not None and ai_config.listens_after_voice(language):
             # The check compares what people should hear (no tags, no
             # harakat added for pronunciation) with what Whisper heard.
             heard_text = await self._heard(wav, meta, meta_path, language)
@@ -397,19 +399,20 @@ class VoiceRenderer:
         from app.documentary.pronunciation import apply_fixes, risky_occurrences
 
         takes: list[dict] = []
-        prepared = language in self.cfg.prepared_languages       # edited before the voice: one take, nothing is listened to afterwards
+        prepared = language in self.cfg.prepared_languages       # edited before the voice: its dictionary goes with every request
+        listened = ai_config.listens_after_voice(language)       # one take per block when it is not: nothing is listened to afterwards
         sentences = [{**x, "tts": scrub_forbidden(x["tts"])} if x.get("tts") else dict(x)
                      for x in b.get("sentences") or []]
         # `synonyms=False`: the words are frozen (the host's text); only what the voice is
         # given may change
         occurrences = (risky_occurrences(sentences, synonyms)
                        if self.pron_cfg.enabled and language in self.pron_cfg.languages
-                       and sentences and not prepared else [])
+                       and sentences and listened else [])
         if occurrences and self.listener() is None:
             occurrences = []
         text = scrub_forbidden(b.get("tts_text") or b["text"])
         asr_cfg = self.asr_cfg.for_language(language)
-        asr_retakes = asr_cfg.auto_retakes if asr_cfg.mode == "strict" and not prepared else 0
+        asr_retakes = asr_cfg.auto_retakes if asr_cfg.mode == "strict" and listened else 0
         rounds = self.pron_cfg.max_rounds if occurrences else 0
         fixes: list[dict] = []
         for attempt in range(1 + asr_retakes + rounds):
@@ -509,13 +512,26 @@ class VoiceRenderer:
             # A forced re-render is a NEW take (different seed), still
             # reproducible; normal renders reuse the cached take.
             seed = self.cfg.seed + (10 if b["block_id"] in force else 0)
-            return await self.speak_block(b, language, lang_cfg,
-                                          self.cfg.settings_for(block_style(b), language), seed,
-                                          blocks_dir)
+            settings = self.cfg.settings_for(block_style(b), language)
+
+            async def speak(block: dict, take_seed: int) -> dict:
+                return await self.speak_block(block, language, lang_cfg, settings, take_seed, blocks_dir)
+
+            result = await speak(b, seed)
+            if self.reviewer is not None:          # after the voice-repair loop: a model listens to the block
+                result = await self.reviewer.run(result, speak, seed)
+            return result
 
         # All blocks at once: the provider's limit (concurrency
         # .elevenlabs_tts) and the speech-to-text limit pace the requests.
         results: list[dict] = list(await asyncio.gather(*(one_block(b) for b in chosen)))
+        if self.reviewer is not None:
+            from app.documentary import semantic_review as SR
+
+            SR.save_records(out, self.reviewer.records)
+            failed = SR.failed_blocks(self.reviewer.records)
+            if failed:           # a block that does not pass is not published: the film is not assembled
+                raise SR.SemanticReviewFailed(failed)
 
         # --- per-block loudness -------------------------------------
         for r in results:

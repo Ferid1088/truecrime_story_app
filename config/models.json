@@ -16,7 +16,8 @@
           "tool_calling": true,
           "web_search": "none",
           "web_fetch": "none",
-          "vision": true
+          "vision": true,
+          "audio_input": true
         },
         "claude-sonnet-5-5": {
           "structured_output": true,
@@ -128,7 +129,8 @@
         "mvp_scene_director": "premium",
         "detective_text_analyser": "writer",
         "detective_card_maker": "writer",
-        "detective_card_inspector": "writer"
+        "detective_card_inspector": "writer",
+        "semantic_audio_reviewer": "cheap"
       },
       "fallbacks": {
         "cheap": [
@@ -458,6 +460,10 @@
       "max_tokens": 4000,
       "reasoning_effort": "medium",
       "send_reasoning_effort": true
+    },
+    "semantic_audio_reviewer": {
+      "temperature": 0.0,
+      "max_tokens": 6000
     }
   }
 }

@@ -320,6 +320,7 @@ def test_a_prepared_language_is_voiced_once_per_block_with_its_dictionary_and_no
     from app.documentary.voice_render import VoiceRenderer
 
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
+    monkeypatch.setattr(ai_config.semantic_review, "languages", [])
 
     class Listener:
         def frames(self, wav):

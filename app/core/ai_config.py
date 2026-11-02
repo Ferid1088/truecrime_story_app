@@ -150,6 +150,8 @@ REQUIRED_ROLES = {
     # text is faithful to the English source.
     "voice_prepare_editor",
     "voice_prepare_checker",
+    # After a Persian block is voiced (and after its avatar video is made): listens to the audio and judges it against the source text.
+    "semantic_audio_reviewer",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",
@@ -287,6 +289,8 @@ class ModelCapabilities(BaseModel):
     structured_output: bool = True
     tool_calling: bool = False
     vision: bool = False
+    # The model listens to audio parts (data:audio/... URLs among the images of a request). Declared from a live probe only.
+    audio_input: bool = False
     # How the gateway lets a request reuse a repeated prompt prefix:
     # "cache_control" (an ephemeral marker on the prefix block), "prompt_cache_key"
     # (a stable key on the request) or "none". Declared from live probes only.
@@ -2372,6 +2376,22 @@ class VideoAuditConfig(BaseModel):
     frame_width: int = Field(default=384, ge=160, le=1280)
 
 
+class SemanticReviewConfig(BaseModel):
+    """The semantic audio review (semantic_review.py): a model listens to a voiced block (and to the voice of an avatar video) and judges it
+    against the source text. The languages it applies to, how often a failed block is corrected, and what the reviewer may suggest."""
+
+    languages: list[str] = []
+    max_corrections: int = Field(default=2, ge=0, le=5)
+    source_chars: int = Field(default=3000, gt=0)
+    neighbour_chars: int = Field(default=400, ge=0)
+    # The only audio tags the reviewer may suggest as a delivery correction.
+    delivery_tags: list[str] = []
+    # A review below this confidence counts as a fail even when the verdict says pass.
+    min_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    # Where the records and the audio of a reviewed language are kept next to the film's voice (a new version folder: earlier voices stay).
+    folder_suffix: str = "_reviewed"
+
+
 class VoicePrepareConfig(BaseModel):
     """The preparation of a narration before it is voiced (voice_prepare.py): the editor's chunks, the sanity limits of an edited sentence and
     the English source given to the editor and the checker."""
@@ -4230,6 +4250,7 @@ class AIConfig(BaseModel):
     video_audit: VideoAuditConfig = Field(default_factory=VideoAuditConfig)
     names: NamesConfig = Field(default_factory=NamesConfig)
     voice_prepare: VoicePrepareConfig = Field(default_factory=VoicePrepareConfig)
+    semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)
     chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)
     detective_board: DetectiveBoardConfig = Field(default_factory=DetectiveBoardConfig)
     detective_toolkit: DetectiveToolkitConfig = Field(default_factory=DetectiveToolkitConfig)
@@ -4488,6 +4509,12 @@ class AIConfig(BaseModel):
         if self.autopilot is None:
             raise RuntimeError("config/parameters/autopilot.json is missing")
         return self.autopilot
+
+    def listens_after_voice(self, language: str) -> bool:
+        """Whether a voiced block of this language is listened to by speech-to-text and the pronunciation listener afterwards (retakes, the
+        pronunciation key and its fix ladder). A prepared language is edited before the voice, and a semantically reviewed one is judged by a
+        model that listens to the audio itself: neither is listened to by the older checks."""
+        return language not in self.voice.prepared_languages and language not in self.semantic_review.languages
 
     def model_for(self, role: str) -> str:
         """The concrete model ID assigned to a logical role, resolved

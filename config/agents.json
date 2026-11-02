@@ -601,6 +601,13 @@
       "output": "json",
       "description": "Card inspector: checks one card against the text it came from and reports logical problems for the toolkit to fix.",
       "used_by": "app/documentary/detective/cards.py"
+    },
+    "documentary.semantic_review.audio": {
+      "role": "semantic_audio_reviewer",
+      "prompt": "documentary/semantic_review/system",
+      "output": "json",
+      "description": "After a Persian narration block is voiced (and after its avatar video is made): listens to the audio and judges meaning, dates, numbers, names, pronunciation and delivery against the source text.",
+      "used_by": "app/documentary/semantic_review.py"
     }
   }
 }

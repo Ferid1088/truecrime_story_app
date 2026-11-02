@@ -241,6 +241,7 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None)
     # the host speaks in its own style (host.voice_style), not the narration's
     settings = ai_config.voice.settings_for(ai_config.host.voice_style, scene.language)
     prepared = scene.language in ai_config.voice.prepared_languages
+    listened = ai_config.listens_after_voice(scene.language)
     dictionaries = []
     if prepared:         # the host says the same names as the narration: the film's pronunciation dictionary goes with its voice too
         from app.documentary import voice_prepare as VP
@@ -259,13 +260,13 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None)
 
     renderer = renderer or VoiceRenderer(db=db, budget_case_id=scene.case_id,
                                          budget_stage=f"tts:host:{scene.language}",
-                                         use_asr=not prepared, use_listener=not prepared,        # a prepared language is not listened to afterwards
-                                         arbiter=None if prepared else PronunciationEditor())
+                                         use_asr=listened, use_listener=listened,        # a prepared or semantically reviewed language is not listened to afterwards
+                                         arbiter=PronunciationEditor() if listened else None)
     renderer.dictionaries = dictionaries
     sentences = _sentences(scene.text)
     pron = ai_config.pronunciation
     keyed = (await _pronunciation_key(db, scene, sentences, editor)
-             if pron.enabled and scene.language in pron.languages and not prepared else {})
+             if pron.enabled and scene.language in pron.languages and listened else {})
     d = scene_dir(scene)
     block = {"block_id": f"host{scene.id}", "text": " ".join(sentences), "beats": [],
              "sentences": [{"speech": t, "display": t, "tts": t, "level": None,

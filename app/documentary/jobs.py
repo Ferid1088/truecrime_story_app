@@ -255,6 +255,13 @@ def failure_details(message: str, error_code: str | None = None) -> dict:
             "next_action": ("Open Review pictures: moments of the film have no picture, video or graphic. Approve "
                             "pictures the planner rejected or was unsure about, then resume."),
         }
+    if "Semantic audio review failed" in message:
+        return {
+            "resume_allowed": True,
+            "resume_disabled_reason": None,
+            "next_action": ("Blocks of the voice did not pass the listening review after the corrections (semantic_review.json in the "
+                            "voice folder lists what was heard). Resuming makes them again; passed blocks are kept."),
+        }
     if error_code == "awaiting_voice_review" or "Awaiting voice review" in message:
         return {
             "resume_allowed": True,
