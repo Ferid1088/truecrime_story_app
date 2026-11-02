@@ -394,6 +394,15 @@ def _deny_outbound_network_in_hermetic_runs(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_listening_review_unless_a_test_asks(monkeypatch):
+    """The semantic audio review listens with a model: tests of the voice and the host run without it. The tests of the review itself switch
+    their language on."""
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.semantic_review, "languages", [])
+
+
+@pytest.fixture(autouse=True)
 def _open_coverage_unless_a_test_asks(request, monkeypatch):
     """The pipeline tests run films made of fakes (black pauses, long holds): the picture-track
     limits are open. The tests of the coverage gate use the real limits."""

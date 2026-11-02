@@ -2382,6 +2382,8 @@ class SemanticReviewConfig(BaseModel):
 
     languages: list[str] = []
     max_corrections: int = Field(default=2, ge=0, le=5)
+    # How often an avatar video whose own audio fails the review is made again (the host voice itself has already passed).
+    avatar_max_regenerations: int = Field(default=2, ge=0, le=5)
     source_chars: int = Field(default=3000, gt=0)
     neighbour_chars: int = Field(default=400, ge=0)
     # The only audio tags the reviewer may suggest as a delivery correction.

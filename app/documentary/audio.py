@@ -61,6 +61,12 @@ def to_wav(
     return Path(dst)
 
 
+def extract_audio(video: str | Path, dst: str | Path, sample_rate: int) -> Path:
+    """The audio track of a video as mono 16-bit WAV."""
+    _run(["ffmpeg", "-y", "-v", "error", "-i", str(video), "-vn", "-ac", "1", "-ar", str(sample_rate), "-c:a", "pcm_s16le", str(dst)])
+    return Path(dst)
+
+
 def to_review_mp3(src: str | Path, dst: str | Path) -> Path:
     """A small mono MP3 of the audio, for the model that listens to it."""
     _run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-ac", "1", "-c:a", "libmp3lame", "-b:a", "64k", str(dst)])

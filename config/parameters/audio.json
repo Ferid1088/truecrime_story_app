@@ -160,35 +160,35 @@
           "speed": 1.2
         },
         "neutral_documentary": {
-          "stability": 0.3,
+          "stability": 0.2,
           "similarity_boost": 0.75,
           "style": 0.05,
           "use_speaker_boost": true,
           "speed": 1.2
         },
         "v3_neutral": {
-          "stability": 0.3,
+          "stability": 0.2,
           "similarity_boost": 0.75,
           "style": 0.0,
           "use_speaker_boost": true,
           "speed": 1.2
         },
         "v3_unease": {
-          "stability": 0.3,
+          "stability": 0.2,
           "similarity_boost": 0.75,
           "style": 0.0,
           "use_speaker_boost": true,
           "speed": 1.2
         },
         "v3_tension": {
-          "stability": 0.3,
+          "stability": 0.2,
           "similarity_boost": 0.75,
           "style": 0.0,
           "use_speaker_boost": true,
           "speed": 1.2
         },
         "v3_climax": {
-          "stability": 0.3,
+          "stability": 0.2,
           "similarity_boost": 0.75,
           "style": 0.0,
           "use_speaker_boost": true,

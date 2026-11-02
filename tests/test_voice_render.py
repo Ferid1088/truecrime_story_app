@@ -273,7 +273,7 @@ def test_persian_has_its_own_voice_styles_and_every_other_language_keeps_the_com
         assert voice.settings_for(style, "fa")["speed"] == 1.2
         for language in ("en", "de", "ar"):
             assert voice.settings_for(style, language) == voice.styles[style].model_dump()
-    assert voice.settings_for(voice.default_style, "fa")["stability"] == 0.3 and voice.settings_for(ai_config.host.voice_style, "fa")["stability"] == 0.2
+    assert voice.settings_for(voice.default_style, "fa")["stability"] == 0.2 and voice.settings_for(ai_config.host.voice_style, "fa")["stability"] == 0.2
     assert voice.styles[voice.default_style].speed < 1.0, "the other languages are as they were before the Persian changes"
 
 

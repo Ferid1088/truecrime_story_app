@@ -540,6 +540,7 @@
     "learn_types": [
       "name",
       "pronunciation"
-    ]
+    ],
+    "avatar_max_regenerations": 2
   }
 }

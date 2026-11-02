@@ -35,6 +35,8 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import HostScene, HostSegments, StoryVersion
+from app.documentary import audio as A
+from app.documentary import semantic_review as SR
 from app.documentary import stage_direction as SD
 from app.documentary import storage
 from app.documentary import studio as ST
@@ -227,7 +229,7 @@ async def _pronunciation_key(db: Session, scene: HostScene, sentences: list[str]
     return keyed
 
 
-async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None) -> dict | None:
+async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None, reviewer=None) -> dict | None:
     """ElevenLabs audio of exactly the frozen text, in the host's own style, through the same
     checks as the story's blocks: Whisper on the plain text, the pronunciation key and listening
     with the fix ladder (harakat only in the text sent to the voice), flags for a person.
@@ -274,6 +276,8 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None)
     result = await renderer.speak_block(block, scene.language, vcfg, settings,
                                         ai_config.voice.seed, d / "takes",
                                         synonyms=False)
+    if SR.required(scene.language):          # the listening review of the host voice: nothing goes to the avatar before it has passed
+        result = await _review_host_voice(db, scene, renderer, block, result, (vcfg, settings, d / "takes"), reviewer)
     take = result["take"]
     audio = Path(take["raw_path"]).read_bytes()
     name = f"voice_{scene.text_sha256[:12]}_{scene.voice_id[:8]}.mp3"
@@ -296,6 +300,7 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None)
             k: take["asr"].get(k) for k in ("passed", "word_error_rate", "failures", "heard_text")},
         "pronunciation": take.get("pronunciation") or [],
         "fixes": result["fixes"], "attempts": result["attempts"],
+        **({"semantic_review": result["semantic_review"]} if result.get("semantic_review") else {}),
         "asr_engine": renderer.asr.name if renderer.asr else None,
         "listener": getattr(renderer._listener, "name", None) if renderer._listener else None,
         "flags": voice_flags(take, bool(keyed) and renderer._listener is None,
@@ -313,6 +318,63 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None)
     if ORDER.index(scene.status) > ORDER.index("voice_ready"):
         scene.status = "voice_ready"
     return None
+
+
+def _host_reviewer(db: Session, scene: HostScene, reviewer):
+    if reviewer is not None:
+        return reviewer
+    from app.documentary import voice_prepare as VP
+
+    version = db.get(StoryVersion, scene.story_version_id)
+    return SR.Reviewer(db, scene.case_id, {}, {}, VP.sent_rules(version) if version is not None else [])
+
+
+async def _review_host_voice(db: Session, scene: HostScene, renderer, block: dict, result: dict, how: tuple, reviewer) -> dict:
+    """The host voice listened to by the semantic reviewer (its own words are the source), corrected up to the allowed times. A voice that still
+    fails is recorded and fails the scene: it never reaches the avatar."""
+    vcfg, settings, takes = how
+    block["source_text"] = scene.text
+
+    async def speak(blk: dict, seed: int) -> dict:
+        return await renderer.speak_block(blk, scene.language, vcfg, settings, seed, takes, synonyms=False)
+
+    result = await _host_reviewer(db, scene, reviewer).run(result, speak, ai_config.voice.seed, scene.language)
+    record = result["semantic_review"]
+    if record["final_status"] != "approved":
+        checks = _loads(scene.voice_checks_json, {})
+        checks["semantic_review"] = record
+        scene.voice_checks_json = json.dumps(checks, ensure_ascii=False)
+        db.commit()
+        raise ST.StudioError("the host voice did not pass the listening review (" + "; ".join(
+            f"{e['type']}: {e['heard'][:40]}" for e in record["errors"][:3]) + "): the avatar is not made")
+    return result
+
+
+async def _review_avatar_audio(db: Session, scene: HostScene, reviewer) -> bool | None:
+    """The audio track of the avatar video, listened to by the same reviewer: the voice that went in has passed, so a failure here is the
+    rendering's. None when the language is not reviewed."""
+    if not SR.required(scene.language):
+        return None
+    video = storage.resolve(scene.avatar_video_path)
+    wav = scene_dir(scene) / f"avatar_audio_g{scene.provider_generation or 0}.wav"
+    await asyncio.to_thread(A.extract_audio, video, wav, ai_config.loudness.sample_rate)
+    checks = _loads(scene.voice_checks_json, {})
+    sentences = _sentences(scene.text)
+    block = {"block_id": f"host{scene.id}-avatar", "text": scene.text, "source_text": scene.text, "tts_text": checks.get("tts_text") or scene.text,
+             "sentences": [{"speech": t, "display": t, "tts": t, "level": None, "risky": []} for t in sentences]}
+    record = checks.setdefault("semantic_review", {"block_id": f"host{scene.id}", "final_status": "approved"})
+    last = (record.get("avatar_reviews") or [{}])[-1]
+    if last.get("generation") == (scene.provider_generation or 0) and last.get("verdict") == "pass":
+        return True                    # this very video has been listened to and passed: a resumed run does not pay for it again
+    reviewer = _host_reviewer(db, scene, reviewer)
+    review = await reviewer.listen(reviewer.context(block), wav, block["block_id"])
+    record["avatar_review_result"] = review["verdict"]
+    record.setdefault("avatar_reviews", []).append({"generation": scene.provider_generation or 0, **review})
+    if review["verdict"] != "pass":
+        record["errors"] = review["errors"]
+    scene.voice_checks_json = json.dumps(checks, ensure_ascii=False)
+    db.commit()
+    return review["verdict"] == "pass"
 
 
 def _choose_default_look(db: Session, scene: HostScene, outfit) -> None:
@@ -504,13 +566,14 @@ def unresolved_words(scene: HostScene) -> list[str]:
 
 
 async def _voice_within_plan(db: Session, scene: HostScene, renderer, retimer,
-                             editor=None) -> dict | None:
+                             editor=None, reviewer=None) -> dict | None:
     """Synthesize and check, measure the REAL seconds, and have the text rewritten (bounded) and
     voiced again when the voice misses the planned seconds by more than host.duration_tolerance
     or still says a word wrong after the vowel-mark ladder: the host's own words cannot be
     swapped for a synonym, so the writer says the same thing in other words. A voice still over
     the appearance's hard cap after that fails the scene."""
-    r = await _step_voice(db, scene, renderer=renderer, editor=editor)
+    extra = {"reviewer": reviewer} if reviewer is not None else {}
+    r = await _step_voice(db, scene, renderer=renderer, editor=editor, **extra)
     attempts = 0
     tolerance = ai_config.host.duration_tolerance
     while ((deviation(scene.voice_seconds, scene.planned_duration) > tolerance
@@ -522,7 +585,7 @@ async def _voice_within_plan(db: Session, scene: HostScene, renderer, retimer,
                                         "planned": scene.planned_duration, "attempt": attempts,
                                         **({"avoid": avoid} if avoid else {})})
         await retimer(db, scene, scene.planned_duration, avoid)
-        r = await _step_voice(db, scene, renderer=renderer, editor=editor)
+        r = await _step_voice(db, scene, renderer=renderer, editor=editor, **extra)
     if (scene.voice_seconds or 0) > scene_cap(scene.position):
         raise HostTooLong(f"the host voice is {scene.voice_seconds}s, over the "
                           f"{scene_cap(scene.position)}s cap for a {scene.position} appearance")
@@ -547,7 +610,7 @@ def _record_real_seconds(db: Session, scene: HostScene) -> None:
 
 async def run_scene(db: Session, scene: HostScene, until: str = "voice",
                     renderer=None, avatar_provider=None, sleep=asyncio.sleep,
-                    retimer=None, director=None, editor=None) -> HostScene:
+                    retimer=None, director=None, editor=None, reviewer=None) -> HostScene:
     """Run the scene's steps up to `until` ("voice" or "avatar"), starting
     from the first one whose saved result is missing. Each step commits its
     result before the next begins; a failure is recorded and re-raised."""
@@ -557,7 +620,7 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
     db.commit()
     step = "voice"
     try:
-        r = await _voice_within_plan(db, scene, renderer, retimer, editor)
+        r = await _voice_within_plan(db, scene, renderer, retimer, editor, **({"reviewer": reviewer} if reviewer is not None else {}))
         _done(scene, "voice", db, r, {"voice_sha256": (scene.voice_sha256 or "")[:16],
                                       "seconds": scene.voice_seconds})
         if director is not None and not scene.direction_json:
@@ -576,36 +639,53 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
 
         cp = ST.channel_profile(scene.language)
         prov = avatar_provider or get_avatar_provider(key_env=cp["heygen_key_env"])
-        if ORDER.index(scene.status) < ORDER.index("avatar_ready"):
-            look = look_for_avatar(db, scene)
-            if not look.heygen_look_id:
-                group = env_value(cp["heygen_avatar_env"]) or ""
-                if not group:
-                    raise ST.StudioError(
-                        f"{cp['heygen_avatar_env']} is not set (.env): cannot upload the "
-                        f"selected {scene.language} outfit photo to HeyGen")
-                # The checked library photo is owner-approved by the Autopilot
-                # start choice. This is the only upload path for a new case.
-                await LK.upload_to_heygen(db, look, prov, group)
-                scene.avatar_id = look.heygen_look_id
-            db.commit()
-        step = "avatar_upload"
-        r = await _step_avatar_upload(db, scene, prov)
-        _done(scene, "avatar_upload", db, r, {"asset_id": scene.provider_asset_id})
-        step = "avatar_request"
-        look = scene.avatar_id
-        assert look is not None, "the upload step stored the look"
-        r = await _step_avatar_request(db, scene, prov, look)
-        _done(scene, "avatar_request", db, r, {"job_id": scene.provider_job_id,
-                                               "generation": scene.provider_generation})
-        step = "avatar_download"
-        r = await _step_avatar_download(db, scene, prov, sleep)
-        _done(scene, "avatar_download", db, r,
-              {"sha256": (scene.avatar_video_sha256 or "")[:16]})
-        from app.documentary.heygen_cost import book_video
+        regenerations = 0
+        while True:
+            if ORDER.index(scene.status) < ORDER.index("avatar_ready"):
+                look = look_for_avatar(db, scene)
+                if not look.heygen_look_id:
+                    group = env_value(cp["heygen_avatar_env"]) or ""
+                    if not group:
+                        raise ST.StudioError(
+                            f"{cp['heygen_avatar_env']} is not set (.env): cannot upload the "
+                            f"selected {scene.language} outfit photo to HeyGen")
+                    # The checked library photo is owner-approved by the Autopilot
+                    # start choice. This is the only upload path for a new case.
+                    await LK.upload_to_heygen(db, look, prov, group)
+                    scene.avatar_id = look.heygen_look_id
+                db.commit()
+            step = "avatar_upload"
+            r = await _step_avatar_upload(db, scene, prov)
+            _done(scene, "avatar_upload", db, r, {"asset_id": scene.provider_asset_id})
+            step = "avatar_request"
+            look = scene.avatar_id
+            assert look is not None, "the upload step stored the look"
+            r = await _step_avatar_request(db, scene, prov, look)
+            _done(scene, "avatar_request", db, r, {"job_id": scene.provider_job_id,
+                                                   "generation": scene.provider_generation})
+            step = "avatar_download"
+            r = await _step_avatar_download(db, scene, prov, sleep)
+            _done(scene, "avatar_download", db, r,
+                  {"sha256": (scene.avatar_video_sha256 or "")[:16]})
+            from app.documentary.heygen_cost import book_video
 
-        book_video(db, scene)       # the video's estimated cost, once, in the ledger
-        return scene
+            book_video(db, scene)       # the video's estimated cost, once, in the ledger
+            step = "avatar_review"
+            if await _review_avatar_audio(db, scene, reviewer) is not False:       # None: the language is not reviewed
+                return scene
+            regenerations += 1
+            checks = _loads(scene.voice_checks_json, {})
+            if regenerations > ai_config.semantic_review.avatar_max_regenerations:
+                checks.setdefault("semantic_review", {})["final_status"] = "failed"
+                scene.voice_checks_json = json.dumps(checks, ensure_ascii=False)
+                raise ST.StudioError("the audio of the avatar video did not pass the listening review after "
+                                     f"{regenerations - 1} new videos: it is not published")
+            # the voice that went in has passed: the rendering damaged the audio, so the video is made again from the same voice
+            redo_video(db, scene, "the audio of the avatar video did not pass the listening review")
+            if director is not None:
+                step = "stage_direction"
+                await director(db, scene)
+                db.commit()
     except Exception as e:  # recorded, then raised to the caller
         _fail(scene, step, e, db)
         raise
