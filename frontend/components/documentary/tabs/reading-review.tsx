@@ -107,6 +107,7 @@ export function ReadingReviewTab({ settings, overview, refreshKey, language, onL
   const [chosen, setChosen] = useState<Record<number, Pending | undefined>>({});
   const [saving, setSaving] = useState(false);
   const [resuming, setResuming] = useState(false);
+  const [started, setStarted] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // The tab opens on the language that has a narration being prepared, not on one that has none.
@@ -150,7 +151,7 @@ export function ReadingReviewTab({ settings, overview, refreshKey, language, onL
     setError(null);
     try {
       await api.resumeDocumentaryJob(waiting.id);
-      state.refetch();
+      setStarted(waiting.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -213,10 +214,14 @@ export function ReadingReviewTab({ settings, overview, refreshKey, language, onL
               <InlineAlert tone="warning">
                 Every word is answered. {waiting ? "Resume the job to voice the film." : "Resume the job in the Run tab to voice the film."}
               </InlineAlert>
-              {waiting && (
-                <Button onClick={resume} loading={resuming}>
-                  Resume job #{waiting.id}
-                </Button>
+              {waiting && started === waiting.id ? (
+                <InlineAlert tone="warning">Job #{waiting.id} is running again. Follow it in the Monitoring tab.</InlineAlert>
+              ) : (
+                waiting && (
+                  <Button onClick={resume} loading={resuming}>
+                    Resume job #{waiting.id}
+                  </Button>
+                )
               )}
             </div>
           )}

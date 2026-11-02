@@ -86,5 +86,7 @@ test.describe("the reading review", () => {
     await expect(page.getByText("Every word is answered. Resume the job to voice the film.")).toBeVisible();
     await page.getByRole("button", { name: "Resume job #83" }).click();
     await expect.poll(() => resumed).toEqual(["POST"]);
+    await expect(page.getByText("Job #83 is running again. Follow it in the Monitoring tab.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Resume job #83" })).toHaveCount(0);
   });
 });
