@@ -7,7 +7,6 @@ You are the final listener of a Persian (Farsi) documentary narration. You are g
 - `tts_text`: the exact text the voice was given (it may carry audio tags, respellings or vowel marks).
 - `protected_items`: dates, numbers, URLs and paths that must come out exactly right.
 - `pronunciation_rules`: the readings already chosen for words (surface -> reading).
-- `words_to_check`: words to listen to one by one (words that carry an ezafe mark, and words with a pronunciation rule).
 - `previous_text`, `next_text`: the neighbouring blocks, for continuity.
 - `allowed_delivery_tags`: the only audio tags you may suggest.
 
@@ -18,8 +17,7 @@ You are the final listener of a Persian (Farsi) documentary narration. You are g
 4. Ezafe: after a word that ends in a consonant the ezafe is a short "e"; after a vowel it is "ye". Wrong is: an extra "ye" after a consonant, a missing ezafe, a wrong vowel.
 5. Delivery: natural pace, emotion and emphasis for `scene_context`, flowing from the previous block into the next.
 
-# Two lists, two jobs
-- `word_checks`: for EVERY word of `words_to_check`, listen to it alone and say how you hear it in Latin letters with every vowel, and whether it is right (`ok`). For a name of several words also say whether it is said as one unit without a pause between its words (`joined`).
+# The list of missing ezafes
 - `ezafe_missing`: only the places where Persian grammar needs an ezafe (noun + adjective, noun + noun or name, possessor) that you do NOT hear or hear wrong, even when the text has no mark. Give the phrase exactly as written in `tts_text`, starting with the word that needs the ezafe. Do not list places that are right.
 
 # Severity and verdict
@@ -47,10 +45,9 @@ Return JSON only:
              "expected": "what should be heard",
              "heard": "what you heard",
              "reason": "why it is wrong"}],
- "word_checks": [{"word": "...", "heard": "...", "ok": true | false, "joined": true | false, "problem": "..."}],
  "ezafe_missing": [{"phrase": "...", "head": "...", "heard": "..."}],
  "notation_read_aloud": true | false,
  "corrected_text": null | "...",
  "corrected_pronunciation_rules": [{"surface": "...", "replacement": "..."}],
  "corrected_delivery_instruction": null | "..."}
-`joined` is given only for a name of several words.
+

@@ -199,32 +199,6 @@ def test_a_reviewed_language_is_voiced_once_per_block_without_speech_to_text_or_
     assert len(tts.requests) == 1
 
 
-def test_the_words_to_listen_to_one_by_one_are_the_ezafe_words_and_those_with_a_rule():
-    rules = [{"string_to_replace": "کالب", "type": "alias", "alias": "کِیلِب"}, {"string_to_replace": "تیپ", "type": "alias", "alias": "x"}]
-    assert SR.words_to_check("درِ گاراژ بود و کالب آمد. بازِ بود", rules) == ["درِ", "بازِ", "کالب"]
-    assert SR.words_to_check("کالب آمد و در بود", rules) == ["کالب"], "a word without an ezafe mark is not listened to alone"
-    assert SR.words_to_check("درِ گاراژ بازِ بود", []) == ["درِ", "بازِ"]
-
-
-def test_a_word_the_reviewer_found_wrong_is_an_error_even_when_it_left_it_out_of_the_errors():
-    got = SR.normalise(raw(word_checks=[{"word": "درِ", "heard": "dare-ye", "ok": False, "problem": "an extra ye"}, {"word": "بازِ", "heard": "baz-e", "ok": True}]))
-    assert got["verdict"] == "fail" and got["errors"] == [{"type": "pronunciation", "severity": "major", "expected": "درِ", "heard": "dare-ye", "reason": "an extra ye"}]
-    listed = SR.normalise(raw(errors=[{"type": "pronunciation", "severity": "major", "expected": "درِ", "heard": "dare-ye", "reason": "x"}],
-                              word_checks=[{"word": "درِ", "heard": "dare-ye", "ok": False}]))
-    assert len(listed["errors"]) == 1, "not listed twice"
-
-
-def test_a_pause_inside_a_name_of_several_words_is_an_error():
-    got = SR.normalise(raw(word_checks=[{"word": "کانینگهام کورت", "heard": "kaningham [pause] kort", "ok": True, "joined": False}]))
-    assert got["verdict"] == "fail" and got["errors"][0]["reason"] == "a pause inside the name: it is not said as one unit"
-    assert SR.normalise(raw(word_checks=[{"word": "کانینگهام کورت", "ok": True, "joined": True}]))["verdict"] == "pass"
-
-
-def test_joined_false_counts_only_for_a_name_of_several_words():
-    single = SR.normalise(raw(word_checks=[{"word": "آمریکا", "heard": "amrika", "ok": True, "joined": False}]))
-    assert single["verdict"] == "pass" and single["errors"] == []
-
-
 def test_a_voice_that_reads_the_pronunciation_notation_aloud_gets_the_block_without_the_dictionary_and_then_without_tags():
     review = SR.normalise(raw("fail", [{"type": "pronunciation", "severity": "major", "expected": "فوریه", "heard": "اسلش اف ای وی اسلش", "reason": "read as symbols"}]))
     assert review["notation_read_aloud"] is True and SR.normalise(raw())["notation_read_aloud"] is False
@@ -331,72 +305,3 @@ def test_a_missing_or_wrong_ezafe_fails_the_block_and_is_never_rewritten_into_an
 # ---------------------------------------------------------------------------
 # the last check: each word that needs one, listened to alone
 # ---------------------------------------------------------------------------
-
-
-def take_with_words(wav, text, words):
-    return {"wav_path": wav, "text": text, "words": [{"word": w, "start": 0.2 * i, "end": 0.2 * i + 0.15} for i, w in enumerate(words)]}
-
-
-def test_a_word_is_located_in_the_timing_only_when_the_text_and_the_timing_line_up_and_an_ezafe_only_with_its_mark():
-    words = [{"word": w, "start": i * 0.2, "end": i * 0.2 + 0.15} for i, w in enumerate(["در", "گاراژ", "درِ", "قفل"])]
-    text = "در گاراژ [calm] درِ قفل."
-    assert SR.locate(text, words, "درِ", keep_marks=True) == [(2, 2)], "the plain «در» is a preposition: only the marked one"
-    assert SR.locate(text, words, "در", keep_marks=False) == [(0, 0), (2, 2)] and SR.locate(text, words, "گاراژ قفل", keep_marks=False) == []
-    assert SR.locate("در گاراژ", words, "در", keep_marks=False) == [], "a text and a timing that do not line up are never guessed"
-
-
-def test_a_clip_is_listened_to_twice_with_the_options_in_opposite_orders_and_one_definite_wrong_answer_is_an_error(tmp_path, monkeypatch):
-    heard = []
-
-    async def word_runner(gen, body, audio):
-        ask = json.loads(body)
-        heard.append((ask["word"], ask["kind"], ask["following_word"], [o["id"] for o in ask["options"]][0], audio[0][:16]))
-        return {"choice": "extra_ye" if len(heard) == 2 else "short_e", "heard": "dareye"}, object()
-
-    wav = make_wav(tmp_path / "block.wav")
-    reviewer = SR.Reviewer(None, 1, runner=None, word_runner=word_runner)
-    take = take_with_words(wav, "درِ قفل", ["در", "قفل"])
-    errors, checked = asyncio.run(reviewer.check_words({"block": {"block_id": "B1"}, "take": take}))
-    assert checked == 1 and [h[0] for h in heard] == ["درِ", "درِ"] and heard[0][4] == "data:audio/mpeg;" and heard[0][2] == "قفل"
-    assert heard[0][3] == "short_e" and heard[1][3] == "cannot_tell", "the second listening gets the options in the opposite order"
-    assert len(errors) == 1 and errors[0]["severity"] == "major" and "extra 'y' glide" in errors[0]["heard"]
-
-
-def test_a_word_that_sounds_right_or_cannot_be_told_is_not_an_error_and_a_vowel_final_word_expects_ye(tmp_path):
-    answers = iter(["short_e", "short_e", "ye_glide", "cannot_tell"])
-
-    async def word_runner(gen, body, audio):
-        return {"choice": next(answers)}, object()
-
-    wav = make_wav(tmp_path / "block.wav")
-    reviewer = SR.Reviewer(None, 1, runner=None, word_runner=word_runner)
-    assert asyncio.run(reviewer.check_words({"block": {"block_id": "B1"}, "take": take_with_words(wav, "درِ قفل", ["در", "قفل"])}))[0] == []
-    assert SR.acceptable_choices("ezafe", "خانهٔ") == {"ye_glide"} and SR.acceptable_choices("ezafe", "درِ") == {"short_e"}
-    assert SR.acceptable_choices("ezafe", "راهِ") == {"short_e"}, "the ه of a word like راه is a consonant"
-    assert SR.acceptable_choices("ezafe", "قربانیِ") == {"ye_glide"} and SR.acceptable_choices("ezafe", "آرشیوِ") == {"short_e", "ye_glide"}
-    assert SR.acceptable_choices("reading", "کالب") == {"as_expected"}
-    ok = asyncio.run(reviewer.check_words({"block": {"block_id": "B2"}, "take": take_with_words(wav, "خانهٔ او", ["خانه", "او"])}))
-    assert ok[0] == [] and ok[1] == 1
-
-
-def test_the_word_check_runs_last_only_on_a_block_that_passed_and_a_wrong_word_makes_it_fail(tmp_path, monkeypatch):
-    monkeypatch.setattr(ai_config.semantic_review, "word_review", True)
-    wav_calls = []
-    wav = make_wav(tmp_path / "block.wav")
-
-    class Reviewer(SR.Reviewer):
-        async def check_words(self, result):
-            wav_calls.append(result["block"]["block_id"])
-            return ([{"type": "pronunciation", "severity": "major", "expected": "درِ", "heard": "extra ye", "reason": "x"}], 1)
-
-    async def whole(gen, body, audio):
-        return raw("pass" if len(wav_calls) >= 0 else "fail"), object()
-
-    reviewer = Reviewer(None, 1, runner=whole)
-    result = {"block": block(), "take": take_with_words(wav, "x y", ["x", "y"])}
-    review = asyncio.run(reviewer.review_block(result))
-    assert wav_calls == ["FA_B01_01"] and review["verdict"] == "fail" and review["errors"][0]["reason"] == "x" and review["words_checked"] == 1
-    other = make_wav(tmp_path / "other.wav")            # another audio: the answer saved for the first one is not reused
-    failing = Reviewer(None, 1, runner=lambda g, b, a: __import__("asyncio").sleep(0, (raw("fail", [error()]), object())))
-    review = asyncio.run(failing.review_block({"block": block(), "take": take_with_words(other, "x y", ["x", "y"])}))
-    assert wav_calls == ["FA_B01_01"] and review["verdict"] == "fail", "a block that failed as a whole is not listened to word by word"

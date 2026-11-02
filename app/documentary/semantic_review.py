@@ -38,18 +38,6 @@ NOTATION_ALOUD = re.compile(r"slash|اسلش", re.IGNORECASE)
 URL = re.compile(r"https?://\S+|www\.\S+")
 PATH = re.compile(r"(?<![\w/])(?:/[\w.\-]+){1,}/?")
 SENTENCE_END = re.compile(r"(?<=[.!?؟…])\s+")
-TASK_WORD = "Listen to the clip and answer with the JSON described in your instructions. The input follows.\n"
-PUNCT = ".,;:!?؟،؛«»\"'()[]…"
-MARKS_ONLY = re.compile("[\u064b-\u0652\u0670\u0654]")
-EZAFE_OPTIONS = [("short_e", "one short 'e' sound right after the word"),
-                 ("extra_ye", "a short 'e' followed by an extra 'y' glide, as in '-eye'"),
-                 ("ye_glide", "a 'ye' sound right after the word (the ezafe of a word that ends in a vowel)"),
-                 ("doubled_consonant", "the last consonant of the word is lengthened or doubled before the ezafe"),
-                 ("no_ezafe", "no ezafe sound at all after the word"),
-                 ("cannot_tell", "the clip is too short, noisy or cut off to tell")]
-READING_OPTIONS = [("as_expected", "the word sounds like the expected reading"),
-                   ("different", "the word sounds clearly different from the expected reading"),
-                   ("cannot_tell", "the clip is too short, noisy or cut off to tell")]
 TASK = "Review the audio and answer with the JSON described in your instructions. The input follows.\n"
 
 
@@ -87,11 +75,6 @@ def normalise(raw: dict) -> dict:
         confidence = max(0.0, min(1.0, float(raw.get("confidence"))))
     except (TypeError, ValueError):
         confidence = 0.0
-    for check in raw.get("word_checks") or []:           # a word the reviewer was told to listen to and found wrong is an error even when it left it out of `errors`
-        if isinstance(check, dict) and (check.get("ok") is False or (check.get("joined") is False and len(str(check.get("word") or "").split()) > 1)) and not any(check.get("word") and check["word"] in (e["expected"] + e["heard"]) for e in errors):
-            errors.append({"type": "pronunciation", "severity": "major", "expected": str(check.get("word") or ""), "heard": str(check.get("heard") or ""),
-                           "reason": str(check.get("problem") or ("a pause inside the name: it is not said as one unit" if check.get("joined") is False
-                                                                  else "the word is not said right"))})
     passed = (raw.get("verdict") == "pass" and not any(e["severity"] in BLOCKING for e in errors)
               and confidence >= ai_config.semantic_review.min_confidence)
     rules = [{"surface": str(r["surface"]), "replacement": str(r["replacement"])} for r in raw.get("corrected_pronunciation_rules") or []
@@ -107,53 +90,6 @@ def normalise(raw: dict) -> dict:
     return {"verdict": "pass" if passed else "fail", "confidence": confidence, "errors": errors, "ezafe_missing": missing, "notation_read_aloud": aloud,
             "corrected_text": text if isinstance(text, str) and text.strip() else None, "corrected_pronunciation_rules": rules,
             "corrected_delivery_instruction": delivery if isinstance(delivery, str) and delivery in ai_config.semantic_review.delivery_tags else None}
-
-
-EZAFE = re.compile(r"[\w\u200c]+(?:\u0650|\u0654|\u06c0|\u0647\u0654)(?=\s)")
-
-
-def tokens_of(text: str) -> list[str]:
-    """The words of a text as the voice's word timing counts them: audio tags and pure punctuation are not words."""
-    return [t.strip(PUNCT) for t in TAG.sub(" ", text).split() if any(ch.isalnum() for ch in t)]
-
-
-def locate(text: str, words: list[dict], target: str, keep_marks: bool) -> list[tuple[int, int]]:
-    """Where `target` (one word or a name of several) is in the voiced text, as indexes into the voice's word timing. Nothing is guessed when the
-    text and the timing do not have the same number of words. An ezafe target must match with its marks, so that the same word without an
-    ezafe elsewhere in the block is not taken for it."""
-    tokens = tokens_of(text)
-    if len(tokens) != len(words):
-        return []
-    norm = (lambda s: s) if keep_marks else (lambda s: MARKS_ONLY.sub("", s).replace("\u200c", ""))
-    want = [norm(w.strip(PUNCT)) for w in target.split()]
-    return [(i, i + len(want) - 1) for i in range(len(tokens) - len(want) + 1) if [norm(t) for t in tokens[i:i + len(want)]] == want]
-
-
-def word_options(kind: str) -> list[tuple[str, str]]:
-    return EZAFE_OPTIONS if kind == "ezafe" else READING_OPTIONS
-
-
-def acceptable_choices(kind: str, word: str) -> set[str]:
-    """What the voice may be heard to say for this word. For an ezafe: a short "e" after a word that ends in a consonant (the "ه" of "راهِ" is one);
-    "ye" after a word that ends in a vowel, after "ا" or "ی", or when the ezafe is written as a hamza on a silent "ه" ("دقیقهٔ"); either after "و",
-    which can be a vowel ("مو") or a consonant ("آرشیو"). Anything else is wrong."""
-    if kind != "ezafe":
-        return {"as_expected"}
-    letters = MARKS_ONLY.sub("", word).rstrip("\u200c")
-    last = letters[-1:]
-    if "\u0654" in word or "\u06c0" in word or last in "ایئآ":
-        return {"ye_glide"}
-    if last == "و":
-        return {"short_e", "ye_glide"}
-    return {"short_e"}
-
-
-def words_to_check(tts_text: str, rules: list[dict]) -> list[str]:
-    """The words the reviewer must listen to one by one: those that carry an ezafe mark (the voice may add a "ye" or drop the "e") and those with a
-    pronunciation rule of the film."""
-    found = [m.group() for m in EZAFE.finditer(tts_text)]
-    found += [r["string_to_replace"] for r in rules if whole_word(r["string_to_replace"]).search(tts_text)]
-    return list(dict.fromkeys(found))
 
 
 def whole_word(surface: str) -> re.Pattern:
@@ -218,12 +154,10 @@ class Reviewer:
     """Listens to audio for the semantic review and keeps the record of every block."""
 
     def __init__(self, db: Session, case_id: int, sources: dict[str, str] | None = None, tones: dict[str, dict] | None = None,
-                 rules: list[dict] | None = None, runner: Callable[[object, str, list[str]], Awaitable[tuple[dict, object]]] | None = None,
-                 word_runner: Callable[[object, str, list[str]], Awaitable[tuple[dict, object]]] | None = None):
+                 rules: list[dict] | None = None, runner: Callable[[object, str, list[str]], Awaitable[tuple[dict, object]]] | None = None):
         self.db, self.case_id = db, case_id
         self.sources, self.tones, self.rules = sources or {}, tones or {}, rules or []
         self.runner = runner or (lambda gen, body, audio: run_agent("documentary.semantic_review.audio", gen, TASK + body, images=audio))
-        self.word_runner = word_runner or (lambda gen, body, audio: run_agent("documentary.semantic_review.word", gen, TASK_WORD + body, images=audio))
         self.records: dict[str, dict] = {}
 
     def context(self, block: dict) -> dict:
@@ -235,7 +169,7 @@ class Reviewer:
         return {"source_text": (block.get("source_text") or self.sources.get(section, ""))[:cfg.source_chars],
                 "scene_context": self.tones.get(section) or block.get("scene_context") or {},
                 "display_text": display, "tts_text": tts, "protected_items": protected_items(display, tts),
-                "pronunciation_rules": self.rules, "words_to_check": words_to_check(tts, self.rules), "previous_text": (block.get("previous_text") or "")[-cfg.neighbour_chars:] if cfg.neighbour_chars else "",
+                "pronunciation_rules": self.rules, "previous_text": (block.get("previous_text") or "")[-cfg.neighbour_chars:] if cfg.neighbour_chars else "",
                 "next_text": (block.get("next_text") or "")[:cfg.neighbour_chars], "allowed_delivery_tags": cfg.delivery_tags}
 
     async def _ask(self, runner, body: str, data: str, label: str) -> dict:
@@ -272,64 +206,9 @@ class Reviewer:
         saved.write_text(json.dumps({"key": key, "result": result}, ensure_ascii=False), encoding="utf-8")
         return result
 
-    async def listen_word(self, wav: Path, span: tuple[float, float], word: str, kind: str, following: str, label: str) -> list[str]:
-        """The options chosen by two independent listenings to a short clip around one word (the options are offered in opposite orders, so that a
-        habit of the model for the first one does not decide). Saved with the clip, so a resumed run does not listen again."""
-        cfg = ai_config.semantic_review
-        clip = wav.with_name(f"{wav.stem}.w{int(span[0] * 1000)}-{int(span[1] * 1000)}.mp3")
-        await asyncio.to_thread(A.cut_to_mp3, wav, clip, span[0] - cfg.word_pad_before_s, span[1] + cfg.word_pad_after_s)
-        options = word_options(kind)
-        reading = next((r.get("alias") or r.get("phoneme") for r in self.rules if r["string_to_replace"] == word), "")
-        bodies = [json.dumps({"word": word, "kind": kind, "following_word": following, "expected_reading": reading,
-                              "options": [{"id": i, "description": d} for i, d in order]}, ensure_ascii=False) for order in (options, options[::-1])]
-        saved = clip.with_suffix(".json")
-        key = hashlib.sha256(clip.read_bytes() + "".join(bodies).encode() + prompt_sha256("documentary/semantic_review/word_system").encode()).hexdigest()
-        try:
-            cached = json.loads(saved.read_text(encoding="utf-8"))
-            if cached.get("key") == key:
-                return cached["choices"]
-        except (OSError, ValueError, KeyError):
-            pass
-        data = "data:audio/mpeg;base64," + base64.b64encode(clip.read_bytes()).decode()
-        answers = [await self._ask(self.word_runner, body, data, f"{label} {word}") for body in bodies]
-        choices = [str(a.get("choice") or "cannot_tell") for a in answers]
-        saved.write_text(json.dumps({"key": key, "choices": choices, "heard": [a.get("heard") for a in answers]}, ensure_ascii=False), encoding="utf-8")
-        return choices
-
-    async def check_words(self, result: dict) -> tuple[list[dict], int]:
-        """Every word that needs a check, listened to alone in a short clip. Returns the errors (a definite wrong sound in either listening) and
-        how many words could be located and checked."""
-        cfg = ai_config.semantic_review
-        take = result["take"]
-        words, text = take.get("words") or [], take.get("text") or ""
-        jobs = []
-        for target in words_to_check(text, self.rules):
-            kind = "ezafe" if LEX.has_ezafe(target) else "reading"
-            for first, last in locate(text, words, target, keep_marks=kind == "ezafe"):
-                jobs.append((target, kind, (words[first]["start"], words[last]["end"]), words[last + 1]["word"] if last + 1 < len(words) else ""))
-        jobs = jobs[:cfg.max_words_per_block]
-        label = result["block"]["block_id"]
-        wav = Path(take["wav_path"])
-        got = await asyncio.gather(*(self.listen_word(wav, span, word, kind, following, label) for word, kind, span, following in jobs))
-        errors = []
-        for (word, kind, _span, _following), choices in zip(jobs, got):
-            wrong = [c for c in choices if c not in acceptable_choices(kind, word) | {"cannot_tell"}]
-            if wrong:
-                said = dict(word_options(kind)).get(wrong[0], wrong[0])
-                errors.append({"type": "pronunciation", "severity": "major", "expected": word, "heard": said,
-                               "reason": f"listened to alone: {said}"})
-        return errors, len(jobs)
-
     async def review_block(self, result: dict) -> dict:
-        """The review of a voiced block: the whole block first; only a block that passes it goes on to the last check, each word that needs one
-        listened to on its own (a failed block is made again anyway, so its words are not listened to)."""
-        review = await self.listen(self.context(result["block"]), Path(result["take"]["wav_path"]), result["block"]["block_id"])
-        if ai_config.semantic_review.word_review and review["verdict"] == "pass":
-            errors, checked = await self.check_words(result)
-            review = {**review, "words_checked": checked}
-            if errors:
-                review = {**review, "errors": review["errors"] + errors, "verdict": "fail"}
-        return review
+        """The review of a voiced block: the whole block, listened to once against its context."""
+        return await self.listen(self.context(result["block"]), Path(result["take"]["wav_path"]), result["block"]["block_id"])
 
     async def run(self, result: dict, speak: Callable[[dict, int], Awaitable[dict]], seed: int, language: str = "fa") -> dict:
         """The review of a voiced block, with the corrections: `result` is what the voice-repair loop made, `speak(block, seed)` runs that loop

@@ -2394,12 +2394,6 @@ class SemanticReviewConfig(BaseModel):
     # True: a block that still fails after the corrections does not stop the narration being assembled; it is flagged, listed for the owner, and
     # nothing goes on until the owner has heard it and approved (the voice review). False: the film stops.
     failed_blocks_wait_for_owner: bool = False
-    # Each word that needs a check (an ezafe, a word with a pronunciation rule) is also listened to alone, in a short clip cut around it with these
-    # pads, because a whole block is too long to hear one short sound in one word reliably.
-    word_review: bool = False
-    word_pad_before_s: float = Field(default=0.25, ge=0.0)
-    word_pad_after_s: float = Field(default=0.55, ge=0.0)
-    max_words_per_block: int = Field(default=16, ge=1)
     call_retries: int = Field(default=3, ge=0, le=10)
     retry_pause_s: float = Field(default=5.0, ge=0.0)
     # A respelling that made a failed block pass is kept in the pronunciation lexicon when the review's error was of one of these types.

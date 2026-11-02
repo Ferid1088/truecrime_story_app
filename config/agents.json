@@ -608,13 +608,6 @@
       "output": "json",
       "description": "After a Persian narration block is voiced (and after its avatar video is made): listens to the audio and judges meaning, dates, numbers, names, pronunciation and delivery against the source text.",
       "used_by": "app/documentary/semantic_review.py"
-    },
-    "documentary.semantic_review.word": {
-      "role": "semantic_audio_reviewer",
-      "prompt": "documentary/semantic_review/word_system",
-      "output": "json",
-      "description": "Listens to a one-second clip around one word of the voiced narration and says which sound it hears (short e, extra ye, doubled consonant, the chosen reading).",
-      "used_by": "app/documentary/semantic_review.py"
     }
   }
 }
