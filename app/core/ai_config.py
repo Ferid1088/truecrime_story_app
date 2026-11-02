@@ -1528,8 +1528,6 @@ class VoiceConfig(BaseModel):
     post_speed: dict[str, float] = {}
     # The pause after a paragraph or a breath of one language is this share of the planned pause (a fast voice needs shorter ones); chapter breaks and music moments keep theirs.
     breath_gap_scale: dict[str, float] = {}
-    # The speech of a take of one language keeps this much silence after its last word instead of `tail_pad_ms`.
-    tail_pad_ms_by_language: dict[str, int] = {}
     # Styles of one language that replace the same-named style of `styles` (Persian: stability 0.30 and the provider's top speed).
     language_styles: dict[str, dict[str, VoiceStyle]] = Field(default_factory=dict)
 

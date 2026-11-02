@@ -318,7 +318,7 @@ class VoiceRenderer:
         speech_start = words[0]["start"] if words else 0.0
         speech_end = words[-1]["end"] if words else raw_duration
         t0 = max(0.0, speech_start - self.cfg.lead_pad_ms / 1000)
-        t1 = min(raw_duration, speech_end + self.cfg.tail_pad_ms_by_language.get(language, self.cfg.tail_pad_ms) / 1000)
+        t1 = min(raw_duration, speech_end + self.cfg.tail_pad_ms / 1000)
         await asyncio.to_thread(A.to_wav, raw, wav, self.loud.sample_rate, t0, t1, tempo)
         duration = await asyncio.to_thread(A.probe_duration, wav)
         local_words = [

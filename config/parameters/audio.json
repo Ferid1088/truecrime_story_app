@@ -153,9 +153,6 @@
     "breath_gap_scale": {
       "fa": 0.6
     },
-    "tail_pad_ms_by_language": {
-      "fa": 80
-    },
     "language_styles": {
       "fa": {
         "host_conversational": {
