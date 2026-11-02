@@ -45,3 +45,14 @@ def same_reading(a: str, b: str) -> bool:
     if stem_a[-1:] in VOWELS:
         return bool(ezafe_a) == bool(ezafe_b)
     return ezafe_a == ezafe_b
+
+
+SOUNDS = {"kh": "x", "gh": "ɢ", "zh": "ʒ", "sh": "ʃ", "ch": "tʃ", "j": "dʒ", "y": "j", "r": "ɾ", "g": "ɡ", "'": "ʔ", "ey": "ej", "ow": "ow",
+          "a": "æ", "e": "e", "o": "o", "ā": "ɑː", "i": "iː", "u": "uː"}
+SOUND = re.compile("|".join(re.escape(k) for k in sorted(SOUNDS, key=len, reverse=True)))
+
+
+def to_ipa(reading: str) -> str:
+    """The IPA of one word's reading, ezafe included: the symbols Eleven v4 takes between slashes. Every other symbol of the scheme is its own IPA."""
+    stem, ezafe = split_ezafe(split_pause(reading)[0])
+    return SOUND.sub(lambda m: SOUNDS[m.group()], canonical(stem)) + {"": "", "e": "e", "ye": "je"}[ezafe]

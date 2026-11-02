@@ -132,6 +132,10 @@ class LanguageChain:
                                      arbiter=PronunciationEditor() if ai_config.listens_after_voice(lang) else None,
                                      documentary_job_id=job.id,
                                      budget_pilot_seconds=pilot_seconds if pilot else None)
+            from app.documentary.reading import stage as RS
+
+            if RS.required(lang):           # the words the owner has fixed go to the voice as IPA
+                renderer.voicing = await RS.voicing(db, case, version, lang)
             if SR.required(lang):           # after the voice-repair loop of each block, a model listens to it and judges it against the source
                 from app.documentary import voice_prepare as VP
 

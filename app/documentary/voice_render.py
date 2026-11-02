@@ -190,6 +190,7 @@ class VoiceRenderer:
         self._budget_usage_missing = False
         self.dictionaries: list[dict] = []        # the film's pronunciation dictionary locators (a prepared language)
         self.reviewer = None                      # the semantic audio reviewer (semantic_review.Reviewer) of a reviewed language
+        self.voicing = None                       # the reading loop's Voicing of a language it covers: the fixed words go to the voice as IPA
         self.narration = False                    # set while the film's narration is rendered: only it gets the language's post speed
         self.asr_error: str | None = None
         # phoneme listener for the pronunciation loop (loaded when needed)
@@ -412,6 +413,8 @@ class VoiceRenderer:
         if occurrences and self.listener() is None:
             occurrences = []
         text = scrub_forbidden(b.get("tts_text") or b["text"])
+        if self.voicing is not None:
+            text = self.voicing.text(b["block_id"], text)
         asr_cfg = self.asr_cfg.for_language(language)
         asr_retakes = asr_cfg.auto_retakes if asr_cfg.mode == "strict" and listened else 0
         rounds = self.pron_cfg.max_rounds if occurrences else 0
