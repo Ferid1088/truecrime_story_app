@@ -67,6 +67,13 @@ def extract_audio(video: str | Path, dst: str | Path, sample_rate: int) -> Path:
     return Path(dst)
 
 
+def cut_to_mp3(src: str | Path, dst: str | Path, start: float, end: float) -> Path:
+    """A small mono MP3 of the part of the audio between two times (seconds)."""
+    _run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-ss", f"{max(start, 0.0):.3f}", "-to", f"{end:.3f}", "-ac", "1", "-c:a", "libmp3lame",
+          "-b:a", "64k", str(dst)])
+    return Path(dst)
+
+
 def to_review_mp3(src: str | Path, dst: str | Path) -> Path:
     """A small mono MP3 of the audio, for the model that listens to it."""
     _run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-ac", "1", "-c:a", "libmp3lame", "-b:a", "64k", str(dst)])

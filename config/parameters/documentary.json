@@ -544,6 +544,10 @@
     "avatar_max_regenerations": 2,
     "call_retries": 3,
     "retry_pause_s": 5.0,
-    "failed_blocks_wait_for_owner": true
+    "failed_blocks_wait_for_owner": true,
+    "word_review": true,
+    "word_pad_before_s": 0.25,
+    "word_pad_after_s": 0.55,
+    "max_words_per_block": 16
   }
 }
