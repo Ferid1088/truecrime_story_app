@@ -14,6 +14,7 @@ from app.documentary.reading.words import Word, key_of
 class Entry:
     """One way a name is written in the text and how it is read, word by word."""
 
+    persian: str                   # as the text writes it
     keys: tuple[str, ...]          # the Persian words (compared by `key`)
     readings: tuple[str, ...]      # one reading per Persian word
     kind: str                      # person | place | foreign
@@ -36,7 +37,7 @@ def entry(persian: str, latin: str, kind: str, owner: str) -> Entry:
     readings = tuple(latin.split()) if len(keys) > 1 else (latin.strip(),)      # a single written word may be read as several (a name with a half-space)
     if not keys or len(keys) != len(readings):
         raise FilmTableError(f"{persian!r} has {len(keys)} words but its reading {latin!r} has {len(readings)}")
-    return Entry(keys, readings, kind, owner)
+    return Entry(persian.strip(), keys, readings, kind, owner)
 
 
 def person_entries(person: dict) -> list[Entry]:
@@ -64,16 +65,20 @@ class FilmTable:
     @classmethod
     def build(cls, reader: dict, approvals: list[dict] | None = None) -> FilmTable:
         """The table of the reader's answer ({"people": [...], "places": [{"fa", "latin"}], "foreign": [...]}). An approval of the owner
-        ({"surface", "latin", "kind"}) replaces the reader's reading of the same words."""
+        ({"surface", "latin", "kind"}: a name, or a spoken form read this way everywhere) replaces the reader's reading of the same words."""
         entries: list[Entry] = []
         for person in reader.get("people") or []:
             entries += person_entries(person)
         for kind in ("places", "foreign"):
             entries += [entry(p["fa"], p["latin"], kind[:-1] if kind == "places" else kind, p["fa"]) for p in reader.get(kind) or []]
         approved = [entry(a["surface"], a["latin"], a.get("kind") or "foreign", a["surface"]) for a in approvals or []
-                    if a.get("kind") in ("person", "place", "foreign")]
+                    if a.get("kind") in ("person", "place", "foreign", "spoken_form")]
         taken = {e.keys for e in approved}
         return cls(approved + [e for e in entries if e.keys not in taken])
+
+    def describe(self, words: list[Word]) -> list[dict]:
+        """The names of the table that stand in these words, as the agents are given them: every written form with its reading."""
+        return [{"fa": e.persian, "latin": " ".join(e.readings), "kind": e.kind} for e in dict.fromkeys(m.entry for m in self.matches(words))]
 
     def matches(self, words: list[Word]) -> list[Match]:
         """Where the names of the table stand in the words, the longest first, without overlap."""

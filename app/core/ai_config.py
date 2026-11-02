@@ -152,6 +152,10 @@ REQUIRED_ROLES = {
     "voice_prepare_checker",
     # After a Persian block is voiced (and after its avatar video is made): listens to the audio and judges it against the source text.
     "semantic_audio_reviewer",
+    "reading_reader",
+    "reading_editor",
+    "reading_checker",
+    "reading_arbiter",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",
@@ -2394,6 +2398,11 @@ class ReadingConfig(BaseModel):
     second_opinion_phoneme: bool = True
     # Where the reading texts and the records of a film are kept next to its voice.
     folder: str = "reading"
+    # A model call that fails (the provider's hiccup) is made again this many times, with this pause, before the stage fails.
+    call_retries: int = Field(default=3, ge=0, le=10)
+    retry_pause_s: float = Field(default=5.0, ge=0.0)
+    # How many blocks are written and checked at the same time.
+    parallel_blocks: int = Field(default=6, ge=1, le=32)
 
 
 class SemanticReviewConfig(BaseModel):
