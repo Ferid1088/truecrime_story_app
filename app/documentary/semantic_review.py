@@ -41,7 +41,6 @@ SENTENCE_END = re.compile(r"(?<=[.!?؟…])\s+")
 TASK_WORD = "Listen to the clip and answer with the JSON described in your instructions. The input follows.\n"
 PUNCT = ".,;:!?؟،؛«»\"'()[]…"
 MARKS_ONLY = re.compile("[\u064b-\u0652\u0670\u0654]")
-VOWEL_FINAL = "اآویئه"                 # a word ending in one of these takes "ye" as its ezafe, any other word takes a short "e"
 EZAFE_OPTIONS = [("short_e", "one short 'e' sound right after the word"),
                  ("extra_ye", "a short 'e' followed by an extra 'y' glide, as in '-eye'"),
                  ("ye_glide", "a 'ye' sound right after the word (the ezafe of a word that ends in a vowel)"),
@@ -134,10 +133,19 @@ def word_options(kind: str) -> list[tuple[str, str]]:
     return EZAFE_OPTIONS if kind == "ezafe" else READING_OPTIONS
 
 
-def expected_choice(kind: str, word: str) -> str:
+def acceptable_choices(kind: str, word: str) -> set[str]:
+    """What the voice may be heard to say for this word. For an ezafe: a short "e" after a word that ends in a consonant (the "ه" of "راهِ" is one);
+    "ye" after a word that ends in a vowel, after "ا" or "ی", or when the ezafe is written as a hamza on a silent "ه" ("دقیقهٔ"); either after "و",
+    which can be a vowel ("مو") or a consonant ("آرشیو"). Anything else is wrong."""
     if kind != "ezafe":
-        return "as_expected"
-    return "ye_glide" if MARKS_ONLY.sub("", word).rstrip("\u200c")[-1:] in VOWEL_FINAL else "short_e"
+        return {"as_expected"}
+    letters = MARKS_ONLY.sub("", word).rstrip("\u200c")
+    last = letters[-1:]
+    if "\u0654" in word or "\u06c0" in word or last in "ایئآ":
+        return {"ye_glide"}
+    if last == "و":
+        return {"short_e", "ye_glide"}
+    return {"short_e"}
 
 
 def words_to_check(tts_text: str, rules: list[dict]) -> list[str]:
@@ -305,7 +313,7 @@ class Reviewer:
         got = await asyncio.gather(*(self.listen_word(wav, span, word, kind, following, label) for word, kind, span, following in jobs))
         errors = []
         for (word, kind, _span, _following), choices in zip(jobs, got):
-            wrong = [c for c in choices if c not in (expected_choice(kind, word), "cannot_tell")]
+            wrong = [c for c in choices if c not in acceptable_choices(kind, word) | {"cannot_tell"}]
             if wrong:
                 said = dict(word_options(kind)).get(wrong[0], wrong[0])
                 errors.append({"type": "pronunciation", "severity": "major", "expected": word, "heard": said,

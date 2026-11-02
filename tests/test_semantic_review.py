@@ -371,7 +371,10 @@ def test_a_word_that_sounds_right_or_cannot_be_told_is_not_an_error_and_a_vowel_
     wav = make_wav(tmp_path / "block.wav")
     reviewer = SR.Reviewer(None, 1, runner=None, word_runner=word_runner)
     assert asyncio.run(reviewer.check_words({"block": {"block_id": "B1"}, "take": take_with_words(wav, "درِ قفل", ["در", "قفل"])}))[0] == []
-    assert SR.expected_choice("ezafe", "خانه") == "ye_glide" and SR.expected_choice("ezafe", "خانهٔ") == "ye_glide" and SR.expected_choice("ezafe", "درِ") == "short_e"
+    assert SR.acceptable_choices("ezafe", "خانهٔ") == {"ye_glide"} and SR.acceptable_choices("ezafe", "درِ") == {"short_e"}
+    assert SR.acceptable_choices("ezafe", "راهِ") == {"short_e"}, "the ه of a word like راه is a consonant"
+    assert SR.acceptable_choices("ezafe", "قربانیِ") == {"ye_glide"} and SR.acceptable_choices("ezafe", "آرشیوِ") == {"short_e", "ye_glide"}
+    assert SR.acceptable_choices("reading", "کالب") == {"as_expected"}
     ok = asyncio.run(reviewer.check_words({"block": {"block_id": "B2"}, "take": take_with_words(wav, "خانهٔ او", ["خانه", "او"])}))
     assert ok[0] == [] and ok[1] == 1
 
