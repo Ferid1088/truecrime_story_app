@@ -1,0 +1,512 @@
+{
+ "agent": "audio_observer",
+ "version": "1.0.1",
+ "examples": [
+  {
+   "id": "aud-001",
+   "split": "train",
+   "phenomenon": "clearly correct pronunciation",
+   "original_text": "او به خانه رفت.",
+   "linguistic_context": "a clear clip of a common word",
+   "expected_pronunciation": "the word is as expected",
+   "correct_decision": "verdict match, accept",
+   "incorrect_decision_to_avoid": "invent a doubt",
+   "explanation": "a clear vowel that equals the expectation needs no action",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "hypothetical_scenario",
+   "audio": "hypothetical",
+   "input": {
+    "audio": {
+     "hypothetical": true,
+     "description": "clean studio clip; the vowel after ن is a clear mid-front vowel"
+    },
+    "sentence": "او به خانه رفت.",
+    "words": [
+     {
+      "n": 2,
+      "text": "خانه",
+      "expected": "خانِه"
+     }
+    ],
+    "transcript": "او به خانه رفت",
+    "alignment": null,
+    "memory": []
+   },
+   "output": {
+    "audio_quality": "clear",
+    "observations": [
+     {
+      "n": 2,
+      "word": "خانه",
+      "expected": "خانِه",
+      "observed": "خانِه",
+      "evidence_kind": "acoustic",
+      "acoustic_evidence": "the final vowel is a clear mid-front vowel, no extra syllable",
+      "verdict": "match",
+      "confidence": 0.85,
+      "uncertainty": "none worth noting",
+      "next_action": "accept",
+      "hypothetical": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "aud-002",
+   "split": "train",
+   "phenomenon": "clearly wrong short vowel",
+   "original_text": "او عهد خود را شکست.",
+   "linguistic_context": "the first vowel is clearly back-rounded",
+   "expected_pronunciation": "mismatch with a stated vowel",
+   "correct_decision": "verdict mismatch, acoustic evidence, retake with intervention",
+   "incorrect_decision_to_avoid": "call it correct because the transcript has the word",
+   "explanation": "the vowel is audibly not the expected one",
+   "confidence_requirement": ">=0.75",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "hypothetical_scenario",
+   "audio": "hypothetical",
+   "input": {
+    "audio": {
+     "hypothetical": true,
+     "description": "clean clip; the first vowel of the word is a clear back-rounded vowel"
+    },
+    "sentence": "او عهد خود را شکست.",
+    "words": [
+     {
+      "n": 1,
+      "text": "عهد",
+      "expected": "اَهد"
+     }
+    ],
+    "transcript": "او عهد خود را شکست",
+    "alignment": null,
+    "memory": []
+   },
+   "output": {
+    "audio_quality": "clear",
+    "observations": [
+     {
+      "n": 1,
+      "word": "عهد",
+      "expected": "اَهد",
+      "observed": "اُهد",
+      "evidence_kind": "acoustic",
+      "acoustic_evidence": "the first vowel is a back rounded vowel followed by a clear h",
+      "verdict": "mismatch",
+      "confidence": 0.8,
+      "uncertainty": "one clip, one speaker; a second take would confirm",
+      "next_action": "retake_with_intervention",
+      "hypothetical": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "aud-003",
+   "split": "train",
+   "phenomenon": "an ambiguous vowel",
+   "original_text": "زندگی‌اش بهم ریخت.",
+   "linguistic_context": "the vowel is short and between two sounds",
+   "expected_pronunciation": "uncertain",
+   "correct_decision": "verdict uncertain, low confidence, no observed form",
+   "incorrect_decision_to_avoid": "pick the expected form because it is likely",
+   "explanation": "a short vowel between two similar sounds is not decidable from one clip",
+   "confidence_requirement": ">=0.0",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "hypothetical_scenario",
+   "audio": "hypothetical",
+   "input": {
+    "audio": {
+     "hypothetical": true,
+     "description": "clean clip; the first vowel of the word is short and could be a mid or an open vowel"
+    },
+    "sentence": "زندگی‌اش بهم ریخت.",
+    "words": [
+     {
+      "n": 1,
+      "text": "بهم",
+      "expected": "بِهَم"
+     }
+    ],
+    "transcript": "زندگی اش به هم ریخت",
+    "alignment": null,
+    "memory": []
+   },
+   "output": {
+    "audio_quality": "clear",
+    "observations": [
+     {
+      "n": 1,
+      "word": "بهم",
+      "expected": "بِهَم",
+      "observed": null,
+      "evidence_kind": "model",
+      "acoustic_evidence": "I cannot separate a mid from an open vowel in this clip",
+      "verdict": "uncertain",
+      "confidence": 0.35,
+      "uncertainty": "the vowel is shorter than 60 ms",
+      "next_action": "recheck_audio",
+      "hypothetical": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "aud-004",
+   "split": "train",
+   "phenomenon": "a transcript that is right while the pronunciation is wrong",
+   "original_text": "او به گورستان رفت.",
+   "linguistic_context": "the recogniser spelled the word correctly but the first vowel is wrong",
+   "expected_pronunciation": "mismatch despite a correct transcript",
+   "correct_decision": "trust the audio over the transcript",
+   "incorrect_decision_to_avoid": "accept because Whisper wrote the word right",
+   "explanation": "a recogniser normalises many mispronunciations to the dictionary word",
+   "confidence_requirement": ">=0.7",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "hypothetical_scenario",
+   "audio": "hypothetical",
+   "input": {
+    "audio": {
+     "hypothetical": true,
+     "description": "clean clip; the first vowel of the word sounds like a short back-rounded vowel instead of a long u"
+    },
+    "sentence": "او به گورستان رفت.",
+    "words": [
+     {
+      "n": 2,
+      "text": "گورستان",
+      "expected": "گورِستان"
+     }
+    ],
+    "transcript": "او به گورستان رفت",
+    "alignment": null,
+    "memory": []
+   },
+   "output": {
+    "audio_quality": "clear",
+    "observations": [
+     {
+      "n": 2,
+      "word": "گورستان",
+      "expected": "گورِستان",
+      "observed": "گُرستان",
+      "evidence_kind": "acoustic",
+      "acoustic_evidence": "the first vowel is short and rounded, there is no long u",
+      "verdict": "mismatch",
+      "confidence": 0.7,
+      "uncertainty": "the transcript has the correct spelling: it does not show the vowel",
+      "next_action": "retake_with_intervention",
+      "hypothetical": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "aud-005",
+   "split": "train",
+   "phenomenon": "a proper-name mispronunciation",
+   "original_text": "کالِب به خانه برگشت.",
+   "linguistic_context": "an English-like diphthong in the name",
+   "expected_pronunciation": "mismatch with an approved name",
+   "correct_decision": "report the heard form and retake with the approved pronunciation",
+   "incorrect_decision_to_avoid": "ask the owner although the name is approved",
+   "explanation": "the pronunciation is approved in memory, so the action is to retake",
+   "confidence_requirement": ">=0.75",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "hypothetical_scenario",
+   "audio": "hypothetical",
+   "input": {
+    "audio": {
+     "hypothetical": true,
+     "description": "clean clip; the name starts with a clear diphthong like English 'kay'"
+    },
+    "sentence": "کالِب به خانه برگشت.",
+    "words": [
+     {
+      "n": 0,
+      "text": "کالِب",
+      "expected": "کالِب"
+     }
+    ],
+    "transcript": "کالب به خانه برگشت",
+    "alignment": null,
+    "memory": [
+     {
+      "surface": "کالِب",
+      "approved_pronunciation": "کالِب",
+      "status": "human_approved"
+     }
+    ]
+   },
+   "output": {
+    "audio_quality": "clear",
+    "observations": [
+     {
+      "n": 0,
+      "word": "کالِب",
+      "expected": "کالِب",
+      "observed": "کِیلِب",
+      "evidence_kind": "acoustic",
+      "acoustic_evidence": "the first vowel is a rising diphthong, not a long open a",
+      "verdict": "mismatch",
+      "confidence": 0.8,
+      "uncertainty": "none worth noting",
+      "next_action": "retake_with_intervention",
+      "hypothetical": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "aud-006",
+   "split": "train",
+   "phenomenon": "a missing spoken word",
+   "original_text": "او کتاب را خرید.",
+   "linguistic_context": "the object marker is not spoken",
+   "expected_pronunciation": "missing_word",
+   "correct_decision": "verdict missing_word and a retake",
+   "incorrect_decision_to_avoid": "report a mispronunciation",
+   "explanation": "there is no speech between the noun and the verb",
+   "confidence_requirement": ">=0.7",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "hypothetical_scenario",
+   "audio": "hypothetical",
+   "input": {
+    "audio": {
+     "hypothetical": true,
+     "description": "clean clip; after کتاب the voice goes straight to خرید"
+    },
+    "sentence": "او کتاب را خرید.",
+    "words": [
+     {
+      "n": 2,
+      "text": "را",
+      "expected": "را"
+     }
+    ],
+    "transcript": "او کتاب خرید",
+    "alignment": null,
+    "memory": []
+   },
+   "output": {
+    "audio_quality": "clear",
+    "observations": [
+     {
+      "n": 2,
+      "word": "را",
+      "expected": "را",
+      "observed": null,
+      "evidence_kind": "acoustic",
+      "acoustic_evidence": "no speech between the end of کتاب and the start of خرید",
+      "verdict": "missing_word",
+      "confidence": 0.8,
+      "uncertainty": "none",
+      "next_action": "retake_with_intervention",
+      "hypothetical": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "aud-007",
+   "split": "train",
+   "phenomenon": "pronunciation distorted by the surrounding speech",
+   "original_text": "او از در وارد شد.",
+   "linguistic_context": "the word is run together with the next one",
+   "expected_pronunciation": "uncertain",
+   "correct_decision": "verdict uncertain, ask for the clip to be rechecked",
+   "incorrect_decision_to_avoid": "call it wrong",
+   "explanation": "the word is blended with its neighbour and cannot be judged alone",
+   "confidence_requirement": ">=0.0",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "hypothetical_scenario",
+   "audio": "hypothetical",
+   "input": {
+    "audio": {
+     "hypothetical": true,
+     "description": "clip where در and وارد are run together and the vowel of در is not isolated"
+    },
+    "sentence": "او از در وارد شد.",
+    "words": [
+     {
+      "n": 2,
+      "text": "در",
+      "expected": "دَر"
+     }
+    ],
+    "transcript": "او از در وارد شد",
+    "alignment": null,
+    "memory": []
+   },
+   "output": {
+    "audio_quality": "distorted",
+    "observations": [
+     {
+      "n": 2,
+      "word": "در",
+      "expected": "دَر",
+      "observed": null,
+      "evidence_kind": "model",
+      "acoustic_evidence": "the vowel of در is blended into the next word",
+      "verdict": "uncertain",
+      "confidence": 0.3,
+      "uncertainty": "no boundary between در and وارد",
+      "next_action": "recheck_audio",
+      "hypothetical": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "aud-008",
+   "split": "train",
+   "phenomenon": "audio too unclear for a judgement",
+   "original_text": "او به خانه رفت.",
+   "linguistic_context": "noise over the word",
+   "expected_pronunciation": "unclear_audio",
+   "correct_decision": "say the audio is unclear and give no observed form",
+   "incorrect_decision_to_avoid": "guess from the transcript",
+   "explanation": "a judgement needs a clip that can be heard",
+   "confidence_requirement": ">=0.0",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "hypothetical_scenario",
+   "audio": "hypothetical",
+   "input": {
+    "audio": {
+     "hypothetical": true,
+     "description": "clip with loud music over the word"
+    },
+    "sentence": "او به خانه رفت.",
+    "words": [
+     {
+      "n": 2,
+      "text": "خانه",
+      "expected": "خانِه"
+     }
+    ],
+    "transcript": "او به خونه رفت",
+    "alignment": null,
+    "memory": []
+   },
+   "output": {
+    "audio_quality": "unclear",
+    "observations": [
+     {
+      "n": 2,
+      "word": "خانه",
+      "expected": "خانِه",
+      "observed": null,
+      "evidence_kind": "none",
+      "acoustic_evidence": "the word cannot be heard over the music",
+      "verdict": "unclear_audio",
+      "confidence": 0.1,
+      "uncertainty": "the clip is not usable",
+      "next_action": "recheck_audio",
+      "hypothetical": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "aud-101",
+   "split": "heldout",
+   "phenomenon": "a colloquial reduction that is correct",
+   "original_text": "نمی‌خوام برم.",
+   "linguistic_context": "the voice says the colloquial form",
+   "expected_pronunciation": "match",
+   "correct_decision": "verdict match",
+   "incorrect_decision_to_avoid": "call the colloquial form an error",
+   "explanation": "the colloquial reduction is the expected form here",
+   "confidence_requirement": ">=0.7",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "hypothetical_scenario",
+   "audio": "hypothetical",
+   "input": {
+    "audio": {
+     "hypothetical": true,
+     "description": "clean clip; the voice says the colloquial form with a short a"
+    },
+    "sentence": "نمی‌خوام برم.",
+    "words": [
+     {
+      "n": 1,
+      "text": "برم",
+      "expected": "بِرَم"
+     }
+    ],
+    "transcript": "نمی خوام برم",
+    "alignment": null,
+    "memory": []
+   },
+   "output": {
+    "audio_quality": "clear",
+    "observations": [
+     {
+      "n": 1,
+      "word": "برم",
+      "expected": "بِرَم",
+      "observed": "بِرَم",
+      "evidence_kind": "acoustic",
+      "acoustic_evidence": "a short mid vowel after ب and an open short vowel before م",
+      "verdict": "match",
+      "confidence": 0.75,
+      "uncertainty": "none",
+      "next_action": "accept",
+      "hypothetical": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "aud-102",
+   "split": "heldout",
+   "phenomenon": "a doubtful clip",
+   "original_text": "او مدتی ماند.",
+   "linguistic_context": "the first syllable is weak",
+   "expected_pronunciation": "uncertain",
+   "correct_decision": "uncertain",
+   "incorrect_decision_to_avoid": "a confident verdict",
+   "explanation": "a very quiet first syllable cannot be judged",
+   "confidence_requirement": ">=0.0",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "hypothetical_scenario",
+   "audio": "hypothetical",
+   "input": {
+    "audio": {
+     "hypothetical": true,
+     "description": "clip where the first syllable of the word is very quiet"
+    },
+    "sentence": "او مدتی ماند.",
+    "words": [
+     {
+      "n": 1,
+      "text": "مدتی",
+      "expected": "مُدَّتی"
+     }
+    ],
+    "transcript": "او مدتی ماند",
+    "alignment": null,
+    "memory": []
+   },
+   "output": {
+    "audio_quality": "clear",
+    "observations": [
+     {
+      "n": 1,
+      "word": "مدتی",
+      "expected": "مُدَّتی",
+      "observed": null,
+      "evidence_kind": "model",
+      "acoustic_evidence": "the first syllable is too quiet to judge",
+      "verdict": "uncertain",
+      "confidence": 0.3,
+      "uncertainty": "the amplitude is low",
+      "next_action": "recheck_audio",
+      "hypothetical": true
+     }
+    ]
+   }
+  }
+ ]
+}

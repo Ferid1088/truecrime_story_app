@@ -664,6 +664,55 @@
       "output": "json",
       "description": "Chooses between two vowelizations of a word by the meaning and the grammar of its sentence.",
       "used_by": "app/documentary/irab/maker.py"
+    },
+    "pronunciation.linguist": {
+      "role": "reading_editor",
+      "prompt": "pronunciation/linguist_system",
+      "output": "json",
+      "description": "Writes the reference irab of a sentence (formal and colloquial Iranian Persian, ezafe, compound verbs, names from memory only).",
+      "used_by": "app/documentary/pronunciation_agents.py"
+    },
+    "pronunciation.risk": {
+      "role": "reading_checker",
+      "prompt": "pronunciation/risk_system",
+      "output": "json",
+      "description": "Decides which words of a sentence need a pronunciation intervention before synthesis, from memory, recorded failures and the sentence.",
+      "used_by": "app/documentary/pronunciation_agents.py"
+    },
+    "pronunciation.intervention": {
+      "role": "reading_editor",
+      "prompt": "pronunciation/intervention_system",
+      "output": "json",
+      "description": "Chooses the least invasive effective way to make the voice say a word as the reference says it (exact-form dictionary rules first).",
+      "used_by": "app/documentary/pronunciation_agents.py"
+    },
+    "pronunciation.audio_observer": {
+      "role": "reading_listener",
+      "prompt": "pronunciation/audio_observer_system",
+      "output": "json",
+      "description": "Establishes from a recording what was said about chosen words; evidence kinds are kept apart from inference.",
+      "used_by": "app/documentary/pronunciation_agents.py"
+    },
+    "pronunciation.prosody": {
+      "role": "reading_listener",
+      "prompt": "pronunciation/prosody_system",
+      "output": "json",
+      "description": "Judges the naturalness of a take independently of pronunciation: flow, rhythm, pauses, emotion, stress, identity, artifacts.",
+      "used_by": "app/documentary/pronunciation_agents.py"
+    },
+    "pronunciation.memory": {
+      "role": "reading_arbiter",
+      "prompt": "pronunciation/memory_system",
+      "output": "json",
+      "description": "Turns a person's corrections and intervention outcomes into durable pronunciation memory without overwriting a human approval.",
+      "used_by": "app/documentary/pronunciation_agents.py"
+    },
+    "pronunciation.qa": {
+      "role": "reading_checker",
+      "prompt": "pronunciation/qa_system",
+      "output": "json",
+      "description": "Independently challenges the conclusions of the other pronunciation agents against the evidence.",
+      "used_by": "app/documentary/pronunciation_agents.py"
     }
   }
 }

@@ -1,0 +1,554 @@
+{
+ "agent": "intervention",
+ "version": "1.0.1",
+ "examples": [
+  {
+   "id": "int-001",
+   "split": "train",
+   "phenomenon": "no intervention",
+   "original_text": "هوا سرد بود.",
+   "linguistic_context": "a common word with no failure",
+   "expected_pronunciation": "no change",
+   "correct_decision": "decision none",
+   "incorrect_decision_to_avoid": "add marks or a rule to a word that was never wrong",
+   "explanation": "nothing is wrong and nothing is recorded, so the text stays as written",
+   "confidence_requirement": ">=0.9",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "sentence": "هوا سرد بود.",
+    "word": {
+     "n": 1,
+     "text": "سرد",
+     "irab": "سَرد"
+    },
+    "risk": {
+     "risk": 0.02,
+     "category": "none"
+    },
+    "memory": [],
+    "dictionary_rules": [],
+    "voice": "voice V1, eleven_v4",
+    "observed_failure": null
+   },
+   "output": {
+    "interventions": [
+     {
+      "n": 1,
+      "surface": "سرد",
+      "decision": "none",
+      "exact_form": "سرد",
+      "replacement": "",
+      "reason": "no failure, no memory, low risk",
+      "rejected_alternatives": [],
+      "ezafe_kept": false,
+      "validated_in_memory": false,
+      "expected_effect": "none: the original text is spoken"
+     }
+    ]
+   }
+  },
+  {
+   "id": "int-002",
+   "split": "train",
+   "phenomenon": "dictionary-only correction",
+   "original_text": "فلین تماس گرفت.",
+   "linguistic_context": "a surname with an approved pronunciation",
+   "expected_pronunciation": "dictionary alias for the exact form",
+   "correct_decision": "dictionary_alias for فلین",
+   "incorrect_decision_to_avoid": "write marks into the sentence for a name",
+   "explanation": "a name is best fixed once in the dictionary and the sentence stays as written",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "sentence": "فلین تماس گرفت.",
+    "word": {
+     "n": 0,
+     "text": "فلین",
+     "irab": "فِلین"
+    },
+    "risk": {
+     "risk": 0.7,
+     "category": "proper_name"
+    },
+    "memory": [
+     {
+      "surface": "فلین",
+      "approved_pronunciation": "فِلین",
+      "interventions": []
+     }
+    ],
+    "dictionary_rules": [],
+    "voice": "voice V1, eleven_v4",
+    "observed_failure": null
+   },
+   "output": {
+    "interventions": [
+     {
+      "n": 0,
+      "surface": "فلین",
+      "decision": "dictionary_alias",
+      "exact_form": "فلین",
+      "replacement": "فِلین",
+      "reason": "approved pronunciation, no validated intervention yet; a dictionary rule leaves the sentence untouched",
+      "rejected_alternatives": [
+       "selective_irab: changes the text for a name that will recur"
+      ],
+      "ezafe_kept": false,
+      "validated_in_memory": false,
+      "expected_effect": "hypothesis: the voice reads the name with the vowels of the alias; to be checked on audio"
+     }
+    ]
+   }
+  },
+  {
+   "id": "int-003",
+   "split": "train",
+   "phenomenon": "selective irab for one word",
+   "original_text": "زندگی‌اش بهم ریخت.",
+   "linguistic_context": "a single occurrence in a block, an intervention validated for another voice only",
+   "expected_pronunciation": "selective irab on بهم",
+   "correct_decision": "selective_irab with the reference marks",
+   "incorrect_decision_to_avoid": "reuse the other voice's validated rule",
+   "explanation": "the validated intervention belongs to a different voice, so it is only a hypothesis here",
+   "confidence_requirement": ">=0.75",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "sentence": "زندگی‌اش بهم ریخت.",
+    "word": {
+     "n": 1,
+     "text": "بهم",
+     "irab": "بِهَم"
+    },
+    "risk": {
+     "risk": 0.6,
+     "category": "known_failure"
+    },
+    "memory": [
+     {
+      "surface": "بهم",
+      "approved_pronunciation": "بِهَم",
+      "interventions": [
+       {
+        "kind": "irab",
+        "exact_form": "بهم",
+        "replacement": "بِهَم",
+        "status": "validated",
+        "voice": "voice V2, eleven_v4"
+       }
+      ]
+     }
+    ],
+    "dictionary_rules": [],
+    "voice": "voice V1, eleven_v4",
+    "observed_failure": "heard باهَم"
+   },
+   "output": {
+    "interventions": [
+     {
+      "n": 1,
+      "surface": "بهم",
+      "decision": "selective_irab",
+      "exact_form": "بهم",
+      "replacement": "بِهَم",
+      "reason": "the reference marks, only on this word; the validated intervention is for voice V2",
+      "rejected_alternatives": [
+       "dictionary rule: the word occurs once in the block and a rule would stay in the dictionary"
+      ],
+      "ezafe_kept": false,
+      "validated_in_memory": false,
+      "expected_effect": "hypothesis for voice V1: the voice follows the marks; to be checked on audio"
+     }
+    ]
+   }
+  },
+  {
+   "id": "int-004",
+   "split": "train",
+   "phenomenon": "exact-form dictionary matching",
+   "original_text": "درِ گاراژ باز بود.",
+   "linguistic_context": "a validated rule exists for exactly this phrase",
+   "expected_pronunciation": "reuse the validated rule",
+   "correct_decision": "dictionary_alias with the exact phrase",
+   "incorrect_decision_to_avoid": "make a new rule for در alone",
+   "explanation": "the rule's string equals the written form درِ گاراژ and has a validated outcome",
+   "confidence_requirement": ">=0.85",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "sentence": "درِ گاراژ باز بود.",
+    "word": {
+     "n": 0,
+     "text": "درِ گاراژ",
+     "irab": "دَرِ گاراژ"
+    },
+    "risk": {
+     "risk": 0.3,
+     "category": "context_specific"
+    },
+    "memory": [
+     {
+      "surface": "درِ گاراژ",
+      "approved_pronunciation": "دَرِ گاراژ",
+      "interventions": [
+       {
+        "kind": "dictionary_alias",
+        "exact_form": "درِ گاراژ",
+        "replacement": "دَرِگاراژ",
+        "status": "validated",
+        "voice": "voice V1, eleven_v4"
+       }
+      ]
+     }
+    ],
+    "dictionary_rules": [
+     {
+      "string_to_replace": "درِ گاراژ",
+      "type": "alias",
+      "alias": "دَرِگاراژ"
+     }
+    ],
+    "voice": "voice V1, eleven_v4",
+    "observed_failure": null
+   },
+   "output": {
+    "interventions": [
+     {
+      "n": 0,
+      "surface": "درِ گاراژ",
+      "decision": "dictionary_alias",
+      "exact_form": "درِ گاراژ",
+      "replacement": "دَرِگاراژ",
+      "reason": "a validated rule for this exact written form, voice and model",
+      "rejected_alternatives": [],
+      "ezafe_kept": true,
+      "validated_in_memory": true,
+      "expected_effect": "expected from the validated outcome; check on the new take"
+     }
+    ]
+   }
+  },
+  {
+   "id": "int-005",
+   "split": "train",
+   "phenomenon": "rejection of incompatible vowel marks",
+   "original_text": "از کنسولِ ماشین استفاده کرد.",
+   "linguistic_context": "the text carries an ezafe kasra and the existing rule was made for the form without it",
+   "expected_pronunciation": "a rule for the exact form with the kasra",
+   "correct_decision": "new alias for کنسولِ that keeps the ezafe",
+   "incorrect_decision_to_avoid": "apply the rule for کنسول (no ezafe), which would remove the ezafe",
+   "explanation": "a rule for another written form is not the rule for this one",
+   "confidence_requirement": ">=0.85",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "sentence": "از کنسولِ ماشین استفاده کرد.",
+    "word": {
+     "n": 1,
+     "text": "کنسولِ",
+     "irab": "کُنسولِ"
+    },
+    "risk": {
+     "risk": 0.5,
+     "category": "known_failure"
+    },
+    "memory": [],
+    "dictionary_rules": [
+     {
+      "string_to_replace": "کنسول",
+      "type": "alias",
+      "alias": "کُنسول"
+     }
+    ],
+    "voice": "voice V1, eleven_v4",
+    "observed_failure": null
+   },
+   "output": {
+    "interventions": [
+     {
+      "n": 1,
+      "surface": "کنسولِ",
+      "decision": "dictionary_alias",
+      "exact_form": "کنسولِ",
+      "replacement": "کُنسولِ",
+      "reason": "a rule for the exact form with the ezafe mark",
+      "rejected_alternatives": [
+       "reuse the rule کنسول -> کُنسول: it would wipe out the ezafe mark"
+      ],
+      "ezafe_kept": true,
+      "validated_in_memory": false,
+      "expected_effect": "hypothesis: the voice says the word with the ezafe"
+     }
+    ]
+   }
+  },
+  {
+   "id": "int-006",
+   "split": "train",
+   "phenomenon": "preservation of the ezafe",
+   "original_text": "کتاب علی روی میز است.",
+   "linguistic_context": "the voice dropped the ezafe of a head noun",
+   "expected_pronunciation": "selective irab that keeps the ezafe",
+   "correct_decision": "selective_irab کِتابِ",
+   "incorrect_decision_to_avoid": "a replacement without the kasra",
+   "explanation": "the reference has the ezafe; an intervention must carry it",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "sentence": "کتاب علی روی میز است.",
+    "word": {
+     "n": 0,
+     "text": "کتاب",
+     "irab": "کِتابِ"
+    },
+    "risk": {
+     "risk": 0.5,
+     "category": "ezafe"
+    },
+    "memory": [],
+    "dictionary_rules": [],
+    "voice": "voice V1, eleven_v4",
+    "observed_failure": "the ezafe was not heard"
+   },
+   "output": {
+    "interventions": [
+     {
+      "n": 0,
+      "surface": "کتاب",
+      "decision": "selective_irab",
+      "exact_form": "کتاب",
+      "replacement": "کِتابِ",
+      "reason": "the failure is the missing ezafe, so the kasra goes on the last letter",
+      "rejected_alternatives": [
+       "alias کِتاب: loses the ezafe"
+      ],
+      "ezafe_kept": true,
+      "validated_in_memory": false,
+      "expected_effect": "hypothesis: the voice joins the noun to علی; to be checked on audio"
+     }
+    ]
+   }
+  },
+  {
+   "id": "int-007",
+   "split": "train",
+   "phenomenon": "a contextual spelling alternative",
+   "original_text": "او عهد خود را شکست.",
+   "linguistic_context": "marks on the word failed twice for this voice; another spelling was approved",
+   "expected_pronunciation": "alt spelling with different letters",
+   "correct_decision": "alt_spelling عهد -> اَهد",
+   "incorrect_decision_to_avoid": "add the same marks a third time",
+   "explanation": "memory records two failed irab interventions, so identical input would only repeat the failure",
+   "confidence_requirement": ">=0.7",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "sentence": "او عهد خود را شکست.",
+    "word": {
+     "n": 1,
+     "text": "عهد",
+     "irab": "عَهد"
+    },
+    "risk": {
+     "risk": 0.8,
+     "category": "known_failure"
+    },
+    "memory": [
+     {
+      "surface": "عهد",
+      "approved_pronunciation": "اَهد",
+      "interventions": [
+       {
+        "kind": "irab",
+        "exact_form": "عهد",
+        "replacement": "عَهد",
+        "status": "failed",
+        "failures": 2,
+        "voice": "voice V1, eleven_v4"
+       }
+      ]
+     }
+    ],
+    "dictionary_rules": [],
+    "voice": "voice V1, eleven_v4",
+    "observed_failure": "heard عُهد"
+   },
+   "output": {
+    "interventions": [
+     {
+      "n": 1,
+      "surface": "عهد",
+      "decision": "alt_spelling",
+      "exact_form": "عهد",
+      "replacement": "اَهد",
+      "reason": "marks failed twice for this voice; the approved pronunciation is written with other letters",
+      "rejected_alternatives": [
+       "selective_irab عَهد: failed twice"
+      ],
+      "ezafe_kept": false,
+      "validated_in_memory": false,
+      "expected_effect": "hypothesis: the voice reads the new letters as approved; to be checked on audio"
+     }
+    ]
+   }
+  },
+  {
+   "id": "int-008",
+   "split": "train",
+   "phenomenon": "escalation when no validated intervention exists",
+   "original_text": "کامرانی تماس گرفت.",
+   "linguistic_context": "an unfamiliar surname with no approved pronunciation",
+   "expected_pronunciation": "ask the owner",
+   "correct_decision": "decision ask_owner",
+   "incorrect_decision_to_avoid": "invent a rule from the spelling",
+   "explanation": "there is nothing to base a pronunciation on",
+   "confidence_requirement": ">=0.9",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "sentence": "کامرانی تماس گرفت.",
+    "word": {
+     "n": 0,
+     "text": "کامرانی",
+     "irab": ""
+    },
+    "risk": {
+     "risk": 0.7,
+     "category": "proper_name"
+    },
+    "memory": [],
+    "dictionary_rules": [],
+    "voice": "voice V1, eleven_v4",
+    "observed_failure": null
+   },
+   "output": {
+    "interventions": [
+     {
+      "n": 0,
+      "surface": "کامرانی",
+      "decision": "ask_owner",
+      "exact_form": "کامرانی",
+      "replacement": "",
+      "reason": "no approved pronunciation, no memory, no evidence",
+      "rejected_alternatives": [
+       "any rule written from the spelling"
+      ],
+      "ezafe_kept": false,
+      "validated_in_memory": false,
+      "expected_effect": "none until a person approves a pronunciation"
+     }
+    ]
+   }
+  },
+  {
+   "id": "int-101",
+   "split": "heldout",
+   "phenomenon": "reuse of a rule for another written form",
+   "original_text": "روی کنسول کار کرد.",
+   "linguistic_context": "the rule is for the form with a kasra",
+   "expected_pronunciation": "do not reuse",
+   "correct_decision": "a new decision for the exact form",
+   "incorrect_decision_to_avoid": "apply the kasra rule",
+   "explanation": "a rule applies to its exact written form only; this form has no ezafe",
+   "confidence_requirement": ">=0.85",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "sentence": "روی کنسول کار کرد.",
+    "word": {
+     "n": 1,
+     "text": "کنسول",
+     "irab": "کُنسول"
+    },
+    "risk": {
+     "risk": 0.4,
+     "category": "known_failure"
+    },
+    "memory": [],
+    "dictionary_rules": [
+     {
+      "string_to_replace": "کنسولِ",
+      "type": "alias",
+      "alias": "کُنسولِ"
+     }
+    ],
+    "voice": "voice V1, eleven_v4",
+    "observed_failure": null
+   },
+   "output": {
+    "interventions": [
+     {
+      "n": 1,
+      "surface": "کنسول",
+      "decision": "dictionary_alias",
+      "exact_form": "کنسول",
+      "replacement": "کُنسول",
+      "reason": "the existing rule is for کنسولِ with the ezafe; this occurrence has none",
+      "rejected_alternatives": [
+       "reuse کنسولِ -> کُنسولِ: it would add an ezafe"
+      ],
+      "ezafe_kept": false,
+      "validated_in_memory": false,
+      "expected_effect": "hypothesis only"
+     }
+    ]
+   }
+  },
+  {
+   "id": "int-102",
+   "split": "heldout",
+   "phenomenon": "a word that needs nothing",
+   "original_text": "شب سرد بود.",
+   "linguistic_context": "a common word",
+   "expected_pronunciation": "none",
+   "correct_decision": "none",
+   "incorrect_decision_to_avoid": "add marks or a rule to a common word",
+   "explanation": "nothing recorded and a low risk: the text stays as written",
+   "confidence_requirement": ">=0.9",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "sentence": "شب سرد بود.",
+    "word": {
+     "n": 0,
+     "text": "شب",
+     "irab": "شَب"
+    },
+    "risk": {},
+    "memory": [],
+    "dictionary_rules": [],
+    "voice": "voice V1, eleven_v4",
+    "observed_failure": null
+   },
+   "output": {
+    "interventions": [
+     {
+      "n": 0,
+      "surface": "شب",
+      "decision": "none",
+      "exact_form": "شب",
+      "replacement": "",
+      "reason": "nothing recorded",
+      "rejected_alternatives": [],
+      "ezafe_kept": false,
+      "validated_in_memory": false,
+      "expected_effect": "none"
+     }
+    ]
+   }
+  }
+ ]
+}

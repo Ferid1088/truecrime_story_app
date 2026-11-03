@@ -1,0 +1,482 @@
+{
+ "agent": "memory",
+ "version": "1.0.1",
+ "examples": [
+  {
+   "id": "mem-001",
+   "split": "train",
+   "phenomenon": "a newly approved pronunciation",
+   "original_text": "کالب به خانه برگشت.",
+   "linguistic_context": "a reviewer approves a name",
+   "expected_pronunciation": "store a new entry",
+   "correct_decision": "store_new scoped to the context or global as the person says",
+   "incorrect_decision_to_avoid": "skip the entry because the model already guessed it",
+   "explanation": "a human approval is the authoritative source",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "event": {
+     "kind": "human_correction",
+     "surface": "کالب",
+     "pronunciation": "کالِب",
+     "context": {
+      "before": "",
+      "after": "به",
+      "sense": "name"
+     },
+     "voice": "voice V1, eleven_v4",
+     "model": "eleven_v4",
+     "actor": "human:reviewer",
+     "outcome": null
+    },
+    "existing": []
+   },
+   "output": {
+    "action": "store_new",
+    "entry": {
+     "surface": "کالب",
+     "context": "name",
+     "pronunciation": "کالِب",
+     "scope": "global",
+     "voice": ""
+    },
+    "intervention_validated": null,
+    "requires_human": false,
+    "reason": "no existing entry; a person approved this pronunciation for the exact form"
+   }
+  },
+  {
+   "id": "mem-002",
+   "split": "train",
+   "phenomenon": "an already known correction",
+   "original_text": "کالب برگشت.",
+   "linguistic_context": "the same approval again",
+   "expected_pronunciation": "already_known",
+   "correct_decision": "change nothing",
+   "incorrect_decision_to_avoid": "write a duplicate",
+   "explanation": "the form, context and pronunciation equal an existing human entry",
+   "confidence_requirement": ">=0.9",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "event": {
+     "kind": "human_correction",
+     "surface": "کالب",
+     "pronunciation": "کالِب",
+     "context": {
+      "sense": "name"
+     },
+     "voice": "voice V1, eleven_v4",
+     "model": "eleven_v4",
+     "actor": "human:reviewer",
+     "outcome": null
+    },
+    "existing": [
+     {
+      "id": 1,
+      "surface": "کالب",
+      "context": "name",
+      "pronunciation": "کالِب",
+      "status": "human_approved",
+      "scope": "global",
+      "voice": ""
+     }
+    ]
+   },
+   "output": {
+    "action": "already_known",
+    "entry": null,
+    "intervention_validated": null,
+    "requires_human": false,
+    "reason": "entry 1 already holds this exact form, context and pronunciation"
+   }
+  },
+  {
+   "id": "mem-003",
+   "split": "train",
+   "phenomenon": "two contextual pronunciations of one form",
+   "original_text": "درِ باغ باز بود. او در خانه ماند.",
+   "linguistic_context": "the same written form with two readings in two contexts",
+   "expected_pronunciation": "store_context_variant",
+   "correct_decision": "a second entry with its own context",
+   "incorrect_decision_to_avoid": "overwrite the first context",
+   "explanation": "a context-specific approval does not replace another context's",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "event": {
+     "kind": "human_correction",
+     "surface": "در",
+     "pronunciation": "دَر",
+     "context": {
+      "before": "او",
+      "after": "خانه",
+      "sense": "preposition"
+     },
+     "voice": "voice V1, eleven_v4",
+     "model": "eleven_v4",
+     "actor": "human:reviewer",
+     "outcome": null
+    },
+    "existing": [
+     {
+      "id": 5,
+      "surface": "در",
+      "context": "next=باغ",
+      "pronunciation": "دَرِ",
+      "status": "human_approved",
+      "scope": "context",
+      "voice": ""
+     }
+    ]
+   },
+   "output": {
+    "action": "store_context_variant",
+    "entry": {
+     "surface": "در",
+     "context": "before او, after خانه (preposition)",
+     "pronunciation": "دَر",
+     "scope": "context",
+     "voice": ""
+    },
+    "intervention_validated": null,
+    "requires_human": false,
+    "reason": "the same form has another approved reading in the context next=باغ; this is a different context"
+   }
+  },
+  {
+   "id": "mem-004",
+   "split": "train",
+   "phenomenon": "a conflicting human correction",
+   "original_text": "نذر او را ادا کرد.",
+   "linguistic_context": "a second person disagrees with an approval",
+   "expected_pronunciation": "conflict",
+   "correct_decision": "report the conflict, change nothing, ask",
+   "incorrect_decision_to_avoid": "overwrite with the newest",
+   "explanation": "a human approval is changed only by an explicit decision",
+   "confidence_requirement": ">=0.9",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "event": {
+     "kind": "human_correction",
+     "surface": "نذر",
+     "pronunciation": "نُذر",
+     "context": {
+      "sense": ""
+     },
+     "voice": "voice V1, eleven_v4",
+     "model": "eleven_v4",
+     "actor": "human:second-reviewer",
+     "outcome": null
+    },
+    "existing": [
+     {
+      "id": 7,
+      "surface": "نذر",
+      "context": "",
+      "pronunciation": "نَذر",
+      "status": "human_approved",
+      "scope": "global",
+      "voice": ""
+     }
+    ]
+   },
+   "output": {
+    "action": "conflict",
+    "entry": null,
+    "intervention_validated": null,
+    "requires_human": true,
+    "reason": "entry 7 is approved as نَذر by another person; a different approval needs an explicit supersede decision"
+   }
+  },
+  {
+   "id": "mem-005",
+   "split": "train",
+   "phenomenon": "a successful dictionary intervention",
+   "original_text": "فلین تماس گرفت.",
+   "linguistic_context": "an alias made the voice say the approved name, confirmed by a person",
+   "expected_pronunciation": "record_validated_intervention",
+   "correct_decision": "mark the intervention validated for this form, voice and model",
+   "incorrect_decision_to_avoid": "mark the pronunciation approved because the alias worked",
+   "explanation": "a working rule is evidence about the voice, not an approval",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "event": {
+     "kind": "intervention_outcome",
+     "surface": "فلین",
+     "pronunciation": "فِلین",
+     "context": {},
+     "voice": "voice V1, eleven_v4",
+     "model": "eleven_v4",
+     "actor": "agent:verifier",
+     "outcome": {
+      "success": true,
+      "evidence_kind": "human"
+     }
+    },
+    "existing": [
+     {
+      "id": 9,
+      "surface": "فلین",
+      "context": "",
+      "pronunciation": "فِلین",
+      "status": "human_approved",
+      "scope": "global",
+      "voice": ""
+     }
+    ]
+   },
+   "output": {
+    "action": "record_validated_intervention",
+    "entry": {
+     "surface": "فلین",
+     "context": "",
+     "pronunciation": "فِلین",
+     "scope": "voice_specific",
+     "voice": "voice V1, eleven_v4"
+    },
+    "intervention_validated": true,
+    "requires_human": false,
+    "reason": "a person confirmed the take; the intervention is validated for this exact form, voice V1 and model eleven_v4 only"
+   }
+  },
+  {
+   "id": "mem-006",
+   "split": "train",
+   "phenomenon": "a failed intervention",
+   "original_text": "گورستان",
+   "linguistic_context": "an irab intervention did not change what the voice said",
+   "expected_pronunciation": "record_failed_intervention",
+   "correct_decision": "count a failure and keep the pronunciation unchanged",
+   "incorrect_decision_to_avoid": "delete the approved pronunciation",
+   "explanation": "a failed technique does not change what is right",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "event": {
+     "kind": "intervention_outcome",
+     "surface": "گورستان",
+     "pronunciation": "گورِستان",
+     "context": {},
+     "voice": "voice V1, eleven_v4",
+     "model": "eleven_v4",
+     "actor": "agent:verifier",
+     "outcome": {
+      "success": false,
+      "evidence_kind": "acoustic"
+     }
+    },
+    "existing": [
+     {
+      "id": 14,
+      "surface": "گورستان",
+      "context": "",
+      "pronunciation": "گورِستان",
+      "status": "human_approved",
+      "scope": "global",
+      "voice": ""
+     }
+    ]
+   },
+   "output": {
+    "action": "record_failed_intervention",
+    "entry": null,
+    "intervention_validated": false,
+    "requires_human": false,
+    "reason": "the voice did not follow the intervention on acoustic evidence; the approved pronunciation stays"
+   }
+  },
+  {
+   "id": "mem-007",
+   "split": "train",
+   "phenomenon": "a correction valid for one voice only",
+   "original_text": "خانه",
+   "linguistic_context": "a person says the fix is for the current voice",
+   "expected_pronunciation": "keep_for_voice_only",
+   "correct_decision": "scope voice_specific with the voice named",
+   "incorrect_decision_to_avoid": "make it global",
+   "explanation": "the person limited it to this voice; another voice may behave differently",
+   "confidence_requirement": ">=0.75",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "event": {
+     "kind": "human_correction",
+     "surface": "خانه",
+     "pronunciation": "خانِه",
+     "context": {
+      "sense": "noun"
+     },
+     "voice": "voice V1, eleven_v4",
+     "model": "eleven_v4",
+     "actor": "human:reviewer",
+     "outcome": null
+    },
+    "existing": []
+   },
+   "output": {
+    "action": "keep_for_voice_only",
+    "entry": {
+     "surface": "خانه",
+     "context": "noun",
+     "pronunciation": "خانِه",
+     "scope": "voice_specific",
+     "voice": "voice V1, eleven_v4"
+    },
+    "intervention_validated": null,
+    "requires_human": false,
+    "reason": "the correction is about how voice V1 renders the word; not generalised"
+   }
+  },
+  {
+   "id": "mem-008",
+   "split": "train",
+   "phenomenon": "an approved correction that must not be reused in a new context",
+   "original_text": "درِ باغ",
+   "linguistic_context": "a correction made for one context is met in another",
+   "expected_pronunciation": "do_not_reuse",
+   "correct_decision": "do not apply it, ask",
+   "incorrect_decision_to_avoid": "apply it everywhere",
+   "explanation": "a context-specific approval is valid only where its context matches",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "event": {
+     "kind": "proposal",
+     "surface": "در",
+     "pronunciation": "دَرِ",
+     "context": {
+      "before": "او",
+      "after": "خانه",
+      "sense": "preposition"
+     },
+     "voice": "voice V1, eleven_v4",
+     "model": "eleven_v4",
+     "actor": "agent:planner",
+     "outcome": null
+    },
+    "existing": [
+     {
+      "id": 5,
+      "surface": "در",
+      "context": "next=باغ",
+      "pronunciation": "دَرِ",
+      "status": "human_approved",
+      "scope": "context",
+      "voice": ""
+     }
+    ]
+   },
+   "output": {
+    "action": "do_not_reuse",
+    "entry": null,
+    "intervention_validated": null,
+    "requires_human": true,
+    "reason": "entry 5 is approved only before باغ; this occurrence is a preposition before خانه"
+   }
+  },
+  {
+   "id": "mem-101",
+   "split": "heldout",
+   "phenomenon": "an automatic proposal against a human approval",
+   "original_text": "بهم",
+   "linguistic_context": "an agent proposes a different form",
+   "expected_pronunciation": "escalate",
+   "correct_decision": "do not change the approval",
+   "incorrect_decision_to_avoid": "overwrite it",
+   "explanation": "an agent's proposal never changes a human approval",
+   "confidence_requirement": ">=0.9",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "event": {
+     "kind": "proposal",
+     "surface": "بهم",
+     "pronunciation": "بَهَم",
+     "context": {},
+     "voice": "voice V1, eleven_v4",
+     "model": "eleven_v4",
+     "actor": "agent:linguist",
+     "outcome": null
+    },
+    "existing": [
+     {
+      "id": 3,
+      "surface": "بهم",
+      "context": "",
+      "pronunciation": "بِهَم",
+      "status": "human_approved",
+      "scope": "global",
+      "voice": ""
+     }
+    ]
+   },
+   "output": {
+    "action": "escalate",
+    "entry": null,
+    "intervention_validated": null,
+    "requires_human": true,
+    "reason": "entry 3 is human_approved as بِهَم; an agent proposal does not change it"
+   }
+  },
+  {
+   "id": "mem-102",
+   "split": "heldout",
+   "phenomenon": "a correction with unclear scope",
+   "original_text": "نذر",
+   "linguistic_context": "the person did not say whether it is for the story or for every case",
+   "expected_pronunciation": "store for the context and ask",
+   "correct_decision": "store_new with scope context and requires_human true",
+   "incorrect_decision_to_avoid": "assume global",
+   "explanation": "scope was not stated, so it is stored for the context and a person is asked",
+   "confidence_requirement": ">=0.7",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "event": {
+     "kind": "human_correction",
+     "surface": "نذر",
+     "pronunciation": "نَذر",
+     "context": {
+      "sense": ""
+     },
+     "voice": "voice V1, eleven_v4",
+     "model": "eleven_v4",
+     "actor": "human:reviewer",
+     "outcome": null
+    },
+    "existing": []
+   },
+   "output": {
+    "action": "store_new",
+    "entry": {
+     "surface": "نذر",
+     "context": "",
+     "pronunciation": "نَذر",
+     "scope": "context",
+     "voice": ""
+    },
+    "intervention_validated": null,
+    "requires_human": true,
+    "reason": "scope not stated; stored for this context and a person should say whether it is global"
+   }
+  }
+ ]
+}

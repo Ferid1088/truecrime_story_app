@@ -1,0 +1,869 @@
+{
+ "agent": "qa",
+ "version": "1.0.1",
+ "examples": [
+  {
+   "id": "qa-001",
+   "split": "train",
+   "phenomenon": "a false positive",
+   "original_text": "او به خانه رفت.",
+   "linguistic_context": "a mismatch is claimed from the transcript alone",
+   "expected_pronunciation": "reject: false positive",
+   "correct_decision": "reject the claim, no evidence for it",
+   "incorrect_decision_to_avoid": "approve because the claim is explained well",
+   "explanation": "a mismatch needs acoustic evidence",
+   "confidence_requirement": ">=0.85",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "case": {
+     "sentence": "او به خانه رفت.",
+     "words": [
+      {
+       "n": 2,
+       "text": "خانه",
+       "irab": "خانِه"
+      }
+     ],
+     "reference_irab": "خانِه"
+    },
+    "claims": [
+     {
+      "agent": "audio_observer",
+      "claim": "خانه is mispronounced as خونه (confidence 0.9)"
+     }
+    ],
+    "evidence": {
+     "audio": {
+      "kind": "asr",
+      "transcript": "او به خونه رفت",
+      "acoustic": null
+     }
+    },
+    "cost": {
+     "retries": 0,
+     "characters": 0
+    }
+   },
+   "output": {
+    "verdict": "reject",
+    "problem": "false_positive",
+    "reason": "the only evidence is a transcript spelling خونه, which can be the recogniser's normalisation; no acoustic evidence supports a mismatch",
+    "linguistic": {
+     "ok": true,
+     "note": "consistent with the sentence"
+    },
+    "audio_evidence": {
+     "ok": false,
+     "note": "evidence_kind asr, no acoustic observation"
+    },
+    "dictionary_compatibility": {
+     "ok": true,
+     "note": "no rule involved"
+    },
+    "intervention_choice": {
+     "ok": true,
+     "note": "no intervention"
+    },
+    "fluency": {
+     "ok": true,
+     "note": "no change to the text"
+    },
+    "memory_integrity": {
+     "ok": true,
+     "note": "nothing changed in memory"
+    },
+    "reuse_safety": {
+     "ok": true,
+     "note": "no reuse"
+    },
+    "cost": {
+     "ok": true,
+     "note": "no retry"
+    }
+   }
+  },
+  {
+   "id": "qa-002",
+   "split": "train",
+   "phenomenon": "a false negative",
+   "original_text": "او عهد خود را شکست.",
+   "linguistic_context": "an audible vowel error nobody flagged",
+   "expected_pronunciation": "reject: false negative",
+   "correct_decision": "reject because the evidence shows an error that was passed",
+   "incorrect_decision_to_avoid": "approve because no agent flagged it",
+   "explanation": "absence of a flag is not evidence of correctness",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "case": {
+     "sentence": "او عهد خود را شکست.",
+     "words": [
+      {
+       "n": 1,
+       "text": "عهد",
+       "irab": "اَهد"
+      }
+     ],
+     "reference_irab": "اَهد"
+    },
+    "claims": [
+     {
+      "agent": "audio_observer",
+      "claim": "all words match"
+     }
+    ],
+    "evidence": {
+     "audio": {
+      "kind": "acoustic",
+      "observed": {
+       "word": "عهد",
+       "heard": "اُهد",
+       "confidence": 0.8
+      }
+     }
+    },
+    "cost": {
+     "retries": 0,
+     "characters": 0
+    }
+   },
+   "output": {
+    "verdict": "reject",
+    "problem": "false_negative",
+    "reason": "the evidence itself records the first vowel as اُهد with confidence 0.8, which contradicts 'all words match'",
+    "linguistic": {
+     "ok": true,
+     "note": "consistent with the sentence"
+    },
+    "audio_evidence": {
+     "ok": false,
+     "note": "the acoustic observation contradicts the claim"
+    },
+    "dictionary_compatibility": {
+     "ok": true,
+     "note": "no rule involved"
+    },
+    "intervention_choice": {
+     "ok": true,
+     "note": "no intervention"
+    },
+    "fluency": {
+     "ok": true,
+     "note": "no change to the text"
+    },
+    "memory_integrity": {
+     "ok": true,
+     "note": "nothing changed in memory"
+    },
+    "reuse_safety": {
+     "ok": true,
+     "note": "no reuse"
+    },
+    "cost": {
+     "ok": true,
+     "note": "no retry"
+    }
+   }
+  },
+  {
+   "id": "qa-003",
+   "split": "train",
+   "phenomenon": "conflicting evidence",
+   "original_text": "بهم",
+   "linguistic_context": "the transcript and the acoustic observation disagree",
+   "expected_pronunciation": "escalate: conflicting evidence",
+   "correct_decision": "escalate to the owner",
+   "incorrect_decision_to_avoid": "pick the higher confidence",
+   "explanation": "two kinds of evidence disagree and neither is decisive",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "case": {
+     "sentence": "زندگی‌اش بهم ریخت.",
+     "words": [
+      {
+       "n": 1,
+       "text": "بهم",
+       "irab": "بِهَم"
+      }
+     ],
+     "reference_irab": "بِهَم"
+    },
+    "claims": [
+     {
+      "agent": "audio_observer",
+      "claim": "mismatch: heard باهَم (0.55)"
+     }
+    ],
+    "evidence": {
+     "audio": {
+      "kind": "acoustic",
+      "observed": {
+       "word": "بهم",
+       "heard": "باهَم",
+       "confidence": 0.55
+      }
+     },
+     "transcript": "زندگی اش به هم ریخت"
+    },
+    "cost": {
+     "retries": 0,
+     "characters": 0
+    }
+   },
+   "output": {
+    "verdict": "escalate",
+    "problem": "conflicting_evidence",
+    "reason": "a confidence of 0.55 for a short vowel against a transcript with به هم; the owner should hear the clip",
+    "linguistic": {
+     "ok": true,
+     "note": "consistent with the sentence"
+    },
+    "audio_evidence": {
+     "ok": false,
+     "note": "0.55 confidence for a short-vowel judgement is not enough alone"
+    },
+    "dictionary_compatibility": {
+     "ok": true,
+     "note": "no rule involved"
+    },
+    "intervention_choice": {
+     "ok": true,
+     "note": "no intervention"
+    },
+    "fluency": {
+     "ok": true,
+     "note": "no change to the text"
+    },
+    "memory_integrity": {
+     "ok": true,
+     "note": "nothing changed in memory"
+    },
+    "reuse_safety": {
+     "ok": true,
+     "note": "no reuse"
+    },
+    "cost": {
+     "ok": true,
+     "note": "no retry"
+    }
+   }
+  },
+  {
+   "id": "qa-004",
+   "split": "train",
+   "phenomenon": "an invalid dictionary rule",
+   "original_text": "از کنسولِ ماشین استفاده کرد.",
+   "linguistic_context": "a rule made for a form without the ezafe mark applied to the form with it",
+   "expected_pronunciation": "reject: invalid rule",
+   "correct_decision": "reject the intervention, ask for a rule for the exact form",
+   "incorrect_decision_to_avoid": "approve because the rule is linguistically right",
+   "explanation": "the rule's string is not the written form in the text",
+   "confidence_requirement": ">=0.9",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "case": {
+     "sentence": "از کنسولِ ماشین استفاده کرد.",
+     "words": [
+      {
+       "n": 1,
+       "text": "کنسولِ",
+       "irab": "کُنسولِ"
+      }
+     ],
+     "reference_irab": "کُنسولِ"
+    },
+    "claims": [
+     {
+      "agent": "intervention",
+      "claim": "apply the rule کنسول -> کُنسول"
+     }
+    ],
+    "evidence": {
+     "dictionary": [
+      {
+       "string_to_replace": "کنسول",
+       "type": "alias",
+       "alias": "کُنسول"
+      }
+     ]
+    },
+    "cost": {
+     "retries": 0,
+     "characters": 0
+    }
+   },
+   "output": {
+    "verdict": "reject",
+    "problem": "invalid_rule",
+    "reason": "the text has کنسولِ with the ezafe kasra and the rule is for کنسول; applying it would remove the ezafe",
+    "linguistic": {
+     "ok": true,
+     "note": "consistent with the sentence"
+    },
+    "audio_evidence": {
+     "ok": true,
+     "note": "no audio claim"
+    },
+    "dictionary_compatibility": {
+     "ok": false,
+     "note": "string_to_replace کنسول is not the written form کنسولِ"
+    },
+    "intervention_choice": {
+     "ok": false,
+     "note": "a rule for another written form"
+    },
+    "fluency": {
+     "ok": true,
+     "note": "no change to the text"
+    },
+    "memory_integrity": {
+     "ok": true,
+     "note": "nothing changed in memory"
+    },
+    "reuse_safety": {
+     "ok": true,
+     "note": "no reuse"
+    },
+    "cost": {
+     "ok": true,
+     "note": "no retry"
+    }
+   }
+  },
+  {
+   "id": "qa-005",
+   "split": "train",
+   "phenomenon": "unsupported confidence",
+   "original_text": "زندگی‌اش بهم ریخت.",
+   "linguistic_context": "a very high confidence for a short vowel from one clip",
+   "expected_pronunciation": "reject: unsupported confidence",
+   "correct_decision": "reject the confidence, ask for a second take",
+   "incorrect_decision_to_avoid": "approve the 0.97",
+   "explanation": "the evidence cannot carry that confidence",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "case": {
+     "sentence": "زندگی‌اش بهم ریخت.",
+     "words": [
+      {
+       "n": 1,
+       "text": "بهم",
+       "irab": "بِهَم"
+      }
+     ],
+     "reference_irab": "بِهَم"
+    },
+    "claims": [
+     {
+      "agent": "audio_observer",
+      "claim": "mismatch, heard بَهَم, confidence 0.97"
+     }
+    ],
+    "evidence": {
+     "audio": {
+      "kind": "acoustic",
+      "observed": {
+       "word": "بهم",
+       "heard": "بَهَم",
+       "confidence": 0.97,
+       "uncertainty": "short vowel, one clip, 70 ms"
+      }
+     }
+    },
+    "cost": {
+     "retries": 0,
+     "characters": 0
+    }
+   },
+   "output": {
+    "verdict": "reject",
+    "problem": "unsupported_confidence",
+    "reason": "the observer's own uncertainty note (short vowel, one clip, 70 ms) does not support 0.97",
+    "linguistic": {
+     "ok": true,
+     "note": "consistent with the sentence"
+    },
+    "audio_evidence": {
+     "ok": false,
+     "note": "confidence exceeds what one clip of a short vowel can show"
+    },
+    "dictionary_compatibility": {
+     "ok": true,
+     "note": "no rule involved"
+    },
+    "intervention_choice": {
+     "ok": true,
+     "note": "no intervention"
+    },
+    "fluency": {
+     "ok": true,
+     "note": "no change to the text"
+    },
+    "memory_integrity": {
+     "ok": true,
+     "note": "nothing changed in memory"
+    },
+    "reuse_safety": {
+     "ok": true,
+     "note": "no reuse"
+    },
+    "cost": {
+     "ok": true,
+     "note": "no retry"
+    }
+   }
+  },
+  {
+   "id": "qa-006",
+   "split": "train",
+   "phenomenon": "naturalness degradation",
+   "original_text": "او به خانه برگشت و در را بست.",
+   "linguistic_context": "marks on every word were added and the delivery became stiff",
+   "expected_pronunciation": "reject: naturalness loss",
+   "correct_decision": "reject the intervention on every word",
+   "incorrect_decision_to_avoid": "approve because every vowel is now right",
+   "explanation": "pronunciation gains do not justify a stiff narration",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "case": {
+     "sentence": "او به خانه برگشت و در را بست.",
+     "words": [
+      {
+       "n": 0,
+       "text": "او",
+       "irab": "او"
+      },
+      {
+       "n": 1,
+       "text": "به",
+       "irab": "بِه"
+      },
+      {
+       "n": 2,
+       "text": "خانه",
+       "irab": "خانِه"
+      }
+     ],
+     "reference_irab": "او بِه خانِه"
+    },
+    "claims": [
+     {
+      "agent": "intervention",
+      "claim": "selective irab on all nine words fixes pronunciation"
+     }
+    ],
+    "evidence": {
+     "prosody": {
+      "verdict": "needs_retake",
+      "issues": [
+       "excess_diacritics"
+      ]
+     },
+     "interventions": [
+      {
+       "kind": "selective_irab",
+       "words": 9
+      }
+     ]
+    },
+    "cost": {
+     "retries": 0,
+     "characters": 0
+    }
+   },
+   "output": {
+    "verdict": "reject",
+    "problem": "naturalness_loss",
+    "reason": "the prosody agent found a stiff delivery caused by marks on every word; only words with a recorded failure should be touched",
+    "linguistic": {
+     "ok": true,
+     "note": "consistent with the sentence"
+    },
+    "audio_evidence": {
+     "ok": true,
+     "note": "no audio claim"
+    },
+    "dictionary_compatibility": {
+     "ok": true,
+     "note": "no rule involved"
+    },
+    "intervention_choice": {
+     "ok": false,
+     "note": "nine words changed without a recorded failure"
+    },
+    "fluency": {
+     "ok": false,
+     "note": "excess_diacritics reported"
+    },
+    "memory_integrity": {
+     "ok": true,
+     "note": "nothing changed in memory"
+    },
+    "reuse_safety": {
+     "ok": true,
+     "note": "no reuse"
+    },
+    "cost": {
+     "ok": true,
+     "note": "no retry"
+    }
+   }
+  },
+  {
+   "id": "qa-007",
+   "split": "train",
+   "phenomenon": "inappropriate memory reuse",
+   "original_text": "درِ باغ باز بود.",
+   "linguistic_context": "a context-specific approval is applied to another context",
+   "expected_pronunciation": "reject: unsafe reuse",
+   "correct_decision": "reject the reuse",
+   "incorrect_decision_to_avoid": "approve the reuse because the word is the same",
+   "explanation": "the approval was for the context before باغ",
+   "confidence_requirement": ">=0.85",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "case": {
+     "sentence": "او در خانه ماند.",
+     "words": [
+      {
+       "n": 1,
+       "text": "در",
+       "irab": "دَرِ"
+      }
+     ],
+     "reference_irab": "دَرِ"
+    },
+    "claims": [
+     {
+      "agent": "memory",
+      "claim": "apply entry 5 (در -> دَرِ)"
+     }
+    ],
+    "evidence": {
+     "memory": [
+      {
+       "id": 5,
+       "surface": "در",
+       "context": "next=باغ",
+       "pronunciation": "دَرِ",
+       "status": "human_approved"
+      }
+     ]
+    },
+    "cost": {
+     "retries": 0,
+     "characters": 0
+    }
+   },
+   "output": {
+    "verdict": "reject",
+    "problem": "unsafe_reuse",
+    "reason": "entry 5 is approved only before باغ; here در is a preposition before خانه and takes no ezafe",
+    "linguistic": {
+     "ok": false,
+     "note": "the ezafe would be wrong here"
+    },
+    "audio_evidence": {
+     "ok": true,
+     "note": "no audio claim"
+    },
+    "dictionary_compatibility": {
+     "ok": true,
+     "note": "no rule involved"
+    },
+    "intervention_choice": {
+     "ok": true,
+     "note": "no intervention"
+    },
+    "fluency": {
+     "ok": true,
+     "note": "no change to the text"
+    },
+    "memory_integrity": {
+     "ok": true,
+     "note": "nothing changed in memory"
+    },
+    "reuse_safety": {
+     "ok": false,
+     "note": "context does not match"
+    },
+    "cost": {
+     "ok": true,
+     "note": "no retry"
+    }
+   }
+  },
+  {
+   "id": "qa-008",
+   "split": "train",
+   "phenomenon": "a correct approval",
+   "original_text": "فلین تماس گرفت.",
+   "linguistic_context": "every check passes",
+   "expected_pronunciation": "approve",
+   "correct_decision": "approve with a note per check",
+   "incorrect_decision_to_avoid": "reject out of habit",
+   "explanation": "a correct conclusion is approved",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "case": {
+     "sentence": "فلین تماس گرفت.",
+     "words": [
+      {
+       "n": 0,
+       "text": "فلین",
+       "irab": "فِلین"
+      }
+     ],
+     "reference_irab": "فِلین"
+    },
+    "claims": [
+     {
+      "agent": "intervention",
+      "claim": "dictionary_alias فلین -> فِلین, validated for this voice"
+     }
+    ],
+    "evidence": {
+     "memory": [
+      {
+       "surface": "فلین",
+       "approved_pronunciation": "فِلین",
+       "status": "human_approved",
+       "interventions": [
+        {
+         "kind": "dictionary_alias",
+         "exact_form": "فلین",
+         "status": "validated",
+         "successes": 3,
+         "failures": 0,
+         "voice": "voice V1, eleven_v4"
+        }
+       ]
+      }
+     ],
+     "dictionary": [
+      {
+       "string_to_replace": "فلین",
+       "type": "alias",
+       "alias": "فِلین"
+      }
+     ]
+    },
+    "cost": {
+     "retries": 0,
+     "characters": 0
+    }
+   },
+   "output": {
+    "verdict": "approve",
+    "problem": "none",
+    "reason": "the rule's string is the written form, the alias equals the approved pronunciation, a validated intervention exists for this voice",
+    "linguistic": {
+     "ok": true,
+     "note": "alias equals the approved pronunciation"
+    },
+    "audio_evidence": {
+     "ok": true,
+     "note": "no audio claim"
+    },
+    "dictionary_compatibility": {
+     "ok": true,
+     "note": "string_to_replace equals the written form"
+    },
+    "intervention_choice": {
+     "ok": true,
+     "note": "a validated memory intervention is used first"
+    },
+    "fluency": {
+     "ok": true,
+     "note": "no change to the text"
+    },
+    "memory_integrity": {
+     "ok": true,
+     "note": "nothing written"
+    },
+    "reuse_safety": {
+     "ok": true,
+     "note": "same form, same voice"
+    },
+    "cost": {
+     "ok": true,
+     "note": "no retry"
+    }
+   }
+  },
+  {
+   "id": "qa-101",
+   "split": "heldout",
+   "phenomenon": "a retry without a new hypothesis",
+   "original_text": "گورستان",
+   "linguistic_context": "a third retake with the same input",
+   "expected_pronunciation": "reject: cost",
+   "correct_decision": "reject the retry",
+   "incorrect_decision_to_avoid": "approve another identical take",
+   "explanation": "a retry without a new corrective hypothesis only spends characters",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "case": {
+     "sentence": "او به گورستان رفت.",
+     "words": [
+      {
+       "n": 2,
+       "text": "گورستان",
+       "irab": "گورِستان"
+      }
+     ],
+     "reference_irab": "گورِستان"
+    },
+    "claims": [
+     {
+      "agent": "planner",
+      "claim": "retake with the same text and settings"
+     }
+    ],
+    "evidence": {},
+    "cost": {
+     "retries": 2,
+     "characters": 3000
+    }
+   },
+   "output": {
+    "verdict": "reject",
+    "problem": "cost_waste",
+    "reason": "two identical retakes already failed and no new corrective hypothesis exists; a third identical take only spends characters",
+    "linguistic": {
+     "ok": true,
+     "note": "consistent with the sentence"
+    },
+    "audio_evidence": {
+     "ok": true,
+     "note": "no audio claim"
+    },
+    "dictionary_compatibility": {
+     "ok": true,
+     "note": "no rule involved"
+    },
+    "intervention_choice": {
+     "ok": true,
+     "note": "no intervention"
+    },
+    "fluency": {
+     "ok": true,
+     "note": "no change to the text"
+    },
+    "memory_integrity": {
+     "ok": true,
+     "note": "nothing changed in memory"
+    },
+    "reuse_safety": {
+     "ok": true,
+     "note": "no reuse"
+    },
+    "cost": {
+     "ok": false,
+     "note": "a retry with identical input and no corrective hypothesis"
+    }
+   }
+  },
+  {
+   "id": "qa-102",
+   "split": "heldout",
+   "phenomenon": "a claim with no audio at all",
+   "original_text": "او رفت.",
+   "linguistic_context": "a pronunciation verdict without any recording",
+   "expected_pronunciation": "escalate",
+   "correct_decision": "escalate",
+   "incorrect_decision_to_avoid": "approve",
+   "explanation": "a verdict without audio or transcript has no evidence",
+   "confidence_requirement": ">=0.8",
+   "source": "authored by the assistant for this system; not from any case recording",
+   "verification": "assistant_authored_pending_linguistic_review",
+   "audio": null,
+   "input": {
+    "case": {
+     "sentence": "او رفت.",
+     "words": [
+      {
+       "n": 1,
+       "text": "رفت",
+       "irab": "رَفت"
+      }
+     ],
+     "reference_irab": "رَفت"
+    },
+    "claims": [
+     {
+      "agent": "audio_observer",
+      "claim": "match"
+     }
+    ],
+    "evidence": {
+     "audio": null
+    },
+    "cost": {
+     "retries": 0,
+     "characters": 0
+    }
+   },
+   "output": {
+    "verdict": "escalate",
+    "problem": "unsupported_confidence",
+    "reason": "a verdict is claimed with no audio and no transcript",
+    "linguistic": {
+     "ok": true,
+     "note": "consistent with the sentence"
+    },
+    "audio_evidence": {
+     "ok": false,
+     "note": "no recording was given"
+    },
+    "dictionary_compatibility": {
+     "ok": true,
+     "note": "no rule involved"
+    },
+    "intervention_choice": {
+     "ok": true,
+     "note": "no intervention"
+    },
+    "fluency": {
+     "ok": true,
+     "note": "no change to the text"
+    },
+    "memory_integrity": {
+     "ok": true,
+     "note": "nothing changed in memory"
+    },
+    "reuse_safety": {
+     "ok": true,
+     "note": "no reuse"
+    },
+    "cost": {
+     "ok": true,
+     "note": "no retry"
+    }
+   }
+  }
+ ]
+}
