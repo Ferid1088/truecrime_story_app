@@ -1,0 +1,489 @@
+{
+ "note": "The 86 rules of Case 15's film dictionary (story version 289, ElevenLabs dictionary YTo1MTgKF37oB5z206xZ), copied for the regression test of the rule check.",
+ "rules": [
+  {
+   "string_to_replace": "فوریهٔ",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "fevɾijeje"
+  },
+  {
+   "string_to_replace": "درِ گاراژ",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "dæɾegɑːɾɑːʒ"
+  },
+  {
+   "string_to_replace": "کلانترِ",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "kælɑːnteɾe"
+  },
+  {
+   "string_to_replace": "کنسولِ",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "konsole"
+  },
+  {
+   "string_to_replace": "درِ",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "dære"
+  },
+  {
+   "string_to_replace": "لایف سنتر",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "lɑːjfsentær"
+  },
+  {
+   "string_to_replace": "امریکن آیدل",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "ʔæmrikænɑjdel"
+  },
+  {
+   "string_to_replace": "دَرِ",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "dæɾe"
+  },
+  {
+   "string_to_replace": "زبانهٔ",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "zæbɑːneye"
+  },
+  {
+   "string_to_replace": "قفل شب‌بند",
+   "type": "alias",
+   "alias": "قُفلِ شَب‌بَند"
+  },
+  {
+   "string_to_replace": "حالتِ",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "hɑːlæte"
+  },
+  {
+   "string_to_replace": "دیوارِ",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "divɑːre"
+  },
+  {
+   "string_to_replace": "اسنوپ ریپورت",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "ʔesnuːpɾiːpoːɾt"
+  },
+  {
+   "string_to_replace": "هیئت منصفه",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "hejʔætemonsefe"
+  },
+  {
+   "string_to_replace": "کانینگهام کورت",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "kɑːniŋhɑːmkoːrt"
+  },
+  {
+   "string_to_replace": "آوا",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "ɑːvɑː"
+  },
+  {
+   "string_to_replace": "تاد",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "tɑːd"
+  },
+  {
+   "string_to_replace": "چت‌جی‌پی‌تی",
+   "type": "alias",
+   "alias": "چَتْ‌جی‌پی‌تی"
+  },
+  {
+   "string_to_replace": "امریکن",
+   "type": "alias",
+   "alias": "اَمِریکَن"
+  },
+  {
+   "string_to_replace": "مه",
+   "type": "alias",
+   "alias": "مِه"
+  },
+  {
+   "string_to_replace": "اکتبر",
+   "type": "alias",
+   "alias": "اُکتُبر"
+  },
+  {
+   "string_to_replace": "واتکینز",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "vɑːtkinz"
+  },
+  {
+   "string_to_replace": "جوزف",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "dʒozef"
+  },
+  {
+   "string_to_replace": "مشدد",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "moʃæddæd"
+  },
+  {
+   "string_to_replace": "هیل‌تون",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "hiltoːn"
+  },
+  {
+   "string_to_replace": "کیلا",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "kiːlɑː"
+  },
+  {
+   "string_to_replace": "اسمیت",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "ʔesmit"
+  },
+  {
+   "string_to_replace": "متیو",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "mætju"
+  },
+  {
+   "string_to_replace": "کیت",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "kiːt"
+  },
+  {
+   "string_to_replace": "پاتریک",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "pɑːtɾik"
+  },
+  {
+   "string_to_replace": "مالیگان",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "mɑːliɡɑːn"
+  },
+  {
+   "string_to_replace": "کاپیتان",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "kɑːpitɑːn"
+  },
+  {
+   "string_to_replace": "تونی",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "toːni"
+  },
+  {
+   "string_to_replace": "ویلهلم",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "vilhelm"
+  },
+  {
+   "string_to_replace": "گرگ",
+   "type": "alias",
+   "alias": "گِرِگ"
+  },
+  {
+   "string_to_replace": "منصفه",
+   "type": "alias",
+   "alias": "مُنصِفِه"
+  },
+  {
+   "string_to_replace": "ژانین",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "ʒɑːnin"
+  },
+  {
+   "string_to_replace": "گشته",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "gæʃte"
+  },
+  {
+   "string_to_replace": "کانادا",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "kɑnɑdɑ"
+  },
+  {
+   "string_to_replace": "کالبه",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "kɑːlebe"
+  },
+  {
+   "string_to_replace": "آلایگا",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "ɑːlɑːjɡɑː"
+  },
+  {
+   "string_to_replace": "میامیه",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "mijɑːmije"
+  },
+  {
+   "string_to_replace": "ماهیت",
+   "type": "alias",
+   "alias": "ماهیَتِ"
+  },
+  {
+   "string_to_replace": "پرت",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "pɾæt"
+  },
+  {
+   "string_to_replace": "فوریه‌ی",
+   "type": "alias",
+   "alias": "فِوْریِه‌یْ"
+  },
+  {
+   "string_to_replace": "کانینگهام",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "kɑːniŋhɑːm"
+  },
+  {
+   "string_to_replace": "عمر",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "ʔomr"
+  },
+  {
+   "string_to_replace": "باتنر",
+   "type": "alias",
+   "alias": "باتْنِر"
+  },
+  {
+   "string_to_replace": "اوت",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "ʔut"
+  },
+  {
+   "string_to_replace": "نرم",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "næræm"
+  },
+  {
+   "string_to_replace": "مارس",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "mɑːrs"
+  },
+  {
+   "string_to_replace": "کورت",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "kuːɾt"
+  },
+  {
+   "string_to_replace": "جرم",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "dʒorm"
+  },
+  {
+   "string_to_replace": "مسلح",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "mosællæh"
+  },
+  {
+   "string_to_replace": "اف‌بی‌آی",
+   "type": "alias",
+   "alias": "اِف بی آی"
+  },
+  {
+   "string_to_replace": "عهدهای",
+   "type": "alias",
+   "alias": "عَهدهای"
+  },
+  {
+   "string_to_replace": "آلیسا",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "ɑːliːsɑː"
+  },
+  {
+   "string_to_replace": "فلین",
+   "type": "alias",
+   "alias": "فِلین"
+  },
+  {
+   "string_to_replace": "دیتون",
+   "type": "alias",
+   "alias": "دِیتون"
+  },
+  {
+   "string_to_replace": "تیپ‌سیتی",
+   "type": "alias",
+   "alias": "تیپْ‌سیتی"
+  },
+  {
+   "string_to_replace": "فوریه",
+   "type": "alias",
+   "alias": "فِوْریِه"
+  },
+  {
+   "string_to_replace": "شهرستان",
+   "type": "alias",
+   "alias": "شَهْرِسْتانْ"
+  },
+  {
+   "string_to_replace": "میامی",
+   "type": "alias",
+   "alias": "مِیامی"
+  },
+  {
+   "string_to_replace": "استیو",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "estiːv"
+  },
+  {
+   "string_to_replace": "کنسول",
+   "type": "alias",
+   "alias": "کُنسول"
+  },
+  {
+   "string_to_replace": "لرد",
+   "type": "alias",
+   "alias": "لُرد"
+  },
+  {
+   "string_to_replace": "اشلی",
+   "type": "alias",
+   "alias": "اَشلی"
+  },
+  {
+   "string_to_replace": "جیل",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "dʒil"
+  },
+  {
+   "string_to_replace": "آمریکا",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "ɑmrikɑ"
+  },
+  {
+   "string_to_replace": "پلیس",
+   "type": "alias",
+   "alias": "پُلیس"
+  },
+  {
+   "string_to_replace": "دیوید",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "deviːd"
+  },
+  {
+   "string_to_replace": "هاموند",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "hɑːmuːnd"
+  },
+  {
+   "string_to_replace": "قتل",
+   "type": "alias",
+   "alias": "قَتْلْ"
+  },
+  {
+   "string_to_replace": "گاراژ",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "gɑːrɑːʒ"
+  },
+  {
+   "string_to_replace": "کالب",
+   "type": "alias",
+   "alias": "کالِبْ"
+  },
+  {
+   "string_to_replace": "اوهایو",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "ohɑːjo"
+  },
+  {
+   "string_to_replace": "ویکی",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "viːkiː"
+  },
+  {
+   "string_to_replace": "بارتولومیو",
+   "type": "phoneme",
+   "alphabet": "ipa",
+   "phoneme": "bɑːɾtoloːmiːjo"
+  },
+  {
+   "string_to_replace": "۱۰۷",
+   "type": "alias",
+   "alias": "صد و هفت"
+  },
+  {
+   "string_to_replace": "۲۲۹",
+   "type": "alias",
+   "alias": "دویست و بیست و نه"
+  },
+  {
+   "string_to_replace": "۹۱۱",
+   "type": "alias",
+   "alias": "نهصد و یازده"
+  },
+  {
+   "string_to_replace": "۲۰۱۳",
+   "type": "alias",
+   "alias": "دو هزار و سیزده"
+  },
+  {
+   "string_to_replace": "۲۰۲۲",
+   "type": "alias",
+   "alias": "دو هزار و بیست و دو"
+  },
+  {
+   "string_to_replace": "۲۰۲۴",
+   "type": "alias",
+   "alias": "دو هزار و بیست و چهار"
+  },
+  {
+   "string_to_replace": "۲۰۲۵",
+   "type": "alias",
+   "alias": "دو هزار و بیست و پنج"
+  },
+  {
+   "string_to_replace": "۲۰۲۶",
+   "type": "alias",
+   "alias": "دو هزار و بیست و شش"
+  }
+ ]
+}

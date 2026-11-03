@@ -31,6 +31,7 @@ from app.core.concurrency import slot
 from app.documentary import audio as A
 from app.documentary import storage
 from app.documentary.asr import ASRUnavailable, compare_transcript, get_asr
+from app.documentary.pronunciation_trace import BlockDictionaries, Trace
 from app.documentary.voice_performance import scrub_forbidden
 from app.providers.voice import VoiceProvider, VoiceRequest, get_voice_provider
 
@@ -189,6 +190,9 @@ class VoiceRenderer:
         self.budget_pilot_seconds = budget_pilot_seconds
         self._budget_usage_missing = False
         self.dictionaries: list[dict] = []        # the film's pronunciation dictionary locators (a prepared language)
+        self.rules: list[dict] = []               # the rules of that dictionary (the plan carries them): each block's text is checked against them
+        self.block_dictionaries: BlockDictionaries | None = None
+        self.trace = Trace(None)                  # what every take was sent with
         self.reviewer = None                      # the semantic audio reviewer (semantic_review.Reviewer) of a reviewed language
         self.seed_bumps: dict[str, int] = {}      # block -> retakes already made by the reading loop (each is a new seed)
         self.voicing = None                       # the reading loop's Voicing of a language it covers: the fixed words go to the voice as IPA
@@ -303,6 +307,8 @@ class VoiceRenderer:
                 "model_id": res.model_id, "settings": req.settings,
                 "seed": req.seed, "provider": res.provider,
                 "request_id": res.request_id,
+                "language_code": req.language_code, "previous_text": req.previous_text, "next_text": req.next_text,
+                "dictionaries": req.pronunciation_dictionaries, "rules_sent": req.pronunciation_rules,
                 "character_cost": res.character_cost,
                 "alignment": {
                     "characters": res.characters,
@@ -426,6 +432,9 @@ class VoiceRenderer:
                 # what people read follows a synonym fix (never harakat)
                 blk = {**b, "sentences": sentences, "display_text": " ".join(
                     x.get("display") or x["speech"] for x in sentences)}
+            locators = list(self.dictionaries) if prepared and not b.get("no_dictionary") else []
+            resolution = (await self.block_dictionaries.resolve(b["block_id"], text, b.get("tts_text") or b["text"])
+                          if locators and self.block_dictionaries is not None else None)
             req = VoiceRequest(
                 text=text, voice_id=lang_cfg.voice_id,
                 model_id=lang_cfg.model_id, settings=settings,
@@ -433,9 +442,12 @@ class VoiceRenderer:
                 next_text=b.get("next_text") or "",
                 seed=seed, language=language,
                 language_code=lang_cfg.language_code,
-                pronunciation_dictionaries=list(self.dictionaries) if prepared and not b.get("no_dictionary") else [],
+                pronunciation_dictionaries=resolution.locators if resolution else locators,
+                pronunciation_rules=resolution.rules_sent if resolution else [],
             )
             take = await self._take(blk, req, blocks_dir, language)
+            if resolution is not None:
+                self.trace.record(block_id=b["block_id"], attempt=attempt, text=text, request=req, resolution=resolution, take=take)
             if occurrences:
                 take["pronunciation"] = await self._listen(take, sentences, occurrences)
             take["round"] = attempt
@@ -498,6 +510,7 @@ class VoiceRenderer:
         lang_cfg = self.cfg.for_language(language)
         if language in self.cfg.prepared_languages:
             self.dictionaries = list(plan.get("pronunciation_dictionary") or [])
+            self.rules = list(plan.get("pronunciation_rules") or [])
         # An explicit style overrides the performance script (A/B tests);
         # otherwise each block uses its own style, else the default.
         for name in {style} | {b.get("style") for b in plan["blocks"]}:
@@ -511,6 +524,9 @@ class VoiceRenderer:
         out = self.out_dir(case_id, language, story_version_id)
         blocks_dir = out / "blocks"
         blocks_dir.mkdir(parents=True, exist_ok=True)
+        self.block_dictionaries = BlockDictionaries(self.provider, self.rules, self.dictionaries, language=language, case_id=case_id,
+                                                    version_id=story_version_id, folder=out)
+        self.trace = Trace(self.block_dictionaries)
         chosen = select_blocks(plan["blocks"], max_seconds)
 
         async def one_block(b: dict) -> dict:
@@ -711,6 +727,7 @@ class VoiceRenderer:
                 "flags": block_flags,
             })
 
+        trace_info = self.trace.save(out) if self.trace.entries else None
         manifest = {
             "case_id": case_id, "story_version_id": story_version_id,
             "language": language, "voice_id": lang_cfg.voice_id,
@@ -736,6 +753,7 @@ class VoiceRenderer:
                 "block_median_lufs": median,
             },
             "flags": flags,
+            "pronunciation_trace": trace_info,
             "semantic_review_failed": held,
             "dynamic_eq": eq_report,
             "files": {

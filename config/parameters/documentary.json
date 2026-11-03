@@ -510,6 +510,19 @@
     "learning_min_published_shorts": 30,
     "learning_min_episodes": 5
   },
+  "pronunciation_trace": {
+    "mode": "trace",
+    "trace_file": "pronunciation_trace.json",
+    "block_dictionaries_file": "block_dictionaries.json",
+    "block_dictionary_name": "truecrime-{language}-case-{case_id}-v{version_id}-{fingerprint}",
+    "create_retries": 3,
+    "retry_pause_s": 2.0,
+    "retryable_errors": ["rate_limited", "provider_error", "timeout", "unreachable"],
+    "harakat": "ًٌٍَُِّْٰ",
+    "yeh_kaf": {"ي": "ی", "ى": "ی", "ك": "ک"},
+    "digits": {"٠": "۰", "١": "۱", "٢": "۲", "٣": "۳", "٤": "۴", "٥": "۵", "٦": "۶", "٧": "۷", "٨": "۸", "٩": "۹"},
+    "joiner": "\u200c"
+  },
   "voice_prepare": {
     "sentences_per_call": 24,
     "min_length_ratio": 0.55,

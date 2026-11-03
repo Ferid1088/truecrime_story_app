@@ -125,6 +125,7 @@ class LanguageChain:
                 from app.documentary import voice_prepare as VP
 
                 plan["pronunciation_dictionary"] = await VP.ensure_dictionary(db, version, lang)
+                plan["pronunciation_rules"] = VP.sent_rules(version)                  # the rules of that dictionary: each block's final text is checked against them
             renderer = VoiceRenderer(db=db, budget_case_id=case.id,
                                      budget_stage=f"tts:{lang}",
                                      use_asr=ai_config.listens_after_voice(lang),       # a prepared or semantically reviewed language is not listened to afterwards

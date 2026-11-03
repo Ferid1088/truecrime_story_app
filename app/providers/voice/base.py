@@ -34,6 +34,8 @@ class VoiceRequest:
     # ElevenLabs pronunciation dictionary locators ({"pronunciation_dictionary_id", "version_id"}), sent as
     # pronunciation_dictionary_locators.
     pronunciation_dictionaries: list[dict] = field(default_factory=list)
+    # The rules of those dictionaries that match this text (kept with the take for the trace; never sent: the locators are).
+    pronunciation_rules: list[dict] = field(default_factory=list)
 
 
 @dataclass

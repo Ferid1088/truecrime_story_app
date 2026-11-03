@@ -2442,6 +2442,28 @@ class SemanticReviewConfig(BaseModel):
     folder_suffix: str = "_reviewed"
 
 
+class PronunciationTraceConfig(BaseModel):
+    """The check and the trace of a block's pronunciation dictionary (pronunciation_trace.py).
+
+    trace: every rule is checked against the exact text a block is sent with and everything is recorded; the request is unchanged (the
+    takes already made keep their cache keys). enforce: the block is sent a dictionary made for its final text, with only the rules that match
+    it (a rule that matches a variant of its word is reconciled); a take then has another cache key than one made without."""
+
+    mode: Literal["trace", "enforce"] = "trace"
+    trace_file: str = "pronunciation_trace.json"
+    block_dictionaries_file: str = "block_dictionaries.json"
+    block_dictionary_name: str = "truecrime-{language}-case-{case_id}-v{version_id}-{fingerprint}"
+    # A dictionary that cannot be made (the provider's hiccup) is tried again this many times, with this pause.
+    create_retries: int = Field(default=3, ge=0, le=10)
+    retry_pause_s: float = Field(default=2.0, ge=0.0)
+    retryable_errors: list[str] = []
+    # The marks that may differ between a rule and the text without being another word, and the spellings that are the same letter.
+    harakat: str = ""
+    yeh_kaf: dict[str, str] = {}
+    digits: dict[str, str] = {}
+    joiner: str = "\u200c"
+
+
 class VoicePrepareConfig(BaseModel):
     """The preparation of a narration before it is voiced (voice_prepare.py): the editor's chunks, the sanity limits of an edited sentence and
     the English source given to the editor and the checker."""
@@ -4302,6 +4324,7 @@ class AIConfig(BaseModel):
     video_audit: VideoAuditConfig = Field(default_factory=VideoAuditConfig)
     names: NamesConfig = Field(default_factory=NamesConfig)
     voice_prepare: VoicePrepareConfig = Field(default_factory=VoicePrepareConfig)
+    pronunciation_trace: PronunciationTraceConfig = Field(default_factory=PronunciationTraceConfig)
     semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)
     reading: ReadingConfig = Field(default_factory=ReadingConfig)
     chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)
