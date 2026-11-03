@@ -1,0 +1,188 @@
+{
+  "note": "The Kaikki-shaped fixture of the engine tests and the readings it cannot analyse yet. The confirmed readings themselves are in config/reading_exceptions.json.",
+  "unresolved": [
+    {
+      "surface": "ببخشدش",
+      "right": "bebakhshadesh",
+      "why": "a present-tense verb form: the lexicon gives no sounds for present stems, so the engine has no evidence (status unverified)"
+    }
+  ],
+  "wiktionary_fixture": [
+    {
+      "word": "عهد",
+      "pos": "noun",
+      "sounds": [
+        {
+          "ipa": "/ˈʔahd/",
+          "tags": [
+            "Classical-Persian"
+          ]
+        },
+        {
+          "ipa": "[ʔäɦd̪]",
+          "tags": [
+            "Dari",
+            "formal"
+          ]
+        }
+      ],
+      "forms": [
+        {
+          "form": "ahd",
+          "tags": [
+            "romanization"
+          ]
+        }
+      ],
+      "senses": [
+        {
+          "glosses": [
+            "covenant"
+          ]
+        }
+      ]
+    },
+    {
+      "word": "گورستان",
+      "pos": "noun",
+      "sounds": [
+        {
+          "ipa": "[ɡu.ɾis.t̪ʰɔ́ːn]"
+        }
+      ],
+      "forms": [
+        {
+          "form": "gōristān",
+          "tags": [
+            "romanization"
+          ]
+        },
+        {
+          "form": "gurestân",
+          "tags": [
+            "romanization"
+          ]
+        }
+      ],
+      "senses": [
+        {
+          "glosses": [
+            "cemetery"
+          ]
+        }
+      ]
+    },
+    {
+      "word": "گاراژ",
+      "pos": "noun",
+      "sounds": [
+        {
+          "ipa": "[ɡ̥ɒː.ɹɒːʒ]"
+        }
+      ],
+      "forms": [
+        {
+          "form": "gârâž",
+          "tags": [
+            "romanization"
+          ]
+        }
+      ],
+      "senses": [
+        {
+          "glosses": [
+            "garage"
+          ]
+        }
+      ]
+    },
+    {
+      "word": "دختر",
+      "pos": "noun",
+      "sounds": [
+        {
+          "ipa": "/dok.ˈtar/",
+          "tags": [
+            "Tehrani"
+          ]
+        }
+      ],
+      "forms": [
+        {
+          "form": "doxtar",
+          "tags": [
+            "romanization"
+          ]
+        }
+      ],
+      "senses": [
+        {
+          "glosses": [
+            "girl"
+          ]
+        }
+      ]
+    },
+    {
+      "word": "خانه",
+      "pos": "noun",
+      "sounds": [],
+      "forms": [
+        {
+          "form": "xâne",
+          "tags": [
+            "romanization"
+          ]
+        }
+      ],
+      "senses": [
+        {
+          "glosses": [
+            "house"
+          ]
+        }
+      ]
+    },
+    {
+      "word": "گفتن",
+      "pos": "verb",
+      "sounds": [],
+      "forms": [
+        {
+          "form": "goftan",
+          "tags": [
+            "romanization"
+          ]
+        },
+        {
+          "form": "گفت",
+          "tags": [
+            "past",
+            "stem"
+          ]
+        },
+        {
+          "form": "گفته",
+          "tags": [
+            "participle",
+            "past"
+          ]
+        },
+        {
+          "form": "گفتن",
+          "tags": [
+            "infinitive"
+          ]
+        }
+      ],
+      "senses": [
+        {
+          "glosses": [
+            "to say"
+          ]
+        }
+      ]
+    }
+  ],
+  "cases_from": "config/reading_exceptions.json"
+}

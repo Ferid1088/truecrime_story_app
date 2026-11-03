@@ -5,7 +5,7 @@ For each word answer ok (do not list it), or reject (problem class: wrong sense,
 Answer JSON only, listing only the words that are reject or doubt: {"words":[{"n":0,"verdict":"reject|doubt","class":"","proposed_latin":"","proof":"","question":""}]}
 
 EXAMPLES
-- Editor: بهم = beham (why: be ham), the text is colloquial → {"n":1,"verdict":"reject","class":"wrong vowel","proposed_latin":"baham","proof":"the text is spoken Persian; the spoken form of به هم is baham"}
+- Editor: بهم = beham (why: be ham), beham is right, baham is another word (با هم) → {"n":1,"verdict":"accept"}
 - Editor: قاضی = qāzi-ye before a name → ok (not listed).
 - Editor: ملک = melk with confidence low, the English source says "king" → {"n":0,"verdict":"reject","class":"wrong sense","proposed_latin":"malek","proof":"the English source says king"}
 - Editor: ملک = melk and nothing in the English decides → {"n":0,"verdict":"doubt","question":"estate (melk) or king (malek)?"}

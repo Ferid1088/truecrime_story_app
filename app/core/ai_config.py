@@ -157,6 +157,7 @@ REQUIRED_ROLES = {
     "reading_checker",
     "reading_arbiter",
     "reading_listener",
+    "reading_selector",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",
@@ -2383,6 +2384,51 @@ class VideoAuditConfig(BaseModel):
     frame_width: int = Field(default=384, ge=160, le=1280)
 
 
+class TranscriptionConfig(BaseModel):
+    vowels: list[str] = []
+    diphthongs: list[str] = []
+    consonants: list[str] = []
+    glottal: str = "'"
+    ezafe: list[str] = []
+    pause: str = "|"
+    number: str = "NUM"
+    format_fixes: dict[str, str] = {}
+    ambiguous_symbols: list[str] = []
+
+
+class EvidenceConfig(BaseModel):
+    """The lexical evidence (evidence.py): where the Persian entries come from, which of their pronunciations are Tehrani, and how an IPA or a
+    romanisation of an entry is written in the scheme."""
+
+    source_url: str = ""
+    page_url: str = ""
+    attribution: str = ""
+    folder: str = "data/lexicon"
+    tehrani_tags: list[str] = []
+    foreign_tags: list[str] = []
+    classical_marks: str = ""
+    ipa_drop: str = ""
+    ipa_to_latin: dict[str, str] = {}
+    romanization_to_latin: dict[str, str] = {}
+
+
+class MorphologyConfig(BaseModel):
+    """The suffixes of written Persian words (morphology.py): their reading after a consonant and after a vowel, and how colloquial stems relate to
+    formal ones. Grammar, not a word list: the stem still has to be found in the lexical evidence."""
+
+    suffixes: list[dict] = []
+    min_stem_letters: int = Field(default=2, ge=1)
+    max_suffixes: int = Field(default=2, ge=0, le=4)
+    vowel_letters: str = "aeoāiu"
+    e_final_vowel_like: bool = True
+    colloquial_stem_rules: list[dict] = []
+    # Words that take a clitic with a joining sound (به + م = behem): the grammar rule, not a dictionary entry.
+    hosts: list[dict] = []
+    # The verbs: their past stems and past participles come from the lexicon (the infinitive's reading minus its ending), the prefixes and personal
+    # endings are the grammar. Present stems are not analysed: their spoken forms are irregular and the lexicon does not give their sounds.
+    verb: dict = {}
+
+
 class ReadingConfig(BaseModel):
     """The reading loop of a spoken language (app/documentary/reading): the reading text (one Latin reading per word) is written and checked before
     the voice; the voice is then listened to blind and every difference is fixed for the failing words only."""
@@ -2414,6 +2460,18 @@ class ReadingConfig(BaseModel):
     clip_edge_s: float = Field(default=0.25, ge=0.0, le=1.0)
     # ... and the wrong options are made by changing one vowel of the reading to one of the vowels the voice mixes it up with.
     vowel_confusions: dict[str, list[str]] = {}
+    # The one transcription of a reading (transcription.py): its symbols, the spellings that are only a format variant of a symbol (rewritten
+    # and recorded, the sound is the same), and the symbols whose sound is not known from the spelling (never rewritten: they are reported).
+    transcription: TranscriptionConfig = Field(default_factory=lambda: TranscriptionConfig())
+    evidence: EvidenceConfig = Field(default_factory=lambda: EvidenceConfig())
+    morphology: MorphologyConfig = Field(default_factory=lambda: MorphologyConfig())
+    # The most words one engine run sends to the contextual selector (the rest stay uncertain): a bound on the cost of a run.
+    selector_max_words: int = Field(default=800, ge=0)
+    # True: a reading that is among the evidence but belongs to a word with other readings (کرم) is also sent to the selector. False: only the readings
+    # the evidence does not allow are (the evidence allows the writer's reading, so it stays verified with the other readings noted).
+    select_supported_homographs: bool = False
+    # The verified exceptions: readings a person has confirmed, each also a regression test.
+    exceptions_file: str = "config/reading_exceptions.json"
 
 
 class SemanticReviewConfig(BaseModel):

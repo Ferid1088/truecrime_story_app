@@ -1,0 +1,10 @@
+{
+  "note": "The verified exceptions of the Persian Reading Engine: readings a person has confirmed, each also a permanent regression test (tests/test_reading_engine.py). Never filled by a model and never from an uncertain reading. Add one with scripts/confirm_reading.py.",
+  "exceptions": [
+    {"surface": "بهم", "right": ["beham"], "wrong": ["baham"], "confirmed": "owner, 2026-11-03: به هم / بهم is beham; baham is با هم"},
+    {"surface": "عهد", "right": ["ahd"], "wrong": ["ohd"], "confirmed": "owner, case 15, block FA_B52_g02_01: the voice said ohd"},
+    {"surface": "گورستون", "right": ["gurestun"], "wrong": ["gurostun", "gorestun"], "confirmed": "owner, case 15, block FA_B55_g03_01: the voice said gurostun"},
+    {"surface": "گاراژ", "right": ["gārāzh"], "wrong": ["garaj", "gārāj"], "confirmed": "owner, case 15: the voice read it in an English accent"},
+    {"surface": "ببخشدش", "right": ["bebakhshadesh"], "wrong": ["bebakhshadash"], "confirmed": "owner, case 15, block FA_B50_g03_01"}
+  ]
+}
