@@ -3313,7 +3313,7 @@ class PronunciationEntry(Base):
     observed_wrong: Mapped[str] = mapped_column(Text, default="")
     approved_pronunciation: Mapped[str | None] = mapped_column(Text, nullable=True)     # what a person approved as the right pronunciation
     approved_ipa: Mapped[str | None] = mapped_column(String(240), nullable=True)        # only when validated
-    status: Mapped[str] = mapped_column(String(24), default="candidate")    # candidate | legacy_unverified | human_approved | rejected | uncertain | contested
+    status: Mapped[str] = mapped_column(String(24), default="candidate")    # candidate | legacy_unverified | human_approved | auto_verified | unresolved | rejected | uncertain | contested
     source: Mapped[str] = mapped_column(String(12), default="agent")        # human | agent | legacy
     origin: Mapped[str] = mapped_column(String(40), default="")             # where an imported entry comes from (a table of an earlier system)
     origin_ref: Mapped[str] = mapped_column(String(80), default="")         # the key of the row it was imported from
@@ -3381,7 +3381,7 @@ class PronunciationEvidence(Base):
     surface: Mapped[str] = mapped_column(String(160))
     expected: Mapped[str] = mapped_column(Text, default="")
     estimated_observed: Mapped[str] = mapped_column(Text, default="")
-    kind: Mapped[str] = mapped_column(String(12))                           # acoustic | asr | model | human | inference
+    kind: Mapped[str] = mapped_column(String(12))                           # acoustic | phonetic | model | human | inference
     verdict: Mapped[str] = mapped_column(String(10))                        # match | mismatch | uncertain
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     audio_ref: Mapped[str] = mapped_column(String(400), default="")

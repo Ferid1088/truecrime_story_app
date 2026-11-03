@@ -3682,7 +3682,7 @@ export interface PronunciationEntry {
   scope: "context" | "global";
   prev_word: string;
   next_word: string;
-  status: "candidate" | "legacy_unverified" | "human_approved" | "rejected" | "uncertain" | "contested";
+  status: "candidate" | "legacy_unverified" | "human_approved" | "auto_verified" | "unresolved" | "rejected" | "uncertain" | "contested";
   source: "human" | "agent" | "legacy";
   expected_irab: string;
   approved_pronunciation: string | null;

@@ -789,6 +789,21 @@ def pronunciation_approve(entry_id: int, body: PronunciationApproveIn, db: Sessi
         raise HTTPException(status_code=422, detail=str(e)) from e
 
 
+@router.post("/api/documentary/pronunciation/entries/{entry_id}/auto-verify")
+async def pronunciation_auto_verify(entry_id: int, version_id: int | None = None, db: Session = Depends(get_db)):
+    """The app verifies the entry itself (off until the recognizer is validated): up to three attempts; no agreement leaves it unresolved."""
+    from app.db.models import PronunciationEntry
+    from app.documentary import pronunciation_auto, pronunciation_review
+
+    if db.get(PronunciationEntry, entry_id) is None:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    try:
+        outcome = await pronunciation_auto.verify(db, entry_id, db.get(StoryVersion, version_id) if version_id else None)
+    except pronunciation_auto.AutoDisabled as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    return {"entry": pronunciation_review.describe(db.get(PronunciationEntry, entry_id)), "attempts": outcome.attempts, "agreed": outcome.agreed, "notes": outcome.notes}
+
+
 @router.post("/api/documentary/pronunciation/entries/{entry_id}/reject")
 def pronunciation_reject(entry_id: int, body: PronunciationNoteIn, db: Session = Depends(get_db)):
     from app.documentary import pronunciation_review

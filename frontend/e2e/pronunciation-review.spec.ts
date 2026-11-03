@@ -71,6 +71,6 @@ test.describe("the pronunciation review", () => {
     await page.getByRole("button", { name: "Approve", exact: true }).click();
     await expect.poll(() => posted).toEqual([{ pronunciation: "اَهد", reviewer: "owner", scope: "global", ipa: "ʔæhd", supersede: false, reason: "" }]);
     await expect(page.getByRole("button", { name: /Legacy — unverified \(1\)/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Approved \(1\)/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Approved by you \(1\)/ })).toBeVisible();
   });
 });

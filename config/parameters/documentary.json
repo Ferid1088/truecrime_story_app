@@ -510,6 +510,10 @@
     "learning_min_published_shorts": 30,
     "learning_min_episodes": 5
   },
+  "pronunciation_auto": {
+    "enabled": false,
+    "max_attempts": 3
+  },
   "irab": {
     "folder": "irab",
     "max_retries": 3,

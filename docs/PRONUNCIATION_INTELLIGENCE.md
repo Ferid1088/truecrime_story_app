@@ -1,31 +1,39 @@
 # Persian pronunciation intelligence system — state (2026-11-03)
 
-Built and verified (tests, and live where stated):
-- **Pronunciation memory** (`app/documentary/pronunciation_memory.py`, migrations 0086 and 0087, verified live on PostgreSQL after a backup and a rehearsal
-  on a restored copy): entries by exact written form and context; a person's approval is never overwritten by an agent; a different human approval needs
-  `supersede`; every state is a version and can be rolled back; interventions are validated by what the voice did and are kept apart from the approved
-  pronunciation; evidence is typed (acoustic, asr, model, human, inference); an append-only audit log.
-- **Legacy import** (`app/documentary/pronunciation_import.py`): the owner's reading approvals and the learned respellings are `legacy_unverified` (71 entries
-  from 74 rows); none is a reference until a person approves it in the review.
-- **Review page** (React tab "Pronunciation", API under `/api/documentary/pronunciation`): entries by status, the word in the narration with synchronized
-  playback, word highlight, waveform, loop, editable marks and IPA, explicit approve, reject and mark uncertain (a named reviewer is required).
-- **Seven agents** (`prompts/pronunciation`, `app/documentary/pronunciation_agents.py`): complete versioned prompts, strict output contracts, 8 training and
-  2 held-out few-shot examples each (assistant-authored, pending the owner's linguistic review; audio examples are hypothetical).
-- **Whisper Persian v4** (`scripts/convert_whisper_persian.py`, `scripts/benchmark_whisper_persian.py`): converted to int8 for faster-whisper and benchmarked on this
-  machine against the project's current Persian ASR (see below).
-- **Dictionary check and trace** (`app/documentary/pronunciation_trace.py`) from the earlier phase.
+Architecture: audio-first. What the voice really said is established by an acoustic phoneme recognizer and by listening, never by a transcript. **Whisper
+was removed from this system** (its conversion and benchmark scripts, the converted model and its download are deleted; the film's own ASR check
+`app/documentary/asr.py` is a different feature and stays). A forced alignment of expected phonemes onto audio is not evidence of what was said.
 
-Whisper benchmark (12 random Case 15 blocks of 8-30 s, M1 Pro 16 GB, CPU int8, word error rate against the script):
+Five separate representations: ORIGINAL_TEXT (the script, never changed), REFERENCE_IRAB (the linguist agent's expected pronunciation), TTS_INPUT (the
+text and rules actually sent, recorded by `pronunciation_trace.py`), OBSERVED_PHONEMES (what a recognizer heard, with its confidence), QA_RESULT.
 
-| model | peak RAM | real-time factor | mean WER | blocks within the 20% limit |
+Built and verified (tests; live where stated):
+- **Pronunciation memory** (`pronunciation_memory.py`, migrations 0086 and 0087, verified live on PostgreSQL after a backup and a rehearsal on a restored
+  copy): entries by exact written form and context; a person's approval is never overwritten; versions with rollback; interventions validated by what the
+  voice did, apart from the approved pronunciation; typed evidence (acoustic, phonetic, model, human, inference); an append-only audit log.
+- **Legacy import**: 71 `legacy_unverified` entries (from 74 rows) with their sources. None is a reference until a person approves it or the app verifies it.
+- **Autonomous verification is OFF** (`config pronunciation_auto.enabled`): it is switched on only after a recognizer passes an independent evaluation on
+  recordings a native speaker labelled. When on: at most three attempts; agreement gives `auto_verified` (below a person's approval); no agreement leaves the
+  entry `unresolved`, never approved. On 2026-11-03 the app approved all 71 entries by linguistic agreement alone and accepted 13 after three attempts; that was
+  reverted the same day (`scripts/revert_auto_approvals.py`; the audit log keeps both steps).
+- **Review page** (React tab "Pronunciation"): entries by status, the word in the narration with synchronized playback, word highlight, waveform, loop, editable
+  marks and IPA, explicit approve, reject, mark uncertain.
+- **Seven agents** (`prompts/pronunciation`, `app/documentary/pronunciation_agents.py`): versioned prompts (1.1.0), strict contracts, 8 training and 2 held-out
+  examples each (assistant-authored, pending linguistic review; audio examples hypothetical). The audio observer is given recognizer output, not a transcript.
+
+Phoneme recognizer evaluation (`scripts/benchmark_phoneme_recognizers.py`, labels in `data/phonetic_benchmark/labels.json`). The only labelled recordings that exist
+are 4 ElevenLabs clips of one word (عهدهایی), labelled by the owner by ear (one listener): too few for error rates. Each recognizer's own output is compared with the two
+candidate pronunciations (ahd, ohd) of the word; this is not a forced alignment.
+
+| recognizer | clips called right | ties | peak RAM | decode time for 4 clips |
 |---|---|---|---|---|
-| large-v3-turbo (current) | 2.0 GB | 0.34 | 6.2% | 12 of 12 |
-| whisper-persian-v4, beam 5 | 3.0 GB | 1.17 | 14.4% | 9 of 12 |
-| whisper-persian-v4, greedy | 2.6 GB | 0.80 | 12.9% | 11 of 12 |
+| Allosaurus (Persian inventory) | 0 of 4 | 3 | 0.44 GB | 0.7 s |
+| wav2vec2 espeak (xlsr-53) | 3 of 4 | 1 | 1.8 GB | 3.7 s |
+| Allophant | not evaluated: its installation failed in this environment | | | |
 
-Persian v4 writes formal Persian for colloquial speech (خونواده → خانواده, می‌خواستن → می‌خواستند, رو → را), which hides the spoken forms the voice produced and
-counts as errors against a colloquial script. It is not a better checker for this narration; it is usable as a second opinion.
+No recognizer has passed. wav2vec2 leans the right way on 3 of 4 clips but by one edit only; Allosaurus does not separate the two pronunciations. No model is selected and
+autonomous approval stays off. What is missing is a labelled reference set (native-speaker recordings of minimal pairs: æ/e/o, ezafe, colloquial forms, names,
+several speeds and voices).
 
-Not built yet: phonetic verification layer with word alignment (the existing wav2vec2 phoneme scorer cannot tell [æ] from /e/), the risk engine and adaptive
-planner wired into the render, the prosody check on real audio, the retry engine, the controlled comparison on Case 15 blocks (billable), and the real-audio
-evaluation of the audio agents.
+Not built yet: word alignment of observed phonemes (the recognizer's timestamps are not word boundaries), the correction loop (three attempts, then unresolved), the
+prosody check on real audio, the risk engine and planner wired into the render, the evaluation of the audio agents on real recordings.

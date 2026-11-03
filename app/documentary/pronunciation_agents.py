@@ -72,7 +72,7 @@ class Observation(BaseModel):
     word: str
     expected: str
     observed: str | None
-    evidence_kind: Literal["acoustic", "asr", "model", "none"]
+    evidence_kind: Literal["acoustic", "phonetic", "model", "none"]
     acoustic_evidence: str
     verdict: Literal["match", "mismatch", "uncertain", "missing_word", "unclear_audio"]
     confidence: float = Field(ge=0, le=1)

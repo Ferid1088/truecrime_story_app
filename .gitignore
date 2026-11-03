@@ -96,3 +96,4 @@ data/reports/
 .env.*
 .envy
 data/models/
+data/phonetic_benchmark/clips/

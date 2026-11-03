@@ -1,6 +1,6 @@
 {
  "agent": "audio_observer",
- "version": "1.0.1",
+ "version": "1.1.0",
  "examples": [
   {
    "id": "aud-001",
@@ -29,9 +29,20 @@
       "expected": "خانِه"
      }
     ],
-    "transcript": "او به خانه رفت",
-    "alignment": null,
-    "memory": []
+    "memory": [],
+    "recognizer_output": {
+     "recognizer": "hypothetical phoneme recognizer",
+     "note": "invented for this scenario; never a measurement",
+     "per_word": [
+      {
+       "n": 2,
+       "expected_ipa": "xɑːne",
+       "observed_ipa": "xɑːne",
+       "alignment": "match",
+       "confidence": 0.85
+      }
+     ]
+    }
    },
    "output": {
     "audio_quality": "clear",
@@ -60,7 +71,7 @@
    "linguistic_context": "the first vowel is clearly back-rounded",
    "expected_pronunciation": "mismatch with a stated vowel",
    "correct_decision": "verdict mismatch, acoustic evidence, retake with intervention",
-   "incorrect_decision_to_avoid": "call it correct because the transcript has the word",
+   "incorrect_decision_to_avoid": "call it correct because the expected text contains the word",
    "explanation": "the vowel is audibly not the expected one",
    "confidence_requirement": ">=0.75",
    "source": "authored by the assistant for this system; not from any case recording",
@@ -79,9 +90,20 @@
       "expected": "اَهد"
      }
     ],
-    "transcript": "او عهد خود را شکست",
-    "alignment": null,
-    "memory": []
+    "memory": [],
+    "recognizer_output": {
+     "recognizer": "hypothetical phoneme recognizer",
+     "note": "invented for this scenario; never a measurement",
+     "per_word": [
+      {
+       "n": 1,
+       "expected_ipa": "ʔæhd",
+       "observed_ipa": "ʔohd",
+       "alignment": "substitution",
+       "confidence": 0.8
+      }
+     ]
+    }
    },
    "output": {
     "audio_quality": "clear",
@@ -129,9 +151,20 @@
       "expected": "بِهَم"
      }
     ],
-    "transcript": "زندگی اش به هم ریخت",
-    "alignment": null,
-    "memory": []
+    "memory": [],
+    "recognizer_output": {
+     "recognizer": "hypothetical phoneme recognizer",
+     "note": "invented for this scenario; never a measurement",
+     "per_word": [
+      {
+       "n": 1,
+       "expected_ipa": "behæm",
+       "observed_ipa": null,
+       "alignment": "unknown",
+       "confidence": 0.35
+      }
+     ]
+    }
    },
    "output": {
     "audio_quality": "clear",
@@ -155,13 +188,13 @@
   {
    "id": "aud-004",
    "split": "train",
-   "phenomenon": "a transcript that is right while the pronunciation is wrong",
+   "phenomenon": "a forced alignment that scores well while an independent recognizer hears another vowel",
    "original_text": "او به گورستان رفت.",
-   "linguistic_context": "the recogniser spelled the word correctly but the first vowel is wrong",
-   "expected_pronunciation": "mismatch despite a correct transcript",
-   "correct_decision": "trust the audio over the transcript",
-   "incorrect_decision_to_avoid": "accept because Whisper wrote the word right",
-   "explanation": "a recogniser normalises many mispronunciations to the dictionary word",
+   "linguistic_context": "an aligner that forces the expected phonemes onto the audio gives a high score, but an independent recognizer hears a short rounded vowel",
+   "expected_pronunciation": "mismatch although forced alignment fits the expected phonemes",
+   "correct_decision": "trust the independent recognition and the audio over the forced alignment score",
+   "incorrect_decision_to_avoid": "accept the word because forced alignment fits the expected phonemes",
+   "explanation": "forced alignment places the expected phonemes on the audio whatever was said, so a good score is not proof; only an independent recognition can show a different vowel",
    "confidence_requirement": ">=0.7",
    "source": "authored by the assistant for this system; not from any case recording",
    "verification": "hypothetical_scenario",
@@ -179,9 +212,21 @@
       "expected": "گورِستان"
      }
     ],
-    "transcript": "او به گورستان رفت",
-    "alignment": null,
-    "memory": []
+    "memory": [],
+    "recognizer_output": {
+     "recognizer": "hypothetical phoneme recognizer",
+     "note": "invented for this scenario; never a measurement",
+     "per_word": [
+      {
+       "n": 2,
+       "expected_ipa": "ɡuːɾestɑːn",
+       "observed_ipa": "ɡoɾestɑːn",
+       "alignment": "substitution",
+       "confidence": 0.7
+      }
+     ],
+     "forced_alignment_score": "high (forced: not evidence)"
+    }
    },
    "output": {
     "audio_quality": "clear",
@@ -192,10 +237,10 @@
       "expected": "گورِستان",
       "observed": "گُرستان",
       "evidence_kind": "acoustic",
-      "acoustic_evidence": "the first vowel is short and rounded, there is no long u",
+      "acoustic_evidence": "the independent recognizer hears a short rounded first vowel; the forced alignment fits the expected phonemes but proves nothing",
       "verdict": "mismatch",
       "confidence": 0.7,
-      "uncertainty": "the transcript has the correct spelling: it does not show the vowel",
+      "uncertainty": "forced alignment is not verification; one clip, one recognizer",
       "next_action": "retake_with_intervention",
       "hypothetical": true
      }
@@ -229,15 +274,26 @@
       "expected": "کالِب"
      }
     ],
-    "transcript": "کالب به خانه برگشت",
-    "alignment": null,
     "memory": [
      {
       "surface": "کالِب",
       "approved_pronunciation": "کالِب",
       "status": "human_approved"
      }
-    ]
+    ],
+    "recognizer_output": {
+     "recognizer": "hypothetical phoneme recognizer",
+     "note": "invented for this scenario; never a measurement",
+     "per_word": [
+      {
+       "n": 0,
+       "expected_ipa": "kɑːleb",
+       "observed_ipa": "kejleb",
+       "alignment": "substitution",
+       "confidence": 0.8
+      }
+     ]
+    }
    },
    "output": {
     "audio_quality": "clear",
@@ -285,9 +341,20 @@
       "expected": "را"
      }
     ],
-    "transcript": "او کتاب خرید",
-    "alignment": null,
-    "memory": []
+    "memory": [],
+    "recognizer_output": {
+     "recognizer": "hypothetical phoneme recognizer",
+     "note": "invented for this scenario; never a measurement",
+     "per_word": [
+      {
+       "n": 2,
+       "expected_ipa": "ɾɑː",
+       "observed_ipa": null,
+       "alignment": "missing",
+       "confidence": 0.8
+      }
+     ]
+    }
    },
    "output": {
     "audio_quality": "clear",
@@ -335,9 +402,20 @@
       "expected": "دَر"
      }
     ],
-    "transcript": "او از در وارد شد",
-    "alignment": null,
-    "memory": []
+    "memory": [],
+    "recognizer_output": {
+     "recognizer": "hypothetical phoneme recognizer",
+     "note": "invented for this scenario; never a measurement",
+     "per_word": [
+      {
+       "n": 2,
+       "expected_ipa": "dæɾ",
+       "observed_ipa": null,
+       "alignment": "unknown",
+       "confidence": 0.3
+      }
+     ]
+    }
    },
    "output": {
     "audio_quality": "distorted",
@@ -366,7 +444,7 @@
    "linguistic_context": "noise over the word",
    "expected_pronunciation": "unclear_audio",
    "correct_decision": "say the audio is unclear and give no observed form",
-   "incorrect_decision_to_avoid": "guess from the transcript",
+   "incorrect_decision_to_avoid": "guess from the expected form",
    "explanation": "a judgement needs a clip that can be heard",
    "confidence_requirement": ">=0.0",
    "source": "authored by the assistant for this system; not from any case recording",
@@ -385,9 +463,20 @@
       "expected": "خانِه"
      }
     ],
-    "transcript": "او به خونه رفت",
-    "alignment": null,
-    "memory": []
+    "memory": [],
+    "recognizer_output": {
+     "recognizer": "hypothetical phoneme recognizer",
+     "note": "invented for this scenario; never a measurement",
+     "per_word": [
+      {
+       "n": 2,
+       "expected_ipa": "xɑːne",
+       "observed_ipa": null,
+       "alignment": "unknown",
+       "confidence": 0.1
+      }
+     ]
+    }
    },
    "output": {
     "audio_quality": "unclear",
@@ -435,9 +524,20 @@
       "expected": "بِرَم"
      }
     ],
-    "transcript": "نمی خوام برم",
-    "alignment": null,
-    "memory": []
+    "memory": [],
+    "recognizer_output": {
+     "recognizer": "hypothetical phoneme recognizer",
+     "note": "invented for this scenario; never a measurement",
+     "per_word": [
+      {
+       "n": 1,
+       "expected_ipa": "beɾæm",
+       "observed_ipa": "beɾæm",
+       "alignment": "match",
+       "confidence": 0.75
+      }
+     ]
+    }
    },
    "output": {
     "audio_quality": "clear",
@@ -485,9 +585,20 @@
       "expected": "مُدَّتی"
      }
     ],
-    "transcript": "او مدتی ماند",
-    "alignment": null,
-    "memory": []
+    "memory": [],
+    "recognizer_output": {
+     "recognizer": "hypothetical phoneme recognizer",
+     "note": "invented for this scenario; never a measurement",
+     "per_word": [
+      {
+       "n": 1,
+       "expected_ipa": "modætiː",
+       "observed_ipa": null,
+       "alignment": "unknown",
+       "confidence": 0.3
+      }
+     ]
+    }
    },
    "output": {
     "audio_quality": "clear",

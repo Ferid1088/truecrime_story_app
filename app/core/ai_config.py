@@ -2448,6 +2448,14 @@ class SemanticReviewConfig(BaseModel):
     folder_suffix: str = "_reviewed"
 
 
+class PronunciationAutoConfig(BaseModel):
+    """Autonomous verification of pronunciation entries (pronunciation_auto.py). Off until the phonetic recognizer has passed an independent evaluation on
+    recordings a native speaker labelled: an entry is never approved by linguistic agreement alone, and never because the attempts ran out."""
+
+    enabled: bool = False
+    max_attempts: int = Field(default=3, ge=1, le=3)
+
+
 class IrabConfig(BaseModel):
     """The second text of a film (documentary/irab): every word vowelized in its sentence by two models and a decision between them."""
 
@@ -4347,6 +4355,7 @@ class AIConfig(BaseModel):
     voice_prepare: VoicePrepareConfig = Field(default_factory=VoicePrepareConfig)
     pronunciation_trace: PronunciationTraceConfig = Field(default_factory=PronunciationTraceConfig)
     irab: IrabConfig = Field(default_factory=IrabConfig)
+    pronunciation_auto: PronunciationAutoConfig = Field(default_factory=PronunciationAutoConfig)
     semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)
     reading: ReadingConfig = Field(default_factory=ReadingConfig)
     chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)

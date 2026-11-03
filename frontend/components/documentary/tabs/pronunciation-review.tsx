@@ -17,7 +17,9 @@ import { InlineAlert, LanguagePicker, type LanguageTabProps } from "../shared";
 const STATUS_LABEL: Record<string, string> = {
   legacy_unverified: "Legacy — unverified",
   candidate: "Candidate",
-  human_approved: "Approved",
+  human_approved: "Approved by you",
+  auto_verified: "Auto-verified",
+  unresolved: "Unresolved",
   uncertain: "Uncertain",
   rejected: "Rejected",
   contested: "Contested",
@@ -26,6 +28,8 @@ const STATUS_TONE: Record<string, "warning" | "success" | "danger" | "info" | "d
   legacy_unverified: "warning",
   candidate: "info",
   human_approved: "success",
+  auto_verified: "info",
+  unresolved: "warning",
   uncertain: "default",
   rejected: "danger",
   contested: "danger",
@@ -170,6 +174,7 @@ function Detail({
         </span>
         <Badge variant={STATUS_TONE[entry.status] ?? "default"}>{STATUS_LABEL[entry.status] ?? entry.status}</Badge>
         <span className="text-xs text-muted-foreground">version {entry.version}</span>
+        {entry.reviewer && <span className="text-xs text-muted-foreground">· {entry.reviewer}</span>}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -332,11 +337,12 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs leading-5 text-muted-foreground">
-            Entries imported from the earlier systems are <strong>legacy and unverified</strong>: none is used as a pronunciation reference until you approve it
-            here. Listen to the word in the narration, correct the vowel marks if needed, then approve, reject or mark it uncertain.
+            Entries imported from the earlier systems are <strong>legacy and unverified</strong>: none is a pronunciation reference yet. The app will verify
+            them itself from audio evidence once its phonetic recognizer has passed an independent evaluation (it is off until then); when you decide, your
+            decision outranks the app&apos;s. Listen to the word in the narration, correct the vowel marks if needed, then approve, reject or mark it uncertain.
           </p>
           <div className="flex flex-wrap gap-2" role="tablist" aria-label="Status">
-            {["legacy_unverified", "uncertain", "human_approved", "rejected", "all"].map((s) => (
+            {["legacy_unverified", "auto_verified", "human_approved", "unresolved", "uncertain", "rejected", "all"].map((s) => (
               <Button key={s} size="sm" variant={status === s ? "default" : "secondary"} onClick={() => { setStatus(s); setSelected(null); }}>
                 {s === "all" ? "All" : STATUS_LABEL[s]} {s !== "all" && <span className="opacity-70">({state.data?.counts[s] ?? 0})</span>}
               </Button>
@@ -358,7 +364,9 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
                       <span lang={language} dir={isRtl(language) ? "rtl" : "ltr"} className="text-base">
                         {e.surface}
                       </span>
-                      <Badge variant={STATUS_TONE[e.status] ?? "default"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>
+                      <Badge variant={STATUS_TONE[e.status] ?? "default"}>
+                        {STATUS_LABEL[e.status] ?? e.status}
+                      </Badge>
                     </button>
                   </li>
                 ))}

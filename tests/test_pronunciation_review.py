@@ -103,3 +103,24 @@ def test_the_waveform_of_a_clip_follows_the_loudness(tmp_path):
     subprocess.run(["ffmpeg", "-v", "error", "-i", str(tmp_path / "quiet.wav"), "-i", str(tmp_path / "tone.wav"), "-filter_complex", "[0][1]concat=n=2:v=0:a=1", str(wav)], check=True)
     steps = PR.peaks(wav, 0.0, 2.0, 40)
     assert len(steps) == 40 and max(steps[:15]) == 0.0 and min(steps[25:]) > 0.5
+
+
+def test_the_app_verifies_an_entry_through_the_page_only_when_autonomous_verification_is_on(client, language, monkeypatch):
+    from app.core.ai_config import ai_config
+    from app.documentary import pronunciation_auto as AUTO
+
+    entry = next(e for e in listed(client, language)["entries"] if e["surface"] == "عهد")
+    off = client.post(f"/api/documentary/pronunciation/entries/{entry['id']}/auto-verify")
+    assert off.status_code == 409 and "off" in off.json()["detail"]
+    monkeypatch.setattr(ai_config.pronunciation_auto, "enabled", True)
+
+    async def fake(db, entry_id, version, runner=None, max_attempts=3):
+        from app.documentary.pronunciation_memory import PronunciationMemory
+
+        PronunciationMemory(db).auto_verify(entry_id, attempts=3, agreed=False, notes=["attempt 3: no agreement"])
+        return AUTO.Outcome(entry_id, "عهد", 3, False, ["attempt 3: no agreement"])
+
+    monkeypatch.setattr(AUTO, "verify", fake)
+    done = client.post(f"/api/documentary/pronunciation/entries/{entry['id']}/auto-verify").json()
+    assert done["attempts"] == 3 and done["agreed"] is False and done["entry"]["status"] == "unresolved" and done["entry"]["approved_pronunciation"] is None
+    assert client.post("/api/documentary/pronunciation/entries/99999999/auto-verify").status_code == 404

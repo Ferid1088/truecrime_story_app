@@ -29,8 +29,9 @@ HUMAN, AGENT = "human:", "agent:"
 SNAPSHOT_FIELDS = ("language", "surface", "surface_key", "prev_word", "next_word", "sense", "voice_id", "model_id", "scope", "sentence", "grammar",
                    "expected_irab", "observed_wrong", "approved_pronunciation", "approved_ipa", "status", "source", "confidence", "reviewer", "case_id")
 KINDS = ("dictionary_alias", "dictionary_phoneme", "irab", "alt_spelling", "rewrite")
-EVIDENCE_KINDS = ("acoustic", "asr", "model", "human", "inference")
-PROTECTED = ("human_approved", "legacy_unverified")        # an agent does not change these
+EVIDENCE_KINDS = ("acoustic", "phonetic", "model", "human", "inference")
+PROTECTED = ("human_approved", "auto_verified", "legacy_unverified")        # an agent does not change these
+APPROVED = ("human_approved", "auto_verified")                              # what a person or the app has approved: a reference (a person outranks the app)
 
 
 class Contradiction(ValueError):
@@ -169,6 +170,38 @@ class PronunciationMemory:
         self.db.commit()
         return entry
 
+    def auto_verify(self, entry_id: int, *, attempts: int, agreed: bool, notes: list[str]) -> PronunciationEntry:
+        """The app's own check of an entry, after at most three attempts. Agreement makes it `auto_verified` (below a person's approval); no agreement leaves
+        it `unresolved`: running out of attempts is never a reason to approve."""
+        entry = self.db.get(PronunciationEntry, entry_id)
+        if entry.status == "human_approved":
+            return entry
+        before = self.snapshot(entry)
+        if agreed:
+            entry.approved_pronunciation = entry.approved_pronunciation or entry.expected_irab
+            entry.status, entry.reviewer, entry.approved_at, entry.confidence = "auto_verified", f"auto (verified in {attempts} attempt{'s' if attempts > 1 else ''})", utc_now(), 0.8
+        else:
+            entry.status, entry.reviewer, entry.approved_at, entry.confidence = "unresolved", f"auto (no agreement after {attempts} attempts)", None, 0.0
+        entry.version += 1
+        self.db.flush()
+        self.record(entry, AGENT + "auto-verification", "auto_verify" if agreed else "auto_unresolved", before, f"attempts={attempts} agreed={agreed}; " + "; ".join(notes))
+        self.db.commit()
+        return entry
+
+    def revert_to_legacy(self, entry_id: int, *, reason: str) -> PronunciationEntry:
+        """Puts an imported entry back to legacy_unverified (a correction by the system of something it did not have the right to do). A person's approval
+        is never touched."""
+        entry = self.db.get(PronunciationEntry, entry_id)
+        if entry.status == "human_approved" or not entry.origin:
+            return entry
+        before = self.snapshot(entry)
+        entry.status, entry.approved_pronunciation, entry.reviewer, entry.approved_at, entry.confidence = "legacy_unverified", None, None, None, 0.0
+        entry.version += 1
+        self.db.flush()
+        self.record(entry, AGENT + "system", "revert_to_legacy", before, reason)
+        self.db.commit()
+        return entry
+
     def mark_uncertain(self, entry_id: int, *, reviewer: str, reason: str = "") -> PronunciationEntry:
         """A person cannot decide yet: the entry stays out of use and waits."""
         if not reviewer.strip():
@@ -231,7 +264,7 @@ class PronunciationMemory:
         return item
 
     def add_evidence(self, *, surface: str, kind: str, verdict: str, entry_id: int | None = None, **fields) -> PronunciationEvidence:
-        """What was observed. `inference` and `model` are predictions; only `acoustic` (and `human`) evidence can support a mismatch as confirmed."""
+        """What was observed. `inference` and `model` are predictions; `phonetic` is what a phoneme recognizer heard (with its own uncertainty); only `acoustic` (a person\'s or a validated listening) and `human` evidence can confirm a mismatch."""
         if kind not in EVIDENCE_KINDS:
             raise ValueError(f"unknown evidence kind {kind!r}")
         row = PronunciationEvidence(entry_id=entry_id, surface=nfc(surface), kind=kind, verdict=verdict, **fields)
@@ -252,14 +285,14 @@ class PronunciationMemory:
             if fits:
                 specific = sum(1 for want in (e.prev_word, e.next_word, e.sense, e.voice_id, e.model_id) if want)
                 out.append(Match(e, specific, "exact written form"))
-        return sorted(out, key=lambda m: (m.entry.status != "human_approved", -m.specificity, m.entry.id))
+        return sorted(out, key=lambda m: (m.entry.status != "human_approved", m.entry.status != "auto_verified", -m.specificity, m.entry.id))
 
     def reusable(self, language: str, surface: str, **context) -> list[PronunciationIntervention]:
-        """The validated interventions for a word a person approved, for this exact written form and this voice and model."""
+        """The validated interventions for a word that was approved (by a person, or verified by the app), for this exact written form, voice and model."""
         voice_id, model_id = context.get("voice_id", ""), context.get("model_id", "")
         out: list[PronunciationIntervention] = []
         for m in self.find(language, surface, **context):
-            if m.entry.status != "human_approved":
+            if m.entry.status not in APPROVED:
                 continue
             for i in self.db.query(PronunciationIntervention).filter_by(entry_id=m.entry.id, status="validated"):
                 if i.exact_form == nfc(surface) and i.voice_id in ("", voice_id) and i.model_id in ("", model_id):

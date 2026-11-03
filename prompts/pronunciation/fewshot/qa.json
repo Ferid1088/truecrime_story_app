@@ -1,13 +1,13 @@
 {
  "agent": "qa",
- "version": "1.0.1",
+ "version": "1.1.0",
  "examples": [
   {
    "id": "qa-001",
    "split": "train",
    "phenomenon": "a false positive",
    "original_text": "او به خانه رفت.",
-   "linguistic_context": "a mismatch is claimed from the transcript alone",
+   "linguistic_context": "a mismatch is claimed from a low-confidence recognizer output alone",
    "expected_pronunciation": "reject: false positive",
    "correct_decision": "reject the claim, no evidence for it",
    "incorrect_decision_to_avoid": "approve because the claim is explained well",
@@ -36,9 +36,13 @@
     ],
     "evidence": {
      "audio": {
-      "kind": "asr",
-      "transcript": "او به خونه رفت",
-      "acoustic": null
+      "kind": "phonetic",
+      "recognizer_output": {
+       "word": "خانه",
+       "observed_ipa": "xune",
+       "confidence": 0.35,
+       "note": "low-confidence recognition; no listening confirmed it"
+      }
      }
     },
     "cost": {
@@ -49,14 +53,14 @@
    "output": {
     "verdict": "reject",
     "problem": "false_positive",
-    "reason": "the only evidence is a transcript spelling خونه, which can be the recogniser's normalisation; no acoustic evidence supports a mismatch",
+    "reason": "the only evidence is one recognizer output with confidence 0.35 and no listening confirms it; the claimed 0.9 is not supported",
     "linguistic": {
      "ok": true,
      "note": "consistent with the sentence"
     },
     "audio_evidence": {
      "ok": false,
-     "note": "evidence_kind asr, no acoustic observation"
+     "note": "phonetic evidence at confidence 0.35 cannot support a mismatch"
     },
     "dictionary_compatibility": {
      "ok": true,
@@ -174,7 +178,7 @@
    "split": "train",
    "phenomenon": "conflicting evidence",
    "original_text": "بهم",
-   "linguistic_context": "the transcript and the acoustic observation disagree",
+   "linguistic_context": "a recognizer output and the acoustic observation disagree",
    "expected_pronunciation": "escalate: conflicting evidence",
    "correct_decision": "escalate to the owner",
    "incorrect_decision_to_avoid": "pick the higher confidence",
@@ -210,7 +214,7 @@
        "confidence": 0.55
       }
      },
-     "transcript": "زندگی اش به هم ریخت"
+     "recognizer_output": {"recognizer": "hypothetical phoneme recognizer", "observed_ipa": "beham", "confidence": 0.6}
     },
     "cost": {
      "retries": 0,
@@ -220,7 +224,7 @@
    "output": {
     "verdict": "escalate",
     "problem": "conflicting_evidence",
-    "reason": "a confidence of 0.55 for a short vowel against a transcript with به هم; the owner should hear the clip",
+    "reason": "a confidence of 0.55 for a short vowel against a recognizer output that hears the expected vowel at 0.6; the owner should hear the clip",
     "linguistic": {
      "ok": true,
      "note": "consistent with the sentence"
@@ -796,7 +800,7 @@
    "expected_pronunciation": "escalate",
    "correct_decision": "escalate",
    "incorrect_decision_to_avoid": "approve",
-   "explanation": "a verdict without audio or transcript has no evidence",
+   "explanation": "a verdict without audio or recognizer output has no evidence",
    "confidence_requirement": ">=0.8",
    "source": "authored by the assistant for this system; not from any case recording",
    "verification": "assistant_authored_pending_linguistic_review",
@@ -830,7 +834,7 @@
    "output": {
     "verdict": "escalate",
     "problem": "unsupported_confidence",
-    "reason": "a verdict is claimed with no audio and no transcript",
+    "reason": "a verdict is claimed with no audio and no recognizer output",
     "linguistic": {
      "ok": true,
      "note": "consistent with the sentence"
