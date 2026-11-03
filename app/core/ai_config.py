@@ -2394,6 +2394,9 @@ class ReadingConfig(BaseModel):
     languages: list[str] = []
     # How many blocks the reader takes in one call when it builds the film table (the table of the chunks is merged afterwards).
     chunk_blocks: int = Field(default=40, ge=1)
+    # Words (plain form) written with ه whose respelling may still write ح for a consonant h at the end, each with the evidence for that word (heard, with the
+    # audio). A word written with ح keeps it without a listing. No rule turns a final ه into ح; the table is empty: no word has that evidence yet.
+    final_h_evidence: dict[str, str] = {}
     # How many times a failing word is fixed, voiced and listened to again before the problem is only logged.
     max_rounds: int = Field(default=3, ge=0, le=10)
     # How many times the editor writes a block again when the code checks (the same words in the same order, the name rules) reject its answer.
@@ -2446,6 +2449,29 @@ class SemanticReviewConfig(BaseModel):
     learn_types: list[str] = []
     # Where the records and the audio of a reviewed language are kept next to the film's voice (a new version folder: earlier voices stay).
     folder_suffix: str = "_reviewed"
+
+
+class PhonemeAlignmentConfig(BaseModel):
+    """Word-level reading of a phoneme recognizer's output (phoneme_alignment.py). A recognizer's timestamps are not word boundaries: the windows come from the
+    voice's own word timeline, phones are given to the word they overlap most, and a word with too little speech or no clear nearest candidate is unclear."""
+
+    tolerance_s: float = Field(ge=0, le=0.5)             # a phone may start this much before or end this much after its word's window
+    min_coverage: float = Field(gt=0, le=1)              # the share of the word's window the recognized phones must cover
+    min_margin: int = Field(ge=1)                        # edits by which the nearest candidate must beat the next one
+
+
+class ProsodyConfig(BaseModel):
+    """The measurable side of prosody (prosody.py): speech and pause timing, energy and a coarse pitch contour of a block, compared between takes. How natural a
+    take sounds is not measured here; a difference counts only beyond twice the difference between takes of the same request (`noise_factor`)."""
+
+    frame_s: float = Field(gt=0)
+    hop_s: float = Field(gt=0)
+    pause_min_s: float = Field(gt=0)
+    silence_db: float
+    f0_min_hz: float = Field(gt=0)
+    f0_max_hz: float = Field(gt=0)
+    voicing_threshold: float = Field(gt=0, lt=1)
+    noise_factor: float = Field(gt=0)
 
 
 class PronunciationRiskConfig(BaseModel):
@@ -4377,6 +4403,8 @@ class AIConfig(BaseModel):
     voice_prepare: VoicePrepareConfig = Field(default_factory=VoicePrepareConfig)
     pronunciation_trace: PronunciationTraceConfig = Field(default_factory=PronunciationTraceConfig)
     irab: IrabConfig = Field(default_factory=IrabConfig)
+    phoneme_alignment: PhonemeAlignmentConfig
+    prosody: ProsodyConfig
     pronunciation_risk: PronunciationRiskConfig
     pronunciation_auto: PronunciationAutoConfig = Field(default_factory=PronunciationAutoConfig)
     semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)

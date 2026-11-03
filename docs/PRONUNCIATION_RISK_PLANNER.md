@@ -28,7 +28,10 @@ match (including a person's label of a benchmark clip). History counts only for 
 7. HIGH/CRITICAL: the word's own letters with the reading's short vowels as marks, **only if** the consonant skeleton is identical (otherwise nothing is invented) →
    `selective_marks`, a candidate (not validated; CRITICAL also `needs_review`); else `escalate` (text unchanged, reported once per word).
 A block may carry at most `max_changed_fraction` unvalidated changes and never more than `max_changed_in_a_row` in a row. No sentence is ever diacritized as a whole.
-The ح for a final consonant h is written only when the word's reading says consonant h (`mosallah`); `khāne` keeps ه.
+Final h (audited 2026-11-04): no rule turns ه into ح. The respelling writes a final consonant h with **the word's own letter**: ح for a word written with ح
+(مسلح, سلاح: this preserves the word, it converts nothing), ه for a word written with ه (دادگاه, شاه), and ح for a word written with ه only if `reading.final_h_evidence`
+lists that word with evidence (it is empty: no word has it). The earlier bug (مسلح said "mosallal") was the respelling replacing the word's own ح by ه. Not
+verified by ear: that keeping ح makes the voice say "mosallah" (it is in the controlled experiment's candidate/dictionary blocks only if the word occurs there).
 
 ## Learning
 `Planner.learn` books a failure as evidence (`model`/mismatch) and against the intervention (two failures → `failed`); a success is evidence only unless

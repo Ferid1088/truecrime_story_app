@@ -96,9 +96,16 @@ def test_a_symbol_the_scheme_has_not_is_refused_not_guessed():
         persian("bēham")
 
 
-def test_a_consonant_h_that_ends_a_word_is_written_with_hah_so_it_is_not_read_as_a_vowel():
-    """The owner heard مُسَللَه (mosallah written with heh) said "mosallal": a heh at the end of a word is a vowel letter."""
-    from app.documentary.reading.spelling import persian
+def test_a_final_consonant_h_keeps_the_letter_the_word_is_written_with_and_heh_is_never_turned_into_hah():
+    """The owner heard مُسَللَه (mosallah written with heh) said "mosallal": the respelling had replaced the word's own hah. The respelling keeps the word's
+    own letter and converts nothing (no word has the evidence that a conversion helps)."""
+    from app.documentary.reading.spelling import final_h_for, persian
 
-    assert persian("mosallah") == "مُسَللَح" and persian("sobh") == "سُبح"
+    assert persian("mosallah") == "مُسَللَه" and persian("mosallah", final_h=True) == "مُسَللَح"
+    assert final_h_for("مسلح") and final_h_for("سَلاح") and not final_h_for("دادگاه") and not final_h_for("شاه")
     assert persian("khāne") == "خانه" and persian("hāl") == "هال", "a final e keeps the heh; a first h stays heh"
+
+
+def test_the_voice_is_given_the_words_own_final_letter_and_a_heh_is_never_turned_into_a_hah():
+    voicing = Voicing({"مسلح": "mosallah", "شاه": "shāh"}, {"b": ["mosallah", "shāh"]})
+    assert voicing.text("b", "مسلح شاه") == "مُسَللَح شاه"

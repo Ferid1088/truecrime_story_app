@@ -9,7 +9,7 @@ from dataclasses import dataclass, field, replace
 
 from app.core.ai_config import ai_config
 from app.documentary.reading.scheme import ezafe_form, split_ezafe, split_pause, to_ipa
-from app.documentary.reading.spelling import persian
+from app.documentary.reading.spelling import final_h_for, persian
 from app.documentary.reading.words import substitute, tokenize
 
 log = logging.getLogger(__name__)
@@ -43,12 +43,12 @@ class Voicing:
         if len(readings) != len(words):
             log.warning("voicing: %s has %d words and %d readings; left as written", block_id, len(words), len(readings or []))
             return text
-        chosen = {w.n: self.spell(self.reading_of(self.fixed[w.key], readings[w.n])) for w in words if w.key in self.fixed and not w.number}
+        chosen = {w.n: self.spell(self.reading_of(self.fixed[w.key], readings[w.n]), w.surface) for w in words if w.key in self.fixed and not w.number}
         return substitute(text, chosen)
 
     @staticmethod
-    def spell(reading: str) -> str:
-        return persian(reading) if ai_config.reading.voice_form == "persian_marks" else f"/{to_ipa(reading)}/"
+    def spell(reading: str, surface: str = "") -> str:
+        return persian(reading, final_h_for(surface)) if ai_config.reading.voice_form == "persian_marks" else f"/{to_ipa(reading)}/"
 
     @staticmethod
     def reading_of(fixed: str, reading: str) -> str:

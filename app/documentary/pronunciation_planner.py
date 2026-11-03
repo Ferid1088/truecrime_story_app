@@ -119,7 +119,7 @@ class Planner:
         if word.number or reading == "NUM":
             return made("keep", "a number, read by code")
         if word.key in voicing.fixed:
-            spelled = Voicing.spell(Voicing.reading_of(voicing.fixed[word.key], reading))
+            spelled = Voicing.spell(Voicing.reading_of(voicing.fixed[word.key], reading), word.surface)
             return made("respelling", "the reading a person approved (or the reading loop verified) for this word", replacement=spelled, validated=True)
         prev_key = key_of(words[word.n - 1].surface) if word.n else ""
         next_key = key_of(words[word.n + 1].surface) if word.n + 1 < len(words) else ""
@@ -149,7 +149,7 @@ class Planner:
         if word.surface != word.plain:
             return None
         try:
-            marked = spelling.persian(reading)
+            marked = spelling.persian(reading, final_h=spelling.final_h_for(word.surface))
         except ValueError:
             return None
         return marked if skeleton(marked) == skeleton(word.surface) and marked != word.surface else None

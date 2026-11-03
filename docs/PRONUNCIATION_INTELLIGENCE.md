@@ -64,3 +64,13 @@ Dry run on Case 15 v289 (reading cache + database, no model, no provider, nothin
 decisions: keep 8273, respelling 46 (existing owner approvals), selective marks 16 (candidates), escalate 35 (14 distinct words, e.g. دادگاه ×17); 0.74 % of the words
 changed, at most 9.1 % of any block, longest run 1. NOT done: a render with the planner (needs the owner's go); acoustic proof that candidates are obeyed; naturalness by
 listening; weights fitted to evidence.
+
+## Validation step (2026-11-04)
+- API and worker run the same commit (`/health`: `commit_mismatch: false`); the earlier "Not Found" was my wrong URL, not a failing endpoint.
+- Pronunciation tab checked live against the real API with the 234 Case 15 clips (no mocks, no console or API errors); the label endpoint refuses a label without a named listener.
+  No clip is human-verified: nothing here was labelled by an agent as ground truth, and `pronunciation_auto.enabled` is still false.
+- Final h audited: see `docs/PRONUNCIATION_RISK_PLANNER.md`.
+- Built, tested on synthetic data only, NOT validated: word-level phoneme alignment (`phoneme_alignment.py`, windows from the voice's timeline, ties and too little speech are
+  `unclear`, margin 1 edit) and prosody measures (`prosody.py`, numpy/ffmpeg, coarse pitch; differences count only beyond the noise of identical requests). Neither is validated until
+  at least 60 clips are labelled by a person and the recognizer is scored on them.
+- The controlled experiment is prepared and costed (`docs/PRONUNCIATION_EXPERIMENT.md`), not run.

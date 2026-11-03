@@ -175,7 +175,7 @@ def test_the_naturalness_measure_counts_changed_words_and_runs():
 def test_a_final_vowel_e_keeps_its_letter_and_only_a_reading_with_a_consonant_h_gets_the_other_one():
     from app.documentary.reading.spelling import persian
 
-    assert persian("khāne") == "خانه" and persian("mosallah").endswith("ح")
+    assert persian("khāne") == "خانه" and persian("mosallah").endswith("ه") and persian("mosallah", final_h=True).endswith("ح")
 
 
 def test_the_approved_pronunciation_is_reused_only_where_the_context_matches(db_session, language):

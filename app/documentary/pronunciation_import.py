@@ -16,16 +16,16 @@ def stamp(value) -> str | None:
     return value.isoformat() if value is not None else None
 
 
-def persian_of_latin(latin: str) -> str:
+def persian_of_latin(latin: str, surface: str = "") -> str:
     try:
-        return spelling.persian(latin)
+        return spelling.persian(latin, spelling.final_h_for(surface))
     except ValueError:
         return ""
 
 
-def persian_of_ipa(ipa: str) -> str:
+def persian_of_ipa(ipa: str, surface: str = "") -> str:
     latin = ipa_to_latin(ipa)
-    return persian_of_latin(latin) if latin else ""
+    return persian_of_latin(latin, surface) if latin else ""
 
 
 def import_legacy(db: Session, language: str | None = None) -> dict[str, int]:
@@ -46,9 +46,9 @@ def import_legacy(db: Session, language: str | None = None) -> dict[str, int]:
         approvals, lexicon = approvals.filter_by(language=language), lexicon.filter_by(language=language)
     for r in approvals.order_by(ReadingApproval.id):
         put({"table": "reading_approvals", "id": r.id, "source": r.source, "kind": r.kind, "latin": r.latin, "case_id": r.case_id,
-             "created_at": stamp(r.created_at), "updated_at": stamp(r.updated_at)}, r.language, r.surface, persian_of_latin(r.latin), r.sense, r.case_id)
+             "created_at": stamp(r.created_at), "updated_at": stamp(r.updated_at)}, r.language, r.surface, persian_of_latin(r.latin, r.surface), r.sense, r.case_id)
     for r in lexicon.order_by(PronunciationLexicon.id):
-        expected = r.reading if r.kind == "alias" else persian_of_ipa(r.reading)
+        expected = r.reading if r.kind == "alias" else persian_of_ipa(r.reading, r.surface)
         put({"table": "pronunciation_lexicon", "id": r.id, "source": r.source, "kind": r.kind, "reading": r.reading, "hits": r.hits, "case_id": r.case_id,
              "created_at": stamp(r.created_at), "updated_at": stamp(r.updated_at)}, r.language, r.surface, expected, "", r.case_id)
     return done

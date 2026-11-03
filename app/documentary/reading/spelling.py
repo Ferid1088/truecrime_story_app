@@ -16,7 +16,7 @@ INITIAL = {"a": "اَ", "e": "اِ", "o": "اُ", "ā": "آ", "i": "ای", "u": 
 LONG = {"ā": "ا", "i": "ی", "u": "و"}
 DIPHTHONG = {"ey": KASRA + "ی", "ow": FATHA + "و"}
 FINAL = {"e": "ه", "o": "و"}                       # a short e or o that ends a word is written with a letter, not a mark
-FINAL_H = "ح"                                      # a consonant h that ends a word (mosallah): ه at the end of a word is read as a vowel (mosalla)
+FINAL_H = "ح"                                      # a consonant h that ends a word and is written ح in the word itself (mosallah), or has evidence (config)
 
 
 SYMBOL = re.compile(r"ey|ow|kh|gh|zh|sh|ch|[aeoāiu]|[bptsjhdzrfkglmnvy']")
@@ -26,8 +26,9 @@ def symbols(stem: str) -> list[str]:
     return SYMBOL.findall(stem)
 
 
-def persian(reading: str) -> str:
-    """The reading in Persian letters with marks, with its ezafe. A hyphen inside the reading only keeps letters apart (sag-hā is not saghā) and is
+def persian(reading: str, final_h: bool = False) -> str:
+    """The reading in Persian letters with marks, with its ezafe. A consonant h that ends the word is written ه, or ح when `final_h` (see `final_h_for`: the
+    word's own letter or word-specific evidence; never a rule for every such word). A hyphen inside the reading only keeps letters apart (sag-hā is not saghā) and is
     not written. Raises ValueError for a symbol the scheme has not."""
     body, _ = scheme.split_pause(reading)
     stem, ezafe = scheme.split_ezafe(body)
@@ -44,7 +45,7 @@ def persian(reading: str) -> str:
                 continue                                    # i + y is one yeh (miyāmi is میامی)
             starts = first or (i == 1 and index == 0 and parts[0] == "'")
             last = i == len(parts) - 1 and index == len(stem.split("-")) - 1
-            if part == "h" and last and i:
+            if part == "h" and last and i and final_h:
                 out.append(FINAL_H)
             elif part in CONSONANTS:
                 out.append(CONSONANTS[part])
@@ -62,3 +63,14 @@ def persian(reading: str) -> str:
     if ezafe:
         word += HAMZA_ABOVE if word.endswith("ه") else ("ی" if ezafe == "ye" else KASRA)
     return word
+
+
+def final_h_for(surface: str) -> bool:
+    """Whether a consonant h that ends this word is written ح in its respelling: when the word itself is written with ح (مسلح, سلاح: the respelling keeps the
+    word's own letter, it converts nothing), or when config reading.final_h_evidence lists the word (evidence that heh is read as a vowel there and hah
+    is not). A word written with ه (دادگاه, شاه) keeps ه."""
+    from app.core.ai_config import ai_config
+    from app.documentary.reading.words import VOWEL_MARKS, key_of
+
+    plain = VOWEL_MARKS.sub("", surface).strip()
+    return plain.endswith(FINAL_H) or key_of(plain) in ai_config.reading.final_h_evidence

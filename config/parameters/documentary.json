@@ -510,6 +510,21 @@
     "learning_min_published_shorts": 30,
     "learning_min_episodes": 5
   },
+  "phoneme_alignment": {
+    "tolerance_s": 0.06,
+    "min_coverage": 0.5,
+    "min_margin": 1
+  },
+  "prosody": {
+    "frame_s": 0.025,
+    "hop_s": 0.01,
+    "pause_min_s": 0.25,
+    "silence_db": -45.0,
+    "f0_min_hz": 70.0,
+    "f0_max_hz": 400.0,
+    "voicing_threshold": 0.45,
+    "noise_factor": 2.0
+  },
   "pronunciation_risk": {
     "enabled": true,
     "weights": {
@@ -611,6 +626,7 @@
     "parallel_blocks": 6,
     "listen_parallel_blocks": 4,
     "voice_form": "persian_marks",
+    "final_h_evidence": {},
     "flag_margin": 4.0,
     "fit_edge_s": 0.06,
     "clip_edge_s": 0.25,

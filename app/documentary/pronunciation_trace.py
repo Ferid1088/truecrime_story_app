@@ -155,7 +155,7 @@ def as_alias(rule: dict) -> tuple[dict | None, dict]:
     if latin is None:
         return None, {**note, "left_out": "a symbol of the IPA has no letters in the table"}
     try:
-        alias = spelling.persian(latin)
+        alias = spelling.persian(latin, spelling.final_h_for(rule.get("string_to_replace") or ""))
     except ValueError:
         return None, {**note, "latin": latin, "left_out": "not a reading of the scheme"}
     if alias == rule["string_to_replace"]:
