@@ -24,23 +24,25 @@ def symbols(stem: str) -> list[str]:
 
 
 def to_persian(reading: str) -> str:
-    """The reading without its pause and ezafe, in Persian letters with marks. Raises ValueError for a symbol the scheme has not."""
+    """The reading without its pause and ezafe, in Persian letters with marks. A hyphen inside the reading keeps two letters apart (sag-hā is
+    not saghā); it is not written. Raises ValueError for a symbol the scheme has not."""
     stem, _ = scheme.split_ezafe(scheme.split_pause(reading)[0])
-    stem = stem.replace("-", "")
-    parts = symbols(stem)
-    if "".join(parts) != stem:
-        raise ValueError(f"not a reading of the scheme: {reading!r}")
     out: list[str] = []
-    for i, part in enumerate(parts):
-        previous = parts[i - 1] if i else ""
-        if part in CONSONANTS:
-            out.append(CONSONANTS[part])
-        elif i == 0 or previous == "'":
-            out.append(INITIAL.get(part, DIPHTHONG.get(part, "")) if part in INITIAL else "ا" + DIPHTHONG[part])
-        elif part in SHORT:
-            out.append(SHORT[part])
-        elif part in DIPHTHONG:
-            out.append(DIPHTHONG[part])
-        else:
-            out.append(LONG[part])
+    for index, piece in enumerate(stem.split("-")):
+        parts = symbols(piece)
+        if "".join(parts) != piece:
+            raise ValueError(f"not a reading of the scheme: {reading!r}")
+        for i, part in enumerate(parts):
+            previous = parts[i - 1] if i else ""
+            starts = (i == 0 and index == 0) or previous == "'"
+            if part in CONSONANTS:
+                out.append(CONSONANTS[part])
+            elif starts:
+                out.append(INITIAL[part] if part in INITIAL else "ا" + DIPHTHONG[part])
+            elif part in SHORT:
+                out.append(SHORT[part])
+            elif part in DIPHTHONG:
+                out.append(DIPHTHONG[part])
+            else:
+                out.append(LONG[part])
     return "".join(out)

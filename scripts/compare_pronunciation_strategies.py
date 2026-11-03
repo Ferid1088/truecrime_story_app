@@ -1,6 +1,6 @@
 """Voices a few blocks of a film once per pronunciation strategy (none, finglish_alias, persian_diacritic_alias) with the same voice, model, settings and
 seed, and keeps the exact requests. The blocks and their rules are found by the risk analyzer from the Reading Engine's output, not chosen by hand.
-Paid (ElevenLabs): python scripts/compare_pronunciation_strategies.py ENGINE.json OUT_DIR [--blocks 5] [--seed 7] [--max-chars 320]"""
+Paid (ElevenLabs): python scripts/compare_pronunciation_strategies.py ENGINE.json OUT_DIR [--blocks 5] [--seed 7] [--max-chars 320] [--only BLOCK ...] [--strategies ...]"""
 
 from __future__ import annotations
 
@@ -48,6 +48,8 @@ async def main() -> None:
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--max-chars", type=int, default=320)
     ap.add_argument("--version", type=int, default=289)
+    ap.add_argument("--only", nargs="*", help="voice exactly these blocks (their rules are still found by the risk analyzer)")
+    ap.add_argument("--strategies", nargs="*", default=list(STRATEGIES))
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -60,13 +62,13 @@ async def main() -> None:
         items = {i.block_id: i for i in block_inputs(performance_for_version(db, version)["blocks"], VP.english_sources(db, version), 400)}
     texts = {b: items[b].text for b in by_block}
     rules = {b: {s: D.build(by_block[b], texts[b], s) for s in STRATEGIES} for b in by_block}
-    chosen = pick({b: r["finglish_alias"] for b, r in rules.items()}, texts, args.blocks, args.seed, args.max_chars)
+    chosen = args.only or pick({b: r["finglish_alias"] for b, r in rules.items()}, texts, args.blocks, args.seed, args.max_chars)
     provider = get_voice_provider()
     cfg = ai_config.voice
     lang, settings = cfg.for_language("fa"), cfg.settings_for("neutral_documentary", "fa")
     record = []
     for block in chosen:
-        for strategy in STRATEGIES:
+        for strategy in args.strategies:
             built = rules[block][strategy]
             made = await provider.create_pronunciation_dictionary(f"ppie_{strategy}_{block}", built.rules) if built.rules else None
             locators = [{"pronunciation_dictionary_id": made["id"], "version_id": made["version_id"]}] if made else []

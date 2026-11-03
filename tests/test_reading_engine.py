@@ -349,3 +349,8 @@ def test_an_uncertain_reading_a_double_reading_and_an_overlap_are_never_sent():
 def test_a_finglish_alias_keeps_the_ezafe_and_never_a_pause_or_a_joining_hyphen():
     from app.documentary.reading.dictionary import finglish
     assert finglish("ghāzi-ye|") == "ghāziye" and finglish("sag-hā") == "sag-hā" and finglish("payām-hā") == "payāmhā"
+
+
+def test_a_hyphen_that_keeps_letters_apart_keeps_them_apart_in_persian_letters_too():
+    from app.documentary.reading.compiler import to_persian
+    assert to_persian("sag-hāye") == "سَگهایِ" and to_persian("saghā") == "سَقا"
