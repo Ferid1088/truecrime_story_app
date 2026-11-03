@@ -3,6 +3,8 @@ doubt (the owner answers them all in one review, then resumes)."""
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
@@ -15,7 +17,7 @@ from app.documentary.reading.chooser import WordChooser
 from app.documentary.reading.inspector import Inspector
 from app.documentary.reading.loop import ReadingLoop
 from app.documentary.reading.text import ReadingResult, ReadingStage
-from app.documentary.reading.voicing import Voicing
+from app.documentary.reading.voicing import Voicing, WordSignal
 from app.documentary.reading.words import key_of
 
 
@@ -32,7 +34,11 @@ async def result(db: Session, case: Case, version: StoryVersion, language: str) 
 
 async def voicing_of(db: Session, language: str, read: ReadingResult) -> Voicing:
     fixed = {key_of(a.surface): a.latin for a in db.query(ReadingApproval).filter(ReadingApproval.language == language)}
-    return Voicing(fixed, {block: [r.latin for r in words] for block, words in read.readings.items()})
+    overridden = {block: {int(m.group(1)) for note in notes if (m := re.match(r"word (\d+)", note))} for block, notes in read.notes.items()}
+    signals = {block: [WordSignal(r.confidence, r.n in read.doubts.get(block, set()), r.n in overridden.get(block, set())) for r in words]
+               for block, words in read.readings.items()}
+    names = frozenset(k for e in read.table.entries for k in e.keys) if read.table else frozenset()
+    return Voicing(fixed, {block: [r.latin for r in words] for block, words in read.readings.items()}, signals, names)
 
 
 async def voicing(db: Session, case: Case, version: StoryVersion, language: str) -> Voicing:
@@ -58,7 +64,9 @@ async def listen_and_fix(db: Session, case: Case, version: StoryVersion, languag
     (only their blocks), and what could not be fixed is reported. Returns the manifest of the narration as it stands, with the report in it."""
     items, read = await result(db, case, version, language)
     voicing = await voicing_of(db, language, read)
-    loop = ReadingLoop(db, case.id, language, items, inspector or Inspector(WordChooser(db, case.id, choose_runner)), voicing)
+    planner = getattr(renderer, "planner", None)
+    loop = ReadingLoop(db, case.id, language, items, inspector or Inspector(WordChooser(db, case.id, choose_runner)), voicing,
+                       (lambda block, surface, right: planner.learn(block, surface, heard_right=right, case_id=case.id)) if planner else None)
     renderer.reviewer = None                      # the whole-block review is over: a block voiced again is judged by the loop
 
     async def revoice(block_ids: list[str], round_no: int) -> dict:

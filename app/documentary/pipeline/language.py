@@ -137,6 +137,11 @@ class LanguageChain:
 
             if RS.required(lang):           # the words the owner has fixed go to the voice as IPA
                 renderer.voicing = await RS.voicing(db, case, version, lang)
+                if ai_config.pronunciation_risk.enabled:      # what each word is given follows its risk and the memory
+                    from app.documentary.pronunciation_planner import Planner
+
+                    voice = ai_config.voice.for_language(lang)
+                    renderer.planner = Planner(db, lang, voice.voice_id, voice.model_id)
             if ai_config.voice.after_voice_review and SR.required(lang):           # after the voice-repair loop of each block, a model listens to it and judges it against the source
                 from app.documentary import voice_prepare as VP
 

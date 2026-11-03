@@ -1,0 +1,313 @@
+{
+ "version": "1.0.0",
+ "thresholds": "config/parameters/documentary.json pronunciation_risk",
+ "cases": [
+  {
+   "name": "common word, nothing known",
+   "category": "no_intervention",
+   "text": "این کتاب بود",
+   "readings": [
+    "in",
+    "ketāb",
+    "bud"
+   ],
+   "target": 1,
+   "signal": {},
+   "names": false,
+   "setup": {},
+   "expect": {
+    "level": "LOW",
+    "signals": [],
+    "verification": "unverified"
+   }
+  },
+  {
+   "name": "unmarked ayn: a letter that tripped the voice",
+   "category": "ambiguous_short_vowel",
+   "text": "از عهد حرف زد",
+   "readings": [
+    "az",
+    "'ahd",
+    "harf",
+    "zad"
+   ],
+   "target": 1,
+   "signal": {},
+   "names": false,
+   "setup": {},
+   "expect": {
+    "level": "MEDIUM",
+    "signals": [
+     "hazard_letter"
+    ]
+   }
+  },
+  {
+   "name": "unmarked ayn with a doubt left by the checker and arbiter",
+   "category": "ambiguous_short_vowel",
+   "text": "از عهد حرف زد",
+   "readings": [
+    "az",
+    "'ahd",
+    "harf",
+    "zad"
+   ],
+   "target": 1,
+   "signal": {
+    "doubted": true
+   },
+   "names": false,
+   "setup": {},
+   "expect": {
+    "level": "HIGH",
+    "signals": [
+     "hazard_letter",
+     "reading_doubt"
+    ]
+   }
+  },
+  {
+   "name": "an ezafe alone is no reason to change the text",
+   "category": "ezafe",
+   "text": "در خانه علی بود",
+   "readings": [
+    "dar",
+    "khāne-ye",
+    "ali",
+    "bud"
+   ],
+   "target": 1,
+   "signal": {},
+   "names": false,
+   "setup": {},
+   "expect": {
+    "level": "LOW",
+    "signals": [
+     "ezafe"
+    ]
+   }
+  },
+  {
+   "name": "an ezafe the editor was only moderately sure of",
+   "category": "ezafe",
+   "text": "در خانه علی بود",
+   "readings": [
+    "dar",
+    "khāne-ye",
+    "ali",
+    "bud"
+   ],
+   "target": 1,
+   "signal": {
+    "confidence": "medium"
+   },
+   "names": false,
+   "setup": {},
+   "expect": {
+    "level": "MEDIUM",
+    "signals": [
+     "ezafe",
+     "medium_confidence"
+    ]
+   }
+  },
+  {
+   "name": "colloquial ending with a low-confidence reading",
+   "category": "colloquial",
+   "text": "دخترهاش رفتن",
+   "readings": [
+    "dokhtarhāsh",
+    "raftan"
+   ],
+   "target": 0,
+   "signal": {
+    "confidence": "low"
+   },
+   "names": false,
+   "setup": {},
+   "expect": {
+    "level": "HIGH",
+    "signals": [
+     "colloquial",
+     "low_confidence"
+    ]
+   }
+  },
+  {
+   "name": "a name of the film, replaced by the film table against the editor",
+   "category": "proper_name",
+   "text": "تاد آمد",
+   "readings": [
+    "tād",
+    "āmad"
+   ],
+   "target": 0,
+   "signal": {
+    "overridden": true
+   },
+   "names": true,
+   "setup": {},
+   "expect": {
+    "level": "MEDIUM",
+    "signals": [
+     "name_or_foreign",
+     "code_override"
+    ]
+   }
+  },
+  {
+   "name": "a consonant h at the end of the word, learned by an earlier system",
+   "category": "historical_error",
+   "text": "مسلح بود",
+   "readings": [
+    "mosallah",
+    "bud"
+   ],
+   "target": 0,
+   "signal": {},
+   "names": false,
+   "setup": {
+    "entry": {
+     "status": "legacy_unverified",
+     "expected_irab": "مُسَلَّح"
+    }
+   },
+   "expect": {
+    "level": "HIGH",
+    "signals": [
+     "final_consonant_h",
+     "earlier_failure"
+    ],
+    "verification": "unverified"
+   }
+  },
+  {
+   "name": "a person listened to this word in this voice and heard it right, against an older failure",
+   "category": "conflicting_evidence",
+   "text": "از عهد حرف زد",
+   "readings": [
+    "az",
+    "'ahd",
+    "harf",
+    "zad"
+   ],
+   "target": 1,
+   "signal": {},
+   "names": false,
+   "setup": {
+    "entry": {
+     "status": "legacy_unverified",
+     "expected_irab": "اَهد"
+    },
+    "label": {
+     "human_key": "'ahd",
+     "expected_key": "'ahd"
+    }
+   },
+   "expect": {
+    "level": "LOW",
+    "signals": [
+     "hazard_letter",
+     "earlier_failure",
+     "acoustic_match"
+    ]
+   }
+  },
+  {
+   "name": "a person listened and heard another vowel",
+   "category": "historical_error",
+   "text": "از عهد حرف زد",
+   "readings": [
+    "az",
+    "'ahd",
+    "harf",
+    "zad"
+   ],
+   "target": 1,
+   "signal": {},
+   "names": false,
+   "setup": {
+    "label": {
+     "human_key": "ohd",
+     "expected_key": "'ahd"
+    }
+   },
+   "expect": {
+    "level": "CRITICAL",
+    "signals": [
+     "hazard_letter",
+     "acoustic_mismatch"
+    ]
+   }
+  },
+  {
+   "name": "an earlier correction of the voice failed twice",
+   "category": "historical_error",
+   "text": "بهم ریخت",
+   "readings": [
+    "beham",
+    "rikht"
+   ],
+   "target": 0,
+   "signal": {},
+   "names": false,
+   "setup": {
+    "entry": {
+     "status": "candidate",
+     "expected_irab": "بِهَم"
+    },
+    "intervention_failures": 2
+   },
+   "expect": {
+    "level": "HIGH",
+    "signals": [
+     "earlier_failure",
+     "intervention_failed"
+    ]
+   }
+  },
+  {
+   "name": "a number is read by code",
+   "category": "insufficient_evidence",
+   "text": "۹۱۱ زنگ زد",
+   "readings": [
+    "NUM",
+    "zang",
+    "zad"
+   ],
+   "target": 0,
+   "signal": {},
+   "names": false,
+   "setup": {},
+   "expect": {
+    "level": "LOW",
+    "signals": [
+     "number"
+    ]
+   }
+  },
+  {
+   "name": "a correction learned for another voice does not count for this one",
+   "category": "context_dependent",
+   "text": "بهم ریخت",
+   "readings": [
+    "beham",
+    "rikht"
+   ],
+   "target": 0,
+   "signal": {},
+   "names": false,
+   "setup": {
+    "entry": {
+     "status": "candidate",
+     "expected_irab": "بِهَم",
+     "voice_id": "other-voice"
+    }
+   },
+   "expect": {
+    "level": "LOW",
+    "signals": []
+   }
+  }
+ ]
+}

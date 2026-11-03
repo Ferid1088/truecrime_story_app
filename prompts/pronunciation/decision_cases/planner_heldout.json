@@ -1,0 +1,66 @@
+{
+ "version": "1.0.0",
+ "note": "held-out: never used to tune rules",
+ "cases": [
+  {
+   "name": "low risk",
+   "category": "no_intervention",
+   "text": "او رفت خانه",
+   "readings": [
+    "u",
+    "raft",
+    "khāne"
+   ],
+   "target": 1,
+   "signal": {},
+   "names": false,
+   "setup": {},
+   "expect": {
+    "strategy": "keep",
+    "text": "او رفت خانه"
+   }
+  },
+  {
+   "name": "high risk, own letters",
+   "category": "ambiguous_short_vowel",
+   "text": "من کتاب خواندم",
+   "readings": [
+    "man",
+    "ketāb",
+    "khāndam"
+   ],
+   "target": 1,
+   "signal": {
+    "confidence": "low",
+    "doubted": true
+   },
+   "names": false,
+   "setup": {},
+   "expect": {
+    "strategy": "selective_marks",
+    "text": "من کِتاب خواندم"
+   }
+  },
+  {
+   "name": "high risk, another letter",
+   "category": "ambiguous_short_vowel",
+   "text": "از عهد گفت",
+   "readings": [
+    "az",
+    "'ahd",
+    "goft"
+   ],
+   "target": 1,
+   "signal": {
+    "confidence": "low",
+    "doubted": true
+   },
+   "names": false,
+   "setup": {},
+   "expect": {
+    "strategy": "escalate",
+    "text": "از عهد گفت"
+   }
+  }
+ ]
+}

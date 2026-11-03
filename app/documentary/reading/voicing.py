@@ -5,7 +5,7 @@ kept for a model that does not."""
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 
 from app.core.ai_config import ai_config
 from app.documentary.reading.scheme import ezafe_form, split_ezafe, split_pause, to_ipa
@@ -16,12 +16,24 @@ log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
+class WordSignal:
+    """What the reading stage knew about one word of a block: how sure the editor was, whether the checker and arbiter left a doubt, whether code had to
+    overwrite the editor's reading (the film table)."""
+
+    confidence: str = "high"
+    doubted: bool = False
+    overridden: bool = False
+
+
+@dataclass(frozen=True)
 class Voicing:
     fixed: dict[str, str]                       # plain word -> its reading (the owner's approvals of the language)
     readings: dict[str, list[str]]              # block -> the reading of each word (for the ezafe and the order of the words)
+    signals: dict[str, list[WordSignal]] = field(default_factory=dict)      # block -> what the reading stage knew of each word
+    names: frozenset[str] = frozenset()         # the plain forms of the film's people, places and foreign words
 
     def with_fixed(self, more: dict[str, str]) -> Voicing:
-        return Voicing({**self.fixed, **more}, self.readings)
+        return replace(self, fixed={**self.fixed, **more})
 
     def text(self, block_id: str, text: str) -> str:
         """The block's text with each fixed word as /ipa/. A block whose words are not the words of its reading is left as written."""

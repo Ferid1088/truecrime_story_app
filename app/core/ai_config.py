@@ -2448,6 +2448,28 @@ class SemanticReviewConfig(BaseModel):
     folder_suffix: str = "_reviewed"
 
 
+class PronunciationRiskConfig(BaseModel):
+    """The pronunciation risk engine and the adaptive TTS planner (pronunciation_risk.py, pronunciation_planner.py). A score is the sum of the weights of
+    the signals found for a word; LOW is not a proof of a right pronunciation. `validate_from_listener` false: a listening model's "heard right" is
+    evidence only and never validates an intervention (only a failure is booked)."""
+
+    enabled: bool = True
+    weights: dict[str, int]
+    medium_from: int = Field(ge=1)
+    high_from: int = Field(ge=1)
+    critical_from: int = Field(ge=1)
+    hazard_letters: list[str]
+    max_changed_fraction: float = Field(gt=0, le=1)
+    max_changed_in_a_row: int = Field(ge=1)
+    validate_from_listener: bool = False
+
+    @model_validator(mode="after")
+    def _ordered(self) -> "PronunciationRiskConfig":
+        if not self.medium_from < self.high_from < self.critical_from:
+            raise ValueError("pronunciation_risk: medium_from < high_from < critical_from is required")
+        return self
+
+
 class PronunciationAutoConfig(BaseModel):
     """Autonomous verification of pronunciation entries (pronunciation_auto.py). Off until the phonetic recognizer has passed an independent evaluation on
     recordings a native speaker labelled: an entry is never approved by linguistic agreement alone, and never because the attempts ran out."""
@@ -4355,6 +4377,7 @@ class AIConfig(BaseModel):
     voice_prepare: VoicePrepareConfig = Field(default_factory=VoicePrepareConfig)
     pronunciation_trace: PronunciationTraceConfig = Field(default_factory=PronunciationTraceConfig)
     irab: IrabConfig = Field(default_factory=IrabConfig)
+    pronunciation_risk: PronunciationRiskConfig
     pronunciation_auto: PronunciationAutoConfig = Field(default_factory=PronunciationAutoConfig)
     semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)
     reading: ReadingConfig = Field(default_factory=ReadingConfig)

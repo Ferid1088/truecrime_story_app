@@ -1,0 +1,297 @@
+{
+ "version": "1.0.0",
+ "cases": [
+  {
+   "name": "low risk: the text goes to the voice as written",
+   "category": "no_intervention",
+   "text": "این کتاب بود",
+   "readings": [
+    "in",
+    "ketāb",
+    "bud"
+   ],
+   "target": 1,
+   "signal": {},
+   "names": false,
+   "setup": {},
+   "expect": {
+    "strategy": "keep",
+    "text": "این کتاب بود"
+   }
+  },
+  {
+   "name": "high risk, writable on its own letters: only that word gets its marks",
+   "category": "ambiguous_short_vowel",
+   "text": "این کتاب بود",
+   "readings": [
+    "in",
+    "ketāb",
+    "bud"
+   ],
+   "target": 1,
+   "signal": {
+    "confidence": "low",
+    "doubted": true
+   },
+   "names": false,
+   "setup": {},
+   "expect": {
+    "strategy": "selective_marks",
+    "text": "این کِتاب بود"
+   }
+  },
+  {
+   "name": "high risk, the reading needs another letter (ayn to alef): nothing is invented",
+   "category": "ambiguous_short_vowel",
+   "text": "از عهد حرف زد",
+   "readings": [
+    "az",
+    "'ahd",
+    "harf",
+    "zad"
+   ],
+   "target": 1,
+   "signal": {
+    "confidence": "low",
+    "doubted": true
+   },
+   "names": false,
+   "setup": {},
+   "expect": {
+    "strategy": "escalate",
+    "text": "از عهد حرف زد"
+   }
+  },
+  {
+   "name": "an ezafe with medium confidence is left to the listening QA",
+   "category": "ezafe",
+   "text": "در خانه علی بود",
+   "readings": [
+    "dar",
+    "khāne-ye",
+    "ali",
+    "bud"
+   ],
+   "target": 1,
+   "signal": {
+    "confidence": "medium"
+   },
+   "names": false,
+   "setup": {},
+   "expect": {
+    "strategy": "keep",
+    "text": "در خانه علی بود"
+   }
+  },
+  {
+   "name": "a colloquial word of high risk gets marks on its own letters",
+   "category": "colloquial",
+   "text": "دخترهاش رفتن",
+   "readings": [
+    "dokhtarhāsh",
+    "raftan"
+   ],
+   "target": 0,
+   "signal": {
+    "confidence": "low",
+    "doubted": true
+   },
+   "names": false,
+   "setup": {},
+   "expect": {
+    "strategy": "selective_marks",
+    "changed_words": [
+     0
+    ]
+   }
+  },
+  {
+   "name": "a name with a person-approved pronunciation in this context",
+   "category": "proper_name",
+   "text": "تاد آمد",
+   "readings": [
+    "tād",
+    "āmad"
+   ],
+   "target": 0,
+   "signal": {},
+   "names": true,
+   "setup": {
+    "entry": {
+     "status": "human_approved",
+     "approved_pronunciation": "تاد",
+     "expected_irab": "تاد"
+    }
+   },
+   "expect": {
+    "strategy": "respelling",
+    "text": "تاد آمد"
+   }
+  },
+  {
+   "name": "an approved pronunciation of the word between other neighbours is not used",
+   "category": "context_dependent",
+   "text": "او بهم ریخت",
+   "readings": [
+    "u",
+    "beham",
+    "rikht"
+   ],
+   "target": 1,
+   "signal": {},
+   "names": false,
+   "setup": {
+    "entry": {
+     "status": "human_approved",
+     "approved_pronunciation": "بِهَم",
+     "expected_irab": "بِهَم",
+     "prev_word": "من"
+    }
+   },
+   "expect": {
+    "strategy": "keep",
+    "text": "او بهم ریخت"
+   }
+  },
+  {
+   "name": "an approved pronunciation between its own neighbours is used",
+   "category": "context_dependent",
+   "text": "من بهم ریخت",
+   "readings": [
+    "man",
+    "beham",
+    "rikht"
+   ],
+   "target": 1,
+   "signal": {},
+   "names": false,
+   "setup": {
+    "entry": {
+     "status": "human_approved",
+     "approved_pronunciation": "بِهَم",
+     "expected_irab": "بِهَم",
+     "prev_word": "من"
+    }
+   },
+   "expect": {
+    "strategy": "respelling",
+    "text": "من بِهَم ریخت"
+   }
+  },
+  {
+   "name": "an approval of another written form (with marks) does not apply",
+   "category": "context_dependent",
+   "text": "از عَهْد گفت",
+   "readings": [
+    "az",
+    "'ahd",
+    "goft"
+   ],
+   "target": 1,
+   "signal": {},
+   "names": false,
+   "setup": {
+    "entry": {
+     "status": "human_approved",
+     "approved_pronunciation": "اَهد",
+     "expected_irab": "اَهد",
+     "surface": "عهد"
+    }
+   },
+   "expect": {
+    "strategy": "keep",
+    "text": "از عَهْد گفت"
+   }
+  },
+  {
+   "name": "a validated dictionary alias is a rule, the text stays",
+   "category": "historical_error",
+   "text": "بهم ریخت",
+   "readings": [
+    "beham",
+    "rikht"
+   ],
+   "target": 0,
+   "signal": {},
+   "names": false,
+   "setup": {
+    "entry": {
+     "status": "human_approved",
+     "expected_irab": "بِهَم",
+     "approved_pronunciation": "بِهَم"
+    },
+    "intervention": {
+     "kind": "dictionary_alias",
+     "replacement": "بِهَم",
+     "status": "validated"
+    },
+    "allow_dictionary": true
+   },
+   "expect": {
+    "strategy": "dictionary_rule",
+    "text": "بهم ریخت",
+    "rules": 1
+   }
+  },
+  {
+   "name": "an intervention that failed is not reused: the risk decides",
+   "category": "conflicting_evidence",
+   "text": "این کتاب بود",
+   "readings": [
+    "in",
+    "ketāb",
+    "bud"
+   ],
+   "target": 1,
+   "signal": {
+    "confidence": "low",
+    "doubted": true
+   },
+   "names": false,
+   "setup": {
+    "entry": {
+     "status": "human_approved",
+     "expected_irab": "کِتاب",
+     "approved_pronunciation": "کِتاب",
+     "surface": "کتاب"
+    },
+    "intervention": {
+     "kind": "irab",
+     "replacement": "کتابِ",
+     "status": "failed"
+    }
+   },
+   "expect": {
+    "strategy": "respelling",
+    "text": "این کِتاب بود"
+   }
+  },
+  {
+   "name": "a critical word is changed only as a candidate and is reported for a person",
+   "category": "historical_error",
+   "text": "این کتاب بود",
+   "readings": [
+    "in",
+    "ketāb",
+    "bud"
+   ],
+   "target": 1,
+   "signal": {
+    "confidence": "low",
+    "doubted": true
+   },
+   "names": false,
+   "setup": {
+    "label": {
+     "human_key": "ketob",
+     "expected_key": "ketāb"
+    }
+   },
+   "expect": {
+    "strategy": "selective_marks",
+    "text": "این کِتاب بود",
+    "needs_review": true
+   }
+  }
+ ]
+}

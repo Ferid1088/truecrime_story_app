@@ -385,21 +385,23 @@ class BlockDictionaries:
                     storage.write_atomic(self.path, json.dumps(self.index, ensure_ascii=False))
             return entry
 
-    async def resolve(self, block_id: str, text: str, prepared_text: str | None) -> Resolution:
+    async def resolve(self, block_id: str, text: str, prepared_text: str | None, extra_rules: list[dict] | None = None) -> Resolution:
+        """The dictionary of one block. `extra_rules` are the rules the planner chose for this block on top of the film's."""
+        rules = [*self.rules, *(extra_rules or [])]
         if not self.film_locators:
             return Resolution([], None, self.mode, [])
-        if not self.rules:
+        if not rules:
             return Resolution(list(self.film_locators), None, self.mode, [], notes=["the plan carries no rules: the dictionary cannot be checked"])
-        check = validate(block_id, text, self.rules, prepared_text)
+        check = validate(block_id, text, rules, prepared_text)
         if self.mode != "enforce":
-            return Resolution(list(self.film_locators), check, "trace", list(self.rules))
+            return Resolution(list(self.film_locators), check, "trace", rules)
         if not check.effective:
             return Resolution([], check, "enforce", [], notes=["no rule acts on this text: no dictionary"])
         try:
             entry = await self.dictionary_for(check.effective)
         except VoiceProviderError as e:
             log.warning("block dictionary for %s failed (%s): the film dictionary is used", block_id, e)
-            return Resolution(list(self.film_locators), check, "enforce", list(self.rules), notes=[f"block dictionary failed: {e}"])
+            return Resolution(list(self.film_locators), check, "enforce", rules, notes=[f"block dictionary failed: {e}"])
         return Resolution([{"pronunciation_dictionary_id": entry["id"], "version_id": entry["version_id"]}], check, "enforce", check.effective, entry)
 
 

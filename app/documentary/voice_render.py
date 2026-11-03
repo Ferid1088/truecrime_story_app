@@ -32,6 +32,7 @@ from app.documentary import audio as A
 from app.documentary import storage
 from app.documentary.asr import ASRUnavailable, compare_transcript, get_asr
 from app.documentary.pronunciation_trace import BlockDictionaries, Trace
+from app.documentary.reading.words import key_of
 from app.documentary.voice_performance import scrub_forbidden
 from app.providers.voice import VoiceProvider, VoiceRequest, get_voice_provider
 
@@ -196,6 +197,7 @@ class VoiceRenderer:
         self.reviewer = None                      # the semantic audio reviewer (semantic_review.Reviewer) of a reviewed language
         self.seed_bumps: dict[str, int] = {}      # block -> retakes already made by the reading loop (each is a new seed)
         self.voicing = None                       # the reading loop's Voicing of a language it covers: the fixed words go to the voice as IPA
+        self.planner = None                       # the risk engine and the intervention planner of that language: what each word is given, and why
         self.narration = False                    # set while the film's narration is rendered: only it gets the language's post speed
         self.asr_error: str | None = None
         # phoneme listener for the pronunciation loop (loaded when needed)
@@ -224,6 +226,14 @@ class VoiceRenderer:
         prepared = "_prepared" if language in ai_config.voice.prepared_languages else ""      # the earlier narration of the version stays where it is
         reviewed = ai_config.semantic_review.folder_suffix if language in ai_config.semantic_review.languages else ""
         return base / str(case_id) / "audio" / language / f"v{story_version_id}{prepared}{reviewed}"
+
+    def save_plan(self, out: Path) -> str | None:
+        """The planner's decisions of this render, next to the narration (the risk of every changed or escalated word, with its evidence)."""
+        if self.planner is None or not self.planner.plans:
+            return None
+        path = out / "pronunciation_plan.json"
+        storage.write_atomic(path, json.dumps(self.planner.report(), ensure_ascii=False, indent=1))
+        return str(path)
 
     def out_dir(self, case_id: int, language: str, story_version_id: int) -> Path:
         return self.out_dir_for(case_id, language, story_version_id)
@@ -420,7 +430,13 @@ class VoiceRenderer:
         if occurrences and self.listener() is None:
             occurrences = []
         text = scrub_forbidden(b.get("tts_text") or b["text"])
-        if self.voicing is not None:
+        planned_rules: list[dict] = []
+        if self.voicing is not None and self.planner is not None:
+            plan = self.planner.plan(b["block_id"], text, self.voicing, allow_dictionary=prepared and bool(self.dictionaries),
+                                     covered=frozenset(key_of(r.get("string_to_replace") or "") for r in self.rules))
+            self.planner.register(plan)
+            text, planned_rules = plan.text, plan.rules
+        elif self.voicing is not None:
             text = self.voicing.text(b["block_id"], text)
         asr_cfg = self.asr_cfg.for_language(language)
         asr_retakes = asr_cfg.auto_retakes if asr_cfg.mode == "strict" and listened else 0
@@ -433,7 +449,7 @@ class VoiceRenderer:
                 blk = {**b, "sentences": sentences, "display_text": " ".join(
                     x.get("display") or x["speech"] for x in sentences)}
             locators = list(self.dictionaries) if prepared and not b.get("no_dictionary") else []
-            resolution = (await self.block_dictionaries.resolve(b["block_id"], text, b.get("tts_text") or b["text"])
+            resolution = (await self.block_dictionaries.resolve(b["block_id"], text, b.get("tts_text") or b["text"], planned_rules)
                           if locators and self.block_dictionaries is not None else None)
             req = VoiceRequest(
                 text=text, voice_id=lang_cfg.voice_id,
@@ -728,6 +744,7 @@ class VoiceRenderer:
             })
 
         trace_info = self.trace.save(out) if self.trace.entries else None
+        plan_info = self.save_plan(out)
         manifest = {
             "case_id": case_id, "story_version_id": story_version_id,
             "language": language, "voice_id": lang_cfg.voice_id,
@@ -754,6 +771,7 @@ class VoiceRenderer:
             },
             "flags": flags,
             "pronunciation_trace": trace_info,
+            "pronunciation_plan": plan_info,
             "semantic_review_failed": held,
             "dynamic_eq": eq_report,
             "files": {

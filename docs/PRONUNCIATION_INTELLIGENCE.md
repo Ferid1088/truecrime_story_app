@@ -52,3 +52,15 @@ prosody check on real audio, the risk engine and planner wired into the render, 
 - No clip has a human label yet, so there is no measure of the agents or any recognizer. Agent consensus can be wrong (the expected reading is always among the options, which may bias the agents toward it).
 - Speed and voice diversity need recordings or other voices; the clips so far have one.
 - No recognizer is chosen. Alignment, risk engine, adaptive TTS planner, prosody verification and the correction loop are not built: they are gated on at least 60 human-verified clips (`enough_for_a_verdict`), and `pronunciation_auto.enabled` stays false.
+
+## Risk engine and adaptive planner (2026-11-03, correction of the architecture)
+
+Added between the memory and ElevenLabs, as the specification demands: `pronunciation_risk.py`, `pronunciation_planner.py`, specification in
+`docs/PRONUNCIATION_RISK_PLANNER.md`, executable cases in `prompts/pronunciation/decision_cases/`. Connected in `voice_render.py` (the text and the block dictionary of
+every take come from the plan; `pronunciation_plan.json` is written next to the narration), `pipeline/language.py` (planner built with the language's voice and model)
+and `reading/loop.py` (what the listening found goes to `Planner.learn`).
+
+Dry run on Case 15 v289 (reading cache + database, no model, no provider, nothing written): 8370 words; LOW 6838, MEDIUM 936, HIGH 592, CRITICAL 4;
+decisions: keep 8273, respelling 46 (existing owner approvals), selective marks 16 (candidates), escalate 35 (14 distinct words, e.g. دادگاه ×17); 0.74 % of the words
+changed, at most 9.1 % of any block, longest run 1. NOT done: a render with the planner (needs the owner's go); acoustic proof that candidates are obeyed; naturalness by
+listening; weights fitted to evidence.

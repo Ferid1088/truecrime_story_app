@@ -510,6 +510,32 @@
     "learning_min_published_shorts": 30,
     "learning_min_episodes": 5
   },
+  "pronunciation_risk": {
+    "enabled": true,
+    "weights": {
+      "reading_doubt": 3,
+      "low_confidence": 3,
+      "medium_confidence": 1,
+      "code_override": 1,
+      "name_or_foreign": 2,
+      "ezafe": 1,
+      "colloquial": 1,
+      "hazard_letter": 2,
+      "final_consonant_h": 2,
+      "earlier_failure": 2,
+      "intervention_failed": 3,
+      "heard_wrong_by_listener": 3,
+      "acoustic_mismatch": 5,
+      "acoustic_match": -3
+    },
+    "medium_from": 2,
+    "high_from": 4,
+    "critical_from": 7,
+    "hazard_letters": ["ع", "ء", "ئ", "ؤ", "ة"],
+    "max_changed_fraction": 0.2,
+    "max_changed_in_a_row": 2,
+    "validate_from_listener": false
+  },
   "pronunciation_auto": {
     "enabled": false,
     "max_attempts": 3

@@ -28,8 +28,9 @@ def stem_of(reading: str) -> str:
 
 
 class ReadingLoop:
-    def __init__(self, db: Session, case_id: int, language: str, items: list[BlockInput], inspector: Inspector, voicing: Voicing):
+    def __init__(self, db: Session, case_id: int, language: str, items: list[BlockInput], inspector: Inspector, voicing: Voicing, on_result=None):
         self.db, self.case_id, self.language = db, case_id, language
+        self.on_result = on_result                              # (block_id, surface, heard_right): what the listening found, for the pronunciation planner
         self.items = {i.block_id: i for i in items}
         self.inspector, self.voicing = inspector, voicing
         self.readings = voicing.readings                       # one dictionary: the reading the voice is given
@@ -80,6 +81,9 @@ class ReadingLoop:
             now = {(f.block_id, f.n): f for flags in found.values() for f in flags}
             self.report["rounds"].append({"round": round_no, "blocks_listened": len(todo), "faults": len(now)})
             self.settle(failing, now)
+            if self.on_result:
+                for f in now.values():
+                    self.on_result(f.block_id, f.surface, False)
             failing = now
             if not failing or round_no == ai_config.reading.max_rounds:
                 break
@@ -95,6 +99,8 @@ class ReadingLoop:
             if key not in now:
                 self.keep(f.surface, stem_of(f.expected))
                 self.report["fixed"].append({"block": f.block_id, "word": f.surface, "reading": f.expected})
+                if self.on_result:
+                    self.on_result(f.block_id, f.surface, True)
 
     @staticmethod
     def describe(f: Finding) -> dict:

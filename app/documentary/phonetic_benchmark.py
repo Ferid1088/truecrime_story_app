@@ -31,7 +31,7 @@ QUOTAS = {"short_vowel": 70, "ezafe": 30, "colloquial": 30, "name": 30}
 MAX_PER_BLOCK = 2
 EDGE_S = 0.12
 VOWELS = "aeo"
-COLLOQUIAL_ENDINGS = ("esh", "ash", "eshun", "ashun", "emun", "amun", "etun", "atun", "un", "unā", "ā")
+COLLOQUIAL_ENDINGS = ("esh", "ash", "āsh", "eshun", "ashun", "emun", "amun", "etun", "atun", "un", "unā", "ā")
 
 
 # --- the candidates of a word -----------------------------------------------------------------------------------------------------------

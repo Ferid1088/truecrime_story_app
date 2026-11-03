@@ -32,6 +32,7 @@ class ReadingResult:
     open_doubts: int
     notes: dict[str, list[str]] = field(default_factory=dict)
     table: FilmTable | None = None
+    doubts: dict[str, set[int]] = field(default_factory=dict)          # block -> the words the checker and the arbiter left in doubt
 
 
 def sha(*parts: object) -> str:
@@ -116,4 +117,4 @@ class ReadingStage:
                 hit = given.get((item.block_id, r.n))
                 if hit and hit[0] == item.words[r.n].surface:
                     readings[item.block_id][r.n] = ReadingWord(r.n, hit[1], r.pause_after, r.why, "high")
-        return ReadingResult(readings, len(DB.open_rows(self.db, self.version.id)), notes, table)
+        return ReadingResult(readings, len(DB.open_rows(self.db, self.version.id)), notes, table, {b: {d.n for d in d_} for b, d_ in found.items() if d_})
