@@ -293,3 +293,11 @@ def test_the_morphology_does_not_write_a_suffix_that_makes_a_digraph(morphology)
 def test_an_ezafe_written_as_yeh_is_a_reading_with_its_ezafe_hyphen(morphology):
     got = distinct(morphology.options("خانه‌ی"))
     assert "khāne-ye" in got and with_ezafe("khāne-ye", "khāne-ye") == "khāne-ye"
+
+
+def test_a_reading_is_written_in_persian_letters_with_the_short_vowels_as_marks():
+    from app.documentary.reading.compiler import to_persian
+    assert to_persian("beham") == "بِهَم" and to_persian("ahd") == "اَهد" and to_persian("gurestun") == "گورِستون"
+    assert to_persian("bebakhshadesh") == "بِبَخشَدِش" and to_persian("gārāzh-e|") == "گاراژ"
+    with pytest.raises(ValueError):
+        to_persian("bēham")
