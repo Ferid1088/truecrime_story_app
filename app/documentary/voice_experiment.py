@@ -133,6 +133,10 @@ class CountingProvider:
         self.inner, self.max_chars, self.used, self.requests = inner, max_chars, 0, 0
         self.name = inner.name
 
+    def __getattr__(self, name: str):
+        """Everything but the speech request (the dictionaries of a block, for one) goes to the real provider as it is."""
+        return getattr(self.inner, name)
+
     def is_configured(self) -> bool:
         return self.inner.is_configured()
 

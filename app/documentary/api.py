@@ -907,6 +907,34 @@ async def phonetic_propose(body: PhoneticProposeIn, db: Session = Depends(get_db
     return await phonetic_benchmark.propose_all(db, phonetic_benchmark.agent_runner(db, body.case_id), recognizers, limit=body.limit)
 
 
+@router.get("/api/documentary/previews")
+def narration_previews():
+    """The narration previews (voiced for listening, kept apart from the film's narration), newest first."""
+    from app.documentary import narration_preview
+
+    return narration_preview.listing()
+
+
+@router.get("/api/documentary/previews/{name}")
+def narration_preview_info(name: str):
+    from app.documentary import narration_preview
+
+    try:
+        return narration_preview.info(name)
+    except (OSError, ValueError) as e:
+        raise HTTPException(status_code=404, detail="Preview not found") from e
+
+
+@router.get("/api/documentary/previews/{name}/audio")
+def narration_preview_audio(name: str):
+    from app.documentary import narration_preview
+
+    try:
+        return serve_file(narration_preview.audio_path(name), "audio/mpeg")
+    except (OSError, ValueError) as e:
+        raise HTTPException(status_code=404, detail="Preview not found") from e
+
+
 def _version_of(db: Session, version_id: int) -> StoryVersion:
     version = db.get(StoryVersion, version_id)
     if not version:

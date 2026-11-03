@@ -95,3 +95,12 @@ def test_the_arms_are_voiced_with_the_same_voice_model_settings_and_seed_into_a_
     assert texts["A"] != texts["C"] and "این کِتاب بود" in texts["C"] and "این کتاب بود" in texts["A"]
     report = VE.prosody_report(folders, sel)
     assert set(report["features"]) == {"A", "B", "C"} and report["noise_from_control_blocks"] == 3
+
+
+def test_the_counting_provider_passes_every_other_call_to_the_real_provider():
+    class Inner(FakeTTS):
+        async def create_pronunciation_dictionary(self, name, rules):
+            return {"id": "d1", "name": name}
+
+    provider = VE.CountingProvider(Inner(), max_chars=10)
+    assert asyncio.run(provider.create_pronunciation_dictionary("x", [])) == {"id": "d1", "name": "x"} and provider.used == 0

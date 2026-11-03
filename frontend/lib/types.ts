@@ -3787,3 +3787,31 @@ export interface PhoneticListing {
   samples: PhoneticSample[];
   report: PhoneticReport;
 }
+
+export interface NarrationPreviewCost {
+  characters_sent: number;
+  requests: number;
+  actual_eur: number;
+  cap_eur: number;
+  spent_before_eur: number;
+  spent_after_eur: number;
+  case_cap_eur: number;
+}
+
+export interface NarrationPreviewSummary {
+  name: string;
+  title: string;
+  case_id: number;
+  language: string;
+  created_at: string;
+  duration_seconds: number;
+  cost: NarrationPreviewCost;
+}
+
+export interface NarrationPreview extends NarrationPreviewSummary {
+  story_version_id: number;
+  voice_id: string;
+  model_id: string;
+  source: string;
+  blocks: { block_id: string; start: number; end: number; text: string }[];
+}

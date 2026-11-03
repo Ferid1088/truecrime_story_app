@@ -2,6 +2,8 @@ import type {
   PronunciationApprove,
   PronunciationEntries,
   PhoneticListing,
+  NarrationPreview,
+  NarrationPreviewSummary,
   PhoneticSample,
   PronunciationEntry,
   PronunciationHistoryItem,
@@ -579,6 +581,9 @@ export const api = {
     post<PronunciationEntry>(`/api/documentary/pronunciation/entries/${entryId}/reject`, { reviewer, reason }),
   uncertainPronunciation: (entryId: number, reviewer: string, reason: string) =>
     post<PronunciationEntry>(`/api/documentary/pronunciation/entries/${entryId}/uncertain`, { reviewer, reason }),
+  narrationPreviews: () => request<NarrationPreviewSummary[]>("/api/documentary/previews"),
+  narrationPreview: (name: string) => request<NarrationPreview>(`/api/documentary/previews/${encodeURIComponent(name)}`),
+  narrationPreviewAudioUrl: (name: string) => apiFileUrl(`/api/documentary/previews/${encodeURIComponent(name)}/audio`),
   phoneticSamples: (language: string, status?: string, category?: string) =>
     request<PhoneticListing>(`/api/documentary/phonetic/samples${query({ language, status, category })}`),
   phoneticAudioUrl: (sampleId: number) => apiFileUrl(`/api/documentary/phonetic/samples/${sampleId}/audio`),

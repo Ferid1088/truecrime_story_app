@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/state";
+import { NarrationPreviews } from "./narration-preview";
 import { PhoneticBenchmark } from "./phonetic-benchmark";
 import { InlineAlert, LanguagePicker, type LanguageTabProps } from "../shared";
 
@@ -298,7 +299,7 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
   const versionId = overview.languages[language]?.version_id ?? null;
   const [status, setStatus] = useState<string>("legacy_unverified");
   const [selected, setSelected] = useState<number | null>(null);
-  const [view, setView] = useState<"entries" | "benchmark">("entries");
+  const [view, setView] = useState<"entries" | "benchmark" | "preview">("entries");
   const [reviewer, setReviewer] = useState(() => {
     try {
       return typeof window === "undefined" ? "" : (window.localStorage.getItem(REVIEWER_KEY) ?? "");
@@ -341,7 +342,9 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
           <div className="flex gap-2" role="tablist" aria-label="View">
             <Button size="sm" variant={view === "entries" ? "default" : "secondary"} onClick={() => setView("entries")}>Entries</Button>
             <Button size="sm" variant={view === "benchmark" ? "default" : "secondary"} onClick={() => setView("benchmark")}>Phonetic benchmark</Button>
+            <Button size="sm" variant={view === "preview" ? "default" : "secondary"} onClick={() => setView("preview")}>Narration preview</Button>
           </div>
+          {view === "preview" && <NarrationPreviews />}
           {view === "benchmark" && <PhoneticBenchmark language={language} reviewer={reviewer} />}
           {view === "entries" && <>
           <p className="text-xs leading-5 text-muted-foreground">
