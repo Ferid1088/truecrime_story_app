@@ -3287,3 +3287,119 @@ class MvpFilmReview(Base):
     owner_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     decided_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
+class PronunciationEntry(Base):
+    """One word (or phrase) of a spoken language, in the exact written form and context it was met in, with the pronunciation expected for it and the
+    one a person approved. Kept across cases (documentary/pronunciation_memory.py). A person's approval is never overwritten by an automatic agent."""
+
+    __tablename__ = "pronunciation_entries"
+    __table_args__ = (UniqueConstraint("language", "surface", "prev_word", "next_word", "sense", "voice_id", "model_id", name="uq_pronunciation_entries"),
+                      Index("ix_pronunciation_entries_key", "language", "surface_key"))
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    language: Mapped[str] = mapped_column(String(20))
+    surface: Mapped[str] = mapped_column(String(160))                       # the exact written form (Unicode NFC, marks and half-spaces as written)
+    surface_key: Mapped[str] = mapped_column(String(160))                   # the same without vowel marks and half-spaces
+    prev_word: Mapped[str] = mapped_column(String(160), default="")         # context: the key of the word before ("" = any)
+    next_word: Mapped[str] = mapped_column(String(160), default="")
+    sense: Mapped[str] = mapped_column(String(120), default="")             # grammatical or semantic context ("" = any)
+    voice_id: Mapped[str] = mapped_column(String(40), default="")           # "" = any voice
+    model_id: Mapped[str] = mapped_column(String(40), default="")
+    scope: Mapped[str] = mapped_column(String(10), default="context")       # context | global
+    sentence: Mapped[str] = mapped_column(Text, default="")
+    grammar: Mapped[str] = mapped_column(Text, default="{}")                # JSON: part of speech, ezafe, register
+    expected_irab: Mapped[str] = mapped_column(Text, default="")            # the reference pronunciation the agents expect
+    observed_wrong: Mapped[str] = mapped_column(Text, default="")
+    approved_pronunciation: Mapped[str | None] = mapped_column(Text, nullable=True)     # what a person approved as the right pronunciation
+    approved_ipa: Mapped[str | None] = mapped_column(String(240), nullable=True)        # only when validated
+    status: Mapped[str] = mapped_column(String(16), default="candidate")    # candidate | human_approved | rejected | contested
+    source: Mapped[str] = mapped_column(String(12), default="agent")        # human | agent
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    reviewer: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class PronunciationEntryVersion(Base):
+    """Every state an entry has had (the snapshot before each change), so a correction can be rolled back and the history is complete."""
+
+    __tablename__ = "pronunciation_entry_versions"
+    __table_args__ = (UniqueConstraint("entry_id", "version", name="uq_pronunciation_entry_versions"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entry_id: Mapped[int] = mapped_column(ForeignKey("pronunciation_entries.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    snapshot: Mapped[str] = mapped_column(Text)
+    actor: Mapped[str] = mapped_column(String(120))
+    reason: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class PronunciationIntervention(Base):
+    """A way of making the voice say an entry's pronunciation (a dictionary rule, selective marks, another spelling) for one exact written form, one
+    voice and one model, and how often it worked. A validated intervention is not an approved pronunciation: it only says the voice obeyed it."""
+
+    __tablename__ = "pronunciation_interventions"
+    __table_args__ = (UniqueConstraint("entry_id", "kind", "exact_form", "replacement", "voice_id", "model_id", name="uq_pronunciation_interventions"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entry_id: Mapped[int] = mapped_column(ForeignKey("pronunciation_entries.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(24))                           # dictionary_alias | dictionary_phoneme | irab | alt_spelling | rewrite
+    exact_form: Mapped[str] = mapped_column(Text)                           # the written form it applies to, byte for byte
+    replacement: Mapped[str] = mapped_column(Text)
+    dictionary_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    dictionary_version_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    voice_id: Mapped[str] = mapped_column(String(40), default="")
+    model_id: Mapped[str] = mapped_column(String(40), default="")
+    status: Mapped[str] = mapped_column(String(12), default="candidate")    # candidate | validated | failed | retired
+    successes: Mapped[int] = mapped_column(Integer, default=0)
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    last_audio_ref: Mapped[str | None] = mapped_column(String(400), nullable=True)
+    validated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class PronunciationEvidence(Base):
+    """What was observed in a generated audio about a word: kept apart from the linguistic prediction (kind) so that an inference is never read as a
+    measurement."""
+
+    __tablename__ = "pronunciation_evidence"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entry_id: Mapped[int | None] = mapped_column(ForeignKey("pronunciation_entries.id"), nullable=True, index=True)
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True)
+    block_id: Mapped[str] = mapped_column(String(40), default="")
+    word_n: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    surface: Mapped[str] = mapped_column(String(160))
+    expected: Mapped[str] = mapped_column(Text, default="")
+    estimated_observed: Mapped[str] = mapped_column(Text, default="")
+    kind: Mapped[str] = mapped_column(String(12))                           # acoustic | asr | model | human | inference
+    verdict: Mapped[str] = mapped_column(String(10))                        # match | mismatch | uncertain
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    audio_ref: Mapped[str] = mapped_column(String(400), default="")
+    start_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    end_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    voice_id: Mapped[str] = mapped_column(String(40), default="")
+    model_id: Mapped[str] = mapped_column(String(40), default="")
+    detail: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class PronunciationAuditLog(Base):
+    """Append-only: who did what to the pronunciation memory, with the state before and after."""
+
+    __tablename__ = "pronunciation_audit_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entry_id: Mapped[int | None] = mapped_column(ForeignKey("pronunciation_entries.id"), nullable=True, index=True)
+    actor: Mapped[str] = mapped_column(String(120))
+    action: Mapped[str] = mapped_column(String(24))
+    before: Mapped[str] = mapped_column(Text, default="")
+    after: Mapped[str] = mapped_column(Text, default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
