@@ -52,18 +52,25 @@ def test_the_real_case_15_text_of_a_block_is_checked_against_the_film_rules():
     got = status_of(PT.validate("FA_B55_g03_01", B55, RULES, B55))
     assert got["کانینگهام کورت"] == "matched" and got["کانینگهام"] == "shadowed" and got["کورت"] == "shadowed"
     garage = status_of(PT.validate("FA_B02_g01_01", B02, RULES, B02))
-    assert garage["درِ گاراژ"] == "matched" and garage["درِ"] == "shadowed" and "دَرِ" not in garage
+    assert garage["درِ گاراژ"] == "matched" and garage["درِ"] == "shadowed" and garage["دَرِ"] == "shadowed"
     jury = status_of(PT.validate("FA_B38_g02_01", B38, RULES, B38))
     assert jury == {"هیئت منصفه": "matched", "منصفه": "shadowed"}
 
 
-def test_a_word_the_editor_gave_vowel_marks_after_the_dictionary_was_made_is_reconciled_and_the_text_is_not_touched():
+def test_a_word_the_editor_gave_vowel_marks_after_the_dictionary_was_made_is_not_taken_over_by_the_rule_and_the_text_is_not_touched():
     plain = B52.replace("عَهْدهای", "عهدهای")
     check = PT.validate("FA_B52_g02_01", B52, RULES, plain)
     rule = next(c for c in check.checks if c.string == "عهدهای")
-    assert rule.status == "reconciled" and rule.forms == ["عَهْدهای"] and check.changed_after_dictionary
-    assert {"type": "alias", "string_to_replace": "عَهْدهای", "alias": "عَهدهای"} in check.effective
-    assert "عَهْدهای" in B52, "the text keeps its word; the rule follows it"
+    assert rule.status == "unresolved" and "other vowel marks" in rule.reason and check.changed_after_dictionary
+    assert [o["text"] for o in rule.occurrences] == ["عَهْدهای"]
+    assert all(r["string_to_replace"] != "عَهْدهای" for r in check.effective), "the rule would replace the marks the editor wrote"
+    assert "عَهْدهای" in B52, "the text keeps its word"
+
+
+def test_a_rule_is_never_moved_onto_a_form_with_an_ezafe_mark_it_would_wipe_out():
+    rule = [{"string_to_replace": "کنسول", "type": "alias", "alias": "کُنسول"}]
+    got = PT.validate("B", "از کُنسولِ وانتش", rule)
+    assert status_of(got) == {"کنسول": "unresolved"} and got.effective == []
 
 
 def test_the_letters_of_the_other_alphabet_forms_are_the_same_word_but_a_mark_the_rule_has_is_a_sound():
@@ -74,7 +81,7 @@ def test_the_letters_of_the_other_alphabet_forms_are_the_same_word_but_a_mark_th
     lost = PT.validate("B", "از کنسول وانتش", ezafe, "از کنسولِ وانتش")
     assert status_of(lost) == {"کنسولِ": "unresolved"} and lost.effective == [] and lost.checks[0].reason
     never_meant = PT.validate("B", "از کنسول وانتش", ezafe, "از میز وانتش")
-    assert status_of(never_meant) == {}
+    assert status_of(never_meant) == {}, "the word without the ezafe mark is not what the rule is for"
 
 
 def test_a_rule_made_for_a_space_is_found_with_a_half_space_and_the_other_way_round():
@@ -101,7 +108,7 @@ def test_an_exact_rule_wins_over_a_reconciled_one_for_the_same_place_and_a_longe
     rules = [{"string_to_replace": "دَرِ", "type": "phoneme", "alphabet": "ipa", "phoneme": "dæɾe"},
              {"string_to_replace": "درِ", "type": "phoneme", "alphabet": "ipa", "phoneme": "dære"}]
     got = PT.validate("B", "درِ باغ", rules)
-    assert status_of(got) == {"درِ": "matched"}, "the rule with a mark the text has not is not even a variant of it"
+    assert status_of(got) == {"درِ": "matched", "دَرِ": "shadowed"}, "the rule with another mark is not moved onto the form that has its own rule"
     exact_and_reconciled = [{"string_to_replace": "قتل", "type": "alias", "alias": "قَتل"}, {"string_to_replace": "قتل", "type": "alias", "alias": "x"}]
     assert PT.validate("B", "قتل", exact_and_reconciled).checks[1].status == "conflict"
     longer = PT.validate("B", "کانینگهام کورت", RULES)
@@ -119,7 +126,7 @@ def test_the_film_summary_counts_each_rule_once_over_all_blocks():
     summary = PT.film_summary(vals, RULES)
     assert summary["rules"] == len(RULES) and summary["blocks"] == 4
     by = dict(zip([r["string_to_replace"] for r in RULES], summary["per_rule"], strict=True))
-    assert by["عهدهای"] == "reconciled" and by["کانینگهام کورت"] == "matched" and by["کورت"] == "shadowed" and by["دَرِ"] == "unresolved"
+    assert by["عهدهای"] == "unresolved" and by["کانینگهام کورت"] == "matched" and by["کورت"] == "shadowed" and by["دَرِ"] == "shadowed"
     assert summary["blocks_changed_after_dictionary"] == 1
 
 

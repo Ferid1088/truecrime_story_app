@@ -6,8 +6,9 @@ take each rule is checked against the exact final text, the result is recorded, 
 
 - matched      the rule's string is in the text as written (whole word, outside audio tags)
 - reconciled   the rule's word is in the text in another spelling of the same letters (Arabic yeh/kaf, a half-space for a space, another Unicode
-               form, vowel marks the rule has not); the rule is kept for the form the text has. The text is never changed to make a rule match.
-- unresolved   the word was in the text the dictionary was made from and cannot be found now: the rule is left out and the reason kept
+               form); the rule is kept for the form the text has. The text is never changed to make a rule match.
+- unresolved   the word was in the text the dictionary was made from and cannot be found now, or it is in the text with other vowel marks than
+               the rule's (a mark is a sound: the rule is not moved onto it): the rule is left out and the reason kept
 - conflict     two rules for one word say different things: both are left out
 - shadowed     every place of the rule is inside the place of a rule that wins over it (one written exactly as the text has it, or longer)
 - invalid      not a rule ElevenLabs takes
@@ -88,25 +89,24 @@ def boundary(text: str, start: int, end: int) -> str | None:
     return flag
 
 
+def marks_of(text: str) -> str:
+    return "".join(ch for ch in text if ch in ai_config.pronunciation_trace.harakat)
+
+
 def tag_spans(text: str) -> list[tuple[int, int]]:
     return [m.span() for m in TAG.finditer(text)]
 
 
-def has_marks(text: str) -> bool:
-    return any(ch in ai_config.pronunciation_trace.harakat for ch in text)
-
-
-def occurrences(text: str, needle: str, *, variant: bool, whole: bool = True) -> list[dict]:
-    """Where the needle is in the text: exact, or as a spelling variant. A variant is another spelling of the same letters; vowel marks in the text
-    that the needle has not are allowed, but a mark the needle has is a sound and must be in the text too (an ezafe mark is not dropped).
+def occurrences(text: str, needle: str, *, variant: bool, whole: bool = True, ignore_marks: bool = False) -> list[dict]:
+    """Where the needle is in the text: exact, or as another spelling of the same letters (Unicode form, Persian yeh/kaf and digits, a half-space
+    for a space). Vowel marks are sounds: they are ignored only with `ignore_marks`, to tell that a word is there with other marks than the rule's.
     Audio tags are not spoken text and never match."""
     if not needle:
         return []
     tags, found = tag_spans(text), []
     if variant:
-        marked = has_marks(needle)
-        hay, where = fold(text, drop_marks=not marked)
-        want, _ = fold(needle, drop_marks=not marked)
+        hay, where = fold(text, drop_marks=ignore_marks)
+        want, _ = fold(needle, drop_marks=ignore_marks)
         spans = [(where[i][0], where[i + len(want) - 1][1]) for i in _finds(hay, want)] if want else []
     else:
         spans = [(i, i + len(needle)) for i in _finds(text, needle)]
@@ -201,6 +201,7 @@ def validate(block_id: str, text: str, rules: list[dict], prepared_text: str | N
             for c in (first, check):
                 c.status, c.reason, c.other = "conflict", "two rules for the same word say different things", (check if c is first else first).string
     candidates: list[tuple[RuleCheck, dict]] = []
+    pending: list[RuleCheck] = []
     for check, rule in zip(checks, rules, strict=True):
         if check.status != "absent":
             continue
@@ -216,9 +217,14 @@ def validate(block_id: str, text: str, rules: list[dict], prepared_text: str | N
             check.forms = list(dict.fromkeys(o["text"] for o in variant))
             check.reason = "the text spells the word differently: " + ", ".join(check.forms)
             candidates.append((check, rule))
-        elif prepared_text is not None and occurrences(prepared_text, check.string, variant=True, whole=whole):
-            check.status = "unresolved"
-            check.reason = "the word was in the text the dictionary was made from and is not in the text sent"
+        else:
+            other = [o for o in occurrences(text, check.string, variant=True, whole=whole, ignore_marks=True) if marks_of(o["text"]) not in ("", marks_of(check.string))]
+            if other:
+                check.occurrences = other
+                pending.append(check)               # decided below: another rule may already stand on these places
+            elif prepared_text is not None and occurrences(prepared_text, check.string, variant=True, whole=whole, ignore_marks=True):
+                check.status = "unresolved"
+                check.reason = "the word was in the text the dictionary was made from and is not in the text sent"
     accepted: list[tuple[int, int]] = []
     effective: list[dict] = []
     for check, rule in sorted(candidates, key=lambda c: (c[0].status != "matched", -len(c[0].string), c[0].index)):
@@ -231,6 +237,15 @@ def validate(block_id: str, text: str, rules: list[dict], prepared_text: str | N
         accepted += [(o["start"], o["end"]) for o in free]
         for form in check.forms or [check.string]:
             effective.append({**rule, "string_to_replace": form})
+    for check in pending:
+        owner = next((c.string for c, _ in candidates if any(a["start"] < o["end"] and o["start"] < a["end"] for a in c.occurrences for o in check.occurrences)), "")
+        covered = all(any(a < o["end"] and o["start"] < b for a, b in accepted) for o in check.occurrences)
+        if covered:
+            check.status, check.reason, check.other = "shadowed", "the word is there with other vowel marks and another rule already stands on it", owner
+        else:
+            check.status = "unresolved"
+            check.reason = ("the word is in the text with other vowel marks than the rule's: a mark is a sound, so the rule is not moved onto it: "
+                            + ", ".join(dict.fromkeys(o["text"] for o in check.occurrences)))
     prepared_sha = sha(prepared_text) if prepared_text is not None else None
     changed = prepared_text is not None and prepared_text != text
     return Validation(block_id, sha(text), prepared_sha, changed, checks, sorted(effective, key=lambda r: (r["string_to_replace"], r["type"])))
