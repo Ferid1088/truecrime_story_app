@@ -572,6 +572,7 @@
     "retry_pause_s": 5.0,
     "parallel_blocks": 6,
     "listen_parallel_blocks": 4,
+    "voice_form": "persian_marks",
     "flag_margin": 4.0,
     "fit_edge_s": 0.06,
     "clip_edge_s": 0.25,

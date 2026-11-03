@@ -1,5 +1,6 @@
-"""What the voice is given for the words the owner has fixed: the word is written as its IPA between slashes, the form Eleven v4 reads as
-sounds (its pronunciation dictionary, vowel marks and Latin letters do not reach the sound). Every other word stays as written."""
+"""What the voice is given for the words the owner has fixed: the word is written as its reading in Persian letters with vowel marks (config
+reading.voice_form), every other word stays as written. Eleven v4 reads /IPA/ between slashes aloud as symbols in some blocks; the form "ipa" is
+kept for a model that does not."""
 
 from __future__ import annotations
 
@@ -7,7 +8,9 @@ import logging
 import re
 from dataclasses import dataclass
 
+from app.core.ai_config import ai_config
 from app.documentary.reading.scheme import ezafe_form, split_ezafe, split_pause, to_ipa
+from app.documentary.reading.spelling import persian
 from app.documentary.reading.words import EDGE_PUNCT, TAG, tokenize
 
 log = logging.getLogger(__name__)
@@ -30,7 +33,7 @@ class Voicing:
         if len(readings) != len(words):
             log.warning("voicing: %s has %d words and %d readings; left as written", block_id, len(words), len(readings or []))
             return text
-        chosen = {w.n: f"/{to_ipa(self.reading_of(self.fixed[w.key], readings[w.n]))}/" for w in words if w.key in self.fixed and not w.number}
+        chosen = {w.n: self.spell(self.reading_of(self.fixed[w.key], readings[w.n])) for w in words if w.key in self.fixed and not w.number}
         count = iter(range(len(words)))
 
         def piece(token: re.Match) -> str:
@@ -40,6 +43,10 @@ class Voicing:
             return token.group().replace(core, chosen.get(next(count), core), 1)
 
         return "".join(PIECE.sub(piece, part) if not TAG.fullmatch(part) else part for part in re.split(f"({TAG.pattern})", text))
+
+    @staticmethod
+    def spell(reading: str) -> str:
+        return persian(reading) if ai_config.reading.voice_form == "persian_marks" else f"/{to_ipa(reading)}/"
 
     @staticmethod
     def reading_of(fixed: str, reading: str) -> str:

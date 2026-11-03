@@ -43,7 +43,7 @@ def build(db_session, texts, readings, inspector, fixed=None):
     return ReadingLoop(db_session, 1, "fa", items, inspector, Voicing(fixed or {}, readings))
 
 
-def test_a_word_the_voice_said_wrong_is_voiced_again_as_ipa_and_kept_for_every_film_when_it_is_right(db_session, monkeypatch):
+def test_a_word_the_voice_said_wrong_is_voiced_again_in_persian_letters_and_kept_for_every_film_when_it_is_right(db_session, monkeypatch):
     monkeypatch.setattr(ai_config.reading, "max_rounds", 3)
     finding = Finding("a", 1, "عهد", "'ahd", "'ohd", "'ohd", 9.0)
     inspector = FakeInspector([{"a": [finding]}, {}])
@@ -56,7 +56,7 @@ def test_a_word_the_voice_said_wrong_is_voiced_again_as_ipa_and_kept_for_every_f
         return manifest("a", "b")
 
     asyncio.run(loop.run(manifest("a", "b"), revoice))
-    assert voiced == [(["a"], 1, "از /ʔæhd/")]
+    assert voiced == [(["a"], 1, "از اَهد")]
     assert inspector.asked == ["a", "b", "a"], "the second listening is of the voiced block only"
     assert loop.report["fixed"] == [{"block": "a", "word": "عهد", "reading": "'ahd"}] and loop.report["unfixed"] == []
     kept = db_session.query(ReadingApproval).filter_by(language="fa", surface="عهد").one()

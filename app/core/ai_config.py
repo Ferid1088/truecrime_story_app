@@ -2408,6 +2408,9 @@ class ReadingConfig(BaseModel):
     listen_parallel_blocks: int = Field(default=4, ge=1, le=16)
     # A word is looked at when the phoneme score finds a wrong form of its reading fitting the audio better by this much (the CTC loss difference);
     # its time window is widened by `fit_edge_s` on each side.
+    # What the voice is given for a word whose reading is fixed: "persian_marks" (the reading in Persian letters with vowel marks: still Persian text)
+    # or "ipa" (/IPA/ between slashes, which the voice sometimes reads aloud as symbols).
+    voice_form: Literal["persian_marks", "ipa"] = "persian_marks"
     flag_margin: float = Field(default=4.0, ge=0.0)
     fit_edge_s: float = Field(default=0.06, ge=0.0, le=0.2)
     # The word choice (chooser.py): the clip of one word is cut with this much sound on each side (seconds) ...
