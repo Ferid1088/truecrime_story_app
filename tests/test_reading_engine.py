@@ -301,3 +301,51 @@ def test_a_reading_is_written_in_persian_letters_with_the_short_vowels_as_marks(
     assert to_persian("bebakhshadesh") == "بِبَخشَدِش" and to_persian("gārāzh-e|") == "گاراژ"
     with pytest.raises(ValueError):
         to_persian("bēham")
+
+
+# --- risk and the rules of a block -----------------------------------------------------------------------------------------------------
+
+def outcome(surface, reading, status="verified", **kw):
+    from app.documentary.reading.engine import Outcome
+    return Outcome("B1", kw.pop("n", 0), surface, kw.pop("writer", reading), reading, status, **kw)
+
+
+def test_risk_comes_from_the_evidence_and_the_structure_of_a_word_not_from_a_list_of_faults():
+    from app.documentary.reading.risk import analyze
+    plain = analyze(outcome("خانه", "khāne"))
+    assert plain.score == 0.0
+    name = analyze(outcome("اشتراوس", "eshtrāvs", "unverified"))
+    assert name.factors.keys() >= {"no_evidence", "consonant_cluster"} and name.score > 0.45
+    assert analyze(outcome("پرت", "prat", "unverified")).score < 0.45          # a short name without a hard cluster is below the threshold: a known gap
+    resolved = analyze(outcome("سراغ", "sorāgh", "resolved", writer="sarāgh"))
+    assert "resolved_against_writer" in resolved.factors and resolved.score > 0.45
+    assert analyze(outcome("۱۲", "NUM")).score == 0.0
+
+
+def test_a_block_gets_rules_only_for_risky_words_in_the_chosen_strategy_and_none_leak():
+    from app.documentary.reading import dictionary as D
+    words = [outcome("خانه", "khāne", n=0), outcome("سراغ", "sorāgh", "resolved", writer="sarāgh", n=1)]
+    text = "خانه سراغ"
+    fing = D.build(words, text, "finglish_alias")
+    assert fing.rules == [{"type": "alias", "string_to_replace": "سراغ", "alias": "sorāgh"}]
+    assert D.build(words, text, "persian_diacritic_alias").rules[0]["alias"] == "سُراق"
+    assert D.build(words, text, "none").rules == []
+    assert D.build([outcome("سراغ", "sorāgh", "resolved", writer="sarāgh")], "کلمه دیگر", "finglish_alias").skipped[0]["why"].startswith("the written word is not")
+
+
+def test_an_uncertain_reading_a_double_reading_and_an_overlap_are_never_sent():
+    from app.documentary.reading import dictionary as D
+    uncertain = outcome("موقع", "moghe", "uncertain", conflict=True)
+    assert D.build([uncertain], "موقع", "finglish_alias").skipped[0]["why"].startswith("the engine does not stand behind")
+    two = [outcome("سراغ", "sorāgh", "resolved", writer="a", n=0), outcome("سراغ", "surāgh", "resolved", writer="a", n=1)]
+    assert D.build(two, "سراغ سراغ", "finglish_alias").skipped[0]["why"].startswith("the same word has different readings")
+    nested = [outcome("سراغ", "sorāgh", "resolved", writer="a", n=0), outcome("سراغها", "soraghā", "resolved", writer="b", n=1)]
+    got = D.build(nested, "سراغ سراغها", "finglish_alias")
+    assert len(got.rules) == 1 and any("overlap" in s["why"] for s in got.skipped)
+    capped = [outcome(f"کلمه{i}", f"sorāgh{i}", "resolved", writer="a", n=i) for i in "abcdefghij"]
+    assert len(D.build(capped, " ".join(o.surface for o in capped), "finglish_alias").rules) == 6
+
+
+def test_a_finglish_alias_keeps_the_ezafe_and_never_a_pause_or_a_joining_hyphen():
+    from app.documentary.reading.dictionary import finglish
+    assert finglish("ghāzi-ye|") == "ghāziye" and finglish("sag-hā") == "sag-hā" and finglish("payām-hā") == "payāmhā"

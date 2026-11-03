@@ -33,6 +33,9 @@ class Outcome:
     sound_doubts: list[str] = field(default_factory=list)
     reason: str = ""
     candidates: list[str] = field(default_factory=list)
+    basis: str = ""                    # what the evidence rests on: lexicon | rule | verb | exception
+    homograph: bool = False
+    conflict: bool = False             # the evidence did not allow the writer's reading
 
 
 @dataclass
@@ -66,7 +69,7 @@ class ReadingEngine:
             checked = self.auditor.tr.check(f.reading)
             fixed = checked.normalized
             base = dict(block_id=f.block_id, n=f.n, surface=f.surface, writer=f.reading, format_fixes=f.format_fixes, sound_doubts=f.sound_doubts,
-                        candidates=f.options)
+                        candidates=f.options, basis=f.basis, homograph=f.homograph, conflict=f.status in ("vowel_conflict", "form_conflict"))
             if f.status == "number":
                 out.append(Outcome(**base, reading=fixed, status="verified"))
             elif f.status == "no_evidence":
