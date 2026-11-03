@@ -643,13 +643,6 @@
       "output": "json",
       "description": "Listens to the clip of one word of the Persian narration and chooses which of several written readings it was said as.",
       "used_by": "app/documentary/reading/chooser.py"
-    },
-    "documentary.reading.select": {
-      "role": "reading_selector",
-      "prompt": "documentary/reading/select_system",
-      "output": "json",
-      "description": "Chooses, from the sentence's meaning and grammar, which of the lexicon's readings of one word is the right one (a model that did not write the reading).",
-      "used_by": "app/documentary/reading/selector.py"
     }
   }
 }

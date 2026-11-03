@@ -562,33 +562,6 @@
     "flag_margin": 4.0,
     "fit_edge_s": 0.06,
     "clip_edge_s": 0.25,
-    "vowel_confusions": {"a": ["e", "o"], "e": ["a", "o", "i"], "o": ["a", "e", "u"], "u": ["o"], "i": ["e"], "ā": ["a"]},
-    "transcription": {
-      "vowels": ["a", "e", "o", "ā", "i", "u"],
-      "diphthongs": ["ey", "ow"],
-      "consonants": ["b", "p", "t", "s", "j", "ch", "h", "kh", "d", "z", "r", "zh", "sh", "gh", "f", "k", "g", "l", "m", "n", "v", "y"],
-      "glottal": "'",
-      "ezafe": ["e", "ye"],
-      "pause": "|",
-      "number": "NUM",
-      "format_fixes": {"q": "gh", "x": "kh", "ʼ": "'", "’": "'", "ʿ": "'", "`": "'", "â": "ā", "ī": "i", "ū": "u", "ou": "ow", "ei": "ey", "е": "e"},
-      "ambiguous_symbols": ["ē", "ō", "w", "c", "ə", "ɑ", "ʃ", "ʒ", "ɡ"]
-    },
-    "selector_max_words": 800,
-    "select_supported_homographs": false,
-    "exceptions_file": "config/reading_exceptions.json",
-    "morphology": {"suffixes": [{"surface": "ها", "kind": "plural (ā in speech)", "after_consonant": ["hā", "ā"], "after_vowel": ["hā"]}, {"surface": "هایی", "kind": "plural indefinite", "after_consonant": ["hāyi"], "after_vowel": ["hāyi"]}, {"surface": "های", "kind": "plural", "after_consonant": ["hāy"], "after_vowel": ["hāy"]}, {"surface": "ا", "kind": "colloquial plural", "after_consonant": ["ā"], "after_vowel": []}, {"surface": "ان", "kind": "plural", "after_consonant": ["ān"], "after_vowel": ["yān"]}, {"surface": "ی", "kind": "indefinite or you", "after_consonant": ["i"], "after_vowel": ["yi"]}, {"surface": "تر", "kind": "comparative", "after_consonant": ["tar"], "after_vowel": ["tar"]}, {"surface": "ترین", "kind": "superlative", "after_consonant": ["tarin"], "after_vowel": ["tarin"]}, {"surface": "م", "kind": "my", "after_consonant": ["am", "em"], "after_vowel": ["m"]}, {"surface": "ت", "kind": "your", "after_consonant": ["at", "et"], "after_vowel": ["t"]}, {"surface": "ش", "kind": "his or her", "after_consonant": ["ash", "esh"], "after_vowel": ["sh"]}, {"surface": "مون", "kind": "our", "after_consonant": ["amun", "emun"], "after_vowel": ["mun"]}, {"surface": "تون", "kind": "your (pl)", "after_consonant": ["atun", "etun"], "after_vowel": ["tun"]}, {"surface": "شون", "kind": "their", "after_consonant": ["ashun", "eshun"], "after_vowel": ["shun"]}, {"surface": "مان", "kind": "our", "after_consonant": ["emān", "amān"], "after_vowel": ["mān"]}, {"surface": "تان", "kind": "your (pl)", "after_consonant": ["etān", "atān"], "after_vowel": ["tān"]}, {"surface": "شان", "kind": "their", "after_consonant": ["eshān", "ashān"], "after_vowel": ["shān"]}, {"surface": "اش", "kind": "his or her", "after_consonant": ["ash", "esh"], "after_vowel": ["sh"]}, {"surface": "ی", "kind": "ezafe written as ی", "after_consonant": ["-e"], "after_vowel": ["-ye"]}, {"surface": "ای", "kind": "ezafe or indefinite written as ای", "after_consonant": ["-āye", "i"], "after_vowel": ["-ye"]}], "min_stem_letters": 2, "max_suffixes": 2, "vowel_letters": "aeoāiu", "e_final_vowel_like": true, "colloquial_stem_rules": [{"colloquial": "ون", "formal": "ان", "reading_formal": "ān", "reading_spoken": "un", "kind": "-ān- is -un- in speech"}, {"colloquial": "ونه", "formal": "انه", "reading_formal": "āne", "reading_spoken": "une", "kind": "-āne is -une in speech"}], "hosts": [{"host": "به", "host_reading": "be", "written_infix": "", "reading_infix": "h", "clitic_forms": "after_consonant", "clitics": ["م", "ت", "ش", "مون", "تون", "شون"], "kind": "به with a clitic: the clitic is joined with an h"}, {"host": "از", "host_reading": "az", "written_infix": "", "reading_infix": "", "clitic_forms": "after_consonant", "clitics": ["م", "ت", "ش", "مون", "تون", "شون"], "kind": "از with a clitic"}, {"host": "با", "host_reading": "bā", "written_infix": "ها", "reading_infix": "hā", "clitic_forms": "after_vowel", "clitics": ["م", "ت", "ش", "مون", "تون", "شون"], "kind": "با with a clitic: bāhām, bāhāsh"}, {"host": "برا", "host_reading": "barā", "written_infix": "", "reading_infix": "", "clitic_forms": "after_vowel", "clitics": ["م", "ت", "ش", "مون", "تون", "شون"], "kind": "برای with a clitic: barām, barāsh"}], "verb": {"prefixes": [{"surface": "می", "reading": "mi"}, {"surface": "نمی", "reading": "nemi"}, {"surface": "ن", "reading": "na"}, {"surface": "", "reading": ""}], "past_endings": [{"surface": "", "reading": ""}, {"surface": "م", "reading": "am"}, {"surface": "ی", "reading": "i"}, {"surface": "یم", "reading": "im"}, {"surface": "ین", "reading": "in"}, {"surface": "ید", "reading": "id"}, {"surface": "ن", "reading": "an"}, {"surface": "ند", "reading": "and"}], "participle_endings": [{"surface": "", "reading": ""}], "infinitive_ending": "an", "participle_reading": "e", "stem_tags": ["past", "stem"], "participle_tags": ["participle", "past"], "infinitive_tag": "infinitive", "negative_prefix_only_with_past": true}},
-    "evidence": {
-      "source_url": "https://kaikki.org/dictionary/Persian/kaikki.org-dictionary-Persian.jsonl",
-      "page_url": "https://en.wiktionary.org/wiki/{word}",
-      "attribution": "English Wiktionary contributors (CC BY-SA 4.0), extracted by Kaikki.org (wiktextract). Community-edited: evidence, not ground truth.",
-      "folder": "data/lexicon",
-      "tehrani_tags": ["Tehrani", "Iran", "colloquial"],
-      "foreign_tags": ["Dari", "Kabuli", "Classical-Persian", "Tajik", "Sistani", "Hazaragi", "Herati", "Mashhadi", "Judeo-Persian", "Old-Persian", "Middle-Persian", "Bukharan", "Aimaq", "Iranian-Persian-archaic"],
-      "classical_marks": "ēōīū",
-      "ipa_drop": "[\\[\\]/ˈˌ.ʰʲ̪̥̃́̀̂̄̆ːˑ‿ ]",
-      "ipa_to_latin": {"tʃ": "ch", "dʒ": "j", "ʃ": "sh", "ʒ": "zh", "x": "kh", "χ": "kh", "ɢ": "gh", "ɣ": "gh", "q": "gh", "ɡ": "g", "ɾ": "r", "ɹ": "r", "j": "y", "ʔ": "'", "ɦ": "h", "ɑ": "ā", "ɒ": "ā", "ɔ": "ā", "æ": "a", "ä": "a", "ɐ": "a", "ɛ": "e", "ɪ": "e", "ʊ": "u", "ɵ": "o", "ə": "e", "ɨ": "e", "θ": "s", "ð": "z"},
-      "romanization_to_latin": {"â": "ā", "š": "sh", "ž": "zh", "č": "ch", "ǰ": "j", "x": "kh", "q": "gh", "ġ": "gh", "ʔ": "'", "ʾ": "'", "ʿ": "'"}
-    }
+    "vowel_confusions": {"a": ["e", "o"], "e": ["a", "o", "i"], "o": ["a", "e", "u"], "u": ["o"], "i": ["e"], "ā": ["a"]}
   }
 }
