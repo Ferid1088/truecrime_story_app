@@ -1518,6 +1518,9 @@ class ElevenLabsConfig(BaseModel):
 
 class VoiceConfig(BaseModel):
     provider: str = "elevenlabs"
+    # False: nothing is listened to after the voice: no semantic review of the blocks and no reading loop (phoneme listener, word choice, retakes).
+    # The narration is what the voice made. Switched off by the owner's decision of 2026-11-03 until the voice process is settled.
+    after_voice_review: bool = True
     elevenlabs: ElevenLabsConfig = Field(default_factory=ElevenLabsConfig)
     languages: dict[str, VoiceLanguageConfig] = {}
     # Languages whose narration is prepared before it is voiced (voice_prepare.py: the text is edited, its pronunciation rules go to a

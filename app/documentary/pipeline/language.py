@@ -137,12 +137,12 @@ class LanguageChain:
 
             if RS.required(lang):           # the words the owner has fixed go to the voice as IPA
                 renderer.voicing = await RS.voicing(db, case, version, lang)
-            if SR.required(lang):           # after the voice-repair loop of each block, a model listens to it and judges it against the source
+            if ai_config.voice.after_voice_review and SR.required(lang):           # after the voice-repair loop of each block, a model listens to it and judges it against the source
                 from app.documentary import voice_prepare as VP
 
                 prepared_rules = VP.sent_rules(version)
                 renderer.reviewer = SR.Reviewer(db, case.id, VP.english_sources(db, version), VP.tones_of(db, version), prepared_rules)
-            listened = RS.required(lang) and not pilot          # the narration of a language with a reading text is listened to before the music is mixed
+            listened = ai_config.voice.after_voice_review and RS.required(lang) and not pilot          # the narration of a language with a reading text is listened to before the music is mixed
             m = await render_documentary_audio(
                 plan, case_id=case.id, story_version_id=version.id,
                 max_seconds=pilot_seconds if pilot else None, db=db, renderer=renderer, with_music=not listened)
