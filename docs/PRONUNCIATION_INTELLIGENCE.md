@@ -37,3 +37,18 @@ several speeds and voices).
 
 Not built yet: word alignment of observed phonemes (the recognizer's timestamps are not word boundaries), the correction loop (three attempts, then unresolved), the
 prosody check on real audio, the risk engine and planner wired into the render, the evaluation of the audio agents on real recordings.
+
+## Phonetic benchmark and labelling (2026-11-03)
+
+**What exists (verified live unless noted):**
+- Tables `phonetic_samples` / `phonetic_labels` (migration 0088, applied on live PostgreSQL after a verified backup and a rehearsed upgrade/downgrade/upgrade).
+- `scripts/extract_phonetic_samples.py` cuts words from the existing Case 15 narration (v289) into 16 kHz mono clips. No audio is generated, nothing is billed. 234 clips now exist: short vowels 140, ezafe 34, colloquial 30, names 30. All from ONE voice at the film's speed.
+- Candidates per clip come from the reading cache: the expected reading plus one-vowel variants, or the word with and without its ezafe.
+- Opinions are kept as they are, per actor and kind (`agent`, `recognizer`, `human`). Status: `unlabeled` → `agent_consensus` (two or more non-human opinions agree; NOT ground truth) / `disputed` / `unclear`; only a named person's label gives `human_verified`.
+- `scripts/propose_phonetic_labels.py`: two shuffled listening-agent rounds plus the wav2vec2 recognizer on clips without opinions. 40 clips done: 25 agent_consensus, 15 disputed. Cost: about EUR 0.06 (booked at an upper bound, the model has no price entry).
+- Pronunciation tab → "Phonetic benchmark": clips (disputed first), playback, waveform, candidate buttons, "cannot tell", opinion table, in-page recording (MediaRecorder) and file upload, report.
+
+**What is not established:**
+- No clip has a human label yet, so there is no measure of the agents or any recognizer. Agent consensus can be wrong (the expected reading is always among the options, which may bias the agents toward it).
+- Speed and voice diversity need recordings or other voices; the clips so far have one.
+- No recognizer is chosen. Alignment, risk engine, adaptive TTS planner, prosody verification and the correction loop are not built: they are gated on at least 60 human-verified clips (`enough_for_a_verdict`), and `pronunciation_auto.enabled` stays false.

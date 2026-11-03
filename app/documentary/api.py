@@ -824,6 +824,89 @@ def pronunciation_uncertain(entry_id: int, body: PronunciationNoteIn, db: Sessio
         raise HTTPException(status_code=422, detail=str(e)) from e
 
 
+class PhoneticLabelIn(BaseModel):
+    choice: str
+    reviewer: str = ""
+
+
+class PhoneticProposeIn(BaseModel):
+    case_id: int
+    limit: int = Field(20, ge=1, le=200)
+    recognizers: bool = True
+
+
+def _phonetic_sample(db: Session, sample_id: int):
+    from app.db.models import PhoneticSample
+
+    sample = db.get(PhoneticSample, sample_id)
+    if not sample:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    return sample
+
+
+@router.get("/api/documentary/phonetic/samples")
+def phonetic_samples(language: str = "fa", status: str | None = None, category: str | None = None, limit: int = 60, db: Session = Depends(get_db)):
+    """The phonetic benchmark for the Pronunciation tab: clips (disputed first) with every opinion, and the report."""
+    from app.documentary import phonetic_benchmark
+
+    return phonetic_benchmark.listing(db, language, status, category, limit)
+
+
+@router.get("/api/documentary/phonetic/samples/{sample_id}/audio")
+def phonetic_sample_audio(sample_id: int, db: Session = Depends(get_db)):
+    from app.documentary import phonetic_benchmark
+
+    return serve_file(phonetic_benchmark.BASE / _phonetic_sample(db, sample_id).audio_path, "audio/wav")
+
+
+@router.get("/api/documentary/phonetic/samples/{sample_id}/peaks")
+def phonetic_sample_peaks(sample_id: int, count: int = 160, db: Session = Depends(get_db)):
+    from app.documentary import phonetic_benchmark, pronunciation_review
+
+    return {"peaks": pronunciation_review.peaks(phonetic_benchmark.BASE / _phonetic_sample(db, sample_id).audio_path, 0.0, 30.0, count)}
+
+
+@router.post("/api/documentary/phonetic/samples/{sample_id}/label")
+def phonetic_label(sample_id: int, body: PhoneticLabelIn, db: Session = Depends(get_db)):
+    """A person who listened gives the label: the only ground truth of the benchmark."""
+    from app.documentary import phonetic_benchmark
+
+    _phonetic_sample(db, sample_id)
+    try:
+        return phonetic_benchmark.describe(db, phonetic_benchmark.human_label(db, sample_id, body.choice, body.reviewer))
+    except (PermissionError, ValueError) as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@router.post("/api/documentary/phonetic/samples")
+async def phonetic_upload(file: UploadFile = File(...), surface: str = Form(...), sentence: str = Form(""), candidates: str = Form(...), category: str = Form("other"),
+                          speaker: str = Form(""), speed: str = Form("normal"), language: str = Form("fa"), db: Session = Depends(get_db)):
+    """A clip recorded in the page or uploaded, with the pronunciations it may have (latin reading per candidate)."""
+    from pathlib import Path
+
+    from app.documentary import phonetic_benchmark
+
+    readings = [r.strip() for r in candidates.split(",") if r.strip()]
+    if len(readings) < 2 or category not in phonetic_benchmark.CATEGORIES:
+        raise HTTPException(status_code=422, detail="Give at least two candidate readings and a known category")
+    try:
+        forms = [phonetic_benchmark.candidate(r) for r in readings]
+        sample = phonetic_benchmark.add_recording(db, data=await file.read(), suffix=Path(file.filename or "").suffix or ".webm", surface=surface, sentence=sentence,
+                                                  candidates=forms, category=category, speaker=speaker, speed=speed, language=language)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return phonetic_benchmark.describe(db, sample)
+
+
+@router.post("/api/documentary/phonetic/propose")
+async def phonetic_propose(body: PhoneticProposeIn, db: Session = Depends(get_db)):
+    """The listening agents (and the phoneme recognizer) give their opinions on clips that have none; the result is agent consensus, never ground truth."""
+    from app.documentary import phonetic_benchmark
+
+    recognizers = {"wav2vec2": phonetic_benchmark.wav2vec2_phones} if body.recognizers else {}
+    return await phonetic_benchmark.propose_all(db, phonetic_benchmark.agent_runner(db, body.case_id), recognizers, limit=body.limit)
+
+
 def _version_of(db: Session, version_id: int) -> StoryVersion:
     version = db.get(StoryVersion, version_id)
     if not version:

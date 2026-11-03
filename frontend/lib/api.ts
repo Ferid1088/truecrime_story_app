@@ -1,6 +1,8 @@
 import type {
   PronunciationApprove,
   PronunciationEntries,
+  PhoneticListing,
+  PhoneticSample,
   PronunciationEntry,
   PronunciationHistoryItem,
   PronunciationOccurrences,
@@ -577,6 +579,19 @@ export const api = {
     post<PronunciationEntry>(`/api/documentary/pronunciation/entries/${entryId}/reject`, { reviewer, reason }),
   uncertainPronunciation: (entryId: number, reviewer: string, reason: string) =>
     post<PronunciationEntry>(`/api/documentary/pronunciation/entries/${entryId}/uncertain`, { reviewer, reason }),
+  phoneticSamples: (language: string, status?: string, category?: string) =>
+    request<PhoneticListing>(`/api/documentary/phonetic/samples${query({ language, status, category })}`),
+  phoneticAudioUrl: (sampleId: number) => apiFileUrl(`/api/documentary/phonetic/samples/${sampleId}/audio`),
+  phoneticPeaks: (sampleId: number) => request<{ peaks: number[] }>(`/api/documentary/phonetic/samples/${sampleId}/peaks`),
+  labelPhoneticSample: (sampleId: number, choice: string, reviewer: string) =>
+    post<PhoneticSample>(`/api/documentary/phonetic/samples/${sampleId}/label`, { choice, reviewer }),
+  uploadPhoneticSample: (upload: { file: Blob; filename: string; surface: string; sentence: string; candidates: string; category: string; speaker: string; speed: string; language: string }) => {
+    const form = new FormData();
+    form.set("file", upload.file, upload.filename);
+    for (const k of ["surface", "sentence", "candidates", "category", "speaker", "speed", "language"] as const) form.set(k, upload[k]);
+    // Empty headers drop the JSON content type: the browser sets the multipart boundary itself.
+    return request<PhoneticSample>("/api/documentary/phonetic/samples", { method: "POST", body: form, headers: {} });
+  },
   readingDoubts: (versionId: number) => request<ReadingDoubts>(`/api/documentary/versions/${versionId}/reading-doubts`),
   answerReadingDoubts: (versionId: number, answers: ReadingAnswer[]) =>
     post<ReadingDoubts>(`/api/documentary/versions/${versionId}/reading-doubts`, { answers }),

@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/state";
+import { PhoneticBenchmark } from "./phonetic-benchmark";
 import { InlineAlert, LanguagePicker, type LanguageTabProps } from "../shared";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -297,6 +298,7 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
   const versionId = overview.languages[language]?.version_id ?? null;
   const [status, setStatus] = useState<string>("legacy_unverified");
   const [selected, setSelected] = useState<number | null>(null);
+  const [view, setView] = useState<"entries" | "benchmark">("entries");
   const [reviewer, setReviewer] = useState(() => {
     try {
       return typeof window === "undefined" ? "" : (window.localStorage.getItem(REVIEWER_KEY) ?? "");
@@ -336,6 +338,12 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
           </label>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="flex gap-2" role="tablist" aria-label="View">
+            <Button size="sm" variant={view === "entries" ? "default" : "secondary"} onClick={() => setView("entries")}>Entries</Button>
+            <Button size="sm" variant={view === "benchmark" ? "default" : "secondary"} onClick={() => setView("benchmark")}>Phonetic benchmark</Button>
+          </div>
+          {view === "benchmark" && <PhoneticBenchmark language={language} reviewer={reviewer} />}
+          {view === "entries" && <>
           <p className="text-xs leading-5 text-muted-foreground">
             Entries imported from the earlier systems are <strong>legacy and unverified</strong>: none is a pronunciation reference yet. The app will verify
             them itself from audio evidence once its phonetic recognizer has passed an independent evaluation (it is off until then); when you decide, your
@@ -374,6 +382,7 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
               <Detail key={current.id} entry={current} versionId={versionId} lang={language} reviewer={reviewer} onChanged={state.refetch} />
             </div>
           )}
+          </>}
         </CardContent>
       </Card>
     </div>

@@ -3406,3 +3406,51 @@ class PronunciationAuditLog(Base):
     after: Mapped[str] = mapped_column(Text, default="")
     note: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class PhoneticSample(Base):
+    """A short audio clip of a word (cut from a case's narration, recorded in the page, or uploaded) with the pronunciations it might have, for the
+    phonetic benchmark. Its status says how much is known about what was really said: unlabeled, agent_consensus (several independent agents and
+    recognizers agree: NOT ground truth), disputed, human_verified (a person listened: the only ground truth) or unclear."""
+
+    __tablename__ = "phonetic_samples"
+    __table_args__ = (UniqueConstraint("language", "audio_path", name="uq_phonetic_samples"), Index("ix_phonetic_samples_status", "language", "status"))
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    language: Mapped[str] = mapped_column(String(20))
+    source: Mapped[str] = mapped_column(String(20))                         # case_audio | recording | upload
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True)
+    story_version_id: Mapped[int | None] = mapped_column(ForeignKey("story_versions.id"), nullable=True)
+    block_id: Mapped[str] = mapped_column(String(40), default="")
+    word_n: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    surface: Mapped[str] = mapped_column(String(160))
+    sentence: Mapped[str] = mapped_column(Text, default="")
+    audio_path: Mapped[str] = mapped_column(String(400))                    # relative to data/phonetic_benchmark
+    start_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    end_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    voice_id: Mapped[str] = mapped_column(String(40), default="")
+    model_id: Mapped[str] = mapped_column(String(40), default="")
+    speaker: Mapped[str] = mapped_column(String(60), default="")            # a voice id, or who recorded it
+    speed: Mapped[str] = mapped_column(String(20), default="")              # slow | normal | fast | the film's own rate
+    category: Mapped[str] = mapped_column(String(24), default="other")      # short_vowel | ezafe | colloquial | name | connected | other
+    candidates: Mapped[str] = mapped_column(Text, default="[]")             # JSON: [{"key", "irab", "ipa"}]
+    expected_key: Mapped[str] = mapped_column(String(80), default="")       # the candidate the text expects
+    status: Mapped[str] = mapped_column(String(20), default="unlabeled")
+    consensus_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    human_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class PhoneticLabel(Base):
+    """One opinion about a sample: an agent's, a recognizer's or a person's. Opinions are never merged into one number: the kind stays."""
+
+    __tablename__ = "phonetic_labels"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sample_id: Mapped[int] = mapped_column(ForeignKey("phonetic_samples.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(12))                           # agent | recognizer | human
+    actor: Mapped[str] = mapped_column(String(60))
+    choice: Mapped[str] = mapped_column(String(80))                         # a candidate key, "none" (not any of them) or "unclear"
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    detail: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)

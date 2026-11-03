@@ -3740,3 +3740,50 @@ export interface PronunciationApprove {
   supersede?: boolean;
   reason?: string;
 }
+
+export interface PhoneticCandidate {
+  key: string;
+  irab: string;
+  ipa: string;
+}
+
+export interface PhoneticOpinion {
+  kind: "agent" | "recognizer" | "human";
+  actor: string;
+  choice: string;
+  confidence: number;
+}
+
+export interface PhoneticSample {
+  id: number;
+  surface: string;
+  sentence: string;
+  category: string;
+  source: string;
+  speaker: string;
+  speed: string;
+  status: "unlabeled" | "agent_consensus" | "disputed" | "human_verified" | "unclear";
+  candidates: PhoneticCandidate[];
+  expected_key: string;
+  consensus_key: string | null;
+  human_key: string | null;
+  case_id: number | null;
+  block_id: string | null;
+  opinions: PhoneticOpinion[];
+}
+
+export interface PhoneticReport {
+  counts: Record<string, number>;
+  total: number;
+  by_category: Record<string, number>;
+  by_source: Record<string, number>;
+  human_verified: number;
+  against_human_labels: Record<string, { clips: number; right: number; unclear: number; accuracy: number | null }>;
+  consensus_checked_by_a_person: { clips: number; consensus_right: number };
+  enough_for_a_verdict: boolean;
+}
+
+export interface PhoneticListing {
+  samples: PhoneticSample[];
+  report: PhoneticReport;
+}
