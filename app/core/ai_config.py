@@ -2429,22 +2429,6 @@ class MorphologyConfig(BaseModel):
     verb: dict = {}
 
 
-class RiskConfig(BaseModel):
-    """Which words of a block get a pronunciation rule (risk.py, dictionary.py), found from the evidence about the word and its structure, never
-    from a list of known faults. The weights are estimates until calibrated against labelled examples."""
-
-    threshold: float = Field(default=0.45, ge=0.0, le=1.0)
-    max_rules_per_block: int = Field(default=6, ge=0)
-    weights: dict[str, float] = {}
-    cluster_min_consonants: int = Field(default=3, ge=2)
-    long_word_letters: int = Field(default=9, ge=3)
-    rare_sounds: list[str] = []
-    # The statuses of the engine whose reading may become a rule (an uncertain reading is not sent: the engine does not know it).
-    alias_statuses: list[str] = []
-    strategies: list[str] = []
-    active_strategy: str = "none"
-
-
 class ReadingConfig(BaseModel):
     """The reading loop of a spoken language (app/documentary/reading): the reading text (one Latin reading per word) is written and checked before
     the voice; the voice is then listened to blind and every difference is fixed for the failing words only."""
@@ -2488,7 +2472,6 @@ class ReadingConfig(BaseModel):
     select_supported_homographs: bool = False
     # The verified exceptions: readings a person has confirmed, each also a regression test.
     exceptions_file: str = "config/reading_exceptions.json"
-    risk: RiskConfig = Field(default_factory=lambda: RiskConfig())
 
 
 class SemanticReviewConfig(BaseModel):
