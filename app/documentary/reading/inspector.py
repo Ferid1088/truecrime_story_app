@@ -1,19 +1,22 @@
-"""The listening part of the reading loop. A voiced block is listened to twice: a model writes in Latin letters what it heard (blind: it only has the
-plain words), and the local phoneme recogniser (no language-model habit) writes the phones. A word the blind listener heard differently from its
-reading is a candidate; it is a finding when the recogniser, in the word's own time window, also hears it differently. A listener that guesses and
-a recogniser that is noisy rarely make the same mistake on the same word."""
+"""The listening part of the reading loop. The local phoneme recogniser scores every word of a voiced block: how well the audio fits the word's
+reading and how well it fits the forms a vowel away from it (the sounds the voice mixes up). A word that a wrong form fits clearly better is looked
+at again: a model hears the clip of that one word and chooses which form it was. The word is a finding when it chooses a wrong form (or none),
+a weak flag when it chooses the reading."""
 
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
 
 from app.core.ai_config import ai_config
-from app.documentary.reading import phones as PH
-from app.documentary.reading.listener import BlindListener
+from app.documentary.reading.chooser import WordChooser, variants
+from app.documentary.reading.scheme import split_pause, to_ipa
 from app.documentary.reading.words import EDGE_PUNCT, Word, key_of, tokenize
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -22,8 +25,9 @@ class Finding:
     n: int
     surface: str
     expected: str           # the written reading
-    heard: str              # what the blind listener wrote
-    phones: str             # the sounds the recogniser found in the word's window, as the short alphabet
+    said: str               # the form the model chose for the clip ("none": no form fitted)
+    best: str               # the form the phoneme score fitted best
+    margin: float           # how much better that form fitted than the reading
 
 
 def windows(spoken: list[dict], words: list[Word]) -> dict[int, tuple[float, float]]:
@@ -39,35 +43,47 @@ def windows(spoken: list[dict], words: list[Word]) -> dict[int, tuple[float, flo
     return found
 
 
-def candidates(words: list[Word], readings: list[str], heard: dict[int, str]) -> list[int]:
-    """The words the blind listener heard differently from their readings (digits are read by code; a word it did not write down is no candidate)."""
-    return [w.n for w in words if not w.number and w.n in heard and not PH.same_heard(readings[w.n], heard[w.n], w.plain)]
-
-
-def confirm(block_id: str, words: list[Word], readings: list[str], heard: dict[int, str], spoken: list[dict],
-            frames: list[tuple[str, float, float]]) -> tuple[list[Finding], list[Finding]]:
-    """(the findings, the weak flags). A finding is a candidate that the recogniser also hears differently (vowels and the consonants inside the
-    word); a weak flag is a candidate that the recogniser hears right: one listener doubts it, the other does not, so it is only reported."""
-    if len(readings) != len(words):
-        raise ValueError(f"{block_id}: {len(words)} words and {len(readings)} readings")
-    edge, where, found, weak = ai_config.reading.window_edge_s, windows(spoken, words), [], []
-    for n in candidates(words, readings, heard):
-        if n not in where:
+def best_form(fit, log_probs, start: float, end: float, reading: str) -> tuple[str, float]:
+    """(the form that fits the audio best, how much better it fits than the reading) among the reading and its wrong forms."""
+    edge, stem = ai_config.reading.fit_edge_s, split_pause(reading)[0]
+    forms = [stem] + variants(stem)
+    loss = {}
+    for form in forms:
+        try:
+            loss[form] = fit(log_probs, start - edge, end + edge, to_ipa(form))
+        except ValueError:                    # the window is too short for the sounds of this form
             continue
-        start, end = where[n]
-        verdict = PH.compare(readings[n], [p for p, s, e in frames if e > start - edge and s < end + edge], consonants=True)
-        (weak if verdict.ok else found).append(Finding(block_id, n, words[n].plain, readings[n], heard[n], verdict.heard))
-    return found, weak
+    if stem not in loss:
+        return stem, 0.0
+    best = min(loss, key=loss.get)
+    return best, loss[stem] - loss[best]
 
 
 class Inspector:
-    def __init__(self, blind: BlindListener, recogniser=None):
+    def __init__(self, chooser: WordChooser, recogniser=None):
         from app.documentary.pronunciation import get_listener
 
-        self.blind, self.recogniser = blind, recogniser or get_listener()
+        self.chooser, self.recogniser = chooser, recogniser or get_listener()
 
     async def inspect(self, block_id: str, text: str, readings: list[str], wav: Path, spoken: list[dict]) -> tuple[list[Finding], list[Finding]]:
         """(the findings, the weak flags) of one voiced block: `spoken` are the voice's words with their times in this wav."""
         words = tokenize(text)
-        heard, frames = await asyncio.gather(self.blind.hear(wav, words, block_id), asyncio.to_thread(self.recogniser.frames, str(wav)))
-        return confirm(block_id, words, readings, heard, spoken, frames)
+        if len(readings) != len(words):
+            raise ValueError(f"{block_id}: {len(words)} words and {len(readings)} readings")
+        log_probs = await asyncio.to_thread(self.recogniser.log_probs, str(wav))
+        where, found, weak = windows(spoken, words), [], []
+        for w in words:
+            if w.number or w.n not in where:
+                continue
+            start, end = where[w.n]
+            best, margin = best_form(self.recogniser.fit, log_probs, start, end, readings[w.n])
+            if margin < ai_config.reading.flag_margin:
+                continue
+            try:
+                said = (await self.chooser.choose(wav, start, end, w.plain, split_pause(readings[w.n])[0], f"{block_id}:{w.n}"))["said"]
+            except ValueError as e:               # no clip can be cut at this place: the word stays unchecked
+                log.warning("%s word %d: %s", block_id, w.n, e)
+                continue
+            finding = Finding(block_id, w.n, w.plain, readings[w.n], said, best, round(margin, 1))
+            (weak if said == split_pause(readings[w.n])[0] else found).append(finding)
+        return found, weak

@@ -157,7 +157,6 @@ REQUIRED_ROLES = {
     "reading_checker",
     "reading_arbiter",
     "reading_listener",
-    "reading_judge",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",
@@ -2398,8 +2397,6 @@ class ReadingConfig(BaseModel):
     max_writer_retries: int = Field(default=3, ge=0, le=10)
     # True: two different persons side by side in the text get a pause between them.
     pause_between_names: bool = True
-    # True: the local phoneme recogniser listens too, as a second opinion that has no language-model habit.
-    second_opinion_phoneme: bool = True
     # Where the reading texts and the records of a film are kept next to its voice.
     folder: str = "reading"
     # A model call that fails (the provider's hiccup) is made again this many times, with this pause, before the stage fails.
@@ -2407,10 +2404,16 @@ class ReadingConfig(BaseModel):
     retry_pause_s: float = Field(default=5.0, ge=0.0)
     # How many blocks are written and checked at the same time.
     parallel_blocks: int = Field(default=6, ge=1, le=32)
-    # How many blocks are listened to at the same time (the blind listener is a model call, the recogniser is local).
+    # How many blocks are listened to at the same time.
     listen_parallel_blocks: int = Field(default=4, ge=1, le=16)
-    # The recogniser's phones of a word are taken from its time window widened by this much on each side (seconds).
-    window_edge_s: float = Field(default=0.03, ge=0.0, le=0.2)
+    # A word is looked at when the phoneme score finds a wrong form of its reading fitting the audio better by this much (the CTC loss difference);
+    # its time window is widened by `fit_edge_s` on each side.
+    flag_margin: float = Field(default=4.0, ge=0.0)
+    fit_edge_s: float = Field(default=0.06, ge=0.0, le=0.2)
+    # The word choice (chooser.py): the clip of one word is cut with this much sound on each side (seconds) ...
+    clip_edge_s: float = Field(default=0.25, ge=0.0, le=1.0)
+    # ... and the wrong options are made by changing one vowel of the reading to one of the vowels the voice mixes it up with.
+    vowel_confusions: dict[str, list[str]] = {}
 
 
 class SemanticReviewConfig(BaseModel):

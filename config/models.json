@@ -10,10 +10,19 @@
         "sol": "gpt-6.1-sol",
         "luna": "gpt-5.6-luna",
         "audio_listener": "gemini-3.8-flash",
+        "reading_listener": "gemini-4-argon",
         "reading_premium": "claude-sonnet-5-5"
       },
       "capabilities": {
         "gemini-3.8-flash": {
+          "structured_output": true,
+          "tool_calling": true,
+          "web_search": "none",
+          "web_fetch": "none",
+          "vision": true,
+          "audio_input": true
+        },
+        "gemini-4-argon": {
           "structured_output": true,
           "tool_calling": true,
           "web_search": "none",
@@ -137,8 +146,7 @@
         "reading_editor": "reading_premium",
         "reading_checker": "sol",
         "reading_arbiter": "reading_premium",
-        "reading_listener": "audio_listener",
-        "reading_judge": "reading_premium"
+        "reading_listener": "reading_listener"
       },
       "fallbacks": {
         "cheap": [
@@ -492,10 +500,6 @@
     "reading_listener": {
       "temperature": 0.0,
       "max_tokens": 6000
-    },
-    "reading_judge": {
-      "temperature": 0.0,
-      "max_tokens": 10000
     }
   }
 }

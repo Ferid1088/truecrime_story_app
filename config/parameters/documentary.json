@@ -554,12 +554,14 @@
     "max_rounds": 3,
     "max_writer_retries": 3,
     "pause_between_names": true,
-    "second_opinion_phoneme": true,
     "folder": "reading",
     "call_retries": 3,
     "retry_pause_s": 5.0,
     "parallel_blocks": 6,
     "listen_parallel_blocks": 4,
-    "window_edge_s": 0.03
+    "flag_margin": 4.0,
+    "fit_edge_s": 0.06,
+    "clip_edge_s": 0.25,
+    "vowel_confusions": {"a": ["e", "o"], "e": ["a", "o", "i"], "o": ["a", "e", "u"], "u": ["o"], "i": ["e"], "ā": ["a"]}
   }
 }

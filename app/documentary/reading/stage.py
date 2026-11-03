@@ -3,8 +3,6 @@ doubt (the owner answers them all in one review, then resumes)."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
@@ -13,11 +11,9 @@ from app.documentary import voice_prepare as VP
 from app.documentary.performance import performance_for_version
 from app.documentary.pipeline.errors import AwaitingReadingReview
 from app.documentary.reading.block import BlockInput, block_inputs
+from app.documentary.reading.chooser import WordChooser
 from app.documentary.reading.inspector import Inspector
-from app.documentary.reading.judge import Judge
-from app.documentary.reading.listener import BlindListener
 from app.documentary.reading.loop import ReadingLoop
-from app.documentary.reading.table import FilmTable
 from app.documentary.reading.text import ReadingResult, ReadingStage
 from app.documentary.reading.voicing import Voicing
 from app.documentary.reading.words import key_of
@@ -57,13 +53,12 @@ async def run(db: Session, case: Case, version: StoryVersion, language: str) -> 
 
 
 async def listen_and_fix(db: Session, case: Case, version: StoryVersion, language: str, renderer, plan: dict, manifest: dict, folder, *, inspector=None,
-                         judge_runner=None, blind_runner=None) -> dict:
+                         choose_runner=None) -> dict:
     """The reading loop after the voice of a language: the narration is listened to, the words the voice said wrong are voiced again as IPA
     (only their blocks), and what could not be fixed is reported. Returns the manifest of the narration as it stands, with the report in it."""
     items, read = await result(db, case, version, language)
     voicing = await voicing_of(db, language, read)
-    loop = ReadingLoop(db, case.id, language, items, inspector or Inspector(BlindListener(db, case.id, blind_runner)),
-                       Judge(db, case.id, read.table or FilmTable.build({}), judge_runner, Path(folder) / "reading_judge.json"), voicing)
+    loop = ReadingLoop(db, case.id, language, items, inspector or Inspector(WordChooser(db, case.id, choose_runner)), voicing)
     renderer.reviewer = None                      # the whole-block review is over: a block voiced again is judged by the loop
 
     async def revoice(block_ids: list[str], round_no: int) -> dict:
@@ -75,6 +70,6 @@ async def listen_and_fix(db: Session, case: Case, version: StoryVersion, languag
 
     final = await loop.run(manifest, revoice)
     loop.save(folder)
-    final["reading_loop"] = {"rounds": loop.report["rounds"], "fixed": len(loop.report["fixed"]), "reading_fixed": len(loop.report["reading_fixed"]),
-                             "unfixed": loop.report["unfixed"], "unclear": len(loop.report["unclear"]), "weak_flags": len(loop.report["weak_flags"]), "unchecked_blocks": len(loop.report["unchecked_blocks"])}
+    final["reading_loop"] = {"rounds": loop.report["rounds"], "fixed": len(loop.report["fixed"]), "unfixed": loop.report["unfixed"],
+                             "weak_flags": len(loop.report["weak_flags"]), "unchecked_blocks": len(loop.report["unchecked_blocks"])}
     return final

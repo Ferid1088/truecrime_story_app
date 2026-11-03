@@ -27,13 +27,12 @@ Subtitles and the Whisper check use the text without the added harakat.
 
 from __future__ import annotations
 
-from app.agents.runner import run_agent
-
 import json
 import re
 import threading
 from functools import lru_cache
 
+from app.agents.runner import run_agent
 from app.core.ai_config import PronunciationConfig, ai_config
 from app.core.concurrency import gather_limited
 from app.providers.generation import get_generation_provider
@@ -277,11 +276,13 @@ class PhonemeListener:
         self.model = Wav2Vec2ForCTC.from_pretrained(model_name).eval()
         vocab = json.load(open(hf_hub_download(model_name, "vocab.json"), encoding="utf-8"))
         self.inv = {v: k for k, v in vocab.items()}
+        self.ids = vocab
+        self.known = sorted((t for t in vocab if t not in ("<pad>", "<s>", "</s>", "<unk>", "|")), key=len, reverse=True)
         self.lock = threading.Lock()
         self.name = model_name
 
-    def frames(self, wav_path: str) -> list[tuple[str, float, float]]:
-        """Phonemes of a whole recording: [(ipa, start, end)]."""
+    def log_probs(self, wav_path: str):
+        """The log-probabilities of the phones of a whole recording, one row per frame."""
         import subprocess
 
         import numpy as np
@@ -294,7 +295,11 @@ class PhonemeListener:
         with self.lock, torch.no_grad():
             logits = self.model(self.fe(audio, sampling_rate=16000,
                                         return_tensors="pt").input_values).logits
-        ids = torch.argmax(logits, -1)[0].tolist()
+        return torch.log_softmax(logits, -1)[0]
+
+    def frames(self, wav_path: str) -> list[tuple[str, float, float]]:
+        """Phonemes of a whole recording: [(ipa, start, end)]."""
+        ids = self.log_probs(wav_path).argmax(-1).tolist()
         out: list[tuple[str, float, float]] = []
         prev = None
         for k, i in enumerate(ids):
@@ -305,6 +310,25 @@ class PhonemeListener:
                 out[-1] = (tok, out[-1][1], (k + 1) * self.FRAME)
             prev = i
         return out
+
+    def fit(self, log_probs, start: float, end: float, ipa: str) -> float:
+        """How badly the sounds `ipa` fit the audio between start and end (the CTC loss over those frames: lower is a better fit)."""
+        import torch
+
+        target, k = [], 0
+        while k < len(ipa):
+            tok = next((t for t in self.known if ipa.startswith(t, k)), None)
+            if tok is None:
+                k += 1
+                continue
+            target.append(self.ids[tok])
+            k += len(tok)
+        first, last = max(0, int(start / self.FRAME)), min(log_probs.shape[0], int(end / self.FRAME) + 1)
+        if not target or last - first < len(target):
+            raise ValueError("the word's frames cannot hold its sounds")
+        return float(torch.nn.functional.ctc_loss(
+            log_probs[first:last].unsqueeze(1), torch.tensor([target]), torch.tensor([last - first]), torch.tensor([len(target)]),
+            blank=self.ids["<pad>"], zero_infinity=True, reduction="sum"))
 
     @staticmethod
     def between(frames: list[tuple[str, float, float]], start: float, end: float) -> list[str]:

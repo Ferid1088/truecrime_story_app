@@ -1,72 +1,115 @@
+"""The phoneme score and the word choice of the reading loop, with a fake recogniser and a fake model: which words are looked at, which are findings
+and which are only weak flags. The words are invented."""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import json
+import shutil
+import subprocess
+
 import pytest
 
-from app.documentary.reading.inspector import Finding, candidates, confirm, windows
-from app.documentary.reading.phones import compare, expected_sounds, heard_sounds, same_heard
+from app.core.ai_config import ai_config
+from app.documentary.reading import ask as ASK
+from app.documentary.reading import chooser as CH
+from app.documentary.reading.chooser import WordChooser, variants
+from app.documentary.reading.inspector import Inspector, best_form, windows
 from app.documentary.reading.words import tokenize
 
-# the phones are what the local recogniser wrote for the takes of film 15 (v289), words cut by the voice's own word times
-FAULTS = [
-    ("baham", "b e h ɛ m"), ("zhānin", "ʒ ɔ n i n ə"), ("bebakhshadesh", "b e b a x ʃ t a ʃ"), ("'ahdhā", "o h t o v"), ("'ahd", "o h d"),
-    ("gurestun", "ɡ uː r s t oː n"), ("khāne-ye", "x ɔ n e"), ("dar-e", "d æ r"),
-]
-SAYS_IT = [
-    ("baham", "b a h a m"), ("zhānin", "ʒ ɔ n i n"), ("'ahdhā", "a h d ɔ"), ("'ahd", "a h d"), ("gurestun", "ɡ uː r e s t u n"), ("prat", "p r a t"),
-    ("khāne-ye", "x ɔ n e j e"), ("dar-e", "d æ r e"), ("bud", "u t"), ("budan", "b u d a n a"),
-]
+
+@pytest.fixture(autouse=True)
+def no_provider(monkeypatch):
+    monkeypatch.setattr(ASK, "track_run", lambda *a, **k: contextlib.nullcontext(object()))
+    monkeypatch.setattr(ASK, "stamp_run", lambda *a, **k: None)
+    monkeypatch.setattr(ASK, "get_generation_provider", lambda: object())
 
 
-@pytest.mark.parametrize("reading,phones", FAULTS)
-def test_a_vowel_that_is_another_a_syllable_more_or_less_and_an_ezafe_missing_or_added_are_faults(reading, phones):
-    assert not compare(reading, phones.split()).ok
+class Script:
+    def __init__(self, answer):
+        self.answer, self.requests = answer, []
+
+    async def __call__(self, gen, body):
+        self.requests.append(json.loads(body))
+        return (self.answer(self.requests[-1]) if callable(self.answer) else self.answer), object()
 
 
-@pytest.mark.parametrize("reading,phones", SAYS_IT)
-def test_what_the_reading_says_is_not_a_fault_even_with_the_neighbours_sounds_at_the_edges(reading, phones):
-    assert compare(reading, phones.split()).ok
+class Recogniser:
+    """Fits a form by a table of losses by its IPA (a form not in the table fits badly)."""
+
+    def __init__(self, losses):
+        self.losses = losses
+
+    def log_probs(self, wav):
+        return None
+
+    def fit(self, log_probs, start, end, ipa):
+        return self.losses.get(ipa, 50.0)
 
 
-def test_the_sounds_of_a_reading_and_of_the_phones_are_in_one_alphabet():
-    assert expected_sounds("khāne-ye") == ["kh", "ā", "n", "e", "y", "e"]
-    assert expected_sounds("'ahd|") == ["a", "h", "d"]
-    assert heard_sounds("x ɔ n e j e".split()) == ["kh", "ā", "n", "e", "y", "e"]
+def test_the_wrong_forms_of_a_reading_change_one_vowel_and_keep_the_ezafe():
+    assert "'ohdhā" in variants("'ahdhā") and "beham" in variants("baham") and "gurostun" in variants("gurestun")
+    assert all(f.endswith("-ye") for f in variants("khāne-ye")) and "khāne-ye" not in variants("khāne-ye")
 
 
-def test_the_window_of_a_word_follows_the_voices_words_by_place_or_by_the_words_that_match():
-    words = tokenize("از عهد حرف زد")
-    spoken = [{"word": w, "start": i, "end": i + 0.5} for i, w in enumerate(["از", "/ʔæhd/", "حرف", "زد"])]
-    assert windows(spoken, words) == {0: (0, 0.5), 1: (1, 1.5), 2: (2, 2.5), 3: (3, 3.5)}
-    assert windows(spoken[:1] + spoken[2:], words) == {0: (0, 0.5), 2: (2, 2.5), 3: (3, 3.5)}
+def test_the_best_form_is_the_one_that_fits_the_audio_best_and_the_margin_is_how_much_better_it_fits_than_the_reading():
+    recogniser = Recogniser({"bæhɑːm": 22.0, "behɑːm": 17.0})
+    assert best_form(recogniser.fit, None, 1.0, 1.5, "bahām") == ("behām", 5.0)
+    assert best_form(Recogniser({"bæhɑːm": 10.0}).fit, None, 1.0, 1.5, "bahām") == ("bahām", 0.0)
 
 
-def test_a_word_the_blind_listener_heard_differently_is_a_finding_only_when_the_recogniser_hears_it_differently_too():
-    words = tokenize("از عهد حرف زد")
-    readings = ["az", "'ahd", "harf", "zad"]
-    heard = {0: "az", 1: "ohd", 2: "harf", 3: "zad"}
-    assert candidates(words, readings, heard) == [1]
-    spoken = [{"word": w.surface, "start": float(i), "end": i + 0.5} for i, w in enumerate(words)]
-    ohd = [("o", 1.0, 1.1), ("h", 1.1, 1.2), ("d", 1.2, 1.3)]
-    ahd = [("a", 1.0, 1.1), ("h", 1.1, 1.2), ("d", 1.2, 1.3)]
-    assert confirm("b", words, readings, heard, spoken, ohd) == ([Finding("b", 1, "عهد", "'ahd", "ohd", "o h d")], [])
-    assert confirm("b", words, readings, heard, spoken, ahd) == ([], [Finding("b", 1, "عهد", "'ahd", "ohd", "a h d")])
+def test_a_word_is_looked_at_only_when_a_wrong_form_fits_clearly_better_and_it_is_a_finding_when_the_model_chooses_the_wrong_form(tmp_path, monkeypatch):
+    monkeypatch.setattr(ai_config.reading, "flag_margin", 4.0)
+    wav = tmp_path / "b.wav"
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=220:duration=3", str(wav)], check=True)
+    # word 1 ("عهد") has a wrong form fitting 9 better, word 2 ("حرف") only 1 better, word 0 fits as written
+    recogniser = Recogniser({"ʔæhd": 30.0, "ʔohd": 21.0, "hæɾf": 10.0, "hoɾf": 9.0})
+    spoken = [{"word": w, "start": i * 0.5, "end": i * 0.5 + 0.5} for i, w in enumerate(["از", "عهد", "حرف"])]
+    runner = Script(lambda req: {"choice": next(k for k, v in req["options"].items() if v == "'ohd")})
+    inspector = Inspector(WordChooser(None, 1, runner), recogniser)
+    found, weak = asyncio.run(inspector.inspect("a", "از عهد حرف", ["az", "'ahd", "harf"], wav, spoken))
+    assert [(f.surface, f.expected, f.said, f.best, f.margin) for f in found] == [("عهد", "'ahd", "'ohd", "'ohd", 9.0)] and weak == []
+    assert len(runner.requests) == 1 and runner.requests[0]["word"] == "عهد" and "'ahd" in runner.requests[0]["options"].values()
 
 
-def test_the_consonants_inside_a_word_are_compared_for_the_candidates_a_cluster_that_is_not_in_the_reading_is_a_fault():
-    assert not compare("pat", "p r a t".split(), consonants=True).ok
-    assert compare("prat", "p r a t".split(), consonants=True).ok
-    assert compare("kard", "k a r d b".split(), consonants=True).ok
+def test_a_word_the_model_hears_as_the_reading_is_only_a_weak_flag_and_the_same_clip_is_never_asked_twice(tmp_path):
+    wav = tmp_path / "b.wav"
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=220:duration=2", str(wav)], check=True)
+    recogniser = Recogniser({"hæɾf": 30.0, "hoɾf": 21.0})
+    spoken = [{"word": "حرف", "start": 0.2, "end": 0.9}]
+    runner = Script(lambda req: {"choice": next(k for k, v in req["options"].items() if v == "harf")})
+    inspector = Inspector(WordChooser(None, 1, runner), recogniser)
+    for _ in range(2):
+        found, weak = asyncio.run(inspector.inspect("a", "حرف", ["harf"], wav, spoken))
+        assert found == [] and [w.surface for w in weak] == ["حرف"]
+    assert len(runner.requests) == 1
 
 
-def test_what_a_listener_wrote_says_the_reading_apart_from_its_spelling():
-    assert same_heard("baham", "baham.", "بهم") and not same_heard("baham", "beham", "بهم")
-    assert same_heard("qāzi", "ghāzi,", "قاضی") and same_heard("o", "va", "و")
-    assert not same_heard("bāz", "bāz-e", "باز") and not same_heard("khāne-ye", "khāne", "خانه")
+def test_a_word_whose_clip_has_no_sound_stays_unchecked(tmp_path):
+    wav = tmp_path / "b.wav"
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=220:duration=1", str(wav)], check=True)
+    recogniser = Recogniser({"hæɾf": 30.0, "hoɾf": 21.0})
+    runner = Script({"choice": "A"})
+    found, weak = asyncio.run(Inspector(WordChooser(None, 1, runner), recogniser).inspect("a", "حرف", ["harf"], wav, [{"word": "حرف", "start": 9.0, "end": 9.5}]))
+    assert found == [] and weak == [] and runner.requests == []
 
 
-def test_a_number_is_never_a_candidate_and_a_block_with_another_word_count_is_refused():
-    assert candidates(tokenize("۹۱۱"), ["NUM"], {0: "nohsado yāzdah"}) == []
-    with pytest.raises(ValueError):
-        confirm("b", tokenize("از عهد"), ["az"], {}, [], [])
+def test_the_windows_follow_the_words_by_place_or_by_the_words_that_match():
+    words = tokenize("از عهد حرف")
+    spoken = [{"word": w, "start": i, "end": i + 1} for i, w in enumerate(["از", "عهد", "حرف"])]
+    assert windows(spoken, words) == {0: (0, 1), 1: (1, 2), 2: (2, 3)}
+    assert windows(spoken[:2] + [{"word": "پس", "start": 2, "end": 3}, spoken[2]], words) == {0: (0, 1), 1: (1, 2), 2: (2, 3)}
 
 
-def test_a_consonant_fault_outside_the_cluster_rule_is_not_found_by_the_vowel_comparison():
-    assert compare("pat", "p r a t".split()).ok
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is required")
+def test_the_options_of_the_choice_are_the_reading_and_its_wrong_forms_and_the_right_one_is_not_always_first(tmp_path, monkeypatch):
+    wav = tmp_path / "b.wav"
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=220:duration=2", str(wav)], check=True)
+    runner = Script({"choice": "Z"})
+    chooser = WordChooser(None, 1, runner)
+    answer = asyncio.run(chooser.choose(wav, 0.5, 1.0, "بهم", "baham", "x"))
+    assert answer["said"] == "none"
+    options = runner.requests[0]["options"]
+    assert sorted(options.values()) == sorted(["baham", *variants("baham")])
+    assert CH.LETTERS.startswith("".join(options))
