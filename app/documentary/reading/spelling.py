@@ -39,6 +39,8 @@ def persian(reading: str) -> str:
             first = i == 0 and index == 0
             if part == "'" and first:
                 continue                                    # the stop before a first vowel is the initial form of that vowel
+            if part == "y" and i and parts[i - 1] == "i":
+                continue                                    # i + y is one yeh (miyāmi is میامی)
             starts = first or (i == 1 and index == 0 and parts[0] == "'")
             last = i == len(parts) - 1 and index == len(stem.split("-")) - 1
             if part in CONSONANTS:

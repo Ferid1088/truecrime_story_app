@@ -511,7 +511,9 @@
     "learning_min_episodes": 5
   },
   "pronunciation_trace": {
-    "mode": "trace",
+    "mode": "enforce",
+    "phoneme_as_alias": true,
+    "ipa_to_latin": {"tʃ": "ch", "dʒ": "j", "ʃ": "sh", "ʒ": "zh", "x": "kh", "χ": "kh", "ɢ": "gh", "ɣ": "gh", "q": "gh", "ɡ": "g", "g": "g", "ɾ": "r", "r": "r", "ɹ": "r", "j": "y", "y": "y", "ʔ": "'", "ɦ": "h", "h": "h", "ɑː": "ā", "ɑ": "ā", "ɒː": "ā", "ɒ": "ā", "æ": "a", "a": "a", "eː": "e", "e": "e", "ɛ": "e", "oː": "o", "o": "o", "uː": "u", "u": "u", "iː": "i", "i": "i", "ŋ": "ng", "b": "b", "p": "p", "t": "t", "d": "d", "k": "k", "f": "f", "s": "s", "z": "z", "l": "l", "m": "m", "n": "n", "v": "v", "ː": "", "ˈ": "", "ˌ": "", "·": "", "‿": ""},
     "trace_file": "pronunciation_trace.json",
     "block_dictionaries_file": "block_dictionaries.json",
     "block_dictionary_name": "truecrime-{language}-case-{case_id}-v{version_id}-{fingerprint}",

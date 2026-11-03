@@ -29,6 +29,12 @@ RULES = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def rules_stay_as_made(monkeypatch):
+    """The checks below are about matching; the conversion of IPA rules is tested on its own."""
+    monkeypatch.setattr(ai_config.pronunciation_trace, "phoneme_as_alias", False)
+
+
 def status_of(validation: PT.Validation) -> dict[str, str]:
     return {c.string: c.status for c in validation.checks if c.status != "absent"}
 
@@ -269,8 +275,8 @@ def test_in_trace_mode_the_cache_key_of_a_take_is_what_it_was_before(tmp_path, m
     assert one["take"]["cache_key"] == two["take"]["cache_key"] and tts.requests[0].pronunciation_dictionaries == tts.requests[1].pronunciation_dictionaries == FILM
 
 
-def test_the_default_mode_leaves_a_render_unchanged():
-    assert ai_config.pronunciation_trace.mode == "trace"
+def test_the_mode_is_one_of_the_two_and_a_persian_film_gets_a_dictionary_for_its_final_text():
+    assert ai_config.pronunciation_trace.mode == "enforce"
     with pytest.raises(ValueError):
         ai_config.pronunciation_trace.__class__(mode="rewrite")
 
@@ -296,3 +302,43 @@ def test_the_real_case_15_takes_against_the_real_film_dictionary():
     assert summary["by_status"]["invalid"] == summary["by_status"]["conflict"] == summary["by_status"]["duplicate"] == 0
     assert summary["by_status"]["matched"] + summary["by_status"]["reconciled"] + summary["by_status"]["shadowed"] + summary["by_status"]["unresolved"] == 86
     assert summary["by_status"]["matched"] >= 80
+
+
+# --- IPA rules as aliases in Persian letters -------------------------------------------------------------------------------------------------
+
+def test_an_ipa_rule_becomes_an_alias_in_persian_letters_so_the_voice_has_no_notation_to_read_aloud(monkeypatch):
+    monkeypatch.setattr(ai_config.pronunciation_trace, "phoneme_as_alias", True)
+    got, log = PT.aliases_for(RULES)
+    by = {r["string_to_replace"]: r for r in got}
+    assert by["هیئت منصفه"] == {"type": "alias", "string_to_replace": "هیئت منصفه", "alias": "هِیعَتِمُنسِفه"}
+    assert by["درِ"]["alias"] == "دَره" and "phoneme" not in by["درِ"] and all(r["type"] == "alias" for r in got)
+    assert {n["string"]: n["latin"] for n in log}["هیئت منصفه"] == "hey'atemonsefe"
+
+
+def test_ipa_that_the_table_cannot_write_or_that_is_the_word_itself_is_left_out_with_the_reason():
+    monkeypatch_rule = {"type": "phoneme", "alphabet": "ipa", "string_to_replace": "تاد", "phoneme": "tɑːd"}
+    made, note = PT.as_alias(monkeypatch_rule)
+    assert made is None and "already written" in note["left_out"]
+    odd = {"type": "phoneme", "alphabet": "ipa", "string_to_replace": "کلمه", "phoneme": "kælɘme"}
+    made, note = PT.as_alias(odd)
+    assert made is None and "no letters" in note["left_out"]
+    alias = {"type": "alias", "string_to_replace": "منصفه", "alias": "مُنصِفِه"}
+    assert PT.as_alias(alias) == (alias, {})
+
+
+def test_letters_that_would_read_as_one_symbol_are_kept_apart_when_an_ipa_is_written_in_letters():
+    assert PT.ipa_to_latin("kɑːniŋhɑːm") == "kāning-hām"
+    from app.documentary.reading.spelling import persian
+
+    assert persian("kāning-hām") == "کانینگهام" and persian("miyāmiye") == "میامیه"
+
+
+def test_in_enforce_mode_the_block_dictionary_has_only_alias_rules_and_the_conversion_is_in_the_trace(tmp_path, monkeypatch):
+    monkeypatch.setattr(ai_config.pronunciation_trace, "phoneme_as_alias", True)
+    provider = DictProvider()
+    mgr = manager(provider, tmp_path)
+    got = asyncio.run(mgr.resolve("FA_B02_g01_01", B02, B02))
+    _, rules = provider.created[0]
+    assert rules == [{"type": "alias", "string_to_replace": "درِ گاراژ", "alias": "دَرِگاراژ"}] and got.mode == "enforce"
+    assert any(n["string"] == "درِ گاراژ" and n["alias"] == "دَرِگاراژ" for n in mgr.converted)
+    assert "phoneme" not in json.dumps(rules)

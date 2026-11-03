@@ -2456,6 +2456,10 @@ class PronunciationTraceConfig(BaseModel):
     it (a rule that matches a variant of its word is reconciled); a take then has another cache key than one made without."""
 
     mode: Literal["trace", "enforce"] = "trace"
+    # True: a rule that gives a word as IPA is sent as an alias in Persian letters with vowel marks (Eleven v4 reads IPA aloud as symbols in some
+    # blocks). The IPA is written in the Latin scheme with this table and then in Persian letters; a rule with a symbol not in the table is left out.
+    phoneme_as_alias: bool = False
+    ipa_to_latin: dict[str, str] = {}
     trace_file: str = "pronunciation_trace.json"
     block_dictionaries_file: str = "block_dictionaries.json"
     block_dictionary_name: str = "truecrime-{language}-case-{case_id}-v{version_id}-{fingerprint}"

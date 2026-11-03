@@ -29,6 +29,7 @@ from pathlib import Path
 
 from app.core.ai_config import ai_config
 from app.documentary import storage
+from app.documentary.reading import spelling
 from app.providers.voice.base import VoiceProviderError
 
 log = logging.getLogger(__name__)
@@ -124,6 +125,56 @@ def _finds(hay: str, needle: str) -> list[int]:
         out.append(i)
         i = hay.find(needle, i + len(needle))
     return out
+
+
+# --- IPA rules as aliases in Persian letters --------------------------------------------------------------------------------------------
+
+def ipa_to_latin(ipa: str) -> str | None:
+    """The IPA of a rule in the Latin scheme, or None when it has a symbol the table has not. Letters that would read as one symbol (g+h, k+h ...)
+    are kept apart with a hyphen."""
+    table = ai_config.pronunciation_trace.ipa_to_latin
+    keys = sorted(table, key=len, reverse=True)
+    out, i = "", 0
+    while i < len(ipa):
+        key = next((k for k in keys if ipa.startswith(k, i)), None)
+        if key is None:
+            return None
+        piece = table[key]
+        out += "-" + piece if piece.startswith("h") and out[-1:] in ("k", "g", "z", "s", "c") else piece
+        i += len(key)
+    return out
+
+
+def as_alias(rule: dict) -> tuple[dict | None, dict]:
+    """(the rule as an alias in Persian letters, a record of the conversion). A rule that is not IPA is returned as it is; None when the IPA cannot be
+    written or the alias would be the word itself."""
+    if rule.get("type") != "phoneme" or rule.get("alphabet") != "ipa":
+        return rule, {}
+    note = {"string": rule.get("string_to_replace"), "ipa": rule.get("phoneme")}
+    latin = ipa_to_latin(rule.get("phoneme") or "")
+    if latin is None:
+        return None, {**note, "left_out": "a symbol of the IPA has no letters in the table"}
+    try:
+        alias = spelling.persian(latin)
+    except ValueError:
+        return None, {**note, "latin": latin, "left_out": "not a reading of the scheme"}
+    if alias == rule["string_to_replace"]:
+        return None, {**note, "latin": latin, "alias": alias, "left_out": "the word is already written as it is read"}
+    converted = {k: v for k, v in rule.items() if k not in ("alphabet", "phoneme")}
+    converted.update(type="alias", alias=alias)
+    return converted, {**note, "latin": latin, "alias": alias}
+
+
+def aliases_for(rules: list[dict]) -> tuple[list[dict], list[dict]]:
+    """The rules with every IPA rule written as an alias (config pronunciation_trace.phoneme_as_alias), and what became of each IPA rule."""
+    out, log = [], []
+    for rule in rules:
+        made, note = as_alias(rule)
+        if note:
+            log.append(note)
+        if made is not None:
+            out.append(made)
+    return out, log
 
 
 # --- the check of one block ------------------------------------------------------------------------------------------------------------
@@ -295,6 +346,9 @@ class BlockDictionaries:
 
     def __init__(self, provider, rules: list[dict], film_locators: list[dict], *, language: str, case_id: int, version_id: int, folder: Path | None,
                  mode: str | None = None):
+        self.converted: list[dict] = []
+        if (mode or ai_config.pronunciation_trace.mode) == "enforce" and ai_config.pronunciation_trace.phoneme_as_alias:
+            rules, self.converted = aliases_for(rules)
         self.provider, self.rules, self.film_locators = provider, rules, film_locators
         self.language, self.case_id, self.version_id = language, case_id, version_id
         self.mode = mode or ai_config.pronunciation_trace.mode
@@ -384,7 +438,7 @@ class Trace:
     def save(self, folder: Path) -> dict:
         film = self.dictionaries
         data = {"mode": film.mode if film else None, "film_locators": film.film_locators if film else [],
-                "film_rules": film.rules if film else [], "block_dictionaries": film.index if film else {},
+                "film_rules": film.rules if film else [], "ipa_rules_as_aliases": film.converted if film else [], "block_dictionaries": film.index if film else {},
                 "summary": self.summary(), "entries": self.entries}
         path = folder / ai_config.pronunciation_trace.trace_file
         storage.write_atomic(path, json.dumps(data, ensure_ascii=False, indent=1))
