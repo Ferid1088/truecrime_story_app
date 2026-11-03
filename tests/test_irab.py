@@ -44,9 +44,9 @@ def words(*rows):
 GOOD = words((0, "او", ""), (1, "کِتاب", ""), (2, "را", ""), (3, "بُرد", ""), (4, "۹۱۱", "نُه یک یک"), (5, "بود", ""))
 
 
-def maker(tmp_path, monkeypatch, write, check, arbiter=None, approved=None):
+def maker(tmp_path, monkeypatch, write, check, arbiter=None):
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
-    return IrabMaker(None, 1, 7, "fa", approved, write_runner=write, check_runner=check, arbiter_runner=arbiter or Script({"words": []}))
+    return IrabMaker(None, 1, 7, "fa", write_runner=write, check_runner=check, arbiter_runner=arbiter or Script({"words": []}))
 
 
 def run(m, items=None):
@@ -57,7 +57,7 @@ def test_two_editors_that_agree_give_the_vowelized_text_and_the_text_the_voice_i
     block = run(maker(tmp_path, monkeypatch, Script(GOOD), Script(GOOD)))
     assert block.original == TEXT
     assert block.irab_text == "[calm] او کِتاب را بُرد، ۹۱۱ بود."
-    assert block.second_text == "[calm] او کِتاب را بُرد، نُه یک یک بود.", "the number is said in words, the tag and the punctuation stay"
+    assert block.voice_text == "[calm] او کتاب را برد، نُه یک یک بود.", "the voice gets the original with only the number in words, the tag and the punctuation stay"
     assert {w.status for w in block.words} == {"agreed"} and not block.uncertain
 
 
@@ -102,7 +102,7 @@ def test_a_word_neither_editor_gets_right_stays_as_written_and_is_marked_uncerta
     bad = words((0, "او", ""), (1, "کتابب", ""), (2, "را", ""), (3, "بُرد", ""), (4, "۹۱۱", "نُه یک یک"), (5, "بود", ""))
     block = run(maker(tmp_path, monkeypatch, Script(bad), Script(bad)))
     assert block.words[1].irab == "کتاب" and block.words[1].status == "uncertain" and "changes the letters" in block.words[1].other["why"]
-    assert block.second_text == "[calm] او کتاب را بُرد، نُه یک یک بود."
+    assert block.voice_text == "[calm] او کتاب را برد، نُه یک یک بود."
 
 
 def test_only_the_words_that_broke_a_rule_are_asked_again_with_the_whole_block_for_context(tmp_path, monkeypatch):
@@ -115,21 +115,13 @@ def test_only_the_words_that_broke_a_rule_are_asked_again_with_the_whole_block_f
     assert block.words[1].irab == "کِتاب" and block.words[4].said == "نُه یک یک" and {w.status for w in block.words} == {"agreed"}
 
 
-def test_a_word_the_owner_approved_is_respelled_by_code_and_the_ezafe_of_the_irab_goes_with_it(tmp_path, monkeypatch):
-    item = BlockInput("B1", "S1", "عهد او و عهد", english="")
-    write = Script(words((0, "عَهدِ", ""), (1, "او", ""), (2, "و", ""), (3, "عَهد", "")))
-    block = run(maker(tmp_path, monkeypatch, write, write, approved={"عهد": "'ahd"}), [item])
-    assert [w.voiced for w in block.words] == ["اَهدِ", "او", "و", "اَهد"] and block.words[0].status == "approved"
-    assert block.irab_text == "عَهدِ او و عَهد" and block.second_text == "اَهدِ او و اَهد"
-
-
-def test_the_second_text_is_kept_and_not_asked_for_again_until_the_text_or_the_prompts_change(tmp_path, monkeypatch):
+def test_the_vowelized_text_is_kept_and_not_asked_for_again_until_the_text_or_the_prompts_change(tmp_path, monkeypatch):
     write, check = Script(GOOD), Script(GOOD)
     first = maker(tmp_path, monkeypatch, write, check)
     run(first)
     again = maker(tmp_path, monkeypatch, write, check)
     block = run(again)
-    assert len(write.requests) == 1 and block.second_text == "[calm] او کِتاب را بُرد، نُه یک یک بود."
+    assert len(write.requests) == 1 and block.voice_text == "[calm] او کتاب را برد، نُه یک یک بود."
     changed = BlockInput("B1", "S1", TEXT + " تمام", english=ITEM.english)
     other = Script(GOOD)
     run(maker(tmp_path, monkeypatch, other, Script(GOOD)), [changed])
@@ -152,11 +144,31 @@ def test_the_voice_text_keeps_audio_tags_punctuation_and_spacing():
 def test_a_comma_the_editor_puts_inside_a_spoken_number_is_a_space(tmp_path, monkeypatch):
     spoken = words((0, "او", ""), (1, "کِتاب", ""), (2, "را", ""), (3, "بُرد", ""), (4, "۹۱۱", "نُه، یک، یک"), (5, "بود", ""))
     block = run(maker(tmp_path, monkeypatch, Script(spoken), Script(GOOD)))
-    assert block.words[4].said == "نُه یک یک" and block.second_text == "[calm] او کِتاب را بُرد، نُه یک یک بود."
+    assert block.words[4].said == "نُه یک یک" and block.voice_text == "[calm] او کتاب را برد، نُه یک یک بود."
 
 
-def test_a_reading_of_the_owner_that_already_ends_in_the_ezafe_does_not_get_a_second_one(tmp_path, monkeypatch):
-    item = BlockInput("B1", "S1", "عهدهای او", english="")
-    write = Script(words((0, "عَهدهایِ", ""), (1, "او", "")))
-    block = run(maker(tmp_path, monkeypatch, write, write, approved={"عهدهای": "'ahdhāye"}), [item])
-    assert block.words[0].voiced == "اَهدهایه", "the reading says ahdhaye once"
+def test_marks_that_add_no_sound_are_not_a_difference_between_the_editors(tmp_path, monkeypatch):
+    plain = words((0, "او", ""), (1, "کِتاب", ""), (2, "را", ""), (3, "بُرد", ""), (4, "۹۱۱", "نُه یک یک"), (5, "بود", ""))
+    padded = words((0, "او", ""), (1, "کِتَاب", ""), (2, "را", ""), (3, "بُرْد", ""), (4, "۹۱۱", "نُه یک یک"), (5, "بود", ""))
+    arb = Script({"words": []})
+    block = run(maker(tmp_path, monkeypatch, Script(plain), Script(padded), arb))
+    assert arb.requests == [] and block.words[1].status == "agreed" and block.words[1].irab == "کِتاب" and block.words[3].irab == "بُرد"
+
+
+@pytest.mark.parametrize("marked,clean", [("کِتَاب", "کِتاب"), ("بُرْد", "بُرد"), ("خِیلی", "خِیلی"), ("بَعْد", "بَعد"), ("آمَد", "آمَد")])
+def test_the_canonical_form_drops_only_the_marks_that_add_no_sound(marked, clean):
+    assert R.canonical(marked) == clean
+
+
+def test_many_disputed_words_are_decided_a_few_at_a_time(tmp_path, monkeypatch):
+    monkeypatch.setattr(ai_config.irab, "arbitrate_words_per_call", 2)
+    other = words((0, "او", ""), (1, "کَتاب", ""), (2, "را", ""), (3, "بَرد", ""), (4, "۹۱۱", "نُه یک یک"), (5, "بُود", ""))
+    arb = Script(lambda req: {"words": [{"n": w["n"], "choice": "B", "sure": True} for w in req["words"]]})
+    block = run(maker(tmp_path, monkeypatch, Script(GOOD), Script(other), arb))
+    assert [len(r["words"]) for r in arb.requests] == [2, 1] and [w.n for w in block.words if w.status == "resolved"] == [1, 3, 5]
+
+
+def test_a_sound_the_letters_do_not_show_goes_into_the_voice_text_but_the_marks_of_the_other_words_do_not(tmp_path, monkeypatch):
+    spoken = words((0, "او", ""), (1, "کِتاب", "کِتاو"), (2, "را", ""), (3, "بُرد", ""), (4, "۹۱۱", "نُه یک یک"), (5, "بود", ""))
+    block = run(maker(tmp_path, monkeypatch, Script(spoken), Script(spoken)))
+    assert block.voice_text == "[calm] او کِتاو را برد، نُه یک یک بود." and block.irab_text == "[calm] او کِتاب را بُرد، ۹۱۱ بود."

@@ -513,7 +513,8 @@
   "irab": {
     "folder": "irab",
     "max_retries": 3,
-    "parallel_blocks": 4
+    "parallel_blocks": 4,
+    "arbitrate_words_per_call": 12
   },
   "pronunciation_trace": {
     "mode": "enforce",

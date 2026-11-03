@@ -2455,6 +2455,8 @@ class IrabConfig(BaseModel):
     # An answer that breaks a rule (a letter changed, a number without its spoken form) is asked again this many times.
     max_retries: int = Field(default=3, ge=0, le=10)
     parallel_blocks: int = Field(default=4, ge=1, le=16)
+    # The disputed words are decided this many at a time.
+    arbitrate_words_per_call: int = Field(default=12, ge=1, le=50)
 
 
 class PronunciationTraceConfig(BaseModel):

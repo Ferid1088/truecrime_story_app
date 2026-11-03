@@ -1,8 +1,8 @@
 """The second text of a film: every word of every block vowelized (irab) in its sentence by two different models that do not see each other's
 answer, from the English source, the Persian text and the meaning of each word. Words they agree on are accepted; the words they disagree on go
 to a third decision by the sentence's meaning and grammar, and what that cannot settle is marked uncertain (the first answer is kept) for the owner.
-The words the owner has approved are respelled by code. The result keeps the original text, the vowelized text and the text the voice is given
-(the vowelized text with every spoken form in place), word by word."""
+The result keeps the original text, the fully vowelized text (the second text: the reference the voice is checked against) and the text the voice is
+given (the original with only the spoken forms put in: a text full of marks breaks the flow of the voice), word by word."""
 
 from __future__ import annotations
 
@@ -20,8 +20,6 @@ from app.core.prompts import prompt_sha256
 from app.documentary.irab import rules as R
 from app.documentary.reading.ask import Runner, ask
 from app.documentary.reading.block import BlockInput
-from app.documentary.reading.scheme import ezafe_form, split_ezafe, split_pause
-from app.documentary.reading.spelling import persian
 from app.documentary.reading.words import substitute
 
 PROMPTS = ("write", "arbitrate")
@@ -34,12 +32,9 @@ class IrabWord:
     surface: str
     irab: str
     said: str = ""                      # the word as spoken in Persian letters when marks on its letters cannot show it
-    status: str = "agreed"              # agreed | resolved | approved | single (one editor kept the rules) | uncertain
+    status: str = "agreed"              # agreed | resolved | single (one editor kept the rules) | uncertain
     other: dict = field(default_factory=dict)    # the other editor's answer when they differed
 
-    @property
-    def voiced(self) -> str:
-        return self.said or self.irab
 
 
 @dataclass
@@ -47,7 +42,7 @@ class IrabBlock:
     block_id: str
     original: str
     irab_text: str
-    second_text: str                    # what the voice is given
+    voice_text: str                     # what the voice is given: the original with only the spoken forms put in (numbers, names, sounds the letters do not show)
     words: list[IrabWord]
 
     @property
@@ -67,9 +62,9 @@ def context(item: BlockInput, only: list[int] | None = None) -> dict:
 
 
 class IrabMaker:
-    def __init__(self, db: Session, case_id: int, version_id: int, language: str, approved: dict[str, str] | None = None,
+    def __init__(self, db: Session, case_id: int, version_id: int, language: str,
                  write_runner: Runner | None = None, check_runner: Runner | None = None, arbiter_runner: Runner | None = None):
-        self.db, self.case_id, self.approved = db, case_id, approved or {}
+        self.db, self.case_id = db, case_id
         self.runners = (write_runner or (lambda gen, body: run_agent("documentary.irab.write", gen, body)),
                         check_runner or (lambda gen, body: run_agent("documentary.irab.check", gen, body)),
                         arbiter_runner or (lambda gen, body: run_agent("documentary.irab.arbitrate", gen, body)))
@@ -109,32 +104,27 @@ class IrabMaker:
                 if why:
                     wrong[word.n] = why
                 else:
-                    answers[word.n] = (irab, said)
+                    answers[word.n] = (R.canonical(irab), R.canonical(said))
                     wrong.pop(word.n, None)
         return answers, wrong
 
     async def decide(self, item: BlockInput, disputed: list[int], first: dict, second: dict) -> dict[int, dict]:
-        options = [{"n": n, "sentence": item.words[n].plain, "A": {"irab": first[n][0], "said": first[n][1]}, "B": {"irab": second[n][0], "said": second[n][1]}}
-                   for n in disputed]
-        raw = await ask(self.db, self.case_id, f"Irab: arbitrate {item.block_id}", {"english_source": item.english, "text": item.sentence(), "words": options},
-                        "reading_arbiter", self.runners[2])
-        return {e["n"]: e for e in raw.get("words", []) if isinstance(e, dict) and "n" in e}
-
-    def approved_word(self, word, irab: str) -> str:
-        """The owner's reading of the word in Persian letters. An ezafe the vowelization shows is added unless the reading already ends in e (the
-        owner's reading of a word with an ezafe, such as the plural with its ezafe, has it)."""
-        reading = self.approved.get(word.key)
-        if not reading:
-            return ""
-        stem = split_ezafe(split_pause(reading)[0])[0]
-        ezafe = irab.endswith(tuple(EZAFE_MARKS)) and not stem.endswith("e")
-        return persian(ezafe_form(stem) if ezafe else reading)
+        """The decision between the two answers for the disputed words, a few words per call (a long answer is cut off by the model's limit)."""
+        out: dict[int, dict] = {}
+        step = ai_config.irab.arbitrate_words_per_call
+        for start in range(0, len(disputed), step):
+            options = [{"n": n, "word": item.words[n].plain, "A": {"irab": first[n][0], "said": first[n][1]}, "B": {"irab": second[n][0], "said": second[n][1]}}
+                       for n in disputed[start:start + step]]
+            raw = await ask(self.db, self.case_id, f"Irab: arbitrate {item.block_id}", {"english_source": item.english, "text": item.sentence(), "words": options},
+                            "reading_arbiter", self.runners[2])
+            out.update({e["n"]: e for e in raw.get("words", []) if isinstance(e, dict) and "n" in e})
+        return out
 
     async def block(self, item: BlockInput, gate: asyncio.Semaphore) -> IrabBlock:
-        key = sha(context(item), [prompt_sha256(f"documentary/irab/{p}_system") for p in PROMPTS], self.approved)
+        key = sha(context(item), [prompt_sha256(f"documentary/irab/{p}_system") for p in PROMPTS])
         saved = self.cache.get(item.block_id)
         if saved and saved["key"] == key:
-            return IrabBlock(item.block_id, saved["original"], saved["irab_text"], saved["second_text"], [IrabWord(**w) for w in saved["words"]])
+            return IrabBlock(item.block_id, saved["original"], saved["irab_text"], saved["voice_text"], [IrabWord(**w) for w in saved["words"]])
         async with gate:
             first, bad_first = await self.edit(item, self.runners[0], "reading_editor", "write")            # one after the other: the calls share a session
             second, bad_second = await self.edit(item, self.runners[1], "reading_checker", "check")
@@ -162,14 +152,11 @@ class IrabMaker:
                         status = "resolved"
                     else:
                         status = "uncertain"
-            fixed = self.approved_word(w, irab)
-            if fixed and not w.number:
-                said, status = fixed, "approved"
             words.append(IrabWord(w.n, w.plain, irab, said, status, other))
         irab_text = substitute(item.text, {x.n: x.irab for x in words})
-        second_text = substitute(item.text, {x.n: x.voiced for x in words})
-        done = IrabBlock(item.block_id, item.text, irab_text, second_text, words)
-        self.cache[item.block_id] = {"key": key, "original": item.text, "irab_text": irab_text, "second_text": second_text, "words": [asdict(x) for x in words]}
+        voice_text = substitute(item.text, {x.n: x.said for x in words if x.said})
+        done = IrabBlock(item.block_id, item.text, irab_text, voice_text, words)
+        self.cache[item.block_id] = {"key": key, "original": item.text, "irab_text": irab_text, "voice_text": voice_text, "words": [asdict(x) for x in words]}
         self.save()
         return done
 

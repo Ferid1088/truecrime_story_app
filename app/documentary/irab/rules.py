@@ -28,3 +28,12 @@ def problem_with(word: Word, irab: str, said: str) -> str:
 
 def clean(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
+
+
+REDUNDANT = re.compile("[\u064e\u064f\u0650](?=[\u0627\u0622])|\u0652")
+
+
+def canonical(irab: str) -> str:
+    """The vowelization without marks that add no sound: a short vowel mark before an alef (the alef is the long vowel) and the sukun (a letter
+    without a vowel mark has none). Two editors that differ only in these marks do not differ."""
+    return REDUNDANT.sub("", irab)
