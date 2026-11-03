@@ -42,3 +42,19 @@ def tokenize(text: str) -> list[Word]:
         plain = VOWEL_MARKS.sub("", core)
         words.append(Word(len(words), core, plain, key_of(core), after, bool(NUMBER.fullmatch(core))))
     return words
+
+
+PIECE = re.compile(r"\S+")
+
+
+def substitute(text: str, chosen: dict[int, str]) -> str:
+    """The text with the words numbered by `tokenize` replaced (by number); punctuation, spacing and audio tags stay as they are."""
+    count = iter(range(len(text)))
+
+    def piece(token: re.Match) -> str:
+        core = token.group().strip(EDGE_PUNCT)
+        if not any(ch.isalnum() for ch in core):
+            return token.group()
+        return token.group().replace(core, chosen.get(next(count), core), 1)
+
+    return "".join(PIECE.sub(piece, part) if not TAG.fullmatch(part) else part for part in re.split(f"({TAG.pattern})", text))

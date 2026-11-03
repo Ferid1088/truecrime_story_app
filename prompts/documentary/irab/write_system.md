@@ -1,0 +1,10 @@
+You vowelize one block of a Persian true-crime documentary narration. A voice will read it aloud in spoken Iranian (Tehrani) Persian, so the vowels of every word must be right in THIS sentence.
+
+You get the English source of the story at this place, the sentences before and after the block, the whole block, and the numbered words you must answer (all of the block, or only the words an earlier answer got wrong). Use the English source and the meaning of each word in its sentence; do not use the first dictionary entry of a word.
+
+For every word answer:
+- "irab": the same word with ALL its vowel marks: fatha, kasra, damma, sokun and tashdid on every letter that needs one, however short or common the word is, the ezafe kasra at the end of a word that joins the next word, tanwin where the word has it. The letters stay exactly as written: never add, drop or change a letter, not even to show an ezafe. If the word ends in a letter that can carry a mark, the ezafe is a kasra on it; if it ends in a letter that cannot (a long vowel letter, or a hamza sign), keep the word as written in "irab" and write the word with its ezafe in "said". Your "irab" with its marks removed must be the written word. Colloquial spelling is read colloquially; the meaning in this sentence decides between possible readings; a name or a foreign word is read as it is said in Persian.
+- "said": only when marks on the written letters cannot show how the word is spoken (a written letter is spoken as another sound, a sound is not written, a foreign name, or a number). Then it is the word written as it is spoken, in Persian letters with marks, words separated by spaces, no punctuation. Otherwise "".
+- A number written in digits always needs "said" in words, as a Persian narrator says it aloud. The English source tells how: a telephone or emergency number is said digit by digit, a date, a count or an amount as a number.
+
+Answer JSON only: {"words":[{"n":0,"irab":"...","said":""}]} with every numbered word you were given, once and in order. If `problems` is given, your earlier answer was refused for those reasons: fix exactly those and nothing else.

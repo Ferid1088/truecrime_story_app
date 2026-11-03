@@ -5,16 +5,14 @@ kept for a model that does not."""
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass
 
 from app.core.ai_config import ai_config
 from app.documentary.reading.scheme import ezafe_form, split_ezafe, split_pause, to_ipa
 from app.documentary.reading.spelling import persian
-from app.documentary.reading.words import EDGE_PUNCT, TAG, tokenize
+from app.documentary.reading.words import substitute, tokenize
 
 log = logging.getLogger(__name__)
-PIECE = re.compile(r"\S+")
 
 
 @dataclass(frozen=True)
@@ -34,15 +32,7 @@ class Voicing:
             log.warning("voicing: %s has %d words and %d readings; left as written", block_id, len(words), len(readings or []))
             return text
         chosen = {w.n: self.spell(self.reading_of(self.fixed[w.key], readings[w.n])) for w in words if w.key in self.fixed and not w.number}
-        count = iter(range(len(words)))
-
-        def piece(token: re.Match) -> str:
-            core = token.group().strip(EDGE_PUNCT)
-            if not any(ch.isalnum() for ch in core):
-                return token.group()
-            return token.group().replace(core, chosen.get(next(count), core), 1)
-
-        return "".join(PIECE.sub(piece, part) if not TAG.fullmatch(part) else part for part in re.split(f"({TAG.pattern})", text))
+        return substitute(text, chosen)
 
     @staticmethod
     def spell(reading: str) -> str:

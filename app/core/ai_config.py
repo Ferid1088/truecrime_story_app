@@ -2448,6 +2448,15 @@ class SemanticReviewConfig(BaseModel):
     folder_suffix: str = "_reviewed"
 
 
+class IrabConfig(BaseModel):
+    """The second text of a film (documentary/irab): every word vowelized in its sentence by two models and a decision between them."""
+
+    folder: str = "irab"
+    # An answer that breaks a rule (a letter changed, a number without its spoken form) is asked again this many times.
+    max_retries: int = Field(default=3, ge=0, le=10)
+    parallel_blocks: int = Field(default=4, ge=1, le=16)
+
+
 class PronunciationTraceConfig(BaseModel):
     """The check and the trace of a block's pronunciation dictionary (pronunciation_trace.py).
 
@@ -4335,6 +4344,7 @@ class AIConfig(BaseModel):
     names: NamesConfig = Field(default_factory=NamesConfig)
     voice_prepare: VoicePrepareConfig = Field(default_factory=VoicePrepareConfig)
     pronunciation_trace: PronunciationTraceConfig = Field(default_factory=PronunciationTraceConfig)
+    irab: IrabConfig = Field(default_factory=IrabConfig)
     semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)
     reading: ReadingConfig = Field(default_factory=ReadingConfig)
     chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)

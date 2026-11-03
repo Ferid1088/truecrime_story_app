@@ -510,6 +510,11 @@
     "learning_min_published_shorts": 30,
     "learning_min_episodes": 5
   },
+  "irab": {
+    "folder": "irab",
+    "max_retries": 3,
+    "parallel_blocks": 4
+  },
   "pronunciation_trace": {
     "mode": "enforce",
     "phoneme_as_alias": true,

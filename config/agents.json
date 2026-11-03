@@ -643,6 +643,27 @@
       "output": "json",
       "description": "Listens to the clip of one word of the Persian narration and chooses which of several written readings it was said as.",
       "used_by": "app/documentary/reading/chooser.py"
+    },
+    "documentary.irab.write": {
+      "role": "reading_editor",
+      "prompt": "documentary/irab/write_system",
+      "output": "json",
+      "description": "Vowelizes one block of the Persian narration word by word (irab, and the spoken form where marks are not enough) from the English source and the meaning of each word.",
+      "used_by": "app/documentary/irab/maker.py"
+    },
+    "documentary.irab.check": {
+      "role": "reading_checker",
+      "prompt": "documentary/irab/write_system",
+      "output": "json",
+      "description": "The same task by another model that does not see the first answer: the two are compared word by word.",
+      "used_by": "app/documentary/irab/maker.py"
+    },
+    "documentary.irab.arbitrate": {
+      "role": "reading_arbiter",
+      "prompt": "documentary/irab/arbitrate_system",
+      "output": "json",
+      "description": "Chooses between two vowelizations of a word by the meaning and the grammar of its sentence.",
+      "used_by": "app/documentary/irab/maker.py"
     }
   }
 }
