@@ -16,6 +16,7 @@ INITIAL = {"a": "اَ", "e": "اِ", "o": "اُ", "ā": "آ", "i": "ای", "u": 
 LONG = {"ā": "ا", "i": "ی", "u": "و"}
 DIPHTHONG = {"ey": KASRA + "ی", "ow": FATHA + "و"}
 FINAL = {"e": "ه", "o": "و"}                       # a short e or o that ends a word is written with a letter, not a mark
+FINAL_H = "ح"                                      # a consonant h that ends a word (mosallah): ه at the end of a word is read as a vowel (mosalla)
 
 
 SYMBOL = re.compile(r"ey|ow|kh|gh|zh|sh|ch|[aeoāiu]|[bptsjhdzrfkglmnvy']")
@@ -43,7 +44,9 @@ def persian(reading: str) -> str:
                 continue                                    # i + y is one yeh (miyāmi is میامی)
             starts = first or (i == 1 and index == 0 and parts[0] == "'")
             last = i == len(parts) - 1 and index == len(stem.split("-")) - 1
-            if part in CONSONANTS:
+            if part == "h" and last and i:
+                out.append(FINAL_H)
+            elif part in CONSONANTS:
                 out.append(CONSONANTS[part])
             elif starts:
                 out.append(INITIAL[part])

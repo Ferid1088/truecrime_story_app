@@ -94,3 +94,11 @@ def test_a_symbol_the_scheme_has_not_is_refused_not_guessed():
 
     with pytest.raises(ValueError):
         persian("bēham")
+
+
+def test_a_consonant_h_that_ends_a_word_is_written_with_hah_so_it_is_not_read_as_a_vowel():
+    """The owner heard مُسَللَه (mosallah written with heh) said "mosallal": a heh at the end of a word is a vowel letter."""
+    from app.documentary.reading.spelling import persian
+
+    assert persian("mosallah") == "مُسَللَح" and persian("sobh") == "سُبح"
+    assert persian("khāne") == "خانه" and persian("hāl") == "هال", "a final e keeps the heh; a first h stays heh"
