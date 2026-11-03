@@ -205,7 +205,16 @@ async def run(agent: str, payload: dict, gen=None) -> BaseModel:
     from app.agents.runner import run_agent
     from app.providers.generation import get_generation_provider
 
-    data, _ = await run_agent(f"pronunciation.{agent}", gen or get_generation_provider(), json.dumps(payload, ensure_ascii=False), system=system_prompt(agent))
+    calls = {
+        "linguist": lambda g, u, s: run_agent("pronunciation.linguist", g, u, system=s),
+        "risk": lambda g, u, s: run_agent("pronunciation.risk", g, u, system=s),
+        "intervention": lambda g, u, s: run_agent("pronunciation.intervention", g, u, system=s),
+        "audio_observer": lambda g, u, s: run_agent("pronunciation.audio_observer", g, u, system=s),
+        "prosody": lambda g, u, s: run_agent("pronunciation.prosody", g, u, system=s),
+        "memory": lambda g, u, s: run_agent("pronunciation.memory", g, u, system=s),
+        "qa": lambda g, u, s: run_agent("pronunciation.qa", g, u, system=s),
+    }
+    data, _ = await calls[agent](gen or get_generation_provider(), json.dumps(payload, ensure_ascii=False), system_prompt(agent))
     return check_answer(agent, data)
 
 
