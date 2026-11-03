@@ -1,4 +1,9 @@
 import type {
+  PronunciationApprove,
+  PronunciationEntries,
+  PronunciationEntry,
+  PronunciationHistoryItem,
+  PronunciationOccurrences,
   DetectivePlan,
   CaseControlEvent,
   CaseControlView,
@@ -559,6 +564,19 @@ export const api = {
       `/api/host-scenes/${sceneId}/outfit`, body),
   runHostScene: (id: number, until: "voice" | "avatar") =>
     post<HostScene>(`/api/host-scenes/${id}/run`, { until }),
+  pronunciationEntries: (language: string, status?: string) =>
+    request<PronunciationEntries>(`/api/documentary/pronunciation/entries${query({ language, status })}`),
+  pronunciationOccurrences: (entryId: number, versionId: number) =>
+    request<PronunciationOccurrences>(`/api/documentary/pronunciation/entries/${entryId}/occurrences${query({ version_id: versionId })}`),
+  pronunciationPeaks: (versionId: number, start: number, end: number) =>
+    request<{ peaks: number[] }>(`/api/documentary/pronunciation/clip-peaks${query({ version_id: versionId, start, end })}`),
+  pronunciationHistory: (entryId: number) => request<PronunciationHistoryItem[]>(`/api/documentary/pronunciation/entries/${entryId}/history`),
+  approvePronunciation: (entryId: number, body: PronunciationApprove) =>
+    post<PronunciationEntry>(`/api/documentary/pronunciation/entries/${entryId}/approve`, body),
+  rejectPronunciation: (entryId: number, reviewer: string, reason: string) =>
+    post<PronunciationEntry>(`/api/documentary/pronunciation/entries/${entryId}/reject`, { reviewer, reason }),
+  uncertainPronunciation: (entryId: number, reviewer: string, reason: string) =>
+    post<PronunciationEntry>(`/api/documentary/pronunciation/entries/${entryId}/uncertain`, { reviewer, reason }),
   readingDoubts: (versionId: number) => request<ReadingDoubts>(`/api/documentary/versions/${versionId}/reading-doubts`),
   answerReadingDoubts: (versionId: number, answers: ReadingAnswer[]) =>
     post<ReadingDoubts>(`/api/documentary/versions/${versionId}/reading-doubts`, { answers }),

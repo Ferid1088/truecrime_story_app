@@ -722,6 +722,93 @@ def answer_reading_doubts(version_id: int, body: ReadingAnswersIn, db: Session =
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
+class PronunciationApproveIn(BaseModel):
+    pronunciation: str
+    reviewer: str
+    scope: Literal["context", "global"] = "context"
+    ipa: str | None = None
+    supersede: bool = False
+    reason: str = ""
+
+
+class PronunciationNoteIn(BaseModel):
+    reviewer: str
+    reason: str = ""
+
+
+@router.get("/api/documentary/pronunciation/entries")
+def pronunciation_entries(language: str = "fa", status: str | None = None, db: Session = Depends(get_db)):
+    """The pronunciation memory for the review page: every entry (imported ones are legacy_unverified) with the counts by status."""
+    from app.documentary import pronunciation_review
+
+    return pronunciation_review.entries(db, language, status)
+
+
+@router.get("/api/documentary/pronunciation/entries/{entry_id}/occurrences")
+def pronunciation_occurrences(entry_id: int, version_id: int, db: Session = Depends(get_db)):
+    """Where the word is spoken in a narration, with the times of the words around it (synchronized playback and highlighting)."""
+    from app.db.models import PronunciationEntry
+    from app.documentary import pronunciation_review
+
+    entry = db.get(PronunciationEntry, entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return pronunciation_review.occurrences(db, entry, _version_of(db, version_id))
+
+
+@router.get("/api/documentary/pronunciation/clip-peaks")
+def pronunciation_clip_peaks(version_id: int, start: float, end: float, count: int = 160, db: Session = Depends(get_db)):
+    """The waveform of a clip of the narration (loudness in `count` steps)."""
+    from app.documentary import pronunciation_review
+
+    audio = pronunciation_review.narration_words(_version_of(db, version_id))[1]
+    if audio is None or not 0 <= start < end or not 8 <= count <= 1000:
+        raise HTTPException(status_code=404, detail="No narration audio, or a clip that cannot be shown")
+    return {"start": start, "end": end, "peaks": pronunciation_review.peaks(audio, start, end, count)}
+
+
+@router.get("/api/documentary/pronunciation/entries/{entry_id}/history")
+def pronunciation_history(entry_id: int, db: Session = Depends(get_db)):
+    from app.documentary import pronunciation_review
+
+    return pronunciation_review.history(db, entry_id)
+
+
+@router.post("/api/documentary/pronunciation/entries/{entry_id}/approve")
+def pronunciation_approve(entry_id: int, body: PronunciationApproveIn, db: Session = Depends(get_db)):
+    """A reviewer approves the pronunciation (the only way an entry becomes authoritative)."""
+    from app.documentary import pronunciation_review
+    from app.documentary.pronunciation_memory import Contradiction
+
+    try:
+        return pronunciation_review.approve(db, entry_id, pronunciation=body.pronunciation, reviewer=body.reviewer, scope=body.scope, ipa=body.ipa,
+                                            supersede=body.supersede, reason=body.reason)
+    except Contradiction as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except (PermissionError, ValueError) as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@router.post("/api/documentary/pronunciation/entries/{entry_id}/reject")
+def pronunciation_reject(entry_id: int, body: PronunciationNoteIn, db: Session = Depends(get_db)):
+    from app.documentary import pronunciation_review
+
+    try:
+        return pronunciation_review.reject(db, entry_id, reviewer=body.reviewer, reason=body.reason)
+    except PermissionError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@router.post("/api/documentary/pronunciation/entries/{entry_id}/uncertain")
+def pronunciation_uncertain(entry_id: int, body: PronunciationNoteIn, db: Session = Depends(get_db)):
+    from app.documentary import pronunciation_review
+
+    try:
+        return pronunciation_review.uncertain(db, entry_id, reviewer=body.reviewer, reason=body.reason)
+    except PermissionError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
 def _version_of(db: Session, version_id: int) -> StoryVersion:
     version = db.get(StoryVersion, version_id)
     if not version:

@@ -169,6 +169,18 @@ class PronunciationMemory:
         self.db.commit()
         return entry
 
+    def mark_uncertain(self, entry_id: int, *, reviewer: str, reason: str = "") -> PronunciationEntry:
+        """A person cannot decide yet: the entry stays out of use and waits."""
+        if not reviewer.strip():
+            raise PermissionError("marking an entry uncertain needs the name of the person who does it")
+        entry = self.db.get(PronunciationEntry, entry_id)
+        before = self.snapshot(entry)
+        entry.status, entry.reviewer, entry.version = "uncertain", reviewer, entry.version + 1
+        self.db.flush()
+        self.record(entry, HUMAN + reviewer, "uncertain", before, reason)
+        self.db.commit()
+        return entry
+
     def rollback(self, entry_id: int, version: int, *, reviewer: str) -> PronunciationEntry:
         """A person puts an entry back to an earlier state (as a new version: the history keeps everything)."""
         if not reviewer.strip():

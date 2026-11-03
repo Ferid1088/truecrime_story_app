@@ -3670,3 +3670,73 @@ export interface ReadingAnswer {
   latin?: string;
   everywhere: boolean;
 }
+
+
+/** One entry of the pronunciation memory (GET /api/documentary/pronunciation/entries). */
+export interface PronunciationEntry {
+  id: number;
+  language: string;
+  surface: string;
+  surface_key: string;
+  sense: string;
+  scope: "context" | "global";
+  prev_word: string;
+  next_word: string;
+  status: "candidate" | "legacy_unverified" | "human_approved" | "rejected" | "uncertain" | "contested";
+  source: "human" | "agent" | "legacy";
+  expected_irab: string;
+  approved_pronunciation: string | null;
+  approved_ipa: string | null;
+  observed_wrong: string;
+  sentence: string;
+  reviewer: string | null;
+  approved_at: string | null;
+  version: number;
+  origin: string;
+  sources: { table: string; id: number; source: string; kind: string; latin?: string; reading?: string; hits?: number; created_at: string | null }[];
+  different_readings: { from: string; reading: string }[];
+}
+
+export interface PronunciationEntries {
+  counts: Record<string, number>;
+  entries: PronunciationEntry[];
+}
+
+export interface PronunciationWord {
+  text: string;
+  start: number;
+  end: number;
+}
+
+export interface PronunciationOccurrence {
+  block_id: string | null;
+  form: "exact" | "other written form";
+  written: string;
+  start: number;
+  end: number;
+  hit: number;
+  words: PronunciationWord[];
+}
+
+export interface PronunciationOccurrences {
+  audio_url: string | null;
+  total: number;
+  occurrences: PronunciationOccurrence[];
+}
+
+export interface PronunciationHistoryItem {
+  version: number;
+  actor: string;
+  reason: string;
+  at: string;
+  state: Record<string, unknown>;
+}
+
+export interface PronunciationApprove {
+  pronunciation: string;
+  reviewer: string;
+  scope: "context" | "global";
+  ipa?: string;
+  supersede?: boolean;
+  reason?: string;
+}
