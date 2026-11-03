@@ -9,7 +9,7 @@
   },
   "voice": {
     "provider": "elevenlabs",
-    "after_voice_review": false,
+    "after_voice_review": true,
     "elevenlabs": {
       "secret_env": "TRUECRIME_ELEVENLABS_API_KEY",
       "base_url": "https://api.elevenlabs.io",

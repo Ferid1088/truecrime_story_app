@@ -315,8 +315,8 @@ def test_the_source_and_the_tone_of_a_block_are_those_of_the_beats_it_tells_not_
     assert reviewer.context({**block(), "section_id": "B09.g01"})["source_text"] == "Then he left."
 
 
-def test_nothing_is_listened_to_after_the_voice_while_the_owner_has_it_switched_off():
+def test_the_review_after_the_voice_can_be_switched_off_and_the_config_has_it_on():
     from app.core.ai_config import VoiceConfig
 
-    assert VoiceConfig().after_voice_review is True, "the switch is on unless the config turns it off"
-    assert ai_config.voice.after_voice_review is False, "config/parameters/audio.json: the owner switched the review and the reading loop off on 2026-11-03"
+    assert VoiceConfig(after_voice_review=False).after_voice_review is False and VoiceConfig().after_voice_review is True
+    assert ai_config.voice.after_voice_review is True, "config/parameters/audio.json: the owner switched it off on 2026-11-03 and on again the same day"
