@@ -3295,7 +3295,7 @@ class PronunciationEntry(Base):
 
     __tablename__ = "pronunciation_entries"
     __table_args__ = (UniqueConstraint("language", "surface", "prev_word", "next_word", "sense", "voice_id", "model_id", name="uq_pronunciation_entries"),
-                      Index("ix_pronunciation_entries_key", "language", "surface_key"))
+                      Index("ix_pronunciation_entries_key", "language", "surface_key"), Index("ix_pronunciation_entries_origin", "origin", "origin_ref"))
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     language: Mapped[str] = mapped_column(String(20))
@@ -3313,8 +3313,11 @@ class PronunciationEntry(Base):
     observed_wrong: Mapped[str] = mapped_column(Text, default="")
     approved_pronunciation: Mapped[str | None] = mapped_column(Text, nullable=True)     # what a person approved as the right pronunciation
     approved_ipa: Mapped[str | None] = mapped_column(String(240), nullable=True)        # only when validated
-    status: Mapped[str] = mapped_column(String(16), default="candidate")    # candidate | human_approved | rejected | contested
-    source: Mapped[str] = mapped_column(String(12), default="agent")        # human | agent
+    status: Mapped[str] = mapped_column(String(24), default="candidate")    # candidate | legacy_unverified | human_approved | rejected | contested
+    source: Mapped[str] = mapped_column(String(12), default="agent")        # human | agent | legacy
+    origin: Mapped[str] = mapped_column(String(40), default="")             # where an imported entry comes from (a table of an earlier system)
+    origin_ref: Mapped[str] = mapped_column(String(80), default="")         # the key of the row it was imported from
+    origin_data: Mapped[str] = mapped_column(Text, default="{}")            # that row as it was (source, kind, reading, hits, dates)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     reviewer: Mapped[str | None] = mapped_column(String(120), nullable=True)
     approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)

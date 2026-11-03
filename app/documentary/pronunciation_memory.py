@@ -30,6 +30,7 @@ SNAPSHOT_FIELDS = ("language", "surface", "surface_key", "prev_word", "next_word
                    "expected_irab", "observed_wrong", "approved_pronunciation", "approved_ipa", "status", "source", "confidence", "reviewer", "case_id")
 KINDS = ("dictionary_alias", "dictionary_phoneme", "irab", "alt_spelling", "rewrite")
 EVIDENCE_KINDS = ("acoustic", "asr", "model", "human", "inference")
+PROTECTED = ("human_approved", "legacy_unverified")        # an agent does not change these
 
 
 class Contradiction(ValueError):
@@ -83,11 +84,12 @@ class PronunciationMemory:
         """What an agent expects for a word. A person's approval for the same word in the same context is left as it is."""
         surface = nfc(surface)
         entry = self.find_exact(language, surface, prev_word, next_word, sense, voice_id, model_id)
-        if entry is not None and entry.status == "human_approved":
-            if canonical(entry.approved_pronunciation or "") != canonical(expected_irab):
+        if entry is not None and entry.status in PROTECTED:
+            held = entry.approved_pronunciation if entry.status == "human_approved" else entry.expected_irab
+            if canonical(held or "") != canonical(expected_irab):
                 self.db.add(PronunciationAuditLog(entry_id=entry.id, actor=actor, action="proposal_blocked", before=self.snapshot(entry),
                                                   after=json.dumps({"expected_irab": expected_irab, "observed_wrong": observed_wrong}, ensure_ascii=False),
-                                                  note="a person's approval is not changed by an agent"))
+                                                  note="a person's approval, or an entry waiting for the person's review, is not changed by an agent"))
                 self.db.commit()
                 return Proposal(entry, False, blocked_by=entry)
             return Proposal(entry, False)
@@ -105,6 +107,35 @@ class PronunciationMemory:
         self.record(entry, actor, "propose" if created else "update", before)
         self.db.commit()
         return Proposal(entry, created)
+
+    def add_legacy(self, *, language: str, surface: str, expected_irab: str, source: dict, sense: str = "", case_id: int | None = None) -> tuple[PronunciationEntry, bool]:
+        """An entry of an earlier system, kept as legacy_unverified with its origin and its original data. A second source for the same word is added to
+        the first entry's sources (and a different reading is noted), never merged into an approval. Returns (the entry, whether this source is new)."""
+        surface = nfc(surface)
+        ref = f"{source['table']}:{source['id']}"
+        entry = self.find_exact(language, surface, "", "", sense, "", "")
+        if entry is not None:
+            data = json.loads(entry.origin_data or "{}")
+            if any(f"{s['table']}:{s['id']}" == ref for s in data.get("sources", [])):
+                return entry, False
+            before = self.snapshot(entry)
+            data.setdefault("sources", []).append(source)
+            if expected_irab and entry.expected_irab and canonical(expected_irab) != canonical(entry.expected_irab):
+                data.setdefault("different_readings", []).append({"from": ref, "reading": expected_irab})
+            entry.origin_data = json.dumps(data, ensure_ascii=False)
+            entry.version += 1
+            self.db.flush()
+            self.record(entry, AGENT + "import", "legacy_source_added", before, ref)
+            self.db.commit()
+            return entry, True
+        entry = PronunciationEntry(language=language, surface=surface, surface_key=key_of(surface), sense=sense, scope="global", status="legacy_unverified",
+                                   source="legacy", expected_irab=expected_irab, origin=source["table"], origin_ref=str(source["id"]), case_id=case_id,
+                                   origin_data=json.dumps({"sources": [source]}, ensure_ascii=False), version=1)
+        self.db.add(entry)
+        self.db.flush()
+        self.record(entry, AGENT + "import", "legacy_import", "", ref)
+        self.db.commit()
+        return entry, True
 
     def approve(self, entry_id: int, *, pronunciation: str, reviewer: str, scope: str | None = None, ipa: str | None = None, supersede: bool = False,
                 reason: str = "") -> PronunciationEntry:
