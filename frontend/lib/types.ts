@@ -3864,3 +3864,24 @@ export interface PronunciationPlan {
   canonical: { word: string; reading: string; kind: string; scope: string; provenance: string; status: string; note?: string }[];
   words: PronunciationPlanWord[];
 }
+
+export interface ReadingFamily {
+  word: string;
+  kind: "name" | "word";
+  status: "resolved" | "retained_variant" | "unresolved";
+  rule: string;
+  reading: string;
+  evidence: string;
+  candidates: Record<string, number>;
+  occurrences: number;
+  forms: string[];
+  why_undecided: string;
+  lexicon?: string;
+  evidence_per_candidate?: Record<string, { written_on_the_letters: boolean; blocks: number; contexts: { block: string; sentence: string }[] }>;
+}
+
+export interface ReadingReview {
+  resolved: ReadingFamily[];
+  retained: ReadingFamily[];
+  owner_review: ReadingFamily[];
+}

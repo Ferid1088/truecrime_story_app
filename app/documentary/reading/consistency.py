@@ -35,14 +35,16 @@ def normal(reading: str) -> str:
     out: list[str] = []
     for k, p in enumerate(sounds):
         nxt = sounds[k + 1] if k + 1 < len(sounds) else ""
-        if p == "y" and out and out[-1] in ("i", "y") and (nxt in VOWELS or nxt == "y"):
-            continue                                      # one yeh writes i and y (بقیه baghiye = baghiyye)
-        if p == "y" and not nxt and out and out[-1] in VOWELS:
-            continue                                      # the carrier yeh of an ezafe left in the stem (جای jāy = jā)
+        if p == "y" and out and out[-1] in ("i", "y", "u") and (nxt in VOWELS or nxt == "y"):
+            continue                                      # one yeh writes i and y (بقیه baghiye = baghiyye); a glide between u and a vowel (masnuyi = masnu'i)
+        if p == "y" and not nxt and out and out[-1] in ("ā", "u", "o"):
+            continue                                      # the carrier yeh of an ezafe left in the stem (جای jāy = jā; never the y of sa'y or key)
         if p == "y" and nxt == "e" and k + 2 == len(sounds) and out and out[-1] in VOWELS:
             break                                         # an ezafe -ye written without its hyphen (khuneye = khune-ye)
         if p == "h" and (not nxt and out[-1:] == ["e"] or nxt == "ā" and out and out[-1] not in VOWELS):
             continue
+        if p == "m" and nxt == "b":
+            p = "n"                                       # n said m before b is one phoneme /n/ (دنبال donbāl = dombāl)
         out.append(p)
     return "".join(out)
 
@@ -117,8 +119,8 @@ def inconsistent(found: list[Variant]) -> dict[str, tuple[str, ...]]:
 
 
 def unresolved_names(found: list[Variant], table, fixed: dict[str, str]) -> dict[str, str]:
-    """The names whose stored readings disagree (with each other or with the film table) and that the owner has not approved: their reading is
-    unresolved. The film table's reading is the reading agent's, so it does not settle a disagreement by itself, and neither does how often a reading
+    """The names whose stored readings disagree (with each other or with the film table) and that neither the owner's approval nor a resolution of the
+    case (`fixed` holds both) settles: their reading is unresolved. The film table's reading is the reading agent's, so it does not settle a disagreement by itself, and neither does how often a reading
     occurs."""
     out: dict[str, str] = {}
     for v in found:

@@ -759,6 +759,50 @@ def pronunciation_plan(version_id: int, language: str = "fa", scope: str = "risk
         raise HTTPException(status_code=404, detail=f"No stored reading of this version in {language}") from e
 
 
+@router.get("/api/documentary/versions/{version_id}/reading-review")
+def reading_review(version_id: int, language: str = "fa", db: Session = Depends(get_db)):
+    """The words the version's narration reads in more than one way: resolved by a rule (with its evidence), kept as legitimate variants, and the
+    families only the owner can decide (each with its candidates, their evidence and where the film reads them). Nothing is written."""
+    from app.documentary import pronunciation_explain
+    from app.documentary.reading import resolution as RES
+
+    _version_of(db, version_id)
+    try:
+        loaded = pronunciation_explain.read(db, version_id, language)
+    except OSError as e:
+        raise HTTPException(status_code=404, detail=f"No stored reading of this version in {language}") from e
+    families = RES.analyse(db, loaded, language)
+    return {"resolved": [f.describe() for f in families if f.status == "resolved"], "retained": [f.describe() for f in families if f.status == "retained_variant"],
+            "owner_review": RES.review(db, loaded, language, families)}
+
+
+class ReadingDecisionIn(BaseModel):
+    word: str
+    reading: str
+    reviewer: str
+
+
+@router.post("/api/documentary/versions/{version_id}/reading-resolutions")
+def reading_decision(version_id: int, body: ReadingDecisionIn, language: str = "fa", db: Session = Depends(get_db)):
+    """The owner's reading of a word family the film reads in more than one way, kept as a resolution of the case: the film table applies it and only
+    the blocks with the word are read again. Not an approval: it does not respell the word for the voice."""
+    from app.documentary import pronunciation_explain
+    from app.documentary.reading import resolution as RES
+
+    version = _version_of(db, version_id)
+    if not body.reviewer.strip():
+        raise HTTPException(status_code=422, detail="A decision needs the reviewer's name")
+    loaded = pronunciation_explain.read(db, version_id, language)
+    family = next((f for f in RES.analyse(db, loaded, language) if f.key == body.word), None)
+    if family is None:
+        raise HTTPException(status_code=404, detail="The film does not read this word in more than one way")
+    try:
+        saved = RES.decide(db, version.case_id, language, family, body.reading, body.reviewer.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return {"word": family.key, "reading": body.reading, "rows_saved": saved}
+
+
 @router.get("/api/documentary/pronunciation/entries/{entry_id}/occurrences")
 def pronunciation_occurrences(entry_id: int, version_id: int, db: Session = Depends(get_db)):
     """Where the word is spoken in a narration, with the times of the words around it (synchronized playback and highlighting)."""

@@ -565,7 +565,7 @@
     "suffix_readings": {"ها": ["hā", "ā"], "های": ["hāye", "āye", "hāy", "āy", "hā", "ā"], "هایی": ["hāyi", "āyi"], "هاش": ["hāsh", "āsh"], "هاشون": ["hāshun", "āshun"], "ش": ["esh", "ash", "sh"], "اش": ["esh", "ash", "sh"], "شون": ["eshun", "ashun", "shun"], "مون": ["emun", "amun", "mun"], "تون": ["etun", "atun", "tun"], "ای": ["yi", "i"], "ی": ["i", "ye"]}
   },
   "homographs": {
-    "words": {"مرد": ["mard", "mord"], "گل": ["gol", "gel"], "علم": ["alam", "elm"], "کرد": ["kard", "kord"], "ملک": ["melk", "malek", "molk"], "شکر": ["shekar", "shokr"], "سر": ["sar", "serr"], "کشتی": ["kashti", "koshti"], "کشت": ["kesht", "kosht", "kasht"], "حس": ["hes", "hess"], "پر": ["por", "par"], "خرد": ["kherad", "khord", "kharad"], "سم": ["sam", "som"], "دین": ["din", "deyn"], "مهر": ["mehr", "mohr"], "نه": ["na", "noh"], "رو": ["ro", "ru"], "تو": ["tu", "to"], "دور": ["dur", "dowr"]},
+    "words": {"مرد": ["mard", "mord"], "گل": ["gol", "gel"], "علم": ["alam", "elm"], "کرد": ["kard", "kord"], "ملک": ["melk", "malek", "molk"], "شکر": ["shekar", "shokr"], "سر": ["sar", "serr"], "کشتی": ["kashti", "koshti"], "کشت": ["kesht", "kosht", "kasht"], "حس": ["hes", "hess"], "پر": ["por", "par"], "خرد": ["kherad", "khord", "kharad"], "سم": ["sam", "som"], "دین": ["din", "deyn"], "مهر": ["mehr", "mohr"], "نه": ["na", "noh"], "کی": ["ki", "key"], "رو": ["ro", "ru"], "تو": ["tu", "to"], "دور": ["dur", "dowr"]},
     "free_variants": {"و": ["o", "va"], "خودش": ["khodash", "khodesh"], "سراغ": ["sorāgh", "sarāgh"], "توی": ["tu", "tuye"], "روی": ["ru", "ruye"]}
   },
   "ezafe": {

@@ -74,14 +74,18 @@ class FilmTable:
     @classmethod
     def build(cls, reader: dict, approvals: list[dict] | None = None) -> FilmTable:
         """The table of the reader's answer ({"people": [...], "places": [{"fa", "latin"}], "foreign": [...]}). An approval of the owner
-        ({"surface", "latin", "kind"}: a name, or a spoken form read this way everywhere) replaces the reader's reading of the same words."""
+        ({"surface", "latin", "kind"}: a name, or a spoken form read this way everywhere) replaces the reader's reading of the same words; a reading
+        resolution of the case (kind "resolved", reading/resolution.py) does too, below the owner's approval of the same word."""
         entries: list[Entry] = []
         for person in reader.get("people") or []:
             entries += person_entries(person)
         for kind in ("places", "foreign"):
             entries += [entry(p["fa"], p["latin"], kind[:-1] if kind == "places" else kind, p["fa"]) for p in reader.get(kind) or []]
-        approved = [entry(a["surface"], a["latin"], a.get("kind") or "foreign", a["surface"]) for a in approvals or []
-                    if a.get("kind") in ("person", "place", "foreign", "spoken_form")]
+        owners = [a for a in approvals or [] if a.get("kind") in ("person", "place", "foreign", "spoken_form")]
+        owned = {key_of(a["surface"]) for a in owners}
+        resolved = [a for a in approvals or [] if a.get("kind") in ("resolved", "resolved_name") and key_of(a["surface"]) not in owned]   # below the owner
+        approved = [entry(a["surface"], a["latin"], a.get("kind") or "foreign", a["surface"]) for a in owners] + \
+            [entry(a["surface"], a["latin"], "person" if a["kind"] == "resolved_name" else "resolved", a["surface"]) for a in resolved]
         taken = {e.keys for e in approved}
         words = {e.keys[0]: e.readings[0] for e in approved if len(e.keys) == 1}
         return cls(approved + [with_words(e, words) for e in entries if e.keys not in taken])

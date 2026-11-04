@@ -63,8 +63,11 @@ class ReadingStage:
         self.path.write_text(json.dumps(self.cache, ensure_ascii=False), encoding="utf-8")
 
     def approvals(self) -> list[dict]:
+        """The owner's approvals of the language and the case's reading resolutions (below them)."""
+        from app.documentary.reading.resolution import resolved_entries
+
         rows = self.db.query(ReadingApproval).filter(ReadingApproval.language == self.language).all()
-        return [{"surface": r.surface, "latin": r.latin, "kind": r.kind} for r in rows]
+        return [{"surface": r.surface, "latin": r.latin, "kind": r.kind} for r in rows] + resolved_entries(self.db, self.case_id, self.language)
 
     async def reader_table(self) -> tuple[dict, list[dict]]:
         key = sha([(i.block_id, i.text) for i in self.items], prompts_sha(), ai_config.reading.chunk_blocks)

@@ -52,7 +52,7 @@ def main() -> None:
         lang = ai_config.voice.for_language(args.language)
         planner = Planner(db, args.language, lang.voice_id, lang.model_id)
         answered = DB.answered(db, version.id)
-        rows, statuses, causes = [], Counter(), Counter()
+        rows, statuses, causes, cross = [], Counter(), Counter(), Counter()
         for block in plan["blocks"]:
             if block["block_id"] not in voicing.readings:
                 continue
@@ -62,6 +62,8 @@ def main() -> None:
             sentence = " ".join(w.surface + w.after for w in words)
             for w, d, b in zip(words, bp.decisions, bp.boundaries, strict=True):
                 statuses[d.reference_status] += 1
+                irab = "no reference" if d.reference is None else "IRAB consistent" if d.reference.valid else "IRAB not consistent"
+                cross[(d.reference_status, irab)] += 1
                 if d.reference_status in ("VALID", "NOT_APPLICABLE"):
                     continue
                 causes[(d.reference_status, d.reference_cause)] += 1
@@ -79,7 +81,8 @@ def main() -> None:
         writer = csv.DictWriter(f, fieldnames=list(rows[0]) if rows else ["word"])
         writer.writeheader()
         writer.writerows({**r, "problems": "; ".join(r["problems"])} for r in rows)
-    summary = {"version": version.id, "language": args.language, "occurrences_not_valid": len(rows),
+    summary = {"version": version.id, "language": args.language, "tokens": sum(statuses.values()),
+               "status_by_irab": [{"status": st, "irab": ir, "tokens": n} for (st, ir), n in sorted(cross.items())], "occurrences_not_valid": len(rows),
                "unique_written_forms_not_valid": len({r["word"] for r in rows}), "statuses": dict(statuses),
                "causes": [{"status": s, "cause": c, "occurrences": n, "examples": sorted({r["word"] for r in rows if (r["status"], r["cause"]) == (s, c)})[:6]}
                           for (s, c), n in causes.most_common()],

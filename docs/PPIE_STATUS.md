@@ -85,6 +85,45 @@ READING_UNRESOLVED by cause:
 These words go to the voice as written and are escalated only when risky. An owner's approval in the Reading Review settles one; that changes the film
 table, and only the blocks containing the word are read again.
 
+## Resolving the words the film reads in more than one way (`reading/resolution.py`)
+The rules, in order:
+1. **The owner's approval.**
+2. **Homograph or listed free variant:** kept, but only if every candidate is one of its listed readings.
+3. **Source syllables:** a name's English source spelling (found in the English story by its consonants) has the same number of syllables as exactly one
+   candidate.
+4. **Orthography:** exactly one candidate can be written on the approved text's letters.
+5. **Enclitic vowel alternation:** -esh/-ash; kept as a variant.
+6. **Otherwise:** the owner decides, once per family (Pronunciation → Conflicting readings).
+
+Frequency and model confidence are never evidence. Notation is normalised before comparing, while the original readings are kept in the audit:
+- glottal stop;
+- the plural h;
+- hyphens;
+- an ezafe written without its hyphen;
+- y and ey glides;
+- ow/o;
+- n→m before b.
+
+A resolution is stored per case in `reading_resolutions` (migration 0089) with its rule, evidence and every candidate. The film table applies it below the
+owner's approval, so only blocks containing the word change their cache key: 156 of 236 for Case 15, mostly because of کالب. An owner's decision is stored
+the same way (`owner_decision`). It is not an approval and does not respell the word for the voice.
+
+Case 15:
+- **Notation only:** 49 words, 307 occurrences.
+- **Resolved by rule:**
+  - orthography: پلیس polis, گلوله golule (with its plurals), شانزدهم shānzdahom, زندگیش zendegish, نشیمن neshiman, آشفته āshofte;
+  - source syllables: کالب kāleb ("Caleb", 2 syllables; kālb has 1);
+  - the owner's approval: پرت pat.
+- **Kept as variants:** 16 (11 homographs or free variants, 5 enclitic alternations).
+- **For the owner:** 36 families, in `data/audits/case15_fa_v289_resolution/owner_review.md` with the assistant's recommendations, which are not applied.
+
+Bugs found while resolving, fixed with tests:
+- A final y was dropped after any vowel. This made sa'y into "sa" and key into "ke", and gave two wrong resolutions before the fix.
+- کی was missing from the homographs.
+- The unhyphenated-ezafe rule misfired on an ayn's vowel (موقع) and on an ezafe the text already writes (اداره‌ی).
+- A homograph was kept although one candidate was none of its readings (کشتی keshti).
+- A resolved name still counted as unresolved.
+
 ## Tests added in this pass
 - `tests/test_regression_unseen.py`: 19 invented sentences, one per failure found so far. Each names the failure it guards. Three hand-written expectations
   were corrected after the first run, and each correction is noted in the case:

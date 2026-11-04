@@ -42,7 +42,10 @@ async def voicing_of(db: Session, language: str, read: ReadingResult, items: lis
     signals = {block: [WordSignal(r.confidence, r.n in read.doubts.get(block, set()), r.n in overridden.get(block, set())) for r in words]
                for block, words in read.readings.items()}
     names = names_of(read.table)
-    by_block = {i.block_id: list(zip(i.words, [r.latin for r in read.readings[i.block_id]], strict=False)) for i in items if i.block_id in read.readings}
+    from app.documentary.pronunciation_planner import settled_words
+
+    by_block = {i.block_id: settled_words(i.words, [r.latin for r in read.readings[i.block_id]], signals[i.block_id])
+                for i in items if i.block_id in read.readings and len(read.readings[i.block_id]) == len(i.words)}
     return Voicing(fixed, {block: [r.latin for r in words] for block, words in read.readings.items()}, signals, names, opinions_of(read.readings),
                    CS.inconsistent(CS.variants(by_block, names)))
 

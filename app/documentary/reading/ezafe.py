@@ -79,6 +79,7 @@ class Boundary:
     realizations: tuple[str, ...] = ()      # the connected forms a listener may accept for it (the first is the reference)
     tts_form: str | None = None             # what the voice is given for the word when the planner changed it (the reference stays `expected_reading`)
     own_vowel: bool = False                 # the reading's -e is the word's own ه (a copula or definite -e written by the text), not an ezafe
+    stem: str = ""                          # the word's reading without its ezafe, as the analyzer read it
 
     def describe(self) -> dict:
         return {"n": self.n, "word": self.word, "next_word": self.next_word, "ezafe_required": self.ezafe_required, "ezafe_type": self.ezafe_type,
@@ -170,6 +171,9 @@ class EzafeAnalyzer:
                  table_set: bool = False) -> Boundary:
         conf = self.cfg.confidence
         stem, ezafe, pause = plain_stem(reading)
+        if (not ezafe and len(stem) > 2 and stem.endswith("e") and word.plain[-1:] not in "هعءیئ" + KASRA and not word.surface.endswith(KASRA)
+                and final_sound(stem[:-1]) in CONSONANT_SOUNDS):
+            stem, ezafe = stem[:-1], "e"      # a final e no letter writes (not ه, not an ayn's vowel, not a written ezafe): an ezafe without its hyphen
         next_stem = plain_stem(next_reading)[0] if next_reading else ""
         sound = final_sound(stem) if reading != NUMBER_WORD else ""
         written = written_ezafe(word, sound)
@@ -185,7 +189,7 @@ class EzafeAnalyzer:
             cls = phonological_class(sound, word.plain) if kind in ("E", "YE") else ""
             heard = realizations_of(stem, next_stem, cls) if cls else (expected,)
             return Boundary(word.n, word.surface, nxt.surface if nxt else "", required, kind, sound, expected, relation, round(confidence_, 2), evidence, written,
-                            conflicts, phonology_error, opinions, phonological_class=cls, realizations=heard, own_vowel=own_vowel)
+                            conflicts, phonology_error, opinions, phonological_class=cls, realizations=heard, own_vowel=own_vowel, stem=stem)
 
         phonology_error = ""
         if said and sound and ezafe == "ye" and type_for(sound) == "E":

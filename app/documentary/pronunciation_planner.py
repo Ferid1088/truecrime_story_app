@@ -96,9 +96,18 @@ def settled_reading(reading: str, b: EZ.Boundary) -> str:
     stem, ezafe = scheme.split_ezafe(scheme.split_pause(reading)[0])
     if b.own_vowel:
         return stem + "e"                                       # the word's own written -e (a copula), not an ezafe
+    if b.stem and not ezafe and b.stem != stem:
+        stem, ezafe = b.stem, "e"                               # the analyzer read an ezafe written without its hyphen (bedune = bedun-e)
     if b.written and not ezafe and stem[-3:-2] in scheme.VOWELS and stem.endswith("ye"):
         stem = stem[:-2]                                       # an ezafe the reading wrote without its hyphen (edāreye): not a second one
     return scheme.ezafe_form(stem) if b.ezafe_type in ("E", "YE") and stem else stem if b.ezafe_type == "NONE" else scheme.split_pause(reading)[0]
+
+
+def settled_words(words: list[Word], readings: list[str], signals: list) -> list[tuple[Word, str]]:
+    """The block's words with their readings as the ezafe analyzer settles them: what is compared across blocks (an ezafe a reading wrote without its
+    hyphen is an ezafe, not another reading of the word)."""
+    bounds = EZ.EzafeAnalyzer().analyze(words, readings, None, [s.confidence for s in signals], frozenset(n for n, s in enumerate(signals) if s.overridden))
+    return [(w, settled_reading(r, b)) for w, r, b in zip(words, readings, bounds, strict=True)]
 
 
 def ezafe_sense(b: EZ.Boundary) -> str:

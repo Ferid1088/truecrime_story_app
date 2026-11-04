@@ -3226,6 +3226,27 @@ class PronunciationLexicon(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
 
 
+class ReadingResolution(Base):
+    """How a word the film read in more than one way is read, decided by a stated rule and its evidence for one case (reading/resolution.py). Not an
+    approval and not a respelling: it sets the reading the agents' readings disagreed about; the owner's approval outranks it."""
+
+    __tablename__ = "reading_resolutions"
+    __table_args__ = (UniqueConstraint("language", "case_id", "surface", name="uq_reading_resolutions"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    language: Mapped[str] = mapped_column(String(20))
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"))
+    surface: Mapped[str] = mapped_column(String(160))                       # the written form's key (vowel marks and half-spaces left out)
+    kind: Mapped[str] = mapped_column(String(16))                           # name | word
+    reading: Mapped[str] = mapped_column(String(240))                       # the reading without ezafe (each sentence keeps its own)
+    status: Mapped[str] = mapped_column(String(20))                         # resolved | retained_variant
+    rule: Mapped[str] = mapped_column(String(40))                           # orthography | source_syllables | colloquial_enclitic | homograph
+    evidence: Mapped[str] = mapped_column(Text, default="")
+    candidates: Mapped[str] = mapped_column(Text, default="[]")             # JSON: every reading the film had, with its blocks
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
 class ReadingApproval(Base):
     """How one word of a spoken language is read (a Latin reading with its vowels and ezafe), fixed by the owner or the reader and kept across
     films: a name, a place, a foreign word, a spoken form, or one sense of a word that is written the same as another."""

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -23,9 +24,10 @@ from app.db.models import (
 from app.documentary import voice_prepare as VP
 from app.documentary.performance import performance_for_version
 from app.documentary.pronunciation_memory import trust_level
-from app.documentary.pronunciation_planner import CHANGES, Planner
+from app.documentary.pronunciation_planner import CHANGES, Planner, settled_words
 from app.documentary.reading import answer as ANS
 from app.documentary.reading import consistency as CS
+from app.documentary.reading import resolution as RES
 from app.documentary.reading import stage as RS
 from app.documentary.reading.answer import ReadingWord
 from app.documentary.reading.block import block_inputs
@@ -37,6 +39,23 @@ from app.documentary.reading.words import key_of, tokenize
 def load(db: Session, version_id: int, language: str) -> tuple[StoryVersion, dict, Voicing, frozenset[str]]:
     """(the version, its performance plan, the voicing of its stored readings, the words the film dictionary covers). Raises OSError when the version has
     no stored reading for the language."""
+    loaded = read(db, version_id, language)
+    return loaded.version, loaded.plan, loaded.voicing, loaded.covered
+
+
+@dataclass
+class Loaded:
+    version: StoryVersion
+    plan: dict
+    voicing: Voicing
+    covered: frozenset[str]
+    current: dict[str, list]          # block -> (word, settled reading) after the film table and the case's resolutions
+    stored: dict[str, list]           # block -> (word, settled reading) as the reading cache stored it, before them
+    english: str
+
+
+def read(db: Session, version_id: int, language: str) -> Loaded:
+    """Everything `load` gives, with the settled readings before and after the film table and the English story (for a name's source spelling)."""
     version = db.get(StoryVersion, version_id)
     base = Path(ai_config.voice.work_dir)
     if not base.is_absolute():
@@ -45,7 +64,8 @@ def load(db: Session, version_id: int, language: str) -> tuple[StoryVersion, dic
     plan = performance_for_version(db, version)
     items = block_inputs(plan["blocks"], VP.english_sources(db, version), ai_config.semantic_review.neighbour_chars)
     approvals = [{"surface": a.surface, "latin": a.latin, "kind": a.kind} for a in db.query(ReadingApproval).filter(ReadingApproval.language == language)]
-    table = FilmTable.build(cache["reader"], approvals)
+    resolutions = RES.resolved_entries(db, version.case_id, language)
+    table = FilmTable.build(cache["reader"], approvals + resolutions)
     readings, signals, words, stored, raw = {}, {}, {}, {}, {}
     for item in items:
         saved = cache["blocks"].get(item.block_id)
@@ -53,19 +73,20 @@ def load(db: Session, version_id: int, language: str) -> tuple[StoryVersion, dic
             continue
         doubted = {d["n"] for d in saved["doubts"]}
         # a block read before the film table changed holds the old table's readings: the current table is applied as the reading stage applies it
-        raw[item.block_id] = list(zip(item.words, [r["latin"] for r in saved["readings"]], strict=True))
+        raw[item.block_id] = settled_words(item.words, [r["latin"] for r in saved["readings"]], [WordSignal() for _ in saved["readings"]])
         current, notes = ANS.enforce([ReadingWord(**r) for r in saved["readings"]], item.words, table, ai_config.reading.pause_between_names)
         overridden = {int(m.group(1)) for note in saved["notes"] + notes if (m := re.match(r"word (\d+)", note))}
         readings[item.block_id] = [r.latin for r in current]
         signals[item.block_id] = [WordSignal(r.confidence, r.n in doubted, r.n in overridden) for r in current]
-        words[item.block_id] = list(zip(item.words, readings[item.block_id], strict=True))
+        words[item.block_id] = settled_words(item.words, readings[item.block_id], signals[item.block_id])
         stored[item.block_id] = current
     names = RS.names_of(table)
     fixed = {key_of(a["surface"]): a["latin"] for a in approvals}
     voicing = Voicing(fixed, readings, signals, names, RS.opinions_of(stored), CS.inconsistent(CS.variants(words, names)),
-                      CS.unresolved_names(CS.variants(raw, names), table, fixed))
+                      CS.unresolved_names(CS.variants(raw, names), table, fixed | {key_of(r["surface"]): r["latin"] for r in resolutions}))
     covered = frozenset(key_of(r.get("string_to_replace") or "") for r in VP.sent_rules(version))
-    return version, plan, voicing, covered
+    english = "\n".join(VP.english_sources(db, version).values())
+    return Loaded(version, plan, voicing, covered, words, raw, english)
 
 
 def memory_of(db: Session, language: str, keys: set[str]) -> dict[str, list[dict]]:
