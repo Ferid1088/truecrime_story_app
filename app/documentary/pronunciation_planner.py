@@ -8,9 +8,12 @@ Strategies, in the order they are tried for a word:
                    ezafe alone and whose ezafe the analyzer settled (reading/ezafe.py; a candidate);
   selective_marks  the word's own letters with their short vowels as marks, only for a HIGH or CRITICAL word whose reading can be written on its own
                    letters (a candidate: nothing says yet that the voice obeys it);
+  number_words     a number in digits, given in the words its context calls for (reading/numbers.py; read by code, outside the change budget);
   escalate         no safe change, or an ezafe the evidence does not settle: the word stays as written and is reported for a person;
   keep             the rest. LOW is no proof, MEDIUM is left to the listening QA.
-A candidate never becomes an approval here. How many unvalidated changes a block may carry is limited (config), so that the speech stays natural."""
+A candidate never becomes an approval here. How many unvalidated changes a block may carry is limited (config), so that the speech stays natural.
+For a PPIE language (config ppie) the planner remembers nothing: no memory entry, intervention or evidence of an earlier run is read, and none of
+this run's decisions is written."""
 
 from __future__ import annotations
 
@@ -26,12 +29,14 @@ from app.documentary.pronunciation_memory import APPROVED, PronunciationMemory
 from app.documentary.pronunciation_risk import RiskEngine, WordRisk
 from app.documentary.reading import consistency as CS
 from app.documentary.reading import ezafe as EZ
+from app.documentary.reading import numbers as NUM
 from app.documentary.reading import reference as REF
 from app.documentary.reading import scheme, spelling
 from app.documentary.reading.voicing import Voicing
 from app.documentary.reading.words import VOWEL_MARKS, Word, key_of, substitute, tokenize
 
 CHANGES = ("respelling", "dictionary_rule", "ezafe_mark", "selective_marks")
+TEXT_CHANGES = CHANGES + ("number_words",)            # every decision that changes what the voice is given (numbers are outside the change budget)
 EZAFE_SIGNALS = ("ezafe_unwritten", "ezafe_uncertain", "ezafe_conflict", "ezafe_phonology")
 KIND_STRATEGY = {"dictionary_alias": "dictionary_rule", "dictionary_phoneme": "dictionary_rule", "irab": "respelling", "alt_spelling": "respelling", "rewrite": "respelling"}
 JOINERS = re.compile("[‌‍]")
@@ -138,7 +143,8 @@ def skeleton(text: str) -> str:
 class Planner:
     def __init__(self, db: Session, language: str, voice_id: str, model_id: str):
         self.db, self.language, self.voice_id, self.model_id = db, language, voice_id, model_id
-        self.memory, self.cfg = PronunciationMemory(db), ai_config.pronunciation_risk
+        self.cfg = ai_config.pronunciation_risk
+        self.memory = None if ai_config.ppie.fresh(language) else PronunciationMemory(db)          # a PPIE run starts from nothing
         self.engine: RiskEngine | None = None
         self.plans: dict[str, BlockPlan] = {}
 
@@ -150,7 +156,8 @@ class Planner:
         if readings is None or len(readings) != len(words):
             return self.keep_all(block_id, text, "no reading of this block, or not the words of its reading: left as written")
         if self.engine is None:
-            self.engine = RiskEngine(self.db, self.language, self.voice_id, self.model_id, voicing.names, voicing.variants, voicing.unresolved)
+            self.engine = RiskEngine(self.db if self.memory is not None else None, self.language, self.voice_id, self.model_id, voicing.names,
+                                     voicing.variants, voicing.unresolved)
         signals = voicing.signals.get(block_id)
         boundaries = EZ.EzafeAnalyzer().analyze(words, readings, voicing.opinions.get(block_id), [s.confidence for s in signals] if signals else None,
                                                 frozenset(n for n, s in enumerate(signals or []) if s.overridden))
@@ -164,7 +171,7 @@ class Planner:
         for d, (status, cause) in zip(decisions, diagnoses, strict=True):
             d.reference_status, d.reference_cause = status, cause
         self.limit(decisions)
-        plan = BlockPlan(block_id, substitute(text, {d.n: d.replacement for d in decisions if d.strategy in ("respelling", "ezafe_mark", "selective_marks") and d.replacement}),
+        plan = BlockPlan(block_id, substitute(text, {d.n: d.replacement for d in decisions if d.strategy in TEXT_CHANGES and d.strategy != "dictionary_rule" and d.replacement}),
                          [self.rule(d) for d in decisions if d.strategy == "dictionary_rule"], decisions, risks, boundaries=boundaries)
         for b, d in zip(boundaries, decisions, strict=True):
             if b.ezafe_type in ("E", "YE"):
@@ -188,8 +195,11 @@ class Planner:
         def made(strategy: str, basis: str, **fields) -> Decision:
             return Decision(word.n, word.surface, risk.level, strategy, basis, reference=reference, **fields)
 
-        if word.number or reading == "NUM":
-            return made("keep", "a number, read by code")
+        if word.number or reading == "NUM" or NUM.has_digit(word):
+            said = NUM.read(words, word.n)
+            if said.words is None:
+                return made("escalate", said.basis, needs_review=True)
+            return made("number_words", f"{said.kind}: {said.basis}", replacement=said.words)
         if word.key in voicing.fixed:
             said = settled_reading(reading, boundary) if boundary is not None else reading     # the ezafe this sentence settles (the text's own ی)
             spelled = Voicing.spell(Voicing.reading_of(voicing.fixed[word.key], said, word.surface), word.surface)
@@ -199,7 +209,7 @@ class Planner:
         context = {"prev_word": prev_key, "next_word": next_key, "voice_id": self.voice_id, "model_id": self.model_id}
         settled = boundary is not None and boundary.ezafe_type in ("E", "YE")
         contexts = ([{**context, "sense": ezafe_sense(boundary)}] if settled else []) + [context]
-        for ctx in contexts:
+        for ctx in contexts if self.memory is not None else []:
             for i in self.memory.reusable(self.language, word.surface, **ctx):
                 if not same_relation(i.entry_id, boundary, self.db):
                     continue
@@ -251,8 +261,8 @@ class Planner:
         """Which form of the reference the voice is given, by the evidence for this exact written form, voice and model: a validated form first; a form
         that failed is not chosen again while another has not failed; otherwise the configured default (a choice by reasoning, said so: no audio has
         compared the forms yet)."""
-        tried = {i.replacement: i for i in self.memory.db.query(PronunciationIntervention).filter_by(exact_form=word.surface, voice_id=self.voice_id,
-                                                                                                    model_id=self.model_id)}
+        tried = {} if self.memory is None else {
+            i.replacement: i for i in self.db.query(PronunciationIntervention).filter_by(exact_form=word.surface, voice_id=self.voice_id, model_id=self.model_id)}
         for form, text in candidates.items():
             if text in tried and tried[text].status == "validated":
                 return form, f"validated intervention {tried[text].id}"
@@ -280,7 +290,9 @@ class Planner:
 
     def register(self, plan: BlockPlan) -> None:
         """Keeps each candidate (an unvalidated change) as a candidate intervention of a candidate entry, so that what the voice does with it can be
-        booked. Never touches an entry a person has decided about."""
+        booked. Never touches an entry a person has decided about. A PPIE run keeps nothing."""
+        if self.memory is None:
+            return
         words = tokenize(plan.text)
         for d in plan.decisions:
             if d.strategy not in ("selective_marks", "ezafe_mark") or d.intervention_id is not None:
@@ -301,7 +313,10 @@ class Planner:
 
     def learn(self, block_id: str, surface: str, *, heard_right: bool, case_id: int | None = None) -> None:
         """What the listening QA found for a word of the plan. A failure is booked against the intervention and as evidence (the next risk assessment
-        counts it); a success is evidence only, unless the config lets a listening model validate. Nothing here approves anything."""
+        counts it); a success is evidence only, unless the config lets a listening model validate. Nothing here approves anything. A PPIE run keeps
+        nothing."""
+        if self.memory is None:
+            return
         plan = self.plans.get(block_id)
         decision = next((d for d in plan.decisions if key_of(d.surface) == key_of(surface)), None) if plan else None
         if decision is None:

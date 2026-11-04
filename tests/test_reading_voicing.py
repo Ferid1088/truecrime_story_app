@@ -53,7 +53,7 @@ def test_the_renderer_gives_the_voice_the_text_with_the_respelling(tmp_path, mon
     assert [r.text for r in tts.requests] == ["این کِتاب بود"]
 
 
-def test_the_voicing_of_a_version_is_the_approvals_of_its_language_over_the_readings_of_its_blocks(db_session, monkeypatch):
+def test_the_voicing_of_a_version_is_the_approvals_of_its_language_over_the_readings_of_its_blocks_except_for_a_ppie_language(db_session, monkeypatch):
     from app.db.models import ReadingApproval
     from app.documentary.reading import stage
     from app.documentary.reading.answer import ReadingWord
@@ -62,12 +62,11 @@ def test_the_voicing_of_a_version_is_the_approvals_of_its_language_over_the_read
     db_session.add_all([ReadingApproval(language="fa", surface="عهد", kind="spoken_form", sense="", latin="'ahd", source="owner"),
                         ReadingApproval(language="en", surface="عهد", kind="spoken_form", sense="", latin="ohd", source="owner")])
     db_session.flush()
-
-    async def fake_result(db, case, version, language):
-        return [], ReadingResult({"b": [ReadingWord(0, "az", False, "", "high"), ReadingWord(1, "'ahd-e", False, "", "high")]}, 0)
-
-    monkeypatch.setattr(stage, "result", fake_result)
-    voicing = asyncio.run(stage.voicing(db_session, None, None, "fa"))
+    read = ReadingResult({"b": [ReadingWord(0, "az", False, "", "high"), ReadingWord(1, "'ahd-e", False, "", "high")]}, 0)
+    fresh = asyncio.run(stage.voicing_of(db_session, "fa", read, []))
+    assert fresh.fixed == {} and fresh.text("b", "از عهد") == "از عهد", "a PPIE run applies no approval of an earlier run"
+    monkeypatch.setattr(ai_config.ppie, "languages", [])
+    voicing = asyncio.run(stage.voicing_of(db_session, "fa", read, []))
     assert voicing.text("b", "از عهد") == "از اَهدِ"
 
 

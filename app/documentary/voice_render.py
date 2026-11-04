@@ -223,6 +223,8 @@ class VoiceRenderer:
         base = Path(ai_config.voice.work_dir)
         if not base.is_absolute():
             base = ROOT / base
+        if ai_config.ppie.fresh(language):           # a PPIE narration has a folder of its own: no earlier narration of the version is touched
+            return base / str(case_id) / "audio" / language / f"v{story_version_id}{ai_config.ppie.folder_suffix}"
         prepared = "_prepared" if language in ai_config.voice.prepared_languages else ""      # the earlier narration of the version stays where it is
         reviewed = ai_config.semantic_review.folder_suffix if language in ai_config.semantic_review.languages else ""
         return base / str(case_id) / "audio" / language / f"v{story_version_id}{prepared}{reviewed}"
@@ -234,6 +236,10 @@ class VoiceRenderer:
         path = out / "pronunciation_plan.json"
         storage.write_atomic(path, json.dumps(self.planner.report(), ensure_ascii=False, indent=1))
         return str(path)
+
+    def prepared(self, language: str) -> bool:
+        """Whether the language's requests carry the film's pronunciation dictionary (never for a PPIE language: only the planner prepares its text)."""
+        return language in self.cfg.prepared_languages and not ai_config.ppie.fresh(language)
 
     def out_dir(self, case_id: int, language: str, story_version_id: int) -> Path:
         return self.out_dir_for(case_id, language, story_version_id)
@@ -418,7 +424,7 @@ class VoiceRenderer:
         from app.documentary.pronunciation import apply_fixes, risky_occurrences
 
         takes: list[dict] = []
-        prepared = language in self.cfg.prepared_languages       # edited before the voice: its dictionary goes with every request
+        prepared = self.prepared(language)                       # edited before the voice: its dictionary goes with every request
         listened = ai_config.listens_after_voice(language)       # one take per block when it is not: nothing is listened to afterwards
         sentences = [{**x, "tts": scrub_forbidden(x["tts"])} if x.get("tts") else dict(x)
                      for x in b.get("sentences") or []]
@@ -524,7 +530,7 @@ class VoiceRenderer:
         language = plan["language"]
         self.narration = True
         lang_cfg = self.cfg.for_language(language)
-        if language in self.cfg.prepared_languages:
+        if self.prepared(language):
             self.dictionaries = list(plan.get("pronunciation_dictionary") or [])
             self.rules = list(plan.get("pronunciation_rules") or [])
         # An explicit style overrides the performance script (A/B tests);

@@ -242,7 +242,7 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None,
     meta = _loads(scene.voice_meta_json, {})
     # the host speaks in its own style (host.voice_style), not the narration's
     settings = ai_config.voice.settings_for(ai_config.host.voice_style, scene.language)
-    prepared = scene.language in ai_config.voice.prepared_languages
+    prepared = scene.language in ai_config.voice.prepared_languages and not ai_config.ppie.fresh(scene.language)
     listened = ai_config.listens_after_voice(scene.language)
     dictionaries = []
     if prepared:         # the host says the same names as the narration: the film's pronunciation dictionary goes with its voice too
@@ -325,6 +325,8 @@ def _host_reviewer(db: Session, scene: HostScene, reviewer):
         return reviewer
     from app.documentary import voice_prepare as VP
 
+    if ai_config.ppie.fresh(scene.language):          # it reports only: no correction of what the voice is given, nothing kept in the lexicon
+        return SR.Reviewer(db, scene.case_id, {}, {}, [], corrects=False)
     version = db.get(StoryVersion, scene.story_version_id)
     return SR.Reviewer(db, scene.case_id, {}, {}, VP.sent_rules(version) if version is not None else [])
 

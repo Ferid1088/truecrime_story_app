@@ -37,7 +37,10 @@ async def result(db: Session, case: Case, version: StoryVersion, language: str) 
 
 
 async def voicing_of(db: Session, language: str, read: ReadingResult, items: list[BlockInput]) -> Voicing:
-    fixed = {key_of(a.surface): a.latin for a in db.query(ReadingApproval).filter(ReadingApproval.language == language).order_by(ReadingApproval.updated_at)}
+    """What the voice is given for the readings of this run: the owner's approvals of the language on top, except for a PPIE language (read from
+    scratch: no approval of an earlier run applies)."""
+    fixed = {} if ai_config.ppie.fresh(language) else {
+        key_of(a.surface): a.latin for a in db.query(ReadingApproval).filter(ReadingApproval.language == language).order_by(ReadingApproval.updated_at)}
     overridden = {block: {int(m.group(1)) for note in notes if (m := re.match(r"word (\d+)", note))} for block, notes in read.notes.items()}
     signals = {block: [WordSignal(r.confidence, r.n in read.doubts.get(block, set()), r.n in overridden.get(block, set())) for r in words]
                for block, words in read.readings.items()}
@@ -68,21 +71,19 @@ def opinions_of(readings: dict[str, list[ReadingWord]]) -> dict[str, dict[int, l
     return out
 
 
-async def voicing(db: Session, case: Case, version: StoryVersion, language: str) -> Voicing:
-    """What the voice of this version is given for the words the owner has fixed."""
-    items, read = await result(db, case, version, language)
-    return await voicing_of(db, language, read, items)
-
-
 async def run(db: Session, case: Case, version: StoryVersion, language: str) -> dict:
-    items, read = await result(db, case, version, language)
-    summary = {"blocks": len(items), "words": sum(len(i.words) for i in items), "changed_by_code": sum(len(n) for n in read.notes.values()),
-               "open_doubts": read.open_doubts}
+    return summary(*await result(db, case, version, language), language)
+
+
+def summary(items: list[BlockInput], read: ReadingResult, language: str) -> dict:
+    """What the reading stage found; it stops the run while words wait for the owner (a PPIE language has none: its doubts stay in the run)."""
+    found = {"blocks": len(items), "words": sum(len(i.words) for i in items), "changed_by_code": sum(len(n) for n in read.notes.values()),
+             "open_doubts": read.open_doubts, "doubts_in_run": sum(len(d) for d in read.doubts.values())}
     if read.open_doubts:
         raise AwaitingReadingReview(
             f"Awaiting reading review: {read.open_doubts} words of the {language} narration are in doubt. Answer them all in the Reading Review tab, "
             "then resume. Nothing is voiced before.")
-    return summary
+    return found
 
 
 async def listen_and_fix(db: Session, case: Case, version: StoryVersion, language: str, renderer, plan: dict, manifest: dict, folder, *, inspector=None,

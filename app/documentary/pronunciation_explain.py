@@ -21,10 +21,11 @@ from app.db.models import (
     ReadingApproval,
     StoryVersion,
 )
+from app.documentary import storage
 from app.documentary import voice_prepare as VP
 from app.documentary.performance import performance_for_version
 from app.documentary.pronunciation_memory import trust_level
-from app.documentary.pronunciation_planner import CHANGES, Planner, settled_words
+from app.documentary.pronunciation_planner import TEXT_CHANGES, Planner, settled_words
 from app.documentary.reading import answer as ANS
 from app.documentary.reading import consistency as CS
 from app.documentary.reading import doubts as DB
@@ -121,7 +122,8 @@ def block_times(version: StoryVersion, language: str) -> dict[str, tuple[float, 
 def canonical_of(db: Session, version: StoryVersion, language: str, voicing: Voicing, texts: dict[str, str]) -> list[dict]:
     """The film's canonical readings with their scope and provenance: a reading the owner approved is confirmed (it is stored as the owner's approval);
     a name only the film table reads is the reading agent's, not confirmed; a name whose readings disagreed without an approval is unresolved."""
-    approvals = {key_of(a.surface): a for a in db.query(ReadingApproval).filter(ReadingApproval.language == language).order_by(ReadingApproval.updated_at)}
+    approvals = {} if ai_config.ppie.fresh(language) else {
+        key_of(a.surface): a for a in db.query(ReadingApproval).filter(ReadingApproval.language == language).order_by(ReadingApproval.updated_at)}
     out = []
     for key, latin in voicing.fixed.items():
         a = approvals.get(key)
@@ -140,41 +142,67 @@ def canonical_of(db: Session, version: StoryVersion, language: str, voicing: Voi
 
 
 def explain(db: Session, version_id: int, language: str, scope: str = "risky") -> dict:
-    """Every word worth explaining (scope "risky": HIGH or CRITICAL, or changed, or escalated; "all": every word) with everything behind its decision."""
+    """Every word worth explaining (scope "risky": HIGH or CRITICAL, or changed, or escalated; "all": every word) with everything behind its decision,
+    the planner run dry over the stored readings."""
     version, plan, voicing, covered = load(db, version_id, language)
     lang = ai_config.voice.for_language(language)
     planner = Planner(db, language, lang.voice_id, lang.model_id)
+    texts = {b["block_id"]: b.get("tts_text") or b["text"] for b in plan["blocks"] if b["block_id"] in voicing.readings}
+    plans = {block: planner.plan(block, text, voicing, covered=covered) for block, text in texts.items()}
+    return describe(db, version, language, texts, plans, voicing, scope)
+
+
+def describe(db: Session, version: StoryVersion, language: str, texts: dict[str, str], plans: dict, voicing: Voicing, scope: str = "risky") -> dict:
+    """The words of these block plans worth explaining, with the reference, ezafe, risk, decision and the exact voice input of each; the memory and its
+    trust levels too, except for a PPIE language (it reads no memory: every word is UNVERIFIED until a person or a validated recognizer confirms it)."""
+    lang = ai_config.voice.for_language(language)
+    fresh = ai_config.ppie.fresh(language)
     times = block_times(version, language)
     rows: list[dict] = []
     counts = {"words": 0, "LOW": 0, "MEDIUM": 0, "HIGH": 0, "CRITICAL": 0, "changed": 0, "escalated": 0, "reference_valid": 0, "reference_checked": 0}
-    for block in plan["blocks"]:
-        if block["block_id"] not in voicing.readings:
+    for block, text in texts.items():
+        bp = plans.get(block)
+        if bp is None or not bp.decisions:
             continue
-        text = block.get("tts_text") or block["text"]
-        bp = planner.plan(block["block_id"], text, voicing, covered=covered)
         words = tokenize(text)
         sentence = " ".join(w.surface + w.after for w in words)
         for w, r, d, b in zip(words, bp.risks, bp.decisions, bp.boundaries, strict=True):
             counts["words"] += 1
             counts[r.level] += 1
-            counts["changed"] += d.strategy in CHANGES
+            counts["changed"] += d.strategy in TEXT_CHANGES
             counts["escalated"] += d.strategy == "escalate"
             if d.reference is not None:
                 counts["reference_checked"] += 1
                 counts["reference_valid"] += d.reference.valid
             if scope != "all" and r.level not in ("HIGH", "CRITICAL") and d.strategy == "keep":
                 continue
-            rows.append({"block_id": block["block_id"], "n": w.n, "word": w.surface, "start": w.start, "end": w.end, "sentence": sentence,
-                         "finglish": voicing.readings[block["block_id"]][w.n], "reference": d.reference.describe() if d.reference else None,
+            rows.append({"block_id": block, "n": w.n, "word": w.surface, "start": w.start, "end": w.end, "sentence": sentence,
+                         "finglish": voicing.readings[block][w.n], "reference": d.reference.describe() if d.reference else None,
                          "ezafe": b.describe() if b.ezafe_type != "NONE" else None, "risk": r.describe(), "decision": d.describe(),
-                         "tts_input": d.replacement if d.strategy in CHANGES and d.replacement else w.surface,
-                         "audio": dict(zip(("start", "end"), times[block["block_id"]], strict=True)) if block["block_id"] in times else None})
-    memory = memory_of(db, language, {key_of(row["word"]) for row in rows})
+                         "tts_input": d.replacement if d.strategy in TEXT_CHANGES and d.replacement else w.surface, "voice_text": bp.text,
+                         "audio": dict(zip(("start", "end"), times[block], strict=True)) if block in times else None})
+    memory = {} if fresh else memory_of(db, language, {key_of(row["word"]) for row in rows})
     for row in rows:
         row["memory"] = memory.get(key_of(row["word"]), [])
         row["verification"] = next((m["trust"] for m in row["memory"] if m["trust"] in ("OWNER_APPROVED_READING", "ACOUSTICALLY_VERIFIED")), "UNVERIFIED")
-    texts = {b["block_id"]: b.get("tts_text") or b["text"] for b in plan["blocks"] if b["block_id"] in voicing.readings}
-    found = CS.variants({b: list(zip(tokenize(t), voicing.readings[b], strict=True)) for b, t in texts.items()}, voicing.names)
+    found = CS.variants({b: list(zip(tokenize(t), voicing.readings[b], strict=True)) for b, t in texts.items() if b in voicing.readings}, voicing.names)
     return {"version_id": version.id, "case_id": version.case_id, "language": language, "voice_id": lang.voice_id, "model_id": lang.model_id,
-            "consistency": [v.describe() for v in found], "canonical": canonical_of(db, version, language, voicing, texts),
+            "fresh": fresh, "consistency": [v.describe() for v in found], "canonical": canonical_of(db, version, language, voicing, texts),
             "audio_url": f"/api/documentary/versions/{version.id}/audio/narration" if times else None, "counts": counts, "words": rows}
+
+
+def save_run(db: Session, version: StoryVersion, language: str, plan: dict, planner: Planner, voicing: Voicing, folder: Path) -> Path:
+    """The record of a PPIE run next to its narration: every risky, changed or escalated word as the voice was given it in this run. It is a record
+    for the owner, never an input: no run reads it."""
+    texts = {b["block_id"]: b.get("tts_text") or b["text"] for b in plan["blocks"] if b["block_id"] in planner.plans and b["block_id"] in voicing.readings}
+    path = folder / ai_config.ppie.run_file
+    storage.write_atomic(path, json.dumps(describe(db, version, language, texts, planner.plans, voicing), ensure_ascii=False, indent=1))
+    return path
+
+
+def run_record(version: StoryVersion, language: str) -> dict:
+    """The record of the version's last PPIE run (OSError when it has none)."""
+    from app.documentary.voice_render import VoiceRenderer
+
+    path = VoiceRenderer.out_dir_for(version.case_id, language, version.id) / ai_config.ppie.run_file
+    return json.loads(path.read_text(encoding="utf-8"))

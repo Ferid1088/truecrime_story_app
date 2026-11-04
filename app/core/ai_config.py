@@ -2516,6 +2516,36 @@ class MorphologyConfig(BaseModel):
     suffix_readings: dict[str, list[str]] = {}
 
 
+class PPIEConfig(BaseModel):
+    """The languages whose narration is pronounced by PPIE alone, from scratch on every run (reading/fresh.py): the approved spoken version as it is, a
+    new reading of every block, the planner's decisions for this run only. No voice-prepare edit, no dictionary, no lexicon, no pronunciation memory,
+    no stored reading, no owner approval of an earlier run and no listening loop reaches the voice; nothing the run decides is kept for the next one.
+    Their narration goes to a folder of its own (the version's earlier narrations stay as they are)."""
+
+    languages: list[str] = []
+    folder_suffix: str = "_ppie"
+    # The record of a run next to its narration (every risky, changed or escalated word as the voice was given it): read by the owner, never by a run.
+    run_file: str = "ppie_run.json"
+
+    def fresh(self, language: str) -> bool:
+        return language in self.languages
+
+
+class NumberReadingConfig(BaseModel):
+    """How a number written in digits is read for the voice (reading/numbers.py), by the words around it and never by how often a reading occurs: a
+    service number digit by digit, an identifier after one of `digit_cues` digit by digit when it has at least `digit_min_length` digits, a year
+    (after one of `year_cues`, within `year_range`) and every other whole number as a cardinal; an ordinal suffix makes an ordinal. `respelled`: a
+    number word another word is written the same as (نه "no" / "nine") is given in its marked form."""
+
+    digit_by_digit: list[str] = []
+    digit_cues: list[str] = []
+    digit_min_length: int = Field(default=5, ge=2)
+    year_cues: list[str] = []
+    year_range: tuple[int, int] = (1000, 2100)
+    digit_words: list[str] = Field(min_length=10, max_length=10)
+    respelled: dict[str, str] = {}
+
+
 class HomographsConfig(BaseModel):
     """Written forms with more than one reading in use (مرد mard / mord): the voice cannot tell from the letters which one is meant."""
 
@@ -4463,6 +4493,8 @@ class AIConfig(BaseModel):
     ezafe: EzafeConfig
     morphology: MorphologyConfig
     homographs: HomographsConfig
+    ppie: PPIEConfig = Field(default_factory=PPIEConfig)
+    number_reading: NumberReadingConfig
     pronunciation_auto: PronunciationAutoConfig = Field(default_factory=PronunciationAutoConfig)
     semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)
     reading: ReadingConfig = Field(default_factory=ReadingConfig)
@@ -4728,8 +4760,9 @@ class AIConfig(BaseModel):
     def listens_after_voice(self, language: str) -> bool:
         """Whether a voiced block of this language is listened to by speech-to-text and the pronunciation listener afterwards (retakes, the
         pronunciation key and its fix ladder). A prepared language is edited before the voice, and a semantically reviewed one is judged by a
-        model that listens to the audio itself: neither is listened to by the older checks."""
-        return language not in self.voice.prepared_languages and language not in self.semantic_review.languages
+        model that listens to the audio itself, and a PPIE language is never corrected by them: none is listened to by the older checks."""
+        return (language not in self.voice.prepared_languages and language not in self.semantic_review.languages
+                and not self.ppie.fresh(language))
 
     def model_for(self, role: str) -> str:
         """The concrete model ID assigned to a logical role, resolved

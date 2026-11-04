@@ -20,6 +20,7 @@ pytestmark = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is re
 def config(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
     monkeypatch.setattr(ai_config.voice, "prepared_languages", [])
+    monkeypatch.setattr(ai_config.ppie, "languages", [])           # the review with its corrections, as it stays for a language PPIE does not voice
     monkeypatch.setattr(ai_config.semantic_review, "languages", ["fa"])
     monkeypatch.setattr(ai_config.semantic_review, "delivery_tags", ["[calm]", "[serious]"])
     monkeypatch.setattr(SR, "track_run", lambda *a, **k: contextlib.nullcontext(object()))

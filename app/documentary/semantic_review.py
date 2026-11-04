@@ -152,11 +152,13 @@ def corrected_block(block: dict, review: dict) -> tuple[dict, list[str], list[di
 
 
 class Reviewer:
-    """Listens to audio for the semantic review and keeps the record of every block."""
+    """Listens to audio for the semantic review and keeps the record of every block. `corrects` False (a PPIE language): the review only reports;
+    nothing it hears changes what the voice is given, and nothing is kept in the lexicon."""
 
     def __init__(self, db: Session, case_id: int, sources: dict[str, str] | None = None, tones: dict[str, dict] | None = None,
-                 rules: list[dict] | None = None, runner: Callable[[object, str, list[str]], Awaitable[tuple[dict, object]]] | None = None):
-        self.db, self.case_id = db, case_id
+                 rules: list[dict] | None = None, runner: Callable[[object, str, list[str]], Awaitable[tuple[dict, object]]] | None = None,
+                 corrects: bool = True):
+        self.db, self.case_id, self.corrects = db, case_id, corrects
         self.sources, self.tones, self.rules = sources or {}, tones or {}, rules or []
         self.runner = runner or (lambda gen, body, audio: run_agent("documentary.semantic_review.audio", gen, TASK + body, images=audio))
         self.records: dict[str, dict] = {}
@@ -221,7 +223,8 @@ class Reviewer:
                   "avatar_review_result": "not_applicable", "errors": [], "final_status": "failed", "reviews": []}
         self.records[block["block_id"]] = record
         pending: list[dict] = []           # respellings the next review has to prove before the lexicon keeps them
-        for attempt in range(cfg.max_corrections + 1):
+        limit = cfg.max_corrections if self.corrects else 0
+        for attempt in range(limit + 1):
             try:
                 review = await self.review_block(result)
             except SemanticReviewFailed as e:           # this block could not be reviewed: it fails alone, the others go on
@@ -232,12 +235,12 @@ class Reviewer:
             record["errors"] = review["errors"]
             if review["verdict"] == "pass":
                 record["voice_review_result"], record["final_status"] = "pass", "approved"
-                if self.db is not None:
+                if self.db is not None and self.corrects:
                     record["learned"] = (LEX.learn(self.db, language, pending, self.case_id)
                                          + LEX.confirm(self.db, language, self.rules, self.context(result["block"])["tts_text"], self.case_id))
                 break
-            if attempt == cfg.max_corrections:
-                record["failure"] = "still failing after the allowed corrections"
+            if attempt == limit:
+                record["failure"] = "still failing after the allowed corrections" if self.corrects else "failed the review (it reports only: nothing is corrected)"
                 break
             fixed, applied, respelled = corrected_block(result["block"], review)
             if review["notation_read_aloud"]:

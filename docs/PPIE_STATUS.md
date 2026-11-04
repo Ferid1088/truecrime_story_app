@@ -3,6 +3,17 @@
 Status as of 2026-11-04 (second pass), `main`. **Done** means implemented in the production path and covered by tests. **Partial** means part of the requirement is
 implemented and the rest is named. **Open** means not implemented, with the reason.
 
+## Fresh Persian path (config `ppie.languages`, 2026-11-04)
+
+Persian is voiced by PPIE alone, from scratch on every run. The source is the approved spoken version (`jobs.latest_spoken` never picks a voice-prepare
+rewrite; Case 15: v270, not v289). The old voice-prepare stage, the film dictionary, the cross-film lexicon, the pronunciation memory (entries,
+interventions, evidence, labelled clips), the stored reading file, owner approvals, reading resolutions and doubt answers of earlier runs, the reading
+loop after the voice and the semantic review's corrections and lexicon learning do not reach the planner or the voice. They stay in the database and on
+disk for rollback and stay in use for the other languages. A doubt of the reading agents stays in the run: the planner leaves the word as written and
+flags it. Numbers in digits are read by `reading/numbers.py` from their context. The narration goes to `v{id}_ppie`; the run's record (`ppie_run.json`)
+is what the Pronunciation tab shows. Every Persian style is voiced at speed 1.2, stability 0.2, then played 1.1 times faster. Nothing of a run is kept.
+Each run pays for the full reading stage again (Case 15: about EUR 23 on 2026-11-04).
+
 ## Pipeline as it runs (`VoiceRenderer` → `Planner.plan`)
 
 | Step | Status | Where |

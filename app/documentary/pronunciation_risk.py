@@ -58,33 +58,36 @@ class WordRisk:
 
 
 class History:
-    """Everything the memory and the earlier voices say about the words of a language for one voice and model, read once."""
+    """Everything the memory and the earlier voices say about the words of a language for one voice and model, read once. Without a database (a PPIE
+    run, which starts from nothing) it says nothing."""
 
-    def __init__(self, db: Session, language: str, voice_id: str, model_id: str):
+    def __init__(self, db: Session | None, language: str, voice_id: str, model_id: str):
         def mine(voice: str, model: str) -> bool:
             return voice in ("", voice_id) and model in ("", model_id)
 
         self.entries: dict[str, list[PronunciationEntry]] = {}
+        self.failed: dict[str, list[PronunciationIntervention]] = {}
+        self.evidence: dict[str, list[PronunciationEvidence]] = {}
+        self.labelled: dict[str, list[PhoneticSample]] = {}
+        if db is None:
+            return
         for e in db.query(PronunciationEntry).filter(PronunciationEntry.language == language, PronunciationEntry.status != "rejected"):
             if mine(e.voice_id, e.model_id):
                 self.entries.setdefault(e.surface_key, []).append(e)
-        self.failed: dict[str, list[PronunciationIntervention]] = {}
         for i, e in db.query(PronunciationIntervention, PronunciationEntry).join(PronunciationEntry, PronunciationEntry.id == PronunciationIntervention.entry_id).filter(
                 PronunciationEntry.language == language, PronunciationIntervention.failures > 0):
             if mine(i.voice_id, i.model_id):
                 self.failed.setdefault(e.surface_key, []).append(i)
-        self.evidence: dict[str, list[PronunciationEvidence]] = {}
         for ev in db.query(PronunciationEvidence).join(PronunciationEntry, PronunciationEntry.id == PronunciationEvidence.entry_id).filter(PronunciationEntry.language == language):
             if mine(ev.voice_id, ev.model_id):
                 self.evidence.setdefault(key_of(ev.surface), []).append(ev)
-        self.labelled: dict[str, list[PhoneticSample]] = {}
         for s in db.query(PhoneticSample).filter_by(language=language, status="human_verified"):
             if mine(s.voice_id, s.model_id):
                 self.labelled.setdefault(key_of(s.surface), []).append(s)
 
 
 class RiskEngine:
-    def __init__(self, db: Session, language: str, voice_id: str, model_id: str, names: frozenset[str] = frozenset(),
+    def __init__(self, db: Session | None, language: str, voice_id: str, model_id: str, names: frozenset[str] = frozenset(),
                  variants: dict[str, tuple[str, ...]] | None = None, unresolved: dict[str, str] | None = None):
         self.cfg, self.names, self.variants, self.unresolved = ai_config.pronunciation_risk, names, variants or {}, unresolved or {}
         self.homographs = {key_of(w): readings for w, readings in ai_config.homographs.words.items()}

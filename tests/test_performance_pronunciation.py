@@ -29,6 +29,12 @@ from test_spoken_audio import SpokenGen, _good_plan, _with_blueprint
 PERSIAN = re.compile(r"[؀-ۿ]")
 
 
+@pytest.fixture(autouse=True)
+def legacy_path(monkeypatch):
+    """These tests check the older listening checks and the film dictionary, kept for the languages PPIE does not voice: PPIE is off here."""
+    monkeypatch.setattr(ai_config.ppie, "languages", [])
+
+
 def _res(role):
     return GenerationResult(text="{}", model=f"m/{role}", provider="fake")
 

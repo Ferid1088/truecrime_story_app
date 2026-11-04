@@ -142,9 +142,7 @@
     "between_blocks_ms": 200,
     "between_sections_ms": 1400,
     "work_dir": "data/cases",
-    "prepared_languages": [
-      "fa"
-    ],
+    "prepared_languages": [],
     "review_languages": [
       "fa"
     ],
@@ -156,6 +154,34 @@
     },
     "language_styles": {
       "fa": {
+        "controlled_tension": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.1,
+          "use_speaker_boost": true,
+          "speed": 1.2
+        },
+        "factual": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.05,
+          "use_speaker_boost": true,
+          "speed": 1.2
+        },
+        "reflective": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.1,
+          "use_speaker_boost": true,
+          "speed": 1.2
+        },
+        "reveal": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.1,
+          "use_speaker_boost": true,
+          "speed": 1.2
+        },
         "host_conversational": {
           "stability": 0.2,
           "similarity_boost": 0.75,

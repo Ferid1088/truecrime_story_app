@@ -1,6 +1,7 @@
 """The reading text of a film: the name table, then for every block the editor's reading, the checker's judgement and the arbiter's decision; what
 nobody can settle is a doubt for the owner. Every step is kept on disk by its input, so a rerun (after the owner has answered) only pays for the
-blocks whose input changed."""
+blocks whose input changed. A PPIE language (config ppie) is read from scratch instead: nothing stored is loaded, nothing is kept, no owner approval,
+resolution or answer of an earlier run is applied, and a doubt stays in this run (the planner leaves the word as written and flags it)."""
 
 from __future__ import annotations
 
@@ -51,21 +52,28 @@ class ReadingStage:
         self.db, self.case_id, self.version, self.language, self.items = db, case_id, version, language, items
         self.glossary = glossary or Glossary(db, case_id)
         self.runners = (writer_runner, check_runner, arbitrate_runner)
+        self.fresh = ai_config.ppie.fresh(language)
         base = Path(ai_config.voice.work_dir)
         self.path = (base if base.is_absolute() else ROOT / base) / str(case_id) / ai_config.reading.folder / f"{language}_v{version.id}.json"
-        try:
-            self.cache: dict = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            self.cache = {}
+        self.cache: dict = {}
+        if not self.fresh:
+            try:
+                self.cache = json.loads(self.path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                pass
 
     def save(self) -> None:
+        if self.fresh:                   # this run's readings live in memory only: the next run reads again
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(self.cache, ensure_ascii=False), encoding="utf-8")
 
     def approvals(self) -> list[dict]:
-        """The owner's approvals of the language and the case's reading resolutions (below them)."""
+        """The owner's approvals of the language and the case's reading resolutions (below them); none for a PPIE language."""
         from app.documentary.reading.resolution import resolved_entries
 
+        if self.fresh:
+            return []
         rows = self.db.query(ReadingApproval).filter(ReadingApproval.language == self.language).order_by(ReadingApproval.updated_at).all()
         return [{"surface": r.surface, "latin": r.latin, "kind": r.kind} for r in rows] + resolved_entries(self.db, self.case_id, self.language)
 
@@ -113,6 +121,9 @@ class ReadingStage:
         for item, (words, doubts, note) in zip(self.items, done, strict=True):
             extra = [d for d in self.reader_doubts(item, reader_found, words) if d.n not in {x.n for x in doubts}]
             found[item.block_id], readings[item.block_id], notes[item.block_id] = doubts + extra, words, note
+        doubted = {b: {d.n for d in d_} for b, d_ in found.items() if d_}
+        if self.fresh:
+            return ReadingResult(readings, 0, notes, table, doubted)
         DB.sync(self.db, self.case_id, self.version.id, {b: d for b, d in found.items() if d}, {i.block_id: i.sentence() for i in self.items})
         given = DB.answered(self.db, self.version.id)
         for item in self.items:
@@ -120,4 +131,4 @@ class ReadingStage:
                 hit = given.get((item.block_id, r.n))
                 if hit and hit[0] == item.words[r.n].surface:
                     readings[item.block_id][r.n] = ReadingWord(r.n, hit[1], r.pause_after, r.why, "high")
-        return ReadingResult(readings, len(DB.open_rows(self.db, self.version.id)), notes, table, {b: {d.n for d in d_} for b, d_ in found.items() if d_})
+        return ReadingResult(readings, len(DB.open_rows(self.db, self.version.id)), notes, table, doubted)

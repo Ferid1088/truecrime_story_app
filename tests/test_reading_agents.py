@@ -247,7 +247,7 @@ def test_the_reading_stage_stops_the_run_before_the_voice_while_words_are_in_dou
     assert "Reading review" in failure_details(str(stopped.value))["next_action"]
 
     monkeypatch.setattr(RS.ReadingStage, "run", fake_run(ReadingResult({}, 0, {"B1": ["a note", "b note"]})))
-    assert asyncio.run(RS.run(None, Case(), Version(), "fa")) == {"blocks": 1, "words": 2, "changed_by_code": 2, "open_doubts": 0}
+    assert asyncio.run(RS.run(None, Case(), Version(), "fa")) == {"blocks": 1, "words": 2, "changed_by_code": 2, "open_doubts": 0, "doubts_in_run": 0}
     assert RS.required("fa") and not RS.required("en")
 
 

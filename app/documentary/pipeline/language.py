@@ -121,7 +121,7 @@ class LanguageChain:
                     "narration budget reached "
                     f"({ai_config.documentary.max_tts_characters_per_job} characters)")
             plan = performance_for_version(db, version)
-            if lang in ai_config.voice.prepared_languages:           # the film's pronunciation dictionary goes with every block
+            if lang in ai_config.voice.prepared_languages and not ai_config.ppie.fresh(lang):           # the film's pronunciation dictionary goes with every block
                 from app.documentary import voice_prepare as VP
 
                 plan["pronunciation_dictionary"] = await VP.ensure_dictionary(db, version, lang)
@@ -135,8 +135,10 @@ class LanguageChain:
                                      budget_pilot_seconds=pilot_seconds if pilot else None)
             from app.documentary.reading import stage as RS
 
+            fresh = ai_config.ppie.fresh(lang)              # PPIE alone: this run's readings and decisions, nothing of an earlier run
             if RS.required(lang):           # the words the owner has fixed go to the voice as IPA
-                renderer.voicing = await RS.voicing(db, case, version, lang)
+                items, read = holder.pop("reading", None) or await RS.result(db, case, version, lang)
+                renderer.voicing = await RS.voicing_of(db, lang, read, items)
                 if ai_config.pronunciation_risk.enabled:      # what each word is given follows its risk and the memory
                     from app.documentary.pronunciation_planner import Planner
 
@@ -145,12 +147,16 @@ class LanguageChain:
             if ai_config.voice.after_voice_review and SR.required(lang):           # after the voice-repair loop of each block, a model listens to it and judges it against the source
                 from app.documentary import voice_prepare as VP
 
-                prepared_rules = VP.sent_rules(version)
-                renderer.reviewer = SR.Reviewer(db, case.id, VP.english_sources(db, version), VP.tones_of(db, version), prepared_rules)
-            listened = ai_config.voice.after_voice_review and RS.required(lang) and not pilot          # the narration of a language with a reading text is listened to before the music is mixed
+                renderer.reviewer = SR.Reviewer(db, case.id, VP.english_sources(db, version), VP.tones_of(db, version),
+                                                [] if fresh else VP.sent_rules(version), corrects=not fresh)
+            listened = ai_config.voice.after_voice_review and RS.required(lang) and not pilot and not fresh          # the narration of a language with a reading text is listened to before the music is mixed
             m = await render_documentary_audio(
                 plan, case_id=case.id, story_version_id=version.id,
                 max_seconds=pilot_seconds if pilot else None, db=db, renderer=renderer, with_music=not listened)
+            if fresh and renderer.planner is not None:
+                from app.documentary import pronunciation_explain as PE
+
+                PE.save_run(db, version, lang, plan, renderer.planner, renderer.voicing, renderer.out_dir(case.id, lang, version.id))
             if listened:
                 from app.documentary.production.audio import mix_narration
 
@@ -201,7 +207,8 @@ class LanguageChain:
         from app.documentary.reading import stage as RS
 
         async def reading():
-            return await RS.run(db, case, version, lang)
+            holder["reading"] = await RS.result(db, case, version, lang)          # the voice of this run is given these readings, not a stored copy
+            return RS.summary(*holder["reading"], lang)
 
         if not planning and RS.required(lang):           # the reading text is written and checked before anything is voiced; doubts wait for the owner
             try:

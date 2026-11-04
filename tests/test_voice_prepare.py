@@ -147,6 +147,7 @@ def _version(db):
 def work_dir(tmp_path, monkeypatch):
     """The editor's answers are cached on disk: in a test they go to a temporary folder, never to the real data."""
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
+    monkeypatch.setattr(ai_config.ppie, "languages", [])          # the voice-prepare path, kept for a language PPIE does not voice
 
 
 @pytest.fixture
@@ -320,6 +321,7 @@ def test_a_prepared_language_is_voiced_once_per_block_with_its_dictionary_and_no
     from app.documentary.voice_render import VoiceRenderer
 
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
+    monkeypatch.setattr(ai_config.voice, "prepared_languages", ["fa"])
     monkeypatch.setattr(ai_config.semantic_review, "languages", [])
 
     class Listener:

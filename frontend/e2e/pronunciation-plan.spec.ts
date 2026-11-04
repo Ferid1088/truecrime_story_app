@@ -59,4 +59,26 @@ test.describe("why words change", () => {
     await expect(page.getByLabel("Words of the plan").getByRole("button")).toHaveCount(1);
     await expect(detail.getByText("unchanged")).toBeVisible();
   });
+
+  test("shows a fresh PPIE run: the block sent to the voice, number words, and no memory", async ({ page }) => {
+    const number = word("number_words", { n: 3, word: "۹۱۱", finglish: "NUM", reference: null, ezafe: null, tts_input: "نُه یک یک", memory: [],
+      risk: { level: "LOW", score: 0, signals: [{ name: "number", weight: 0, evidence: "read by code" }] },
+      decision: { strategy: "number_words", basis: "service: a service number, said digit by digit", replacement: "نُه یک یک", validated: false,
+                  needs_review: false, reference_status: "NOT_APPLICABLE", reference_cause: "" },
+      voice_text: "شماره‌ای که گرفت نُه یک یک بود." });
+    await mockApi(page);
+    await page.route("**/api/documentary/settings", (r: Route) => r.fulfill(ok(settings)));
+    await page.route("**/api/cases/1/documentary", (r: Route) => r.fulfill(ok(overview)));
+    await page.route("**/api/cases/1/costs", (r: Route) => r.fulfill(ok(costs)));
+    await page.route("**/api/documentary/pronunciation/entries?**", (r: Route) => r.fulfill(ok({ counts: {}, entries: [] })));
+    await page.route("**/api/documentary/versions/7/pronunciation-plan?**", (r: Route) => r.fulfill(ok({ ...plan, fresh: true, canonical: [], consistency: [], words: [number] })));
+    await page.goto("/documentary/1?tab=Pronunciation");
+    await page.getByRole("button", { name: "Why words change" }).click();
+    await expect(page.getByLabel("Fresh PPIE run")).toContainText("No dictionary, lexicon, pronunciation memory");
+    const detail = page.getByLabel("Word decision");
+    await expect(detail.getByText("service: a service number, said digit by digit")).toBeVisible();
+    await expect(detail.getByText("شماره‌ای که گرفت نُه یک یک بود.")).toBeVisible();
+    await expect(detail.getByText("not used: a PPIE run reads no memory and keeps nothing")).toBeVisible();
+    await expect(detail.getByText("from the narration of this run")).toBeVisible();
+  });
 });

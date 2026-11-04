@@ -4,11 +4,18 @@ import asyncio
 import json
 from types import SimpleNamespace
 
+import pytest
 from test_studio import FakeVoice, _renderer, _segments, _silence_mp3
 
 from app.core.ai_config import ai_config
 from app.documentary import pronunciation as PR
 from app.documentary import storage
+
+
+@pytest.fixture(autouse=True)
+def legacy_path(monkeypatch):
+    """These tests check the older listening checks and the film dictionary, kept for the languages PPIE does not voice: PPIE is off here."""
+    monkeypatch.setattr(ai_config.ppie, "languages", [])
 
 # ---------------------------------------------------------------------------
 # configuration and the editor per language

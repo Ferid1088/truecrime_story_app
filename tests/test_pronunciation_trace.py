@@ -31,8 +31,10 @@ RULES = [
 
 @pytest.fixture(autouse=True)
 def rules_stay_as_made(monkeypatch):
-    """The checks below are about matching; the conversion of IPA rules is tested on its own."""
+    """The checks below are about matching; the conversion of IPA rules is tested on its own. The dictionary is the legacy path of a language PPIE does
+    not voice (a PPIE language is never sent one)."""
     monkeypatch.setattr(ai_config.pronunciation_trace, "phoneme_as_alias", False)
+    monkeypatch.setattr(ai_config.ppie, "languages", [])
 
 
 def status_of(validation: PT.Validation) -> dict[str, str]:

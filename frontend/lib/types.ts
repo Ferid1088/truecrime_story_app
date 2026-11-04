@@ -3846,6 +3846,7 @@ export interface PronunciationPlanWord {
   risk: { level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"; score: number; signals: PronunciationSignal[] };
   decision: { strategy: string; basis: string; replacement: string | null; validated: boolean; needs_review: boolean; reference_status: string; reference_cause: string };
   tts_input: string;
+  voice_text?: string;
   audio: { start: number; end: number } | null;
   memory: { id: number; surface: string; status: string; trust: string; next_word: string; sense: string; approved_pronunciation: string | null;
             interventions: { kind: string; replacement: string; status: string; successes: number; failures: number }[] }[];
@@ -3858,6 +3859,7 @@ export interface PronunciationPlan {
   language: string;
   voice_id: string;
   model_id: string;
+  fresh?: boolean;
   audio_url: string | null;
   counts: Record<string, number>;
   consistency: { word: string; kind: "name" | "word"; readings: Record<string, string[]>; legitimate: string }[];

@@ -29,7 +29,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 /** Why one word is or is not changed for the voice: its reference, ezafe, risk, decision, the exact voice input, trust and history. */
-function Detail({ w, lang, audioUrl }: { w: PronunciationPlanWord; lang: string; audioUrl: string | null }) {
+function Detail({ w, lang, audioUrl, fresh }: { w: PronunciationPlanWord; lang: string; audioUrl: string | null; fresh: boolean }) {
   const audio = useRef<HTMLAudioElement>(null);
   const ref = w.reference;
   const words = w.sentence.split(" ");
@@ -87,8 +87,12 @@ function Detail({ w, lang, audioUrl }: { w: PronunciationPlanWord; lang: string;
           <span lang={lang} dir={rtl ? "rtl" : "ltr"} className="text-xl">{w.tts_input}</span>
           <span className="ml-2 text-xs text-muted-foreground">{w.tts_input === w.word ? "unchanged" : `original: ${w.word}`}</span>
         </Row>
+        {w.voice_text && (
+          <Row label="Block sent to ElevenLabs"><span lang={lang} dir={rtl ? "rtl" : "ltr"} className="text-sm leading-7">{w.voice_text}</span></Row>
+        )}
         <Row label="Correction history">
-          {w.memory.length === 0 ? <span className="text-xs text-muted-foreground">nothing in the memory</span> : (
+          {fresh ? <span className="text-xs text-muted-foreground">not used: a PPIE run reads no memory and keeps nothing</span>
+            : w.memory.length === 0 ? <span className="text-xs text-muted-foreground">nothing in the memory</span> : (
             <ul className="space-y-0.5 text-xs">
               {w.memory.map((m) => (
                 <li key={m.id}>
@@ -103,7 +107,7 @@ function Detail({ w, lang, audioUrl }: { w: PronunciationPlanWord; lang: string;
       {audioUrl && w.audio ? (
         <div className="flex items-center gap-2">
           <Button size="sm" variant="secondary" onClick={play}>Play the sentence</Button>
-          <span className="text-xs text-muted-foreground">from the film&apos;s current narration (made before this plan: it may not have this change)</span>
+          <span className="text-xs text-muted-foreground">{fresh ? "from the narration of this run" : "from the film's current narration (made before this plan: it may not have this change)"}</span>
           <audio ref={audio} preload="none" src={apiFileUrl(audioUrl)} aria-label="Narration" />
         </div>
       ) : <p className="text-xs text-muted-foreground">No narration of this version to play.</p>}
@@ -111,7 +115,7 @@ function Detail({ w, lang, audioUrl }: { w: PronunciationPlanWord; lang: string;
   );
 }
 
-/** Why each word of the narration is or is not changed for the voice (the planner run dry: no model, no voice, nothing written). */
+/** Why each word of the narration is or is not changed for the voice: the record of the last PPIE run, or the planner run dry over stored readings. */
 export function PronunciationPlanView({ versionId, language }: { versionId: number | null; language: string }) {
   const plan = useApi(() => (versionId == null ? Promise.resolve(null) : api.pronunciationPlan(versionId, language)), [versionId, language]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("changed");
@@ -125,10 +129,17 @@ export function PronunciationPlanView({ versionId, language }: { versionId: numb
   if (plan.error) return <ErrorState message={plan.error} onRetry={plan.refetch} />;
   if (!plan.data) return <Skeleton className="h-64 w-full" />;
   const c = plan.data.counts;
+  const fresh = plan.data.fresh === true;
   const key = (w: PronunciationPlanWord) => `${w.block_id}:${w.n}`;
   const current = words.find((w) => key(w) === picked) ?? words[0];
   return (
     <div className="space-y-3">
+      {fresh && (
+        <p className="rounded-md border border-border p-2 text-xs" aria-label="Fresh PPIE run">
+          Fresh PPIE run: read from scratch from the approved text. No dictionary, lexicon, pronunciation memory, stored reading or earlier decision was
+          used, and nothing of this run is kept for the next one.
+        </p>
+      )}
       <p className="text-xs leading-5 text-muted-foreground">
         {c.words.toLocaleString()} words · LOW {c.LOW} · MEDIUM {c.MEDIUM} · HIGH {c.HIGH} · CRITICAL {c.CRITICAL} · {c.changed} changed for the voice ·
         {" "}{c.escalated} left for you · reference valid for {c.reference_valid} of {c.reference_checked}. Linguistic decisions only: nothing here is verified by
@@ -136,7 +147,7 @@ export function PronunciationPlanView({ versionId, language }: { versionId: numb
       </p>
       {plan.data.canonical.some((c) => c.status === "READING_UNRESOLVED") && (
         <div className="rounded-md border border-rose-500/30 p-2 text-xs" aria-label="Names awaiting the owner">
-          <p className="font-medium">Names whose reading is unresolved (approve one in the Reading Review tab):</p>
+          <p className="font-medium">{fresh ? "Names this run read in more than one way (left as written for you):" : "Names whose reading is unresolved (approve one in the Reading Review tab):"}</p>
           <ul className="mt-1 space-y-0.5">
             {plan.data.canonical.filter((c) => c.status === "READING_UNRESOLVED").map((c) => (
               <li key={c.word}><span lang={language} className="text-sm">{c.word}</span> · {c.note}</li>
@@ -180,7 +191,7 @@ export function PronunciationPlanView({ versionId, language }: { versionId: numb
               </li>
             ))}
           </ul>
-          <Detail key={key(current)} w={current} lang={language} audioUrl={plan.data.audio_url} />
+          <Detail key={key(current)} w={current} lang={language} audioUrl={plan.data.audio_url} fresh={fresh} />
         </div>
       )}
     </div>

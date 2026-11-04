@@ -746,13 +746,19 @@ def pronunciation_entries(language: str = "fa", status: str | None = None, db: S
 
 @router.get("/api/documentary/versions/{version_id}/pronunciation-plan")
 def pronunciation_plan(version_id: int, language: str = "fa", scope: str = "risky", db: Session = Depends(get_db)):
-    """Why each word of the version's narration is or is not changed for the voice (the planner run dry over the stored readings: no model, no voice,
-    nothing written): reference, ezafe, risk, decision, the exact text the voice is given, trust level and the block's place in the narration."""
+    """Why each word of the version's narration is or is not changed for the voice: reference, ezafe, risk, decision, the exact text the voice is given,
+    trust level and the block's place in the narration. A PPIE language shows the record of its last run (what the voice was given, decided in that
+    run alone); any other language the planner run dry over the stored readings (no model, no voice, nothing written)."""
     from app.documentary import pronunciation_explain
 
-    _version_of(db, version_id)
+    version = _version_of(db, version_id)
     if scope not in ("risky", "all"):
         raise HTTPException(status_code=422, detail="scope is risky or all")
+    if ai_config.ppie.fresh(language):
+        try:
+            return pronunciation_explain.run_record(version, language)
+        except OSError as e:
+            raise HTTPException(status_code=404, detail=f"No PPIE run of version {version_id} in {language} yet: the next narration run makes one") from e
     try:
         return pronunciation_explain.explain(db, version_id, language, scope)
     except OSError as e:
@@ -767,6 +773,9 @@ def reading_review(version_id: int, language: str = "fa", db: Session = Depends(
     from app.documentary.reading import resolution as RES
 
     _version_of(db, version_id)
+    if ai_config.ppie.fresh(language):
+        raise HTTPException(status_code=404, detail=f"{language} is read from scratch on every run (PPIE): no stored readings to reconcile. The words a run "
+                                                    "reads in more than one way are listed with that run in 'Why words change'.")
     try:
         loaded = pronunciation_explain.read(db, version_id, language)
     except OSError as e:
