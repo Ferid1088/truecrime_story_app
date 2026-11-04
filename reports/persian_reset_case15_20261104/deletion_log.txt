@@ -1,0 +1,17 @@
+                  tbl                   |  n  
+----------------------------------------+-----
+ phonetic_labels                        | 122
+ phonetic_samples                       | 356
+ pronunciation_interventions            |  60
+ pronunciation_evidence                 |  71
+ pronunciation_audit_log                | 322
+ pronunciation_entry_versions           | 322
+ pronunciation_entries                  | 129
+ pronunciation_lexicon                  |  63
+ reading_approvals                      |  18
+ reading_resolutions                    |  40
+ reading_doubts                         |  17
+ artifact_deps                          |  88
+ artifacts(voice_takes,audio_timing fa) |  38
+(13 rows)
+

@@ -75,6 +75,13 @@ def test_the_approved_spoken_version_is_the_source_and_a_voice_prepare_rewrite_n
     assert J.latest_spoken(db_session, master, "de", 1).id == made["de"][1].id, "another language keeps choosing its newest version"
 
 
+def test_an_archived_spoken_version_is_never_the_source(db_session, versions):
+    master, made = versions
+    made["fa"][0].status = "archived"
+    db_session.commit()
+    assert J.latest_spoken(db_session, master, "fa", 1) is None, "the retired version is not picked, and the voice-prepare rewrite still is not"
+
+
 def test_a_ppie_language_is_never_sent_a_dictionary_and_gets_its_own_folder(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
     monkeypatch.setattr(ai_config.voice, "prepared_languages", ["fa"])          # even if the old voice-prepare setting came back

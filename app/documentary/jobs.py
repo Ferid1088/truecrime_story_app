@@ -109,6 +109,8 @@ def latest_spoken(db: Session, master: StoryVersion, language: str,
                     StoryVersion.master_version_id == master.id)
             .order_by(StoryVersion.id.desc()).all())
     for v in rows:
+        if v.status == "archived":                      # a retired version is never a source again (recovery only)
+            continue
         struct = json.loads(v.narrative_structure or "{}")
         if blueprint_id is not None and struct.get("blueprint_id") != blueprint_id:
             continue

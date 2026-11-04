@@ -104,3 +104,4 @@ data/audits/
 
 data/phonetic_benchmark/controlled/
 data/phonetic_benchmark/validation.json
+data/_archive_*/
