@@ -24,6 +24,7 @@ from app.core.ai_config import ai_config
 from app.db.models import PronunciationEntry, PronunciationIntervention
 from app.documentary.pronunciation_memory import APPROVED, PronunciationMemory
 from app.documentary.pronunciation_risk import RiskEngine, WordRisk
+from app.documentary.reading import consistency as CS
 from app.documentary.reading import ezafe as EZ
 from app.documentary.reading import reference as REF
 from app.documentary.reading import scheme, spelling
@@ -48,10 +49,11 @@ class Decision:
     needs_review: bool = False
     intervention_id: int | None = None
     reference: REF.Reference | None = None  # the complete phoneme-first reference of the word in its sentence (never the voice's input by itself)
+    candidates: dict[str, str] = field(default_factory=dict)       # the forms of the reference the voice could be given (minimal, complete)
 
     def describe(self) -> dict:
         return {"n": self.n, "surface": self.surface, "level": self.level, "strategy": self.strategy, "replacement": self.replacement, "basis": self.basis,
-                "validated": self.validated, "needs_review": self.needs_review, "intervention_id": self.intervention_id,
+                "validated": self.validated, "needs_review": self.needs_review, "intervention_id": self.intervention_id, "candidates": self.candidates,
                 **({"reference": self.reference.describe()} if self.reference is not None and (self.strategy != "keep" or self.level in ("HIGH", "CRITICAL")) else {})}
 
 
@@ -88,7 +90,11 @@ def naturalness(decisions: list[Decision]) -> dict:
 
 def settled_reading(reading: str, b: EZ.Boundary) -> str:
     """The reading with the ezafe the analyzer settled (an uncertain one stays as the agents read it): the reading the reference is built from."""
-    stem, _ = scheme.split_ezafe(scheme.split_pause(reading)[0])
+    stem, ezafe = scheme.split_ezafe(scheme.split_pause(reading)[0])
+    if b.own_vowel:
+        return stem + "e"                                       # the word's own written -e (a copula), not an ezafe
+    if b.written and not ezafe and stem[-3:-2] in scheme.VOWELS and stem.endswith("ye"):
+        stem = stem[:-2]                                       # an ezafe the reading wrote without its hyphen (edāreye): not a second one
     return scheme.ezafe_form(stem) if b.ezafe_type in ("E", "YE") and stem else stem if b.ezafe_type == "NONE" else scheme.split_pause(reading)[0]
 
 
@@ -132,7 +138,7 @@ class Planner:
         if readings is None or len(readings) != len(words):
             return self.keep_all(block_id, text, "no reading of this block, or not the words of its reading: left as written")
         if self.engine is None:
-            self.engine = RiskEngine(self.db, self.language, self.voice_id, self.model_id, voicing.names)
+            self.engine = RiskEngine(self.db, self.language, self.voice_id, self.model_id, voicing.names, voicing.variants)
         signals = voicing.signals.get(block_id)
         boundaries = EZ.EzafeAnalyzer().analyze(words, readings, voicing.opinions.get(block_id), [s.confidence for s in signals] if signals else None,
                                                 frozenset(n for n, s in enumerate(signals or []) if s.overridden))
@@ -190,6 +196,10 @@ class Planner:
             return made("keep", f"{risk.level} risk, but the language's dictionary already has a rule for this word: the planner adds nothing on top of it")
         if risk.level in ("LOW", "MEDIUM"):
             return made("keep", "low risk: no reason to change the text" if risk.level == "LOW" else "medium risk: left as written, the listening QA checks it")
+        readings_of = voicing.variants.get(word.key)
+        if readings_of and CS.normal(reading) != readings_of[0]:
+            return made("escalate", f"{risk.level} risk, and the film reads it in more than one way ({' / '.join(readings_of)}): this block's minority "
+                        f"reading is not written for the voice: {risk.rationale}", needs_review=True)
         if boundary is not None and (boundary.ezafe_type == "UNCERTAIN" or unresolved(boundary)):
             return made("escalate", f"{risk.level} risk, and the ezafe after it is not settled ({boundary.evidence_type}): {risk.rationale}", needs_review=True)
         if boundary is not None and self.engine.level_of(sum(s.weight for s in risk.signals if s.name not in EZAFE_SIGNALS)) in ("LOW", "MEDIUM"):
@@ -197,20 +207,40 @@ class Planner:
             if ezafe_only is not None:
                 return made("ezafe_mark", f"{risk.level} risk from its ezafe -{boundary.ezafe_type.lower()} ({boundary.grammatical_relation}): {risk.rationale}",
                             replacement=ezafe_only, needs_review=risk.level == "CRITICAL")
-        marked = self.marks(word, reference)
-        if marked is None:
+        candidates = self.marks(word, reference)
+        if not candidates:
             why = "; ".join(reference.problems) if reference is not None and reference.problems else "the reading cannot be written on the word's own letters"
             return made("escalate", f"{risk.level} risk, and no validated reference to write on it ({why}): {risk.rationale}", needs_review=True)
-        return made("selective_marks", f"{risk.level} risk: {risk.rationale}", replacement=marked, needs_review=risk.level == "CRITICAL")
+        form, why = self.choose(word, candidates)
+        return made("selective_marks", f"{risk.level} risk: {risk.rationale}; voice input: {form} ({why})", replacement=candidates[form],
+                    needs_review=risk.level == "CRITICAL", candidates=candidates)
 
     @staticmethod
-    def marks(word: Word, reference: REF.Reference | None) -> str | None:
-        """The minimal marking of the word's validated REFERENCE_IRAB (its short vowels, shaddas and ezafe on its own letters, no sukun), or None when
-        there is no valid reference, the word already has marks, or the reference needs a letter the text does not have: then nothing is invented."""
-        if word.surface != word.plain or reference is None or not reference.valid or reference.added_carrier:
-            return None
-        marked = REF.minimal(reference.irab or "")
-        return marked if skeleton(marked) == skeleton(word.surface) and marked != word.surface else None
+    def marks(word: Word, reference: REF.Reference | None) -> dict[str, str]:
+        """The forms of the word's validated REFERENCE_IRAB the voice could be given: "minimal" (its short vowels, shaddas and ezafe, no sukun) and
+        "complete" (the whole reference). Empty when there is no valid reference, the word already has marks, or the reference needs a letter the text
+        does not have: then nothing is invented."""
+        if word.surface != word.plain or reference is None or not reference.valid or reference.added_carrier or not reference.irab:
+            return {}
+        forms = {"minimal": REF.minimal(reference.irab), "complete": reference.irab}
+        return {k: f for k, f in forms.items() if skeleton(f) == skeleton(word.surface) and f != word.surface}
+
+    def choose(self, word: Word, candidates: dict[str, str]) -> tuple[str, str]:
+        """Which form of the reference the voice is given, by the evidence for this exact written form, voice and model: a validated form first; a form
+        that failed is not chosen again while another has not failed; otherwise the configured default (a choice by reasoning, said so: no audio has
+        compared the forms yet)."""
+        tried = {i.replacement: i for i in self.memory.db.query(PronunciationIntervention).filter_by(exact_form=word.surface, voice_id=self.voice_id,
+                                                                                                    model_id=self.model_id)}
+        for form, text in candidates.items():
+            if text in tried and tried[text].status == "validated":
+                return form, f"validated intervention {tried[text].id}"
+        healthy = [f for f, t in candidates.items() if not (t in tried and tried[t].failures)]
+        default = self.cfg.tts_marking if self.cfg.tts_marking in candidates else next(iter(candidates))
+        if default in healthy:
+            return default, "the configured default; no audio has compared the forms yet"
+        if healthy:
+            return healthy[0], f"the {default} form failed with this voice"
+        return default, "every form failed with this voice: the default, for a person to review"
 
     def limit(self, decisions: list[Decision]) -> None:
         """Keeps the unvalidated changes of a block within the naturalness budget (the riskiest first) and out of long runs."""

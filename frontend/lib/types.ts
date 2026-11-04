@@ -3860,5 +3860,6 @@ export interface PronunciationPlan {
   model_id: string;
   audio_url: string | null;
   counts: Record<string, number>;
+  consistency: { word: string; kind: "name" | "word"; readings: Record<string, string[]>; legitimate: string }[];
   words: PronunciationPlanWord[];
 }

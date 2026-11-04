@@ -540,6 +540,7 @@
       "ezafe_phonology": 2,
       "homograph": 2,
       "reference_unaligned": 1,
+      "reading_inconsistent": 1,
       "hazard_letter": 2,
       "final_consonant_h": 2,
       "earlier_failure": 2,
@@ -554,6 +555,7 @@
     "hazard_letters": ["ع", "ء", "ئ", "ؤ", "ة"],
     "max_changed_fraction": 0.2,
     "max_changed_in_a_row": 2,
+    "tts_marking": "minimal",
     "validate_from_listener": false
   },
   "morphology": {
@@ -562,10 +564,11 @@
     "enclitics": {"مون": 1, "تون": 1, "شون": 1, "مان": 1, "تان": 1, "شان": 1, "ام": 1, "ات": 1, "اش": 1, "ای": 1, "ایم": 1, "اید": 1, "اند": 1, "است": 1, "ست": 1, "م": 0, "ت": 0, "ش": 0, "ه": 0, "ی": 0}
   },
   "homographs": {
-    "words": {"مرد": ["mard", "mord"], "گل": ["gol", "gel"], "علم": ["alam", "elm"], "کرد": ["kard", "kord"], "ملک": ["melk", "malek", "molk"], "شکر": ["shekar", "shokr"], "سر": ["sar", "serr"], "کشتی": ["kashti", "koshti"], "کشت": ["kesht", "kosht", "kasht"], "حس": ["hes", "hess"], "پر": ["por", "par"], "خرد": ["kherad", "khord", "kharad"], "سم": ["sam", "som"], "دین": ["din", "deyn"], "مهر": ["mehr", "mohr"]}
+    "words": {"مرد": ["mard", "mord"], "گل": ["gol", "gel"], "علم": ["alam", "elm"], "کرد": ["kard", "kord"], "ملک": ["melk", "malek", "molk"], "شکر": ["shekar", "shokr"], "سر": ["sar", "serr"], "کشتی": ["kashti", "koshti"], "کشت": ["kesht", "kosht", "kasht"], "حس": ["hes", "hess"], "پر": ["por", "par"], "خرد": ["kherad", "khord", "kharad"], "سم": ["sam", "som"], "دین": ["din", "deyn"], "مهر": ["mehr", "mohr"], "نه": ["na", "noh"], "رو": ["ro", "ru"], "تو": ["tu", "to"], "دور": ["dur", "dowr"]},
+    "free_variants": {"و": ["o", "va"], "خودش": ["khodash", "khodesh"], "سراغ": ["sorāgh", "sarāgh"], "توی": ["tu", "tuye"], "روی": ["ru", "ruye"]}
   },
   "ezafe": {
-    "never_takes": ["و", "که", "را", "رو", "از", "به", "با", "یا", "اگه", "اگر", "ولی", "اما", "چون", "نه", "هم", "این", "اون", "آن", "همین", "همون", "همان", "هر", "چند", "یه", "یک", "خیلی", "چه", "چی", "تا"],
+    "never_takes": ["و", "که", "را", "از", "به", "با", "یا", "اگه", "اگر", "ولی", "اما", "چون", "نه", "هم", "این", "اون", "آن", "همین", "همون", "همان", "هر", "چند", "یه", "یک", "خیلی", "چه", "چی", "تا"],
     "never_before": ["را", "رو", "و", "که", "یا", "تا", "اگه", "اگر", "ولی", "اما", "چون"],
     "verb_prefixes": ["می‌", "نمی‌"],
     "pronouns": ["من", "تو", "او", "اون", "ما", "شما", "اونا", "آنها", "ایشان", "خودم", "خودت", "خودش", "خودمون", "خودتون", "خودشون", "خودمان", "خودتان", "خودشان"],
@@ -644,6 +647,7 @@
     "chunk_blocks": 40,
     "max_rounds": 3,
     "max_writer_retries": 3,
+    "checker_mode": "blind",
     "pause_between_names": true,
     "folder": "reading",
     "call_retries": 3,

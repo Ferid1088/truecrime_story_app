@@ -12,6 +12,7 @@ from app.db.models import Case, ReadingApproval, StoryVersion
 from app.documentary import voice_prepare as VP
 from app.documentary.performance import performance_for_version
 from app.documentary.pipeline.errors import AwaitingReadingReview
+from app.documentary.reading import consistency as CS
 from app.documentary.reading.answer import ReadingWord
 from app.documentary.reading.block import BlockInput, block_inputs
 from app.documentary.reading.chooser import WordChooser
@@ -35,12 +36,15 @@ async def result(db: Session, case: Case, version: StoryVersion, language: str) 
     return items, await ReadingStage(db, case.id, version, language, items).run()
 
 
-async def voicing_of(db: Session, language: str, read: ReadingResult) -> Voicing:
+async def voicing_of(db: Session, language: str, read: ReadingResult, items: list[BlockInput]) -> Voicing:
     fixed = {key_of(a.surface): a.latin for a in db.query(ReadingApproval).filter(ReadingApproval.language == language)}
     overridden = {block: {int(m.group(1)) for note in notes if (m := re.match(r"word (\d+)", note))} for block, notes in read.notes.items()}
     signals = {block: [WordSignal(r.confidence, r.n in read.doubts.get(block, set()), r.n in overridden.get(block, set())) for r in words]
                for block, words in read.readings.items()}
-    return Voicing(fixed, {block: [r.latin for r in words] for block, words in read.readings.items()}, signals, names_of(read.table), opinions_of(read.readings))
+    names = names_of(read.table)
+    by_block = {i.block_id: list(zip(i.words, [r.latin for r in read.readings[i.block_id]], strict=False)) for i in items if i.block_id in read.readings}
+    return Voicing(fixed, {block: [r.latin for r in words] for block, words in read.readings.items()}, signals, names, opinions_of(read.readings),
+                   CS.inconsistent(CS.variants(by_block, names)))
 
 
 def names_of(table: FilmTable | None) -> frozenset[str]:
@@ -63,8 +67,8 @@ def opinions_of(readings: dict[str, list[ReadingWord]]) -> dict[str, dict[int, l
 
 async def voicing(db: Session, case: Case, version: StoryVersion, language: str) -> Voicing:
     """What the voice of this version is given for the words the owner has fixed."""
-    _, read = await result(db, case, version, language)
-    return await voicing_of(db, language, read)
+    items, read = await result(db, case, version, language)
+    return await voicing_of(db, language, read, items)
 
 
 async def run(db: Session, case: Case, version: StoryVersion, language: str) -> dict:
@@ -83,7 +87,7 @@ async def listen_and_fix(db: Session, case: Case, version: StoryVersion, languag
     """The reading loop after the voice of a language: the narration is listened to, the words the voice said wrong are voiced again as IPA
     (only their blocks), and what could not be fixed is reported. Returns the manifest of the narration as it stands, with the report in it."""
     items, read = await result(db, case, version, language)
-    voicing = await voicing_of(db, language, read)
+    voicing = await voicing_of(db, language, read, items)
     planner = getattr(renderer, "planner", None)
     loop = ReadingLoop(db, case.id, language, items, inspector or Inspector(WordChooser(db, case.id, choose_runner)), voicing,
                        (lambda block, surface, right: planner.learn(block, surface, heard_right=right, case_id=case.id)) if planner else None)

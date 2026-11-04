@@ -33,6 +33,7 @@ class Voicing:
     signals: dict[str, list[WordSignal]] = field(default_factory=dict)      # block -> what the reading stage knew of each word
     names: frozenset[str] = frozenset()         # the plain forms of the film's people, places and foreign words
     opinions: dict[str, dict[int, list[Opinion]]] = field(default_factory=dict)     # block -> word -> the reading agents' own ezafe judgements
+    variants: dict[str, tuple[str, ...]] = field(default_factory=dict)           # word -> its readings, for a word the film reads in more than one way
 
     def with_fixed(self, more: dict[str, str]) -> Voicing:
         return replace(self, fixed={**self.fixed, **more})

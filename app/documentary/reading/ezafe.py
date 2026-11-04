@@ -27,6 +27,7 @@ RELATIONS = ("noun_adjective", "noun_possessor", "noun_noun", "title_name", "app
              "compound", "none", "unknown")
 PHRASE_END = set(".,;:!?؟،؛»…)")
 KASRA, HAMZA_ABOVE, ZWNJ = "ِ", "ٔ", "‌"
+CONSONANT_SOUNDS = frozenset(spelling.CONSONANTS)
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,7 @@ class Boundary:
     phonological_class: str = ""            # EZAFE_FINAL_I, EZAFE_SILENT_HEH, EZAFE_CONSONANT_H, ... ("" when no ezafe is said)
     realizations: tuple[str, ...] = ()      # the connected forms a listener may accept for it (the first is the reference)
     tts_form: str | None = None             # what the voice is given for the word when the planner changed it (the reference stays `expected_reading`)
+    own_vowel: bool = False                 # the reading's -e is the word's own ه (a copula or definite -e written by the text), not an ezafe
 
     def describe(self) -> dict:
         return {"n": self.n, "word": self.word, "next_word": self.next_word, "ezafe_required": self.ezafe_required, "ezafe_type": self.ezafe_type,
@@ -172,6 +174,9 @@ class EzafeAnalyzer:
         sound = final_sound(stem) if reading != NUMBER_WORD else ""
         written = written_ezafe(word, sound)
         said = bool(ezafe) or (written and table_set)          # the table's reading has no grammar: the ezafe the text writes stands
+        own_vowel = ezafe == "e" and word.plain.endswith("ه") and sound in CONSONANT_SOUNDS and sound != "h"
+        if own_vowel:                                         # the -e is the word's own ه (the copula, the colloquial definite: همسرشه), not an ezafe
+            stem, ezafe, said, sound = stem + "e", "", False, "e"
 
         def made(required: bool | None, relation: str, confidence_: float, evidence: str, conflicts: tuple[str, ...] = (), phonology_error: str = "") -> Boundary:
             kind = "UNCERTAIN" if required is None else type_for(sound) if required else "NONE"
@@ -180,7 +185,7 @@ class EzafeAnalyzer:
             cls = phonological_class(sound, word.plain) if kind in ("E", "YE") else ""
             heard = realizations_of(stem, next_stem, cls) if cls else (expected,)
             return Boundary(word.n, word.surface, nxt.surface if nxt else "", required, kind, sound, expected, relation, round(confidence_, 2), evidence, written,
-                            conflicts, phonology_error, opinions, phonological_class=cls, realizations=heard)
+                            conflicts, phonology_error, opinions, phonological_class=cls, realizations=heard, own_vowel=own_vowel)
 
         phonology_error = ""
         if said and sound and ezafe == "ye" and type_for(sound) == "E":
@@ -188,9 +193,9 @@ class EzafeAnalyzer:
         # 1. the rules: an ezafe cannot be said here
         blocked = self.blocked(word, nxt, reading, pause)
         if blocked:
-            if said or written:
-                return made(None, "unknown", conf["conflict"], "conflict", (f"rule: {blocked}",) + (("orthography",) if written else ()) + (("reading",) if said else ()))
-            return made(False, "none", conf["rule"], "rule")
+            if written:                                       # the approved text writes an ezafe a rule says cannot be: a person decides
+                return made(None, "unknown", conf["conflict"], "conflict", (f"rule: {blocked}", "orthography") + (("reading",) if said else ()))
+            return made(False, "none", conf["rule"], "rule", ("reading",) if said else ())     # a rule outranks an agent's reading
         # 2. what each source says
         votes = {"reading": said} | ({"orthography": True} if written else {})
         for o in opinions:
@@ -199,8 +204,8 @@ class EzafeAnalyzer:
         unsure = [o.source for o in opinions if o.present is None or o.confidence < self.cfg.uncertain_below]
         relation = self.relation(word, nxt, opinions) if said or written else "none"
         disagree = tuple(sorted(k for k, v in votes.items() if v != said))
-        if written and not said:
-            return made(None, relation, conf["conflict"], "conflict", disagree, phonology_error)
+        if written and not said:                              # the approved text writes the ezafe: it outranks a reading that leaves it out
+            return made(True, relation, conf["orthography"], "orthography", tuple(sorted(k for k, v in votes.items() if v is not True)), phonology_error)
         # 3. the ambiguities the text has to settle itself
         ambiguous = self.ambiguous(word, nxt)
         if ambiguous and not written:

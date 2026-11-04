@@ -11,6 +11,7 @@ from pathlib import Path
 from test_pronunciation_planner import MODEL, VOICE, entry_for, language, render_with  # noqa: F401  (language is a fixture)
 from test_reading_agents import Script, item, no_provider  # noqa: F401  (no_provider is a fixture)
 
+from app.core.ai_config import ai_config
 from app.db.models import PronunciationEntry, PronunciationIntervention
 from app.documentary.pronunciation_memory import PronunciationMemory
 from app.documentary.pronunciation_planner import Planner
@@ -74,7 +75,9 @@ def test_the_type_follows_the_spoken_final_sound_not_the_last_letter():
 def test_two_adjacent_words_are_no_reason_for_an_ezafe():
     found = analyze("او به خانه رفت", ["u", "be", "khāne", "raft"])
     assert [b.ezafe_type for b in found] == ["NONE"] * 4
-    assert analyze("کتاب را خواند", ["ketāb-e", "rā", "khānd"])[0].ezafe_type == "UNCERTAIN", "a rule against the reading is a conflict, not a guess"
+    ruled = analyze("کتاب را خواند", ["ketāb-e", "rā", "khānd"])[0]
+    assert (ruled.ezafe_type, ruled.conflicts) == ("NONE", ("reading",)), "a rule outranks an agent's reading, and the disagreement is kept"
+    assert analyze("کتابِ را خواند", ["ketāb-e", "rā", "khānd"])[0].ezafe_type == "UNCERTAIN", "the approved text against a rule: a person decides"
 
 
 def test_an_agent_that_cannot_decide_keeps_the_boundary_uncertain_and_a_disagreement_is_a_conflict():
@@ -112,7 +115,8 @@ def test_the_editors_judgement_is_kept_with_its_reading_and_an_old_cache_without
     assert ReadingWord(**{"n": 0, "latin": "mard", "pause_after": False, "why": "", "confidence": "high", "question": ""}).ezafe is None
 
 
-def test_a_checker_that_disagrees_about_an_ezafe_sends_the_word_to_the_arbiter_and_every_judgement_is_kept():
+def test_a_checker_that_disagrees_about_an_ezafe_sends_the_word_to_the_arbiter_and_every_judgement_is_kept(monkeypatch):
+    monkeypatch.setattr(ai_config.reading, "checker_mode", "review")
     checker = Script({"words": [], "ezafe": [{"n": 1, "present": False, "relation": "none", "confidence": 0.9}]})
     arbiter = Script({"decision": "checker", "latin": "beham", "ezafe": {"present": False, "relation": "none", "confidence": 0.95}})
     table = FilmTable.build({"people": [], "places": [], "foreign": []})
@@ -125,7 +129,8 @@ def test_a_checker_that_disagrees_about_an_ezafe_sends_the_word_to_the_arbiter_a
     assert {o.source for o in opinions} == {"editor", "checker", "arbiter"}
 
 
-def test_a_checker_that_agrees_is_not_listed_and_calls_no_arbiter():
+def test_a_checker_that_agrees_is_not_listed_and_calls_no_arbiter(monkeypatch):
+    monkeypatch.setattr(ai_config.reading, "checker_mode", "review")
     arbiter = Script({"decision": "editor"})
     table = FilmTable.build({"people": [], "places": [], "foreign": []})
     out, _ = asyncio.run(Checker(None, 1, table, Script({"words": []}), arbiter).check(item(), [ReadingWord(0, "sārā"), ReadingWord(1, "beham"), ReadingWord(2, "goft")]))
@@ -241,7 +246,7 @@ def test_a_reading_cache_whose_table_dropped_a_written_ezafe_is_read_by_the_text
     kept = EZ.EzafeAnalyzer().analyze(words, ["ru", "safhe", "bud"], table_set=frozenset({0}))[0]
     assert (kept.ezafe_type, kept.evidence_type) == ("YE", "orthography")
     agent = EZ.EzafeAnalyzer().analyze(words, ["ru", "safhe", "bud"])[0]
-    assert agent.ezafe_type == "UNCERTAIN", "an agent's reading that drops a written ezafe is a conflict"
+    assert (agent.ezafe_type, agent.evidence_type, agent.conflicts) == ("YE", "orthography", ("reading",)), "the approved text outranks an agent's reading"
 
 
 def test_an_ezafe_before_the_pronoun_ham_is_said():
@@ -296,3 +301,12 @@ def test_the_renderer_sends_the_kasra_of_a_final_long_i_when_the_planner_decides
     tts, _ = render_with(db_session, language, tmp_path, monkeypatch, "زیبایی طبیعت دیدنی بود", ["zibāyi-ye", "tabi'at", "didani", "bud"],
                          [WordSignal("low", True, False)] + [WordSignal()] * 3)
     assert [r.text for r in tts.requests] == ["زیباییِ طبیعت دیدنی بود"]
+
+
+def test_a_copula_written_with_its_own_heh_is_not_an_ezafe():
+    b = analyze("همسرشه.", ["hamsaresh-e"])[0]
+    assert (b.ezafe_type, b.own_vowel, b.final_phoneme) == ("NONE", True, "e")
+
+
+def test_ru_said_as_on_takes_its_ezafe():
+    assert analyze("رو میز بود", ["ru-ye", "miz", "bud"])[0].ezafe_type == "YE"

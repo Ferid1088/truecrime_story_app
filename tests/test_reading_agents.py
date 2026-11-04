@@ -25,6 +25,12 @@ from app.documentary.reading.writer import Writer
 
 
 @pytest.fixture(autouse=True)
+def review_mode(monkeypatch):
+    """These tests speak the review checker's answer format; the blind checker has its own tests below."""
+    monkeypatch.setattr(ai_config.reading, "checker_mode", "review")
+
+
+@pytest.fixture(autouse=True)
 def no_provider(monkeypatch):
     monkeypatch.setattr(ASK, "track_run", lambda *a, **k: contextlib.nullcontext(object()))
     monkeypatch.setattr(ASK, "stamp_run", lambda *a, **k: None)
@@ -243,3 +249,34 @@ def test_the_reading_stage_stops_the_run_before_the_voice_while_words_are_in_dou
     monkeypatch.setattr(RS.ReadingStage, "run", fake_run(ReadingResult({}, 0, {"B1": ["a note", "b note"]})))
     assert asyncio.run(RS.run(None, Case(), Version(), "fa")) == {"blocks": 1, "words": 2, "changed_by_code": 2, "open_doubts": 0}
     assert RS.required("fa") and not RS.required("en")
+
+
+# --- the blind checker ---------------------------------------------------------------------------------------------------------------------
+
+def blind(answer, monkeypatch, decision=None):
+    monkeypatch.setattr(ai_config.reading, "checker_mode", "blind")
+    checker_model, arbiter = Script(answer), Script(decision or {"decision": "editor"})
+    out = asyncio.run(Checker(None, 1, FilmTable.build(READER), checker_model, arbiter).check(item(), readings("sārā", "baham", "goft")))
+    return out, checker_model, arbiter
+
+
+def test_the_blind_checker_never_sees_the_editors_answer_and_its_own_differing_reading_goes_to_the_arbiter(monkeypatch):
+    (out, doubts), model, arbiter = blind(answer_for(["sārā", "beham", "goft"]), monkeypatch, {"decision": "checker", "latin": "beham"})
+    assert "reading" not in model.seen[0] and [w["text"] for w in model.seen[0]["words"]] == ["سارا", "بهم", "گفت"]
+    assert out[1].latin == "beham" and doubts == [], "an error of the editor is found by a reading made without it"
+    assert arbiter.seen[0]["editor"]["latin"] == "baham" and arbiter.seen[0]["checker"]["latin"] == "beham"
+
+
+def test_a_blind_reading_that_agrees_calls_no_arbiter_and_a_low_confidence_word_is_a_doubt(monkeypatch):
+    (out, doubts), _, arbiter = blind(answer_for(["sārā", "baham", "goft"]), monkeypatch)
+    assert arbiter.seen == [] and doubts == [] and out[1].latin == "baham"
+    unsure = answer_for(["sārā", "baham", "goft"])
+    unsure["words"][1].update(confidence="low", question="beham or baham?")
+    (_, doubts), _, _ = blind(unsure, monkeypatch)
+    assert [(d.n, d.question) for d in doubts] == [(1, "beham or baham?")]
+
+
+def test_a_word_the_blind_checker_leaves_out_is_not_taken_as_agreement(monkeypatch):
+    (out, doubts), _, arbiter = blind({"words": [{"n": 0, "latin": "sārā"}]}, monkeypatch)
+    assert arbiter.seen == [] and doubts == [] and [r.latin for r in out] == ["sārā", "baham", "goft"]
+    assert out[1].ezafe is None, "no judgement is filled in for a word the checker did not read"

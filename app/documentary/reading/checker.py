@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from sqlalchemy.orm import Session
 
 from app.agents.runner import run_agent
+from app.core.ai_config import ai_config
 from app.documentary.reading import scheme
 from app.documentary.reading.answer import ReadingWord
 from app.documentary.reading.ask import Runner, ask
@@ -30,11 +31,15 @@ class Checker:
         self.db, self.case_id, self.table = db, case_id, table
         self.check_runner = check_runner or (lambda gen, body: run_agent("documentary.reading.check", gen, body))
         self.arbitrate_runner = arbitrate_runner or (lambda gen, body: run_agent("documentary.reading.arbitrate", gen, body))
+        self.blind_runner = check_runner or (lambda gen, body: run_agent("documentary.reading.check_blind", gen, body))
 
     async def check(self, item: BlockInput, readings: list[ReadingWord]) -> tuple[list[ReadingWord], list[Doubt]]:
         """(the readings after the checker and the arbiter, the doubts left)."""
-        payload = {**context(item, self.table), "reading": [{"n": r.n, "latin": r.latin, "why": r.why, "confidence": r.confidence} for r in readings]}
-        raw = await ask(self.db, self.case_id, f"Reading: check {item.block_id}", payload, "reading_checker", self.check_runner)
+        if ai_config.reading.checker_mode == "blind":
+            raw = await self.blind(item, readings)
+        else:
+            payload = {**context(item, self.table), "reading": [{"n": r.n, "latin": r.latin, "why": r.why, "confidence": r.confidence} for r in readings]}
+            raw = await ask(self.db, self.case_id, f"Reading: check {item.block_id}", payload, "reading_checker", self.check_runner)
         fixed = self.table.fixed_readings(item.words)
         by_n = {r.n: r for r in readings}
         out, doubts, seen = dict(by_n), [], set()
@@ -67,6 +72,28 @@ class Checker:
             elif choice != "editor":
                 doubts.append(Doubt(n, word.surface, str(verdict.get("question") or finding.get("proof") or ""), mine.latin, proposed))
         return [out[r.n] for r in readings], doubts
+
+    async def blind(self, item: BlockInput, readings: list[ReadingWord]) -> dict:
+        """The checker's own reading of the block, made without the editor's answer, turned into findings: every word it reads otherwise is a rejection
+        with its reading and reason (for the arbiter), every word it doubts a doubt, its ezafe judgement of every word an ezafe view. A word it does not
+        answer in its place has no finding (it is not taken as agreement: nothing is filled in)."""
+        raw = await ask(self.db, self.case_id, f"Reading: blind check {item.block_id}", context(item, self.table), "reading_checker", self.blind_runner)
+        mine = {r.n: r for r in readings}
+        words, views = [], []
+        for answer in raw.get("words") or []:
+            n = answer.get("n") if isinstance(answer, dict) else None
+            if n not in mine or item.words[n].number or not answer.get("latin"):
+                continue
+            latin = scheme.split_pause(str(answer["latin"]))[0]
+            stem, ezafe = scheme.split_ezafe(latin)
+            views.append({"n": n, **(answer["ezafe"] if isinstance(answer.get("ezafe"), dict) else {"present": bool(ezafe), "relation": "unknown",
+                                                                                                         "confidence": 0.7})})
+            if answer.get("confidence") == "low" and answer.get("question"):
+                words.append({"n": n, "verdict": "doubt", "question": str(answer["question"])})
+            elif not scheme.same_reading(latin, mine[n].latin):
+                words.append({"n": n, "verdict": "reject", "class": "independent reading differs", "proposed_latin": latin,
+                              "proof": f"read independently, without the editor's answer: {answer.get('why') or ''}".strip()})
+        return {"words": words, "ezafe": views}
 
     @staticmethod
     def ezafe_views(raw: dict, by_n: dict[int, ReadingWord], fixed: dict[int, str], item: BlockInput) -> dict[int, dict]:

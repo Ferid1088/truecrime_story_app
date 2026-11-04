@@ -2408,6 +2408,10 @@ class ReadingConfig(BaseModel):
     # A model call that fails (the provider's hiccup) is made again this many times, with this pause, before the stage fails.
     call_retries: int = Field(default=3, ge=0, le=10)
     retry_pause_s: float = Field(default=5.0, ge=0.0)
+    # How the checker works: "blind" reads the block itself (the editor's instructions, another model, without the editor's answer) and code compares
+    # the two readings word by word, so an assumption of the editor cannot pass by being shown to the checker; "review" judges the editor's answer (cheaper:
+    # it answers only for the words it rejects).
+    checker_mode: Literal["blind", "review"] = "blind"
     # How many blocks are written and checked at the same time.
     parallel_blocks: int = Field(default=6, ge=1, le=32)
     # How many blocks are listened to at the same time.
@@ -2487,6 +2491,9 @@ class PronunciationRiskConfig(BaseModel):
     hazard_letters: list[str]
     max_changed_fraction: float = Field(gt=0, le=1)
     max_changed_in_a_row: int = Field(ge=1)
+    # Which form of a word's REFERENCE_IRAB the voice is given when no audio evidence decides: "minimal" (short vowels, shaddas, ezafe) or "complete"
+    # (with every sukun). A default by reasoning (every extra mark is a change to the voice's input); the memory's evidence for a form outranks it.
+    tts_marking: Literal["minimal", "complete"] = "minimal"
     validate_from_listener: bool = False
 
     @model_validator(mode="after")
@@ -2510,6 +2517,9 @@ class HomographsConfig(BaseModel):
     """Written forms with more than one reading in use (مرد mard / mord): the voice cannot tell from the letters which one is meant."""
 
     words: dict[str, list[str]]
+    # Words said in more than one right way that the voice cannot tell apart from the letters either (و o / va, خودش khodash / khodesh): a difference
+    # between blocks is not an error.
+    free_variants: dict[str, list[str]] = {}
 
 
 class EzafeConfig(BaseModel):

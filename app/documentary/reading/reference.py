@@ -13,6 +13,7 @@ The reference is a linguistic reference, not the voice's input: what the voice i
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from dataclasses import dataclass, field
 from functools import cache
@@ -53,6 +54,7 @@ class Reference:
     irab: str | None                    # the complete REFERENCE_IRAB, or None when the reading cannot be aligned to the word's letters
     added_carrier: bool = False         # the ezafe's yeh after ā / u / o was added because the text does not write it
     problems: tuple[str, ...] = field(default_factory=tuple)        # what the validator found (empty: valid)
+    notes: tuple[str, ...] = field(default_factory=tuple)           # what the syllables show about the reading (a foreign onset cluster, a vowel hiatus)
 
     @property
     def valid(self) -> bool:
@@ -61,7 +63,7 @@ class Reference:
     def describe(self) -> dict:
         return {"surface": self.surface, "finglish": self.finglish, "phonemes": list(self.phonemes), "ipa": self.ipa, "syllables": list(self.syllables),
                 "stress": self.stress, "morphology": [{"text": m.text, "kind": m.kind} for m in self.morphology], "reference_irab": self.irab,
-                "added_carrier": self.added_carrier, "valid": self.valid, "problems": list(self.problems)}
+                "added_carrier": self.added_carrier, "valid": self.valid, "problems": list(self.problems), "notes": list(self.notes)}
 
 
 # --- phonemes and syllables -----------------------------------------------------------------------------------------------------------------
@@ -89,25 +91,30 @@ def ipa_of(phonemes: tuple[str, ...]) -> str:
     return "".join(IPA.get(p, p) for p in phonemes)
 
 
-def syllables_of(phonemes: tuple[str, ...]) -> tuple[str, ...]:
-    """Persian syllables: every syllable starts with one consonant (a word-initial vowel with the glottal stop the scheme leaves unwritten), a nucleus
-    and up to the consonants before the next onset (CV, CVC, CVCC). Raises ValueError for a shape Persian does not have (two vowels in a row inside
-    a word, an onset cluster)."""
+def syllables_of(phonemes: tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Persian syllables and what their shape says: every syllable starts with one consonant, a nucleus and up to the consonants before the next onset
+    (CV, CVC, CVCC). A vowel after a vowel starts its syllable with the glottal stop the scheme leaves unwritten (written ' in the syllable: si-'o-yek);
+    an onset cluster (a foreign name: flin) or a coda of more than three consonants is kept as it is and noted. Raises ValueError for no vowel."""
     nuclei = [i for i, p in enumerate(phonemes) if p in VOWELS]
     if not nuclei:
         raise ValueError("no vowel")
+    notes: list[str] = []
     out: list[str] = []
-    starts = [0] + [n - 1 for n in nuclei[1:]]
+    starts = [0]
+    for prev, n in zip(nuclei, nuclei[1:], strict=False):
+        starts.append(n if n == prev + 1 else n - 1)
     for k, (start, nucleus) in enumerate(zip(starts, nuclei, strict=True)):
-        if k and phonemes[start] in VOWELS:
-            raise ValueError(f"two vowels in a row: {''.join(phonemes)}")
-        if nucleus - start > 1:
-            raise ValueError(f"an onset cluster: {''.join(phonemes[start:nucleus + 1])}")
         end = starts[k + 1] if k + 1 < len(starts) else len(phonemes)
+        text = "".join(phonemes[start:end])
+        if k and start == nucleus:
+            notes.append(f"a vowel after a vowel: a glottal stop or a glide is said before {text}")
+            text = "'" + text
+        if nucleus - start > 1:
+            notes.append(f"an onset cluster Persian does not have: {''.join(phonemes[start:nucleus + 1])}")
         if end - nucleus - 1 > 3:
-            raise ValueError(f"a coda of more than three consonants: {''.join(phonemes[nucleus + 1:end])}")
-        out.append("".join(phonemes[start:end]))
-    return tuple(out)
+            notes.append(f"a coda of more than three consonants: {''.join(phonemes[nucleus + 1:end])}")
+        out.append(text)
+    return tuple(out), tuple(notes)
 
 
 def morphology_of(word: Word) -> tuple[Morph, ...]:
@@ -142,14 +149,39 @@ def stress_of(syllables: tuple[str, ...], morphs: tuple[Morph, ...], ezafe: bool
 
 # --- the complete REFERENCE_IRAB --------------------------------------------------------------------------------------------------------------
 
+TANWIN, DAGGER_ALEF = "ً", "ٰ"
+GLOTTAL = LETTERS["'"]
+OTHER_MARKS = re.compile("[ٌ-ْٰٔ]")          # every mark but the tanwin an (ً), which writes the sound n
+
+
 def letters_of(surface: str) -> str:
-    """The word's letters without marks (an ۀ is ه with the ezafe written: the reference writes the ezafe itself)."""
-    return VOWEL_MARKS.sub("", unicodedata.normalize("NFC", surface)).replace("ۀ", "ه").replace("ي", "ی").replace("ك", "ک")
+    """The word's letters without marks but the tanwin an (it writes a sound: کاملاً kāmelan); an ۀ is ه with the ezafe written (the reference writes
+    the ezafe itself)."""
+    return OTHER_MARKS.sub("", unicodedata.normalize("NFC", surface)).replace("ۀ", "ه").replace("ي", "ی").replace("ك", "ک")
 
 
-def align(letters: str, sounds: tuple[str, ...]) -> list[tuple[str, tuple[str, ...]]] | None:
+def given_marks(surface: str) -> list[frozenset[str]]:
+    """For every letter of `letters_of(surface)` (index by index) the vowel, sukun and shadda marks the text itself writes on it: the alignment keeps them."""
+    out: list[set[str]] = []
+    for ch in unicodedata.normalize("NFC", surface).replace("ۀ", "ه"):
+        if OTHER_MARKS.fullmatch(ch):
+            if out and ch in (FATHA, KASRA, DAMMA, SUKUN, SHADDA):
+                out[-1].add(ch)
+        else:
+            out.append(set())
+    return [frozenset(m) for m in out]
+
+
+def align(letters: str, sounds: tuple[str, ...], given: list[frozenset[str]] | None = None) -> list[tuple[str, tuple[str, ...]]] | None:
     """The word's letters, each with its marks, read as `sounds` (the first alignment found; None when the reading cannot be written on these letters).
-    Only the ezafe's carrier yeh may be added at the end."""
+    Only the ezafe's carrier yeh may be added at the end. A letter whose sound the spoken form leaves out stays unmarked: an ayn or hamza (بعد bad),
+    the h of the plural ها (دخترها dokhtarā), the alef that carries a suffix after a half-space (خانواده‌اش khānevādash)."""
+
+    def piece_start(i: int) -> bool:
+        return i == 0 or letters[i - 1] == ZWNJ
+
+    def next_letter(i: int) -> str:
+        return letters[i + 1] if i + 1 < len(letters) else ""
 
     @cache
     def go(i: int, j: int, last_mark: str) -> tuple | None:
@@ -163,55 +195,101 @@ def align(letters: str, sounds: tuple[str, ...]) -> list[tuple[str, tuple[str, .
                 return ("+hamza",)
             return None
         c = letters[i]
-        initial = i == 0
         options: list[tuple] = []
         if c == ZWNJ:
             options.append(((c, ()), i + 1, j, last_mark))
         sound = sounds[j] if j < len(sounds) else None
-        # a consonant letter with its sound
-        if sound in CONSONANTS and c in LETTERS[sound]:
-            k = j + 1
-            geminate = k < len(sounds) and sounds[k] == sound
-            if geminate:
-                k += 1
-            nxt = sounds[k] if k < len(sounds) else None
-            if nxt in SHORT:
-                options.append(((c, ((SHADDA,) if geminate else ()) + (SHORT[nxt],)), i + 1, k + 1, SHORT[nxt]))
-            elif nxt in LONG:
-                options.append(((c, (SHADDA,) if geminate else ()), i + 1, k, "before_long"))
-            else:
-                options.append(((c, (SHADDA,) if geminate and nxt is None else (SHADDA, SUKUN) if geminate else (SUKUN,)), i + 1, k, "sukun"))
+        after = sounds[j + 1] if j + 1 < len(sounds) else None
+        # a consonant letter with its sound; a sound said twice is one letter with a shadda, or two letters (شب‌بند shabband)
+        assimilated = c == "ن" and sound == "m" and after == "b"      # n said m before b (دنبال dombāl, انبوه ambuh)
+        if sound in CONSONANTS and (c in LETTERS[sound] or assimilated):
+            twin = next_letter(i + 1) if next_letter(i) == ZWNJ else next_letter(i)
+            order = (False, True) if twin and twin in LETTERS[sound] else (True, False)    # the next letter writes the same sound: two letters
+            for geminate in (order if after == sound else (False,)):
+                k = j + (2 if geminate else 1)
+                nxt = sounds[k] if k < len(sounds) else None
+                shadda = (SHADDA,) if geminate else ()
+                if nxt in SHORT:
+                    options.append(((c, shadda + (SHORT[nxt],)), i + 1, k + 1, SHORT[nxt]))
+                    if next_letter(i) == "ا" or next_letter(i) == ZWNJ and next_letter(i + 1) == "ا":   # the vowel is on the alef that starts the next part
+                        options.append(((c, shadda + (SUKUN,)), i + 1, k, "sukun"))
+                elif nxt in LONG:
+                    options.append(((c, shadda), i + 1, k, "before_long"))
+                else:
+                    options.append(((c, shadda if geminate and nxt is None else shadda + (SUKUN,)), i + 1, k, "sukun"))
+        # an ayn or hamza the spoken form leaves out (بعد bad, شروع shoru), says as a glide (مصنوعی masnuyi) or only carries the vowel after it
+        # (واقعاً vāghe-an, موقعِ moghe-ye)
+        if c in GLOTTAL and i:
+            options.append(((c, ()), i + 1, j, last_mark))
+            j0 = j + 1 if sound in ("y", "'") else j
+            v = sounds[j0] if j0 < len(sounds) else None
+            if v in SHORT:
+                options.append(((c, (SHORT[v],)), i + 1, j0 + 1, SHORT[v]))
+            if v in LONG and next_letter(i) in "اوی":
+                options.append(((c, ()), i + 1, j0, "before_long"))
         # a word-initial vowel: on ا (or آ), or on ع / ء when the reading leaves the glottal stop unwritten
-        if initial:
+        if i == 0:
             j0 = j + 1 if sound == "'" else j
             v = sounds[j0] if j0 < len(sounds) else None
-            if c == "آ" and v == "ā":
-                options.append(((c, ()), i + 1, j0 + 1, "long"))
             if c in "اعء" and v in SHORT:
                 options.append(((c, (SHORT[v],)), i + 1, j0 + 1, SHORT[v]))
-            if c == "ا" and v in ("i", "u"):
+            if c in "اع" and v in LONG and next_letter(i) in "اوی":
                 options.append(((c, ()), i + 1, j0, "before_long"))
-            if c == "و" and len(letters) == 1 and sound == "o" and len(sounds) == 1:
+            if c == "و" and len(letters) == 1 and sounds == ("o",):
                 options.append(((c, ()), 1, 1, "long"))               # the conjunction و said o
-        # a long vowel letter
-        if c == "ا" and sound == "ā" and not initial:
-            options.append(((c, ()), i + 1, j + 1, "long"))
+        # آ is ā wherever it stands (کارآگاه), with or without the glottal stop before it
+        if c == "آ":
+            j0 = j + 1 if sound == "'" else j
+            if j0 < len(sounds) and sounds[j0] == "ā":
+                options.append(((c, ()), i + 1, j0 + 1, "long"))
+        if c == "ا":
+            if sound == "ā" and i:
+                options.append(((c, ()), i + 1, j + 1, "long"))
+            if next_letter(i) == TANWIN:
+                options.append(((c, ()), i + 1, j, "tanwin"))         # the alef that carries the tanwin: its a is the mark before
+            if i and piece_start(i):                                   # the alef of a suffix after a half-space: ‌ای، ‌اش، ‌ان
+                j0 = j + 1 if sound in ("y", "'") else j
+                v = sounds[j0] if j0 < len(sounds) else None
+                if v in SHORT:
+                    options.append(((c, (SHORT[v],)), i + 1, j0 + 1, SHORT[v]))
+                if v in LONG and next_letter(i) in "یو":
+                    options.append(((c, ()), i + 1, j0, "before_long"))
+                if next_letter(i) not in "اوی" + TANWIN:
+                    options.append(((c, ()), i + 1, j, "silent"))   # merged with the vowel before (خانواده‌اش khānevādash)
+            if i and not piece_start(i) and last_mark == "sukun":   # the alef that starts the second part of a compound (تیراندازی، سوءاستفاده)
+                j0 = j + 1 if sound == "'" else j
+                v = sounds[j0] if j0 < len(sounds) else None
+                if v in SHORT:
+                    options.append(((c, (SHORT[v],)), i + 1, j0 + 1, SHORT[v]))
+        if c == TANWIN and sound == "n":
+            options.append(((c, ()), i + 1, j + 1, "sukun"))
+        if c == "ی" and sound == "ā" and (i + 1 == len(letters) or next_letter(i) == ZWNJ):
+            options.append(((c, (DAGGER_ALEF,)), i + 1, j + 1, "long"))   # a final yeh said ā (حتی hattā): the dagger alef says so
         if c == "ی" and sound == "i":
             options.append(((c, ()), i + 1, j + 1, "long"))
-            if j + 2 < len(sounds) and sounds[j + 1] == "y" and (i + 1 == len(letters) or letters[i + 1] != "ی"):
-                after = sounds[j + 2]                       # i and y written as one yeh: میامی miyāmi, بقیه baghiye, محکومیت mahkumiyat
-                if after in LONG:
-                    options.append(((c, ()), i + 1, j + 2, "before_long"))
-                elif after in SHORT:
-                    options.append(((c, (SHORT[after],)), i + 1, j + 3, SHORT[after]))
+            if after == "y" and next_letter(i) != "ی":
+                k = j + 2
+                geminate = k < len(sounds) and sounds[k] == "y"      # i and a doubled y in one yeh: فعالیت fa'āliyyat
+                k += geminate
+                v = sounds[k] if k < len(sounds) else None
+                shadda = (SHADDA,) if geminate else ()
+                if v in LONG:
+                    options.append(((c, shadda), i + 1, k, "before_long"))
+                elif v in SHORT:
+                    options.append(((c, shadda + (SHORT[v],)), i + 1, k + 1, SHORT[v]))
         if c == "و" and sound == "u":
             options.append(((c, ()), i + 1, j + 1, "long"))
-        # a silent letter: و after a damma (خود، دو), و between خ and ا (خواهر), ه after a short vowel at the end of the word or before a half-space
-        if c == "و" and (last_mark == DAMMA or (i and letters[i - 1] == "خ" and i + 1 < len(letters) and letters[i + 1] == "ا" and sound == "ā")):
+        # a silent letter: و after a damma (خود، دو), و between خ and ا (خواهر), ه after a short vowel at the end of a piece, the h of a plural ها
+        if c == "و" and (last_mark == DAMMA or (i and letters[i - 1] == "خ" and next_letter(i) == "ا" and sound == "ā")):
             options.append(((c, ()), i + 1, j, "silent"))
-        if c == "ه" and last_mark in (KASRA, FATHA) and (i + 1 == len(letters) or letters[i + 1] == ZWNJ):
+        if c == "ه" and last_mark in (KASRA, FATHA) and (i + 1 == len(letters) or next_letter(i) == ZWNJ):
             options.append(((c, ()), i + 1, j, "silent"))
+        if c == "ه" and sound != "h" and next_letter(i) == "ا" and (piece_start(i) or last_mark in ("sukun", "before_long")):
+            options.append(((c, ()), i + 1, j, "silent"))
+        need = given[i] if given and i < len(given) else frozenset()
         for unit, ni, nj, mark in options:
+            if need and not need <= set(unit[1]):
+                continue                                      # a mark the approved text writes is kept: an alignment against it is not one
             rest = go(ni, nj, mark)
             if rest is not None:
                 return (unit,) + rest
@@ -240,13 +318,16 @@ def write(units: list) -> tuple[str, bool]:
 
 
 def irab_of(surface: str, sounds: tuple[str, ...]) -> tuple[str | None, bool]:
-    units = align(letters_of(surface), sounds)
+    units = align(letters_of(surface), sounds, given_marks(surface))
     if units is None:
         return None, False
     return write(units)
 
 
 # --- the independent validator ------------------------------------------------------------------------------------------------------------
+
+MAYBE, GLIDE = "?", "~"          # a decoded sound the spoken form may leave out (?h, ?'); a glide that may be y, ' or nothing
+
 
 def units_of(irab: str) -> list[tuple[str, str]] | None:
     """The IRAB as (letter, its marks); None when a mark stands on no letter."""
@@ -262,66 +343,130 @@ def units_of(irab: str) -> list[tuple[str, str]] | None:
 
 
 def decode(irab: str) -> tuple[str, ...]:
-    """The sounds an IRAB writes, read by its own rules (not by the generator's alignment). Raises ValueError for a letter it cannot read."""
+    """The sounds an IRAB writes, read by its own rules (not by the generator's alignment): "?x" is a sound the spoken form may leave out (an unmarked
+    ayn or hamza, the h of a plural before ا), "~" a glide that may be y, a glottal stop or nothing (the alef of a suffix after a half-space). Raises
+    ValueError for a letter it cannot read."""
     raw = units_of(irab) or []
     ends = {k for k, u in enumerate(raw) if k + 1 == len(raw) or raw[k + 1][0] == ZWNJ}       # the last letter of a written piece
+    starts = {k for k, u in enumerate(raw) if k == 0 or raw[k - 1][0] == ZWNJ}                # the first letter of a written piece
     kept = [(k, u) for k, u in enumerate(raw) if u[0] != ZWNJ]
     units = [u for _, u in kept]
     piece_end = [k in ends for k, _ in kept]
+    piece_start = [k in starts for k, _ in kept]
     out: list[str] = []
+
+    def last() -> str:
+        return next((t.lstrip(MAYBE).split("/")[0] for t in reversed(out) if t != GLIDE), "")
+
+    def long_after(k: int) -> bool:
+        """Whether a long vowel letter comes next, past the letters the spoken form may leave out (a plural's ه before ا, an unmarked ayn or hamza)."""
+        k += 1
+        while k < len(units) and not units[k][1] and (units[k][0] in GLOTTAL or (units[k][0] == "ه" and k + 1 < len(units) and units[k + 1][0] == "ا")):
+            k += 1
+        if k >= len(units):
+            return False
+        c2, m2 = units[k]
+        return c2 in "اوآ" and not m2 or c2 == "ی" and (not m2 or (any(m in m2 for m in SHORT.values()) and SUKUN not in m2) or DAGGER_ALEF in m2)
+
     for k, (c, marks) in enumerate(units):
         prev = units[k - 1] if k else None
         nxt = units[k + 1] if k + 1 < len(units) else None
-        long_next = nxt is not None and nxt[0] in "اوی" and (not nxt[1] or (nxt[0] == "ی" and any(m in nxt[1] for m in SHORT.values()) and SUKUN not in nxt[1]))
+        long_next = long_after(k)
         vowel = next((VOWEL_OF[m] for m in marks if m in VOWEL_OF), None)
-        after_consonant = bool(out) and out[-1] in CONSONANTS and prev is not None and SUKUN not in prev[1]     # a yeh or vav after a consonant
+        after_consonant = prev is not None and SUKUN not in prev[1] and (last() in CONSONANTS or (prev[0] in GLOTTAL and not prev[1]))  # after a consonant
         if c == "و" and not marks and len(units) == 1:
             out.append("o")                                     # the conjunction و said o
-            continue
-        if c == "آ":
-            out.append("ā")
+        elif c == "آ":
+            out += [MAYBE + "'", "ā"]
+        elif c == "ا" and TANWIN in marks:
+            out += ["n"] if prev is not None and FATHA in prev[1] else ["a", "n"]
         elif c == "ا" and k == 0:
             if vowel:
-                out.append(vowel)
-            elif nxt is None or nxt[0] not in "یو" or nxt[1]:
+                out += [MAYBE + "'", vowel]
+            elif nxt is not None and nxt[0] in "یو" and not nxt[1]:
+                out.append(MAYBE + "'")                          # the carrier of an initial long vowel
+            else:
+                out += [MAYBE + "'", "ā"]
+        elif c == "ا" and piece_start[k]:
+            if vowel:
+                out += [GLIDE, vowel]
+            elif nxt is not None and nxt[0] in "یو" and not nxt[1]:
+                out.append(GLIDE)
+            elif nxt is None or nxt[0] not in "اوی":
+                continue                                        # merged with the vowel before it
+            else:
                 out.append("ā")
         elif c == "ا":
+            out += [MAYBE + "'", vowel] if vowel else ["ā"]
+        elif c == "ی" and DAGGER_ALEF in marks:
             out.append("ā")
         elif c == "و" and not marks and prev is not None and (DAMMA in prev[1] or (prev[0] == "خ" and not prev[1] and nxt is not None and nxt[0] == "ا")):
             continue                                            # silent
-        elif c == "ی" and vowel and SUKUN not in marks:
-            out += (["i", "y"] if after_consonant else ["y"]) + [vowel]     # one yeh for i and y after a consonant (بقیه، صندلیِ), else the consonant y
+        elif c == "ی" and (vowel or SHADDA in marks) and SUKUN not in marks:
+            doubled = ["y"] if SHADDA in marks else []          # one yeh for i and y after a consonant (بقیه، صندلیِ، فعالیت), else the consonant y
+            out += (["i", "y"] if after_consonant else ["y"]) + doubled + ([vowel] if vowel else [])
         elif c in "وی" and not marks:
             glide = "y" if c == "ی" else "v"
             if after_consonant:
-                out += ["i", "y"] if c == "ی" and nxt is not None and nxt[0] == "ا" and not nxt[1] else ["i" if c == "ی" else "u"]   # میامی: i and y in one yeh
-            elif k == 0 or (long_next and out):
+                one_yeh = c == "ی" and nxt is not None and nxt[0] == "ا" and not nxt[1] and not piece_start[k + 1]       # میامی: i and maybe y, one yeh
+                out += ["i", MAYBE + "y"] if one_yeh else ["i" if c == "ی" else "u"]
+            elif k == 0 or (long_next and out and out[-1] != GLIDE):
                 out.append(glide)       # a word's first letter (ویژه، یا، والیبال) or a consonant before a long vowel (شنوایی vā-yi, تأیید ta'-yid)
             else:
                 out.append("i" if c == "ی" else "u")
         elif c == "ه" and piece_end[k] and (not marks or marks == HAMZA_ABOVE) and prev is not None and (KASRA in prev[1] or FATHA in prev[1]):
             out += ["y", "e"] if marks == HAMZA_ABOVE else []    # a silent ه, with the ezafe's hamza
+        elif c == "ه" and not marks and nxt is not None and nxt[0] == "ا" and not nxt[1]:
+            out.append(MAYBE + "h")                              # the h of a plural ها, which colloquial speech leaves out
+        elif c in GLOTTAL and k and not (marks and SUKUN in marks):
+            out += [GLIDE] + ([vowel] if vowel else [])          # an ayn or hamza: a glottal stop, a glide or nothing, and the vowel it carries
         elif c in SYMBOL_OF:
             sym = SYMBOL_OF[c]
-            if k == 0 and c in "عء" and vowel and sym == "'":
-                out.append("'")
-            else:
-                out.append(sym)
+            if k == 0 and c in GLOTTAL:
+                sym = MAYBE + sym                                 # a word-initial ayn is the glottal stop the scheme may leave unwritten
+            elif c == "ن" and nxt is not None and nxt[0] == "ب":
+                sym = "n/m"                                       # n before b is said n or m
+            out.append(sym)
             if SHADDA in marks:
-                out.append(sym)
+                out.append(sym.split("/")[0])
             if vowel:
                 out.append(vowel)
             elif SUKUN not in marks and SHADDA not in marks and not long_next and not (c == "خ" and nxt is not None and nxt[0] == "و"):
                 raise ValueError(f"the consonant {c} has no mark and no long vowel after it")
+        elif c == TANWIN:
+            continue
         else:
             raise ValueError(f"a letter the reference does not read: {c}")
     return tuple(out)
 
 
+def reads_as(decoded: tuple[str, ...], sounds: tuple[str, ...]) -> bool:
+    """Whether the decoded IRAB can be the reading: every sound of the reading is matched in order; a decoded "?x" may be left out, a "~" may be y,
+    a glottal stop or nothing; the reading's glide w is the letter و (v), and a y between i and a vowel may be written by the i's yeh alone."""
+    said = tuple("v" if p == "w" else p for p in sounds)
+    written = tuple("v" if p == "w" else "?v" if p == "?w" else p for p in decoded)
+
+    @cache
+    def fits(i: int, k: int) -> bool:
+        if i == len(said) and k == len(written):
+            return True
+        if k < len(written):
+            t = written[k]
+            if t == GLIDE and (fits(i, k + 1) or (i < len(said) and said[i] in ("y", "'") and fits(i + 1, k + 1))):
+                return True
+            if t.startswith(MAYBE) and (fits(i, k + 1) or (i < len(said) and said[i] == t[1:] and fits(i + 1, k + 1))):
+                return True
+            if i < len(said) and said[i] in t.lstrip(MAYBE).split("/") and fits(i + 1, k + 1) and not t.startswith(MAYBE):
+                return True
+        return 0 < i < len(said) - 1 and said[i] == "y" and said[i - 1] == "i" and said[i + 1] in VOWELS and fits(i + 1, k)
+
+    return fits(0, 0)
+
+
 def validate(surface: str, sounds: tuple[str, ...], irab: str, added_carrier: bool = False) -> tuple[str, ...]:
     """Every problem of an IRAB against its word and its reading (empty: valid). Checked by its own rules: the marks stand on letters, one vowel or
     sukun per letter, no vowel with a sukun, no shadda on a long vowel letter, the word's letters and half-spaces unchanged (but the flagged carrier),
-    no final sukun under an ezafe, a mark the text already has is kept, and the IRAB read back gives the reading's sounds."""
+    no final sukun under an ezafe, a mark the text already has is kept, and the IRAB read back can be the reading's sounds."""
     problems: list[str] = []
     if unicodedata.normalize("NFC", irab) != irab:
         problems.append("not NFC")
@@ -336,8 +481,10 @@ def validate(surface: str, sounds: tuple[str, ...], irab: str, added_carrier: bo
             problems.append(f"{c}: a shadda on a long vowel letter")
         if HAMZA_ABOVE in marks and c != "ه":
             problems.append(f"{c}: an ezafe hamza on a letter that is not ه")
+        if TANWIN in marks and c != "ا":
+            problems.append(f"{c}: a tanwin on a letter that is not ا")
     want = letters_of(surface)
-    have = "".join(c for c, _ in units)
+    have = letters_of(irab)
     if have != want and not (added_carrier and have == want + "ی"):
         problems.append(f"the letters changed: {want} -> {have}")
     if sounds and sounds[-1] == "e" and units and SUKUN in units[-1][1]:
@@ -351,45 +498,62 @@ def validate(surface: str, sounds: tuple[str, ...], irab: str, added_carrier: bo
     except ValueError as e:
         problems.append(str(e))
     else:
-        if comparable(read) != comparable(sounds):
+        if not reads_as(read, sounds):
             problems.append(f"the IRAB reads {''.join(read)}, the reading is {''.join(sounds)}")
     return tuple(problems)
 
 
-def comparable(sounds: tuple[str, ...]) -> tuple[str, ...]:
-    """The sounds as letters can show them: without a word-initial glottal stop (the scheme writes it or not; the letter is the same), the glide w as v
-    (one letter), and without the y between i and a vowel (one yeh writes both: میامی)."""
-    out = ["v" if p == "w" else p for p in (sounds[1:] if sounds[:1] == ("'",) else sounds)]     # the glide of ow is the letter و
-    return tuple(p for k, p in enumerate(out) if not (p == "y" and k and out[k - 1] == "i" and k + 1 < len(out) and out[k + 1] in VOWELS))
-
-
 # --- the whole reference ----------------------------------------------------------------------------------------------------------------------
+
+DIGRAPHS = {"gh": ("g", "h"), "zh": ("z", "h"), "sh": ("s", "h"), "kh": ("k", "h")}
+
+
+def readings_of(sounds: tuple[str, ...], letters: str) -> list[tuple[str, ...]]:
+    """The sounds, and the other ways the scheme's spelling of them can be read where the word's letters show it: a two-letter symbol split in two
+    (کانینگهام kāning-hām, مذهبی maz-habi: gh, zh, sh, kh are one sound in the scheme), and e+i written as the diphthong ey. The letters decide."""
+    out = [sounds]
+    for k in range(len(sounds) - 1):                    # the scheme writes e+i as the diphthong ey (sorfei: sorfey); the letters ‌ای say e and i
+        if sounds[k:k + 2] == ("e", "y") and (k + 2 == len(sounds) or sounds[k + 2] not in VOWELS) and "‌ا" in letters:
+            out += [r[:k] + ("e", "i") + r[k + 2:] for r in list(out) if r[k:k + 2] == ("e", "y")]
+    for k, p in enumerate(sounds):
+        first, second = DIGRAPHS.get(p, ("", ""))
+        joined = letters.replace(ZWNJ, "")
+        if first and any(a in LETTERS[first] and b in LETTERS[second] for a, b in zip(joined, joined[1:], strict=False)):
+            out += [r[:k] + (first, second) + r[k + 1:] for r in list(out) if r[k:k + 1] == (p,)]
+    return out
+
 
 def reference_of(word: Word, reading: str) -> Reference | None:
     """The reference of a word read as `reading`; None for a number (read by code) or a reading that is not of the scheme."""
     if word.number or reading == "NUM":
         return None
     try:
-        sounds = phonemes_of(reading)
+        given = tuple(p for part in scheme.split_pause(reading)[0].split() for p in phonemes_of(part))   # one written word read as several (اف‌بی‌آی)
     except ValueError:
+        return None
+    if not given:
         return None
     morphs = morphology_of(word)
     problems: list[str] = []
-    stem_sounds = sounds[:-2] if sounds[-2:] == ("y", "e") and scheme.split_ezafe(scheme.split_pause(reading)[0])[1] == "ye" else \
-        sounds[:-1] if scheme.split_ezafe(scheme.split_pause(reading)[0])[1] == "e" else sounds
+    irab, added, sounds = None, False, given
+    for candidate in readings_of(given, letters_of(word.surface)):
+        irab, added = irab_of(word.surface, candidate)
+        if irab is not None:
+            sounds = candidate
+            break
+    ezafe = scheme.split_ezafe(scheme.split_pause(reading)[0])[1]
+    stem_sounds = sounds[:-2] if ezafe == "ye" and sounds[-2:] == ("y", "e") else sounds[:-1] if ezafe == "e" else sounds
     try:
-        syllables = syllables_of(sounds)
-        stem_syllables = syllables_of(stem_sounds)
+        syllables, notes = syllables_of(sounds)
+        stem_syllables, _ = syllables_of(stem_sounds)
     except ValueError as e:
-        syllables, stem_syllables = (), ()
-        problems.append(f"syllables: {e}")
-    irab, added = irab_of(word.surface, sounds)
+        syllables, stem_syllables, notes = (), (), (f"syllables: {e}",)
     if irab is None:
         problems.append("the reading cannot be written on the word's own letters")
     else:
         problems += validate(word.surface, sounds, irab, added)
     stress = stress_of(stem_syllables, morphs, False) if stem_syllables else 0
-    return Reference(word.surface, scheme.split_pause(reading)[0], sounds, ipa_of(sounds), syllables, stress, morphs, irab, added, tuple(problems))
+    return Reference(word.surface, scheme.split_pause(reading)[0], sounds, ipa_of(sounds), syllables, stress, morphs, irab, added, tuple(problems), notes)
 
 
 def minimal(irab: str) -> str:
@@ -425,7 +589,7 @@ def evaluate(cases: list[dict]) -> dict:
         totals["sukun_letters"] += len(theirs)
         totals["sukun_right"] += sum(1 for a, b in zip(mine, theirs, strict=False) if a == b) if len(mine) == len(theirs) else 0
         try:
-            if comparable(decode(want["irab"])) == comparable(ref.phonemes if ref else ()):
+            if ref is not None and reads_as(decode(want["irab"]), ref.phonemes):
                 totals["phonemes_right"] += 1
             else:
                 problems.append("phonemes")

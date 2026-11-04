@@ -55,6 +55,15 @@ def person_entries(person: dict) -> list[Entry]:
     return entries
 
 
+def with_words(e: Entry, words: dict[str, str]) -> Entry:
+    """The entry with the owner's reading of each word it contains (قاضی پرت keeps the title and takes the approved پرت), each part keeping the ezafe
+    the entry gave it."""
+    if not any(k in words for k in e.keys):
+        return e
+    parts = tuple(scheme.ezafe_form(words[k]) if k in words and scheme.split_ezafe(r)[1] else words.get(k, r) for k, r in zip(e.keys, e.readings, strict=True))
+    return Entry(e.persian, e.keys, parts, e.kind, e.owner)
+
+
 class FilmTable:
     def __init__(self, entries: list[Entry]):
         self.entries = sorted(entries, key=lambda e: -len(e.keys))        # the longest variant is tried first
@@ -74,7 +83,8 @@ class FilmTable:
         approved = [entry(a["surface"], a["latin"], a.get("kind") or "foreign", a["surface"]) for a in approvals or []
                     if a.get("kind") in ("person", "place", "foreign", "spoken_form")]
         taken = {e.keys for e in approved}
-        return cls(approved + [e for e in entries if e.keys not in taken])
+        words = {e.keys[0]: e.readings[0] for e in approved if len(e.keys) == 1}
+        return cls(approved + [with_words(e, words) for e in entries if e.keys not in taken])
 
     def describe(self, words: list[Word]) -> list[dict]:
         """The names of the table that stand in these words, as the agents are given them: every written form with its reading."""

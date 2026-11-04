@@ -81,8 +81,8 @@ def test_phonemes_syllables_stress_and_morphology():
     assert ref("نمی‌خوام", "nemikhām").stress == 0, "a negation prefix takes the stress"
     assert [m.kind for m in ref("کتاب‌هاش", "ketābhāsh").morphology] == ["stem", "plural", "enclitic"]
     assert [m.kind for m in ref("کتابم", "ketābam").morphology] == ["stem"], "no boundary is guessed where the writing shows none"
-    with pytest.raises(ValueError):
-        REF.syllables_of(REF.phonemes_of("flin"))
+    assert REF.syllables_of(REF.phonemes_of("flin"))[1] == ("an onset cluster Persian does not have: fli",), "a foreign cluster is noted, not hidden"
+    assert REF.syllables_of(REF.phonemes_of("khuneash")) == (("khu", "ne", "'ash"), ("a vowel after a vowel: a glottal stop or a glide is said before ash",))
 
 
 def test_every_word_keeps_its_place_in_the_original_text():

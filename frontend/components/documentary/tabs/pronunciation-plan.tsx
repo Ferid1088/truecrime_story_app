@@ -130,6 +130,21 @@ export function PronunciationPlanView({ versionId, language }: { versionId: numb
         {" "}{c.escalated} left for you · reference valid for {c.reference_valid} of {c.reference_checked}. Linguistic decisions only: nothing here is verified by
         listening (every word stays UNVERIFIED until a person or a validated recognizer confirms it).
       </p>
+      {plan.data.consistency.some((v) => !v.legitimate) && (
+        <details className="rounded-md border border-border p-2 text-sm" aria-label="Read differently across blocks">
+          <summary className="cursor-pointer text-xs font-medium">
+            Read differently across blocks ({plan.data.consistency.filter((v) => !v.legitimate).length} words; names: {plan.data.consistency.filter((v) => v.kind === "name" && !v.legitimate).length})
+          </summary>
+          <ul className="mt-2 max-h-48 space-y-0.5 overflow-y-auto text-xs">
+            {plan.data.consistency.filter((v) => !v.legitimate).map((v) => (
+              <li key={v.word}>
+                <span lang={language} className="text-sm">{v.word}</span> {v.kind === "name" ? "(name) " : ""}·{" "}
+                <span dir="ltr">{Object.entries(v.readings).map(([r, b]) => `${r} ×${b.length}`).join(" / ")}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Words">
         {FILTERS.map((f) => (
           <Button key={f.key} size="sm" variant={filter === f.key ? "default" : "secondary"} onClick={() => { setFilter(f.key); setPicked(null); }}>

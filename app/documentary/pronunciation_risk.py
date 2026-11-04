@@ -83,8 +83,9 @@ class History:
 
 
 class RiskEngine:
-    def __init__(self, db: Session, language: str, voice_id: str, model_id: str, names: frozenset[str] = frozenset()):
-        self.cfg, self.names = ai_config.pronunciation_risk, names
+    def __init__(self, db: Session, language: str, voice_id: str, model_id: str, names: frozenset[str] = frozenset(),
+                 variants: dict[str, tuple[str, ...]] | None = None):
+        self.cfg, self.names, self.variants = ai_config.pronunciation_risk, names, variants or {}
         self.homographs = {key_of(w): readings for w, readings in ai_config.homographs.words.items()}
         self.history = History(db, language, voice_id, model_id)
 
@@ -118,6 +119,8 @@ class RiskEngine:
         readings_of = self.homographs.get(word.key)
         if readings_of and word.surface == word.plain:
             add("homograph", f"{word.plain} is written the same for {' / '.join(readings_of)}: the voice cannot tell from the letters which one is meant")
+        if word.key in self.variants:
+            add("reading_inconsistent", f"the film reads {word.plain} in more than one way ({' / '.join(self.variants[word.key])}): one of them is wrong")
         if reference is not None and reference.irab is None:
             add("reference_unaligned", "the reading cannot be written on the word's own letters: the reading or the spelling is not what the other expects")
         letters = [ch for ch in self.cfg.hazard_letters if ch in word.plain]

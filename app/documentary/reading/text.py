@@ -76,7 +76,7 @@ class ReadingStage:
         return table, doubts
 
     async def block(self, item: BlockInput, table: FilmTable, gate: asyncio.Semaphore) -> tuple[list[ReadingWord], list[Doubt], list[str]]:
-        key = sha(context(item, table), prompts_sha(), ai_config.reading.pause_between_names)
+        key = sha(context(item, table), prompts_sha(), ai_config.reading.pause_between_names, ai_config.reading.checker_mode)
         saved = self.cache.setdefault("blocks", {}).get(item.block_id)
         if saved and saved["key"] == key:
             return [ReadingWord(**r) for r in saved["readings"]], [Doubt(**d) for d in saved["doubts"]], saved["notes"]

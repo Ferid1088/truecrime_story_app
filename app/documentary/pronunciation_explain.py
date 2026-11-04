@@ -24,6 +24,8 @@ from app.documentary import voice_prepare as VP
 from app.documentary.performance import performance_for_version
 from app.documentary.pronunciation_memory import trust_level
 from app.documentary.pronunciation_planner import CHANGES, Planner
+from app.documentary.reading import answer as ANS
+from app.documentary.reading import consistency as CS
 from app.documentary.reading import stage as RS
 from app.documentary.reading.answer import ReadingWord
 from app.documentary.reading.block import block_inputs
@@ -44,17 +46,21 @@ def load(db: Session, version_id: int, language: str) -> tuple[StoryVersion, dic
     items = block_inputs(plan["blocks"], VP.english_sources(db, version), ai_config.semantic_review.neighbour_chars)
     approvals = [{"surface": a.surface, "latin": a.latin, "kind": a.kind} for a in db.query(ReadingApproval).filter(ReadingApproval.language == language)]
     table = FilmTable.build(cache["reader"], approvals)
-    readings, signals = {}, {}
+    readings, signals, words, stored = {}, {}, {}, {}
     for item in items:
         saved = cache["blocks"].get(item.block_id)
         if not saved or len(saved["readings"]) != len(item.words):
             continue
         doubted = {d["n"] for d in saved["doubts"]}
-        overridden = {int(m.group(1)) for note in saved["notes"] if (m := re.match(r"word (\d+)", note))}
-        readings[item.block_id] = [r["latin"] for r in saved["readings"]]
-        signals[item.block_id] = [WordSignal(r["confidence"], r["n"] in doubted, r["n"] in overridden) for r in saved["readings"]]
-    opinions = RS.opinions_of({b: [ReadingWord(**r) for r in saved["readings"]] for b, saved in cache["blocks"].items() if b in readings})
-    voicing = Voicing({key_of(a["surface"]): a["latin"] for a in approvals}, readings, signals, RS.names_of(table), opinions)
+        # a block read before the film table changed holds the old table's readings: the current table is applied as the reading stage applies it
+        current, notes = ANS.enforce([ReadingWord(**r) for r in saved["readings"]], item.words, table, ai_config.reading.pause_between_names)
+        overridden = {int(m.group(1)) for note in saved["notes"] + notes if (m := re.match(r"word (\d+)", note))}
+        readings[item.block_id] = [r.latin for r in current]
+        signals[item.block_id] = [WordSignal(r.confidence, r.n in doubted, r.n in overridden) for r in current]
+        words[item.block_id] = list(zip(item.words, readings[item.block_id], strict=True))
+        stored[item.block_id] = current
+    names = RS.names_of(table)
+    voicing = Voicing({key_of(a["surface"]): a["latin"] for a in approvals}, readings, signals, names, RS.opinions_of(stored), CS.inconsistent(CS.variants(words, names)))
     covered = frozenset(key_of(r.get("string_to_replace") or "") for r in VP.sent_rules(version))
     return version, plan, voicing, covered
 
@@ -116,5 +122,8 @@ def explain(db: Session, version_id: int, language: str, scope: str = "risky") -
     for row in rows:
         row["memory"] = memory.get(key_of(row["word"]), [])
         row["verification"] = next((m["trust"] for m in row["memory"] if m["trust"] in ("OWNER_APPROVED_READING", "ACOUSTICALLY_VERIFIED")), "UNVERIFIED")
+    texts = {b["block_id"]: b.get("tts_text") or b["text"] for b in plan["blocks"] if b["block_id"] in voicing.readings}
+    found = CS.variants({b: list(zip(tokenize(t), voicing.readings[b], strict=True)) for b, t in texts.items()}, voicing.names)
     return {"version_id": version.id, "case_id": version.case_id, "language": language, "voice_id": lang.voice_id, "model_id": lang.model_id,
+            "consistency": [v.describe() for v in found],
             "audio_url": f"/api/documentary/versions/{version.id}/audio/narration" if times else None, "counts": counts, "words": rows}

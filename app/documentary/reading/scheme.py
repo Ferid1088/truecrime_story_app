@@ -7,7 +7,7 @@ import re
 
 VOWELS = "aāeiou"
 PAUSE = "|"
-ALIASES = {"x": "kh", "q": "gh", "’": "'", "ʼ": "'", "ʿ": "'", "`": "'", "ou": "ow", "ei": "ey", "â": "ā", "ī": "i", "ū": "u", "ē": "e", "ō": "o"}
+ALIASES = {"x": "kh", "q": "gh", "’": "'", "ʼ": "'", "ʿ": "'", "`": "'", "ou": "ow", "ei": "ey", "oo": "u", "â": "ā", "ī": "i", "ū": "u", "ē": "e", "ō": "o"}
 ALIAS = re.compile("|".join(re.escape(a) for a in sorted(ALIASES, key=len, reverse=True)))
 
 

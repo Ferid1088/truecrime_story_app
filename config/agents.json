@@ -630,6 +630,13 @@
       "description": "Adversarial check (another model) of the reading text of one block: rejects a word with proof, or doubts.",
       "used_by": "app/documentary/reading/checker.py"
     },
+    "documentary.reading.check_blind": {
+      "role": "reading_checker",
+      "prompt": "documentary/reading/write_system",
+      "output": "json",
+      "description": "The independent check of the reading text of one block (blind mode): another model reads the block itself, with the editor's instructions and without the editor's answer; code compares the two readings word by word and sends every difference to the arbiter.",
+      "used_by": "app/documentary/reading/checker.py"
+    },
     "documentary.reading.arbitrate": {
       "role": "reading_arbiter",
       "prompt": "documentary/reading/arbitrate_system",

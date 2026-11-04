@@ -305,9 +305,9 @@
    }
   },
   {
-   "name": "the text writes a kasra the reading does not say",
+   "name": "the approved text writes a kasra the reading does not say: the text wins",
    "category": "conflict",
-   "kind": "ambiguous",
+   "kind": "positive",
    "text": "کتابِ تازه رسید.",
    "readings": [
     "ketāb",
@@ -316,15 +316,15 @@
    ],
    "expect": {
     "0": {
-     "type": "UNCERTAIN",
-     "evidence": "conflict"
+     "type": "E",
+     "evidence": "orthography"
     }
    }
   },
   {
-   "name": "the reading says an ezafe before the object marker",
+   "name": "the reading says an ezafe before the object marker: the rule wins",
    "category": "conflict",
-   "kind": "ambiguous",
+   "kind": "negative",
    "text": "کتاب را خواند.",
    "readings": [
     "ketāb-e",
@@ -333,8 +333,8 @@
    ],
    "expect": {
     "0": {
-     "type": "UNCERTAIN",
-     "evidence": "conflict"
+     "type": "NONE",
+     "evidence": "rule"
     }
    }
   },
