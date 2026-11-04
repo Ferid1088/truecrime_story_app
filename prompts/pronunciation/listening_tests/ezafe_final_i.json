@@ -1,0 +1,76 @@
+{
+ "version": "1.0.0",
+ "name": "ezafe-final-i",
+ "title": "Listening test: ezafe after a final long i",
+ "about": "Invented sentences (not from any case). Each sentence is voiced as written without and with the kasra on the final yeh, each in two takes (seeds), with the voice, model and settings of the Persian narration. A control sentence has the indefinite -i, where no ezafe is said. Nothing here is a verdict: a person listens and judges.",
+ "language": "fa",
+ "takes": 2,
+ "items": [
+  {
+   "id": "FI1_plain",
+   "text": "بینایی انسان در تاریکی ضعیف می‌شه.",
+   "listen_for": "bināyi-ye ensān (the ezafe -ye after the final i)",
+   "variant": "without kasra"
+  },
+  {
+   "id": "FI1_kasra",
+   "text": "بیناییِ انسان در تاریکی ضعیف می‌شه.",
+   "listen_for": "bināyi-ye ensān (the ezafe -ye after the final i)",
+   "variant": "with kasra"
+  },
+  {
+   "id": "FI2_plain",
+   "text": "زیبایی طبیعت اون روز همه رو ساکت کرد.",
+   "listen_for": "zibāyi-ye tabi'at (the ezafe -ye after the final i)",
+   "variant": "without kasra"
+  },
+  {
+   "id": "FI2_kasra",
+   "text": "زیباییِ طبیعت اون روز همه رو ساکت کرد.",
+   "listen_for": "zibāyi-ye tabi'at (the ezafe -ye after the final i)",
+   "variant": "with kasra"
+  },
+  {
+   "id": "FI3_plain",
+   "text": "توانایی کارآگاه توی پیدا کردن سرنخ‌ها عجیب بود.",
+   "listen_for": "tavānāyi-ye kārāgāh (the ezafe -ye after the final i)",
+   "variant": "without kasra"
+  },
+  {
+   "id": "FI3_kasra",
+   "text": "تواناییِ کارآگاه توی پیدا کردن سرنخ‌ها عجیب بود.",
+   "listen_for": "tavānāyi-ye kārāgāh (the ezafe -ye after the final i)",
+   "variant": "with kasra"
+  },
+  {
+   "id": "FI4_plain",
+   "text": "صندلی چوبی کنار پنجره افتاده بود.",
+   "listen_for": "sandali-ye chubi (the ezafe -ye after the final i)",
+   "variant": "without kasra"
+  },
+  {
+   "id": "FI4_kasra",
+   "text": "صندلیِ چوبی کنار پنجره افتاده بود.",
+   "listen_for": "sandali-ye chubi (the ezafe -ye after the final i)",
+   "variant": "with kasra"
+  },
+  {
+   "id": "FI5_plain",
+   "text": "شنوایی کودک بعد از حادثه آسیب دید.",
+   "listen_for": "shenavāyi-ye kudak (the ezafe -ye after the final i)",
+   "variant": "without kasra"
+  },
+  {
+   "id": "FI5_kasra",
+   "text": "شنواییِ کودک بعد از حادثه آسیب دید.",
+   "listen_for": "shenavāyi-ye kudak (the ezafe -ye after the final i)",
+   "variant": "with kasra"
+  },
+  {
+   "id": "FI6_control",
+   "text": "صدایی بلند از طبقه‌ی بالا اومد.",
+   "listen_for": "sedāyi boland: NO ezafe (indefinite -i, 'a loud sound')",
+   "variant": "control"
+  }
+ ]
+}

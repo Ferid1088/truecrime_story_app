@@ -3813,5 +3813,5 @@ export interface NarrationPreview extends NarrationPreviewSummary {
   voice_id: string;
   model_id: string;
   source: string;
-  blocks: { block_id: string; start: number; end: number; text: string }[];
+  blocks: { block_id: string; start: number; end: number; text: string; label?: string }[];
 }

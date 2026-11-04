@@ -39,3 +39,19 @@ def write_info(name: str, data: dict) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     return path
+
+
+def listening_plan(spec: dict, pause_ms: int) -> tuple[dict, dict[str, int], dict[str, str]]:
+    """A listening test (prompts/pronunciation/listening_tests/*.json) as a voice plan: every item voiced exactly as written in each take, takes of one
+    item side by side, nothing around a block (no neighbour text: each sentence is heard on its own). Returns (the plan, the seed bump of each block,
+    the label of each block)."""
+    blocks, bumps, labels = [], {}, {}
+    for item in spec["items"]:
+        for take in range(spec["takes"]):
+            block_id = f"{item['id']}_t{take + 1}"
+            words = len(item["text"].split())
+            blocks.append({"block_id": block_id, "section_id": item["id"], "text": item["text"], "word_count": words, "est_seconds": words / 150 * 60,
+                           "previous_text": "", "next_text": "", "oversize": False, "pause_after_ms": pause_ms, "pause_after_kind": "paragraph"})
+            bumps[block_id] = take
+            labels[block_id] = f"{item['id']} · {item['variant']} · take {take + 1} — listen for {item['listen_for']}"
+    return {"language": spec["language"], "blocks": blocks}, bumps, labels

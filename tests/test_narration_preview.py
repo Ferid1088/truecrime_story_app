@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from app.documentary import narration_preview as NP
@@ -41,3 +44,14 @@ def test_a_preview_name_cannot_leave_the_previews_folder():
 def test_no_previews_is_an_empty_list(client, tmp_path, monkeypatch):
     monkeypatch.setattr(NP, "BASE", tmp_path / "none")
     assert client.get("/api/documentary/previews").json() == []
+
+
+def test_a_listening_test_is_voiced_exactly_as_written_with_its_takes_side_by_side_and_a_label_for_each():
+    spec = json.loads((Path(__file__).resolve().parents[1] / "prompts" / "pronunciation" / "listening_tests" / "ezafe_final_i.json").read_text(encoding="utf-8"))
+    plan, bumps, labels = NP.listening_plan(spec, 1500)
+    first = spec["items"][0]
+    assert [b["block_id"] for b in plan["blocks"][:2]] == [f"{first['id']}_t1", f"{first['id']}_t2"]
+    assert plan["blocks"][0]["text"] == first["text"] and plan["blocks"][0]["previous_text"] == "" and plan["blocks"][0]["next_text"] == ""
+    assert (bumps[f"{first['id']}_t1"], bumps[f"{first['id']}_t2"]) == (0, 1)
+    assert len(plan["blocks"]) == len(spec["items"]) * spec["takes"] and "listen for" in labels[f"{first['id']}_t1"]
+    assert any("ییِ" in i["text"] for i in spec["items"]) and not any("ییی" in i["text"] for i in spec["items"])

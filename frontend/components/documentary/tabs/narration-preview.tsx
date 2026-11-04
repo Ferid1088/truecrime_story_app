@@ -60,7 +60,10 @@ function Player({ name }: { name: string }) {
               className={`flex w-full items-start gap-3 rounded-md border px-3 py-1.5 text-start text-sm ${i === current ? "border-primary bg-primary/5" : "border-border"}`}
             >
               <span className="w-12 shrink-0 text-xs text-muted-foreground" dir="ltr">{clock(b.start)}</span>
-              <span lang={lang} dir={isRtl(lang) ? "rtl" : "ltr"} className="flex-1">{b.text}</span>
+              <span className="flex flex-1 flex-col gap-0.5">
+                {b.label ? <span className="text-xs text-muted-foreground" dir="ltr">{b.label}</span> : null}
+                <span lang={lang} dir={isRtl(lang) ? "rtl" : "ltr"}>{b.text}</span>
+              </span>
             </button>
           </li>
         ))}
