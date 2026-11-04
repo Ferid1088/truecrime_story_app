@@ -101,3 +101,6 @@ data/phonetic_benchmark/uploads/
 data/experiments/
 data/previews/
 data/audits/
+
+data/phonetic_benchmark/controlled/
+data/phonetic_benchmark/validation.json

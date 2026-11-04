@@ -765,6 +765,44 @@ def pronunciation_plan(version_id: int, language: str = "fa", scope: str = "risk
         raise HTTPException(status_code=404, detail=f"No stored reading of this version in {language}") from e
 
 
+def _punctuation(db: Session, version_id: int, language: str) -> dict:
+    """The punctuation of the version's narration: the record of its last PPIE run, else the free analysis (the rules only, no paid call)."""
+    import asyncio
+
+    from app.documentary.performance import performance_for_version
+    from app.documentary.punctuation import stage as PS
+    from app.documentary.voice_render import VoiceRenderer
+
+    version = _version_of(db, version_id)
+    if not ai_config.ppie.fresh(language):
+        raise HTTPException(status_code=404, detail=f"{language} has no punctuation layer")
+    path = VoiceRenderer.out_dir_for(version.case_id, language, version.id) / ai_config.semantic_punctuation.run_file
+    try:
+        return {"source": "the last narration run", **json.loads(path.read_text(encoding="utf-8"))}
+    except (OSError, ValueError):
+        results, stats = asyncio.run(PS.for_version(db, version.case_id, version, performance_for_version(db, version),
+                                                    PS.PunctuationStage(None, None, use_agents=False)))
+        return {"source": "free analysis: the rules only, no agent and no voice", "statistics": stats, "blocks": [r.describe() for r in results.values()]}
+
+
+@router.get("/api/documentary/versions/{version_id}/semantic-punctuation")
+def semantic_punctuation(version_id: int, language: str = "fa", db: Session = Depends(get_db)):
+    """Each block's approved text, the text prepared for the voice, its punctuation changes, ezafe boundary counts and review (summary)."""
+    found = _punctuation(db, version_id, language)
+    blocks = [{"block_id": b["block_id"], "changed": b["changed"], "edits": len(b["edits"]), "review": b["review"], "flags": len(b["flags"]),
+               "boundaries": {s: sum(1 for x in b["boundaries"] if x["status"] == s) for s in
+                              ("EZAFE_REQUIRED", "EZAFE_FORBIDDEN", "EZAFE_CONTEXT_DEPENDENT", "NO_EZAFE_ANALYSIS_NEEDED")}} for b in found["blocks"]]
+    return {"source": found["source"], "statistics": found["statistics"], "blocks": blocks}
+
+
+@router.get("/api/documentary/versions/{version_id}/semantic-punctuation/{block_id}")
+def semantic_punctuation_block(version_id: int, block_id: str, language: str = "fa", db: Session = Depends(get_db)):
+    found = next((b for b in _punctuation(db, version_id, language)["blocks"] if b["block_id"] == block_id), None)
+    if found is None:
+        raise HTTPException(status_code=404, detail="No such block")
+    return found
+
+
 class ReviewStartIn(BaseModel):
     agents: bool = False
     max_eur: float = Field(default=0.0, ge=0)

@@ -162,6 +162,11 @@ REQUIRED_ROLES = {
     "ppie_expectation",
     "ppie_alignment_verifier",
     "ppie_corrector",
+    # Semantic punctuation of a Persian narration (documentary/punctuation): the structure and meaning of a block, the punctuation that makes it
+    # clear to the voice, and the independent check of that punctuation (another model).
+    "punctuation_syntax",
+    "punctuation_editor",
+    "punctuation_checker",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",
@@ -2536,6 +2541,19 @@ class PPIEConfig(BaseModel):
         return language in self.languages
 
 
+class SemanticPunctuationConfig(BaseModel):
+    """The punctuation layer of a Persian narration (documentary/punctuation): punctuation added to the text the voice is given, never to the story.
+    `use_agents`: the syntax, punctuation and checker agents run (billable); without them only the deterministic rules apply and every boundary
+    they cannot settle is reported as context-dependent. `max_rounds`: how often a REVISE goes back to the punctuation agent before the safest
+    version is kept. `marks`: the punctuation the layer may insert; `normalize`: Latin punctuation written in Persian text and its Persian form."""
+
+    use_agents: bool = False
+    max_rounds: int = Field(default=2, ge=1, le=4)
+    marks: list[str]
+    normalize: dict[str, str] = {}
+    run_file: str = "punctuation.json"
+
+
 class ReviewAlignmentConfig(BaseModel):
     """The English–Persian alignment of a PPIE review (ppie_review/alignment.py). The thresholds are set by reasoning, not calibrated: no reviewed
     alignment exists yet, so the statuses they give are reported as uncalibrated and no confidence number is invented. `band`: how far from the
@@ -4571,6 +4589,7 @@ class AIConfig(BaseModel):
     homographs: HomographsConfig
     ppie: PPIEConfig = Field(default_factory=PPIEConfig)
     ppie_review: PPIEReviewConfig
+    semantic_punctuation: SemanticPunctuationConfig
     number_reading: NumberReadingConfig
     pronunciation_auto: PronunciationAutoConfig = Field(default_factory=PronunciationAutoConfig)
     semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)

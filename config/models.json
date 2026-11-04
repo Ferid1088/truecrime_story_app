@@ -149,7 +149,10 @@
         "reading_listener": "reading_listener",
         "ppie_expectation": "reading_premium",
         "ppie_alignment_verifier": "sol",
-        "ppie_corrector": "reading_premium"
+        "ppie_corrector": "reading_premium",
+        "punctuation_syntax": "reading_premium",
+        "punctuation_editor": "reading_premium",
+        "punctuation_checker": "sol"
       },
       "fallbacks": {
         "cheap": [
@@ -513,6 +516,18 @@
       "max_tokens": 4000
     },
     "ppie_corrector": {
+      "temperature": 0.0,
+      "max_tokens": 4000
+    },
+    "punctuation_syntax": {
+      "temperature": 0.0,
+      "max_tokens": 12000
+    },
+    "punctuation_editor": {
+      "temperature": 0.0,
+      "max_tokens": 6000
+    },
+    "punctuation_checker": {
       "temperature": 0.0,
       "max_tokens": 4000
     }

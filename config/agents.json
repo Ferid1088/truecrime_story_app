@@ -651,6 +651,27 @@
       "description": "Listens to the clip of one word of the Persian narration and chooses which of several written readings it was said as.",
       "used_by": "app/documentary/reading/chooser.py"
     },
+    "documentary.punctuation.syntax": {
+      "role": "punctuation_syntax",
+      "prompt": "documentary/punctuation/syntax_system",
+      "output": "json",
+      "description": "Analyses the grammatical structure and meaning of one Persian narration block (constituents, clauses, direct speech, lists, names) and, for every word boundary, whether the two words are connected (ezafe) or separated, with its reason and its ambiguities.",
+      "used_by": "app/documentary/punctuation/syntax.py"
+    },
+    "documentary.punctuation.punctuate": {
+      "role": "punctuation_editor",
+      "prompt": "documentary/punctuation/punctuate_system",
+      "output": "json",
+      "description": "Proposes the smallest set of punctuation changes that makes the meaning and structure of one Persian narration block clear to the voice, from its syntax and ezafe analysis, without touching a word.",
+      "used_by": "app/documentary/punctuation/punctuate.py"
+    },
+    "documentary.punctuation.check": {
+      "role": "punctuation_checker",
+      "prompt": "documentary/punctuation/check_system",
+      "output": "json",
+      "description": "Independently audits proposed punctuation of a Persian narration block: meaning kept, no word changed, no ezafe connection broken, no wrong connection encouraged, no robotic pause; PASS, REVISE (with the smallest change), UNCERTAIN or REJECT.",
+      "used_by": "app/documentary/punctuation/check.py"
+    },
     "documentary.ppie_review.expect": {
       "role": "ppie_expectation",
       "prompt": "documentary/ppie_review/expect_system",

@@ -5,6 +5,8 @@ import type {
   NarrationPreview,
   NarrationPreviewSummary,
   PronunciationPlan,
+  PunctuationBlock,
+  PunctuationSummary,
   RepairAttempt,
   RepairProposal,
   ReviewListing,
@@ -592,6 +594,10 @@ export const api = {
   decideReading: (versionId: number, language: string, body: { word: string; reading: string; reviewer: string }) =>
     request<{ word: string; reading: string; rows_saved: number }>(`/api/documentary/versions/${versionId}/reading-resolutions?language=${encodeURIComponent(language)}`,
       { method: "POST", body: JSON.stringify(body), timeoutMs: 120_000 }),
+  semanticPunctuation: (versionId: number) =>
+    request<PunctuationSummary>(`/api/documentary/versions/${versionId}/semantic-punctuation?language=fa`, { timeoutMs: 120_000 }),
+  semanticPunctuationBlock: (versionId: number, blockId: string) =>
+    request<PunctuationBlock>(`/api/documentary/versions/${versionId}/semantic-punctuation/${blockId}?language=fa`, { timeoutMs: 120_000 }),
   ppieReviews: (versionId: number) => request<ReviewListing>(`/api/documentary/versions/${versionId}/ppie-review`),
   ppieReview: (versionId: number, label: string, run: string) =>
     request<ReviewRunOverview>(`/api/documentary/versions/${versionId}/ppie-review/${encodeURIComponent(label)}/${encodeURIComponent(run)}`, { timeoutMs: 120_000 }),

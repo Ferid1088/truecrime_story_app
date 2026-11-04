@@ -569,6 +569,13 @@
     "folder_suffix": "_ppie",
     "run_file": "ppie_run.json"
   },
+  "semantic_punctuation": {
+    "use_agents": false,
+    "max_rounds": 2,
+    "marks": ["،", "؛", ":", ".", "؟", "!"],
+    "normalize": {",": "،", ";": "؛", "?": "؟"},
+    "run_file": "punctuation.json"
+  },
   "ppie_review": {
     "folder": "review",
     "embedding_model": "BAAI/bge-m3",

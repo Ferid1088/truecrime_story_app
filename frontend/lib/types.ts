@@ -3957,3 +3957,21 @@ export interface ReviewListing {
   narrations: { label: string; folder_exists: boolean; runs: string[] }[];
   validation: { validated: boolean; labelled_clips: number; note?: string };
 }
+
+export interface PunctuationBoundary {
+  id: string; after_word: number; words: [string, string | null]; status: "EZAFE_REQUIRED" | "EZAFE_FORBIDDEN" | "EZAFE_CONTEXT_DEPENDENT" | "NO_EZAFE_ANALYSIS_NEEDED";
+  reason: string; source: string; relation: string; pronunciation: string; span: number[]; punctuation_can_clarify: boolean; needs_phonetic_guidance: boolean;
+}
+
+export interface PunctuationEdit { after_word: number; old: string; new: string; reason: string; source: string; canonical_offset: number | null }
+
+export interface PunctuationBlock {
+  block_id: string; canonical: string; tts_text: string; changed: boolean; edits: PunctuationEdit[]; boundaries: PunctuationBoundary[];
+  review: string; rounds: number; refused: (PunctuationEdit & { why: string })[]; flags: string[]; checks: { round: number; decision: string; issues: string[] }[];
+}
+
+export interface PunctuationSummary {
+  source: string;
+  statistics: Record<string, number | boolean | Record<string, number>>;
+  blocks: { block_id: string; changed: boolean; edits: number; review: string; flags: number; boundaries: Record<string, number> }[];
+}
