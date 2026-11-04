@@ -1048,11 +1048,13 @@ def _phonetic_sample(db: Session, sample_id: int):
 
 
 @router.get("/api/documentary/phonetic/samples")
-def phonetic_samples(language: str = "fa", status: str | None = None, category: str | None = None, limit: int = 60, db: Session = Depends(get_db)):
-    """The phonetic benchmark for the Pronunciation tab: clips (disputed first) with every opinion, and the report."""
+def phonetic_samples(language: str = "fa", status: str | None = None, category: str | None = None, source: str | None = None, limit: int = 200,
+                     db: Session = Depends(get_db)):
+    """The phonetic benchmark for the Pronunciation tab: clips (disputed first) with every opinion (withheld until a person labelled the clip), and
+    the report."""
     from app.documentary import phonetic_benchmark
 
-    return phonetic_benchmark.listing(db, language, status, category, limit)
+    return phonetic_benchmark.listing(db, language, status, category, limit, source)
 
 
 @router.get("/api/documentary/phonetic/samples/{sample_id}/audio")

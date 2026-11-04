@@ -614,8 +614,8 @@ export const api = {
   narrationPreviews: () => request<NarrationPreviewSummary[]>("/api/documentary/previews"),
   narrationPreview: (name: string) => request<NarrationPreview>(`/api/documentary/previews/${encodeURIComponent(name)}`),
   narrationPreviewAudioUrl: (name: string) => apiFileUrl(`/api/documentary/previews/${encodeURIComponent(name)}/audio`),
-  phoneticSamples: (language: string, status?: string, category?: string) =>
-    request<PhoneticListing>(`/api/documentary/phonetic/samples${query({ language, status, category })}`),
+  phoneticSamples: (language: string, status?: string, category?: string, source?: string) =>
+    request<PhoneticListing>(`/api/documentary/phonetic/samples${query({ language, status, category, source })}`),
   phoneticAudioUrl: (sampleId: number) => apiFileUrl(`/api/documentary/phonetic/samples/${sampleId}/audio`),
   phoneticPeaks: (sampleId: number) => request<{ peaks: number[] }>(`/api/documentary/phonetic/samples/${sampleId}/peaks`),
   labelPhoneticSample: (sampleId: number, choice: string, reviewer: string) =>

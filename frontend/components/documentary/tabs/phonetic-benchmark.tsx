@@ -25,7 +25,8 @@ const STATUS_TONE: Record<string, "warning" | "success" | "danger" | "info" | "d
   human_verified: "success",
   unclear: "warning",
 };
-const CATEGORIES = ["short_vowel", "ezafe", "colloquial", "name", "connected", "other"];
+const CATEGORIES = ["short_vowel", "epenthesis", "ezafe", "colloquial", "name", "number", "connected", "other"];
+const SOURCES = ["controlled", "case_audio", "recording", "upload"];
 const KIND_LABEL: Record<string, string> = { agent: "Agent", recognizer: "Recognizer", human: "Person" };
 
 function Waveform({ peaks, progress }: { peaks: number[]; progress: number }) {
@@ -66,6 +67,7 @@ function Clip({ sample, reviewer, onChanged }: { sample: PhoneticSample; reviewe
         <span lang="fa" dir="rtl" className="text-xl">{sample.surface}</span>
         <Badge variant={STATUS_TONE[sample.status]}>{STATUS_LABEL[sample.status]}</Badge>
         <span className="text-xs text-muted-foreground">{sample.category} · {sample.source}{sample.speaker ? ` · ${sample.speaker}` : ""} · {sample.speed}</span>
+        {sample.purpose !== "validation" && <Badge variant="outline">{sample.purpose === "known_problem" ? "known problem" : "defective recording (notation read aloud)"}: not used to validate</Badge>}
       </div>
       {sample.sentence && <p lang="fa" dir="rtl" className="text-sm text-muted-foreground">{sample.sentence}</p>}
       <audio
@@ -90,10 +92,20 @@ function Clip({ sample, reviewer, onChanged }: { sample: PhoneticSample; reviewe
         </div>
         {error && <InlineAlert tone="error">{error}</InlineAlert>}
       </div>
+      {sample.blind ? (
+        <p className="text-xs text-muted-foreground" aria-label="Blind labelling">
+          Blind labelling: the expected reading, the reading the voice was told to say and every machine opinion are shown after your label.
+        </p>
+      ) : (sample.expected_key || sample.intended_key) && (
+        <p className="text-xs" aria-label="After labelling">
+          The text expects <span dir="ltr">{sample.expected_key}</span>
+          {sample.intended_key && <> · the voice was told to say <span dir="ltr">{sample.intended_key}</span></>}
+        </p>
+      )}
       <table className="w-full text-xs">
         <caption className="pb-1 text-start font-medium">Opinions (agents and recognizers are not ground truth)</caption>
         <tbody>
-          {sample.opinions.length === 0 && <tr><td className="text-muted-foreground">None yet.</td></tr>}
+          {sample.opinions.length === 0 && <tr><td className="text-muted-foreground">{sample.blind ? "Hidden until you label." : "None yet."}</td></tr>}
           {sample.opinions.map((o) => (
             <tr key={o.actor} className="border-t">
               <td className="py-1">{KIND_LABEL[o.kind]}</td>
@@ -193,8 +205,9 @@ function Recorder({ language, speaker, onAdded }: { language: string; speaker: s
 export function PhoneticBenchmark({ language, reviewer }: { language: string; reviewer: string }) {
   const [status, setStatus] = useState<string>("");
   const [category, setCategory] = useState<string>("");
+  const [source, setSource] = useState<string>("");
   const [selected, setSelected] = useState<number | null>(null);
-  const state = useApi(() => api.phoneticSamples(language, status || undefined, category || undefined), [language, status, category]);
+  const state = useApi(() => api.phoneticSamples(language, status || undefined, category || undefined, source || undefined), [language, status, category, source]);
   const samples = useMemo(() => state.data?.samples ?? [], [state.data]);
   const current = samples.find((s) => s.id === selected) ?? samples[0] ?? null;
   const report = state.data?.report;
@@ -222,6 +235,10 @@ export function PhoneticBenchmark({ language, reviewer }: { language: string; re
         <select className="h-8 rounded-md border bg-background px-2 text-xs" aria-label="Category filter" value={category} onChange={(e) => { setCategory(e.target.value); setSelected(null); }}>
           <option value="">All categories</option>
           {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+        </select>
+        <select className="h-8 rounded-md border bg-background px-2 text-xs" aria-label="Source filter" value={source} onChange={(e) => { setSource(e.target.value); setSelected(null); }}>
+          <option value="">All sources</option>
+          {SOURCES.map((c) => <option key={c}>{c}</option>)}
         </select>
       </div>
       {state.error && <ErrorState message={state.error} onRetry={state.refetch} />}

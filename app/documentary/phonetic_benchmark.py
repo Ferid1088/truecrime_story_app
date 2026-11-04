@@ -318,20 +318,26 @@ def report(db: Session, language: str = "fa") -> dict:
 
 
 def describe(db: Session, sample: PhoneticSample) -> dict:
-    """A clip for the page: what is known, and every opinion with who gave it and what kind it is."""
+    """A clip for the page. Until a person has labelled it, the labelling is blind: the expected and the intended reading, the consensus and every
+    machine opinion are withheld and the candidates come in an order of their own (the person's ear is the only ground truth)."""
+    blind = sample.status not in ("human_verified", "unclear")
+    candidates = json.loads(sample.candidates)
+    if blind:
+        candidates.sort(key=lambda c: hashlib.sha256(f"order:{sample.id}:{c['key']}".encode()).hexdigest())
     return {"id": sample.id, "surface": sample.surface, "sentence": sample.sentence, "category": sample.category, "source": sample.source, "speaker": sample.speaker,
-            "speed": sample.speed, "status": sample.status, "candidates": json.loads(sample.candidates), "expected_key": sample.expected_key,
-            "consensus_key": sample.consensus_key, "human_key": sample.human_key, "case_id": sample.case_id, "block_id": sample.block_id,
-            "opinions": [{"kind": o.kind, "actor": o.actor, "choice": o.choice, "confidence": o.confidence} for o in latest(db, sample).values()]}
+            "speed": sample.speed, "status": sample.status, "candidates": candidates, "purpose": sample.purpose, "blind": blind,
+            "expected_key": None if blind else sample.expected_key, "intended_key": None if blind else sample.intended_key,
+            "consensus_key": None if blind else sample.consensus_key, "human_key": sample.human_key, "case_id": sample.case_id, "block_id": sample.block_id,
+            "opinions": [] if blind else [{"kind": o.kind, "actor": o.actor, "choice": o.choice, "confidence": o.confidence} for o in latest(db, sample).values()]}
 
 
 PRIORITY = {"disputed": 0, "agent_consensus": 1, "unlabeled": 2, "unclear": 3, "human_verified": 4}
 
 
-def listing(db: Session, language: str = "fa", status: str | None = None, category: str | None = None, limit: int = 60) -> dict:
+def listing(db: Session, language: str = "fa", status: str | None = None, category: str | None = None, limit: int = 60, source: str | None = None) -> dict:
     """The clips to look at, the disputed ones first (where an agent cannot settle it, a person's ear is needed), and the report."""
     query = db.query(PhoneticSample).filter_by(language=language)
-    for column, value in ((PhoneticSample.status, status), (PhoneticSample.category, category)):
+    for column, value in ((PhoneticSample.status, status), (PhoneticSample.category, category), (PhoneticSample.source, source)):
         if value:
             query = query.filter(column == value)
     rows = sorted(query.all(), key=lambda s: (PRIORITY.get(s.status, 9), s.id))[:limit]

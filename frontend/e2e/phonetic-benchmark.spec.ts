@@ -61,4 +61,27 @@ test.describe("the phonetic benchmark", () => {
     await expect(page.getByText("Verified by ear").first()).toBeVisible();
     expect(posted).toEqual([{ choice: "ahd", reviewer: "owner" }]);
   });
+
+  test("a controlled clip is labelled blind: expected and intended readings and opinions appear only after the label", async ({ page }) => {
+    const blind = { ...sample("unlabeled", null), source: "controlled", purpose: "validation", blind: true, expected_key: null, intended_key: null, opinions: [] };
+    const labelled = { ...sample("human_verified", "ohd"), source: "controlled", purpose: "validation", blind: false, intended_key: "ohd" };
+    let current: object = blind;
+    await mockApi(page);
+    await page.route("**/api/documentary/settings", (r: Route) => r.fulfill(ok(settings)));
+    await page.route("**/api/cases/1/documentary", (r: Route) => r.fulfill(ok(overview)));
+    await page.route("**/api/cases/1/costs", (r: Route) => r.fulfill(ok(costs)));
+    await page.route("**/api/documentary/pronunciation/entries?**", (r: Route) => r.fulfill(ok({ counts: {}, entries: [] })));
+    await page.route("**/api/documentary/phonetic/samples?**", (r: Route) => r.fulfill(ok({ samples: [current], report })));
+    await page.route("**/api/documentary/phonetic/samples/1/peaks", (r: Route) => r.fulfill(ok({ peaks: [0.1, 0.2] })));
+    await page.route("**/api/documentary/phonetic/samples/1/audio", (r: Route) => r.fulfill({ status: 200, contentType: "audio/wav", body: "" }));
+    await page.route("**/api/documentary/phonetic/samples/1/label", (r: Route) => { current = labelled; return r.fulfill(ok(labelled)); });
+    await page.goto("/documentary/1?tab=Pronunciation");
+    await page.getByRole("button", { name: "Phonetic benchmark" }).click();
+    await expect(page.getByLabel("Blind labelling")).toBeVisible();
+    await expect(page.getByText("Hidden until you label.")).toBeVisible();
+    await expect(page.getByLabel("After labelling")).toHaveCount(0);
+    await page.getByLabel("Reviewer name").fill("owner");
+    await page.getByRole("button", { name: /اُهد/ }).click();
+    await expect(page.getByLabel("After labelling")).toContainText("the voice was told to say ohd");
+  });
 });

@@ -369,3 +369,64 @@ def test_the_assembly_voice_refuses_every_request():
     with pytest.raises(RR.NotAuthorized):
         asyncio.run(RR.NoVoice().synthesize(None))
     assert not Path(ai_config.ppie_review.folder).is_absolute()
+
+
+# --- controlled recordings and blind labelling --------------------------------------------------------------------------------------------
+
+def test_a_controlled_item_differs_only_in_its_target_word_and_its_clip_is_labelled_blind(db_session, tmp_path, monkeypatch):
+    from app.db.models import PhoneticSample
+    from app.documentary import phonetic_benchmark as PB
+    from app.documentary.ppie_review import controlled as CB
+
+    monkeypatch.setattr(PB, "BASE", tmp_path)
+    monkeypatch.setattr(CB, "load", lambda name: ("t_set", [CB.Item("ep01", "epenthesis", "او تمام عمر اینجا بود.", "عمر", "omr", "omer")]))
+    right, wrong = CB.request_text(CB.load("x")[1][0], "omr")[0], CB.request_text(CB.load("x")[1][0], "omer")[0]
+    assert right == "او تمام /omɾ/ اینجا بود." and wrong == "او تمام /omeɾ/ اینجا بود."
+    settings = CB.request(CB.load("x")[1][0], "omr").settings
+    assert (settings["speed"], settings["stability"]) == (1.2, 0.2)
+    tts = FakeTTS()
+    result = asyncio.run(CB.build(db_session, "x", VoiceRenderer(provider=tts, use_asr=False, use_listener=False), None))
+    try:
+        assert result["clips"] == 2 and len(tts.requests) == 2 and (tmp_path / "controlled" / "t_set" / "ep01_wrong.wav").exists()
+        again = asyncio.run(CB.build(db_session, "x", VoiceRenderer(provider=tts, use_asr=False, use_listener=False), None))
+        assert len(tts.requests) == 2 and again["paid_takes"] == 0 and again["new_clips"] == 0, "a take is never paid twice"
+        sample = db_session.get(PhoneticSample, result["samples"][1]["id"])
+        assert (sample.purpose, sample.intended_key, sample.expected_key) == ("validation", "omer", "omr")
+        shown = PB.describe(db_session, sample)
+        assert shown["blind"] and shown["expected_key"] is None and shown["intended_key"] is None and shown["opinions"] == []
+        PB.human_label(db_session, sample.id, "omer", "owner")
+        shown = PB.describe(db_session, sample)
+        assert not shown["blind"] and (shown["expected_key"], shown["intended_key"]) == ("omr", "omer")
+    finally:
+        db_session.query(PB.PhoneticLabel).filter(PB.PhoneticLabel.sample_id.in_([s["id"] for s in result["samples"]])).delete(synchronize_session=False)
+        db_session.query(PhoneticSample).filter(PhoneticSample.id.in_([s["id"] for s in result["samples"]])).delete(synchronize_session=False)
+        db_session.commit()
+
+
+def test_a_known_problem_clip_never_counts_in_the_validation(db_session, monkeypatch):
+    from app.db.models import PhoneticSample
+
+    known = PhoneticSample(language="fa-test", source="case_audio", surface="عمر", audio_path="known.wav", candidates="[]", expected_key="omr",
+                           status="human_verified", human_key="omer", purpose="known_problem")
+    db_session.add(known)
+    db_session.commit()
+    try:
+        report = VA.evaluate(db_session, Listener({}), language="fa-test")
+        assert report["labelled_clips"] == 0 and report["validated"] is False
+    finally:
+        db_session.delete(known)
+        db_session.commit()
+
+
+def test_a_take_in_which_the_voice_read_the_notation_aloud_is_rejected_even_unvalidated():
+    before = [{"n": 0, "word": "حکم", "suggested": "FAIL", "model_validation": "UNVALIDATED", "heard": "h o k o m"}]
+    after = [{**before[0], "suggested": "UNCERTAIN", "heard": "s l æ ʃ eɪ tʃ oʊ k eɪ ɛ m s l æ ʃ"}]
+    checked = CO.verify(before, after, 0, 2.0, 2.2)
+    assert checked["final_decision"] == "REJECTED" and "notation aloud" in checked["issues"][0]
+
+
+def test_a_take_in_which_the_voice_read_the_notation_aloud_is_rejected_even_unvalidated():
+    before = [{"n": 0, "word": "حکم", "suggested": "FAIL", "model_validation": "UNVALIDATED", "heard": "h o k o m"}]
+    after = [{**before[0], "suggested": "UNCERTAIN", "heard": "s l æ ʃ eɪ tʃ oʊ k eɪ ɛ m s l æ ʃ"}]
+    checked = CO.verify(before, after, 0, 2.0, 2.2)
+    assert checked["final_decision"] == "REJECTED" and "notation aloud" in checked["issues"][0]

@@ -3764,7 +3764,10 @@ export interface PhoneticSample {
   speed: string;
   status: "unlabeled" | "agent_consensus" | "disputed" | "human_verified" | "unclear";
   candidates: PhoneticCandidate[];
-  expected_key: string;
+  purpose: "validation" | "known_problem" | "defective_recording";
+  blind: boolean;
+  expected_key: string | null;
+  intended_key: string | null;
   consensus_key: string | null;
   human_key: string | null;
   case_id: number | null;

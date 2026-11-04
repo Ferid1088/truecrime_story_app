@@ -1,5 +1,5 @@
-"""Whether the recognizer may decide on its own, measured on clips a person labelled (phonetic benchmark, status human_verified) and never on a
-model's opinion. Each clip is a word with its candidate readings; it is "said wrong" when the person heard another candidate than the text expects.
+"""Whether the recognizer may decide on its own, measured on clips a person labelled (phonetic benchmark, status human_verified, purpose
+validation: a clip that only illustrates a reported problem never counts) and never on a model's opinion. Each clip is a word with its candidate readings; it is "said wrong" when the person heard another candidate than the text expects.
 The labels are split by a fixed hash into a calibration part (the margin is chosen there) and a held-out part (only the held-out part is reported as
 the result). The original clip and each slower copy are measured separately. The recognizer is validated only when the held-out part has enough
 clips of both classes and its precision, recall and false-positive rate for "said wrong" meet the configured limits; until then every review is
@@ -68,7 +68,7 @@ def metrics(rows: list[tuple[bool, str]]) -> dict:
 def evaluate(db: Session, listener, language: str = "fa") -> dict:
     """Scores every human-labelled clip at every analysis speed, chooses the margin on the calibration part and reports the held-out part."""
     cfg = ai_config.ppie_review.validation
-    samples = [s for s in db.query(PhoneticSample).filter_by(language=language, status="human_verified")
+    samples = [s for s in db.query(PhoneticSample).filter_by(language=language, status="human_verified", purpose="validation")
                if s.human_key and s.human_key not in ("unclear", "none") and s.expected_key]
     by_speed = {}
     for speed in ai_config.ppie_review.analysis_speeds:

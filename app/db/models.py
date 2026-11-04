@@ -3456,6 +3456,8 @@ class PhoneticSample(Base):
     category: Mapped[str] = mapped_column(String(24), default="other")      # short_vowel | ezafe | colloquial | name | connected | other
     candidates: Mapped[str] = mapped_column(Text, default="[]")             # JSON: [{"key", "irab", "ipa"}]
     expected_key: Mapped[str] = mapped_column(String(80), default="")       # the candidate the text expects
+    purpose: Mapped[str] = mapped_column(String(20), default="validation")  # validation | known_problem (a reported error) | defective_recording (notation read aloud): only validation counts
+    intended_key: Mapped[str | None] = mapped_column(String(80), nullable=True)   # a controlled recording: the reading the voice was told to say
     status: Mapped[str] = mapped_column(String(20), default="unlabeled")
     consensus_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
     human_key: Mapped[str | None] = mapped_column(String(80), nullable=True)

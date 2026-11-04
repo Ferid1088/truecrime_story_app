@@ -136,8 +136,14 @@ def verify(original: list[dict], candidate: list[dict], target_n: int, original_
     change = abs(candidate_seconds - original_seconds) / original_seconds if original_seconds else 0.0
     issues = ([f"the take is {round(change * 100)}% {'longer' if candidate_seconds > original_seconds else 'shorter'}"]
               if change > MAX_LENGTH_CHANGE else [])
+    from app.documentary.ppie_review.controlled import read_aloud
+
+    if read_aloud(target.get("heard") or ""):
+        issues.append("the voice read the notation aloud (\"slash ...\")")
     validated = all(w.get("model_validation") == "VALIDATED" for w in candidate) and bool(candidate)
-    if not validated:
+    if any("notation aloud" in i for i in issues):
+        decision = "REJECTED"                   # a gross defect of the take: the original is kept whatever the recognizer's validation
+    elif not validated:
         decision = "UNCERTAIN"
     elif resolved and not new_errors and not issues:
         decision = "ACCEPTABLE"
