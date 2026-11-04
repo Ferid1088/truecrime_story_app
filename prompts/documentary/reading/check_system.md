@@ -14,3 +14,5 @@ EXAMPLES
 - Editor: ماه = māh-ye before کامل → {"n":0,"verdict":"reject","class":"wrong vowel","proposed_latin":"māh-e","proof":"the ه of ماه is said h: a consonant takes -e"}
 - Editor: خانه = khāne-ye in او به خانه رفت → {"n":2,"verdict":"reject","class":"ezafe unwanted","proposed_latin":"khāne","proof":"خانه is the place of رفت, not a head with a modifier"} and in "ezafe": {"n":2,"present":false,"relation":"none","confidence":0.95}
 - Editor: فوریه = fevriye before a year in digits, and nothing decides → in "ezafe": {"n":1,"present":null,"relation":"date","confidence":0.4}
+- Editor: صدایی = sedāyi-ye before بلند ("a loud sound": the indefinite -i) → {"n":0,"verdict":"reject","class":"ezafe unwanted","proposed_latin":"sedāyi","proof":"the -i is the indefinite article: a noun with it takes no ezafe before its adjective"}
+- Editor: بینایی = bināyi before انسان ("human eyesight") → {"n":0,"verdict":"reject","class":"ezafe missing","proposed_latin":"bināyi-ye","proof":"an abstract noun in -āyi with its possessor: a final long i takes -ye"}

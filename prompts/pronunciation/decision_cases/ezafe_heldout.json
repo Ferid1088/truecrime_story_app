@@ -355,6 +355,134 @@
      "mark": "رادیوی"
     }
    }
+  },
+  {
+   "name": "final i: the mother's loneliness",
+   "category": "final_i",
+   "kind": "positive",
+   "text": "تنهایی مادر طول کشید.",
+   "readings": [
+    "tanhāyi-ye",
+    "mādar",
+    "tul",
+    "keshid"
+   ],
+   "expect": {
+    "0": {
+     "type": "YE",
+     "class": "EZAFE_FINAL_I",
+     "mark": "تنهاییِ"
+    }
+   }
+  },
+  {
+   "name": "final i in -uyi: the good smell of the flower",
+   "category": "final_i",
+   "kind": "positive",
+   "text": "خوشبویی گل پیچید.",
+   "readings": [
+    "khoshbuyi-ye",
+    "gol",
+    "pichid"
+   ],
+   "expect": {
+    "0": {
+     "type": "YE",
+     "class": "EZAFE_FINAL_I",
+     "mark": "خوشبوییِ"
+    }
+   }
+  },
+  {
+   "name": "final i: a big ship",
+   "category": "final_i",
+   "kind": "positive",
+   "text": "کشتی بزرگ رسید.",
+   "readings": [
+    "kashti-ye",
+    "bozorg",
+    "resid"
+   ],
+   "expect": {
+    "0": {
+     "type": "YE",
+     "class": "EZAFE_FINAL_I",
+     "mark": "کشتیِ"
+    }
+   }
+  },
+  {
+   "name": "final i: the blue of the sky, written",
+   "category": "final_i",
+   "kind": "positive",
+   "text": "آبیِ آسمان روشن بود.",
+   "readings": [
+    "ābi-ye",
+    "āsemān",
+    "rowshan",
+    "bud"
+   ],
+   "expect": {
+    "0": {
+     "type": "YE",
+     "class": "EZAFE_FINAL_I",
+     "evidence": "orthography",
+     "mark": null
+    }
+   }
+  },
+  {
+   "name": "final i: an indefinite place takes no ezafe",
+   "category": "final_i",
+   "kind": "negative",
+   "text": "جایی امن پیدا کرد.",
+   "readings": [
+    "jāyi",
+    "amn",
+    "peydā",
+    "kard"
+   ],
+   "expect": {
+    "0": {
+     "type": "NONE"
+    }
+   }
+  },
+  {
+   "name": "final i: an indefinite book",
+   "category": "final_i",
+   "kind": "negative",
+   "text": "کتابی قدیمی خرید.",
+   "readings": [
+    "ketābi",
+    "qadimi",
+    "kharid"
+   ],
+   "expect": {
+    "0": {
+     "type": "NONE"
+    }
+   }
+  },
+  {
+   "name": "final i: three yehs written for the ezafe",
+   "category": "final_i",
+   "kind": "positive",
+   "text": "روشناییی اتاق کم بود.",
+   "readings": [
+    "rowshanāyi-ye",
+    "otāgh",
+    "kam",
+    "bud"
+   ],
+   "expect": {
+    "0": {
+     "type": "YE",
+     "class": "EZAFE_FINAL_I",
+     "evidence": "orthography",
+     "mark": null
+    }
+   }
   }
  ]
 }

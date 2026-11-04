@@ -40,6 +40,25 @@ second narration pipeline: the renderer's planner calls the analyzer for every b
 
   It becomes reusable only when a person approves it and the intervention is validated. Nothing in this path approves anything.
 
+## A final long i (`EZAFE_FINAL_I`)
+- **Which words:** a word whose reading ends in a spoken long i takes -ye. This covers abstract nouns in ـایی/ـویی (بینایی, زیبایی, خوشبویی) and words in ـی
+  (صندلی, کشتی, آبی). The class is decided by the reading's final sound.
+- **Grammar first:** the indefinite -i (صدایی بلند "a loud sound", جایی امن) takes no ezafe. The reading agents decide which -i it is from the meaning, and the
+  prompts carry examples. The analyzer adds no ezafe of its own.
+- **Spelling:** the canonical spelling is kept. When the ezafe is written for the voice it is a kasra on the word's own last yeh (بیناییِ). A second yeh is
+  never added. A second yeh the text already has (بینایی‌ی, ییی) counts as a written ezafe and is left as it is.
+- **Connected speech:** the boundary lists the forms a listener may accept, with the reference first: bināyi-ye ensān, and bināyi-e ensān, because the glide is
+  often weak in connected speech.
+- **Reference and voice input kept apart:** `expected_reading` (Latin) is the linguistic reference. `tts_form` is what the voice was given, and it is null when
+  the word was not changed.
+- **No risk by itself:** a final i adds no risk. Only the general ezafe signals apply.
+- **Not successful until verified:** an `ezafe_mark` is a candidate. A listening model's "heard right" does not validate it (`validate_from_listener` false).
+  It is reused only after a person approves the entry and the intervention is validated.
+- **Case 15 (dry run):** 79 final-i ezafes, 50 written in the text and 29 not. All are LOW or MEDIUM, so none is changed.
+- **Cases:** 10 demonstrations in `ezafe.json` and 7 held-out cases in `ezafe_heldout.json`. The held-out cases use other words and include the ـویی pattern
+  and two indefinite negatives. All score 0 errors.
+- **Not established:** whether eleven_v4 says the ezafe after a final i, with or without the kasra. No audio of it has been checked.
+
 ## Bugs found and fixed while building it
 1. **The respelling wrote a hamza on every final ه with an ezafe.** dādgāh-e became دادگاهٔ, which reads "dādgāye".
    - The preview of 2026-11-04 sent this wrong form in two blocks: دادگاهٔ in FA_B40_g03_01 and آزمایِشگاهٔ in FA_B21_g01_01.
@@ -57,8 +76,8 @@ phonology, uncertainty, relation, evidence and intervention.
 
 | Case set | Cases | Boundaries | Errors (every kind) |
 |---|---|---|---|
-| `ezafe.json` (demonstrations) | 35 | 61 | 0 |
-| `ezafe_heldout.json` (held out, other words) | 18 | 25 | 0 |
+| `ezafe.json` (demonstrations) | 45 | 75 | 0 |
+| `ezafe_heldout.json` (held out, other words) | 25 | 32 | 0 |
 
 Two demonstration expectations were corrected after the first run:
 - One was the assistant's own mistake: it expected a rule where the analyzer can only infer.

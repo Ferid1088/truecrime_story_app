@@ -134,7 +134,9 @@ class Planner:
                          [self.rule(d) for d in decisions if d.strategy == "dictionary_rule"], decisions, risks, boundaries=boundaries)
         for b, d in zip(boundaries, decisions, strict=True):
             if b.ezafe_type in ("E", "YE"):
-                boundaries[b.n] = replace(b, requires_tts_intervention=d.strategy == "ezafe_mark" or (d.strategy == "selective_marks" and b.ezafe_required is True))
+                changed = d.strategy in CHANGES and d.replacement is not None
+                boundaries[b.n] = replace(b, requires_tts_intervention=d.strategy == "ezafe_mark" or (d.strategy == "selective_marks" and b.ezafe_required is True),
+                                          tts_form=d.replacement if changed else None)
         self.plans[block_id] = plan
         return plan
 

@@ -788,6 +788,206 @@
      "evidence": "uncertain"
     }
    }
+  },
+  {
+   "name": "final i: eyesight of a human, written kasra",
+   "category": "final_i",
+   "kind": "positive",
+   "text": "بیناییِ انسان محدود است.",
+   "readings": [
+    "bināyi-ye",
+    "ensān",
+    "mahdud",
+    "ast"
+   ],
+   "expect": {
+    "0": {
+     "type": "YE",
+     "class": "EZAFE_FINAL_I",
+     "evidence": "orthography",
+     "mark": null
+    },
+    "1": {
+     "type": "NONE"
+    }
+   }
+  },
+  {
+   "name": "final i: eyesight of a human, unwritten: one kasra, no second yeh",
+   "category": "final_i",
+   "kind": "positive",
+   "text": "بینایی انسان ضعیف شد.",
+   "readings": [
+    "bināyi-ye",
+    "ensān",
+    "za'if",
+    "shod"
+   ],
+   "expect": {
+    "0": {
+     "type": "YE",
+     "class": "EZAFE_FINAL_I",
+     "mark": "بیناییِ"
+    }
+   }
+  },
+  {
+   "name": "final i: hearing of a child",
+   "category": "final_i",
+   "kind": "positive",
+   "text": "شنوایی کودک آسیب دید.",
+   "readings": [
+    "shenavāyi-ye",
+    "kudak",
+    "āsib",
+    "did"
+   ],
+   "expect": {
+    "0": {
+     "type": "YE",
+     "class": "EZAFE_FINAL_I",
+     "mark": "شنواییِ"
+    }
+   }
+  },
+  {
+   "name": "final i: the dog's sense of smell",
+   "category": "final_i",
+   "kind": "positive",
+   "text": "بویاییِ سگ قوی بود.",
+   "readings": [
+    "buyāyi-ye",
+    "sag",
+    "qavi",
+    "bud"
+   ],
+   "expect": {
+    "0": {
+     "type": "YE",
+     "class": "EZAFE_FINAL_I",
+     "evidence": "orthography"
+    }
+   }
+  },
+  {
+   "name": "final i: beauty of nature",
+   "category": "final_i",
+   "kind": "positive",
+   "text": "زیبایی طبیعت را دید.",
+   "readings": [
+    "zibāyi-ye",
+    "tabi'at",
+    "rā",
+    "did"
+   ],
+   "expect": {
+    "0": {
+     "type": "YE",
+     "class": "EZAFE_FINAL_I",
+     "mark": "زیباییِ"
+    },
+    "1": {
+     "type": "NONE",
+     "evidence": "rule"
+    }
+   }
+  },
+  {
+   "name": "final i: ability of a human, written kasra",
+   "category": "final_i",
+   "kind": "positive",
+   "text": "تواناییِ انسان زیاد است.",
+   "readings": [
+    "tavānāyi-ye",
+    "ensān",
+    "ziyād",
+    "ast"
+   ],
+   "expect": {
+    "0": {
+     "type": "YE",
+     "class": "EZAFE_FINAL_I",
+     "evidence": "orthography"
+    }
+   }
+  },
+  {
+   "name": "final i: a wooden chair",
+   "category": "final_i",
+   "kind": "positive",
+   "text": "صندلی چوبی شکست.",
+   "readings": [
+    "sandali-ye",
+    "chubi",
+    "shekast"
+   ],
+   "expect": {
+    "0": {
+     "type": "YE",
+     "class": "EZAFE_FINAL_I",
+     "mark": "صندلیِ"
+    },
+    "1": {
+     "type": "NONE"
+    }
+   }
+  },
+  {
+   "name": "final i: the indefinite -i takes no ezafe",
+   "category": "final_i",
+   "kind": "negative",
+   "text": "صدایی بلند شنید.",
+   "readings": [
+    "sedāyi",
+    "boland",
+    "shenid"
+   ],
+   "expect": {
+    "0": {
+     "type": "NONE",
+     "mark": null
+    }
+   }
+  },
+  {
+   "name": "final i: a second yeh written for the ezafe is read as written, not doubled again",
+   "category": "final_i",
+   "kind": "positive",
+   "text": "بینایی‌ی انسان کم شد.",
+   "readings": [
+    "bināyi-ye",
+    "ensān",
+    "kam",
+    "shod"
+   ],
+   "expect": {
+    "0": {
+     "type": "YE",
+     "class": "EZAFE_FINAL_I",
+     "evidence": "orthography",
+     "mark": null
+    }
+   }
+  },
+  {
+   "name": "final i at the end of a sentence",
+   "category": "final_i",
+   "kind": "negative",
+   "text": "مشکل بینایی.",
+   "readings": [
+    "moshkel-e",
+    "bināyi"
+   ],
+   "expect": {
+    "0": {
+     "type": "E",
+     "class": "EZAFE_CONSONANT"
+    },
+    "1": {
+     "type": "NONE",
+     "evidence": "rule"
+    }
+   }
   }
  ]
 }

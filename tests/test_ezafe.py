@@ -246,3 +246,53 @@ def test_a_reading_cache_whose_table_dropped_a_written_ezafe_is_read_by_the_text
 
 def test_an_ezafe_before_the_pronoun_ham_is_said():
     assert analyze("کنار هم نشستن", ["kenār-e", "ham", "neshastan"])[0].ezafe_type == "E"
+
+
+# --- a final long i (EZAFE_FINAL_I) ----------------------------------------------------------------------------------------------------------
+
+RESOLVED = {0: [EZ.Opinion("editor", True, "noun_possessor", 0.9), EZ.Opinion("checker", False, "none", 0.9), EZ.Opinion("arbiter", True, "noun_possessor", 0.9)]}
+
+
+def test_a_final_long_i_is_its_own_class_with_the_connected_forms_a_listener_may_accept():
+    b = analyze("بینایی انسان ضعیف شد", ["bināyi-ye", "ensān", "za'if", "shod"])[0]
+    assert (b.ezafe_type, b.phonological_class, b.final_phoneme) == ("YE", "EZAFE_FINAL_I", "i")
+    assert b.expected_reading == "bināyi-ye ensān" and b.realizations == ("bināyi-ye ensān", "bināyi-e ensān")
+    assert analyze("صدایی بلند شنید", ["sedāyi", "boland", "shenid"])[0].ezafe_type == "NONE", "the indefinite -i: the reading decides, none is added"
+
+
+def test_the_ezafe_of_a_final_long_i_is_a_kasra_and_never_another_yeh():
+    for reading, word in (("bināyi-ye", "بیناییِ"), ("zibāyi-ye", "زیباییِ"), ("sandali-ye", "لیِ")):
+        assert persian(reading).endswith(word) and not persian(reading).endswith("ییی")
+    words = tokenize("زیبایی طبیعت")
+    assert EZ.mark(words[0], analyze("زیبایی طبیعت", ["zibāyi-ye", "tabi'at"])[0]) == "زیباییِ"
+
+
+def test_a_final_long_i_is_not_a_risk_by_itself(db_session, language):  # noqa: F811
+    risk = risk_of(db_session, language, "بینایی انسان ضعیف شد", ["bināyi-ye", "ensān", "za'if", "shod"], 0)
+    assert [s.name for s in risk.signals] == ["ezafe_unwritten"] and risk.level == "LOW"
+
+
+def test_the_reference_and_the_text_the_voice_is_given_are_kept_apart(db_session, language):  # noqa: F811
+    plan = plan_of(db_session, language, "بینایی انسان ضعیف شد", ["bināyi-ye", "ensān", "za'if", "shod"], [WordSignal()] * 4, RESOLVED)
+    b = plan.boundaries[0]
+    assert plan.decisions[0].strategy == "ezafe_mark" and plan.text == "بیناییِ انسان ضعیف شد"
+    assert (b.expected_reading, b.tts_form, b.requires_tts_intervention) == ("bināyi-ye ensān", "بیناییِ", True)
+
+
+def test_a_final_i_correction_counts_only_after_the_voice_is_verified(db_session, language):  # noqa: F811
+    planner = Planner(db_session, language, VOICE, MODEL)
+    plan = planner.plan("b", "بینایی انسان ضعیف شد", Voicing({}, {"b": ["bināyi-ye", "ensān", "za'if", "shod"]}, {"b": [WordSignal()] * 4}, opinions={"b": RESOLVED}))
+    planner.register(plan)
+    planner.learn("b", "بینایی", heard_right=True)
+    intervention = db_session.get(PronunciationIntervention, plan.decisions[0].intervention_id)
+    entry = db_session.get(PronunciationEntry, intervention.entry_id)
+    assert (intervention.status, intervention.successes, entry.status) == ("candidate", 0, "candidate"), "a listening model's 'right' validates nothing"
+    assert json.loads(entry.grammar)["ezafe"]["phonological_class"] == "EZAFE_FINAL_I"
+    again = Planner(db_session, language, VOICE, MODEL).plan("c", "بینایی انسان ضعیف شد", Voicing({}, {"c": ["bināyi-ye", "ensān", "za'if", "shod"]}, {"c": [WordSignal()] * 4}))
+    assert not again.decisions[0].validated and again.text == "بینایی انسان ضعیف شد", "an unverified correction is not reused"
+
+
+def test_the_renderer_sends_the_kasra_of_a_final_long_i_when_the_planner_decides_it(db_session, language, tmp_path, monkeypatch):  # noqa: F811
+    tts, _ = render_with(db_session, language, tmp_path, monkeypatch, "زیبایی طبیعت دیدنی بود", ["zibāyi-ye", "tabi'at", "didani", "bud"],
+                         [WordSignal("low", True, False)] + [WordSignal()] * 3)
+    assert [r.text for r in tts.requests] == ["زیباییِ طبیعت دیدنی بود"]

@@ -74,13 +74,17 @@ class Boundary:
     phonology_error: str = ""               # the reading writes an ezafe form that its own final sound does not take
     opinions: tuple[Opinion, ...] = field(default_factory=tuple)
     requires_tts_intervention: bool | None = None       # decided by the risk engine and the planner, never here
+    phonological_class: str = ""            # EZAFE_FINAL_I, EZAFE_SILENT_HEH, EZAFE_CONSONANT_H, ... ("" when no ezafe is said)
+    realizations: tuple[str, ...] = ()      # the connected forms a listener may accept for it (the first is the reference)
+    tts_form: str | None = None             # what the voice is given for the word when the planner changed it (the reference stays `expected_reading`)
 
     def describe(self) -> dict:
         return {"n": self.n, "word": self.word, "next_word": self.next_word, "ezafe_required": self.ezafe_required, "ezafe_type": self.ezafe_type,
                 "final_phoneme": self.final_phoneme, "expected_reading": self.expected_reading, "grammatical_relation": self.grammatical_relation,
                 "confidence": self.confidence, "evidence_type": self.evidence_type, "written": self.written, "conflicts": list(self.conflicts),
                 "phonology_error": self.phonology_error, "opinions": [o.describe() for o in self.opinions],
-                "requires_tts_intervention": self.requires_tts_intervention}
+                "requires_tts_intervention": self.requires_tts_intervention, "phonological_class": self.phonological_class,
+                "realizations": list(self.realizations), "tts_form": self.tts_form}
 
 
 def final_sound(stem: str) -> str:
@@ -94,11 +98,38 @@ def type_for(sound: str) -> str:
     return "YE" if sound in scheme.VOWELS else "E"
 
 
+def phonological_class(sound: str, plain: str) -> str:
+    """The class of an ezafe by the word's spoken final sound: a final long i (بینایی، صندلی) is EZAFE_FINAL_I, written with a kasra on its own yeh."""
+    if sound == "i":
+        return "EZAFE_FINAL_I"
+    if sound == "e" and plain.endswith("ه"):
+        return "EZAFE_SILENT_HEH"
+    if sound == "h":
+        return "EZAFE_CONSONANT_H"
+    if sound in ("ā", "u", "o", "e"):
+        return f"EZAFE_FINAL_{sound.upper().replace('Ā', 'A')}"
+    if sound in ("ey", "ow"):
+        return "EZAFE_DIPHTHONG"
+    return "EZAFE_CONSONANT"
+
+
+def realizations_of(stem: str, next_stem: str, cls: str) -> tuple[str, ...]:
+    """The connected forms of an ezafe a listener may accept: after a final long i the glide of -ye is often weak in connected speech (bināyi-ye ~
+    bināyi-e); the reference is the first. Elsewhere the one reference."""
+    reference = " ".join(x for x in (scheme.ezafe_form(stem), next_stem) if x)
+    if cls == "EZAFE_FINAL_I":
+        return reference, " ".join(x for x in (f"{stem}-e", next_stem) if x)
+    return (reference,)
+
+
 def written_ezafe(word: Word, sound: str) -> bool:
-    """Whether the text writes an ezafe on this word: a kasra at its end, a hamza on its ه (or ۀ), a half-space yeh after ه, or a carrier yeh after a
-    final ā / u / o when the reading's stem does not have that yeh."""
+    """Whether the text writes an ezafe on this word: a kasra at its end, a hamza on its ه (or ۀ), a half-space yeh after ه, a carrier yeh after a
+    final ā / u / o when the reading's stem does not have that yeh, or a second yeh after a final long i (non-standard: یی‌ی, ییی; the canonical form is
+    the kasra)."""
     s = word.surface
     if s.endswith(KASRA) or s.endswith("ه" + HAMZA_ABOVE) or s.endswith("ۀ") or s.endswith("ه" + ZWNJ + "ی"):
+        return True
+    if sound == "i" and (word.plain.endswith("ی" + ZWNJ + "ی") or word.plain.endswith("ییی")):
         return True
     return sound in ("ā", "u", "o") and word.plain.endswith(("ای", "وی"))
 
@@ -146,8 +177,10 @@ class EzafeAnalyzer:
             kind = "UNCERTAIN" if required is None else type_for(sound) if required else "NONE"
             joined = scheme.ezafe_form(stem) if required and stem else stem
             expected = " ".join(x for x in (joined if reading != NUMBER_WORD else word.plain, next_stem if next_reading != NUMBER_WORD else (nxt.plain if nxt else "")) if x)
+            cls = phonological_class(sound, word.plain) if kind in ("E", "YE") else ""
+            heard = realizations_of(stem, next_stem, cls) if cls else (expected,)
             return Boundary(word.n, word.surface, nxt.surface if nxt else "", required, kind, sound, expected, relation, round(confidence_, 2), evidence, written,
-                            conflicts, phonology_error, opinions)
+                            conflicts, phonology_error, opinions, phonological_class=cls, realizations=heard)
 
         phonology_error = ""
         if said and sound and ezafe == "ye" and type_for(sound) == "E":
@@ -276,6 +309,8 @@ def evaluate(cases: list[dict]) -> dict:
                 problems.append("relation")
             if "evidence" in want and want["evidence"] != got.evidence_type:
                 problems.append("evidence")
+            if "class" in want and want["class"] != got.phonological_class:
+                problems.append("phonology")
             if "phonology_error" in want and want["phonology_error"] != bool(got.phonology_error):
                 problems.append("phonology")
             if "mark" in want and want["mark"] != mark(words[int(n)], got):
