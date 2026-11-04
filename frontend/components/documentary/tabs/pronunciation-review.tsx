@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/state";
 import { NarrationPreviews } from "./narration-preview";
 import { PhoneticBenchmark } from "./phonetic-benchmark";
+import { AudioReview } from "./audio-review";
 import { PronunciationPlanView } from "./pronunciation-plan";
 import { ReadingConflicts } from "./reading-conflicts";
 import { InlineAlert, LanguagePicker, type LanguageTabProps } from "../shared";
@@ -301,7 +302,7 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
   const versionId = overview.languages[language]?.version_id ?? null;
   const [status, setStatus] = useState<string>("legacy_unverified");
   const [selected, setSelected] = useState<number | null>(null);
-  const [view, setView] = useState<"entries" | "plan" | "conflicts" | "benchmark" | "preview">("entries");
+  const [view, setView] = useState<"entries" | "plan" | "conflicts" | "audio" | "benchmark" | "preview">("entries");
   const [reviewer, setReviewer] = useState(() => {
     try {
       return typeof window === "undefined" ? "" : (window.localStorage.getItem(REVIEWER_KEY) ?? "");
@@ -345,11 +346,13 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
             <Button size="sm" variant={view === "entries" ? "default" : "secondary"} onClick={() => setView("entries")}>Entries</Button>
             <Button size="sm" variant={view === "plan" ? "default" : "secondary"} onClick={() => setView("plan")}>Why words change</Button>
             <Button size="sm" variant={view === "conflicts" ? "default" : "secondary"} onClick={() => setView("conflicts")}>Conflicting readings</Button>
+            <Button size="sm" variant={view === "audio" ? "default" : "secondary"} onClick={() => setView("audio")}>Audio review</Button>
             <Button size="sm" variant={view === "benchmark" ? "default" : "secondary"} onClick={() => setView("benchmark")}>Phonetic benchmark</Button>
             <Button size="sm" variant={view === "preview" ? "default" : "secondary"} onClick={() => setView("preview")}>Narration preview</Button>
           </div>
           {view === "preview" && <NarrationPreviews />}
           {view === "plan" && <PronunciationPlanView versionId={versionId} language={language} />}
+          {view === "audio" && <AudioReview versionId={versionId} reviewer={reviewer} />}
           {view === "conflicts" && <ReadingConflicts versionId={versionId} language={language} reviewer={reviewer} />}
           {view === "benchmark" && <PhoneticBenchmark language={language} reviewer={reviewer} />}
           {view === "entries" && <>

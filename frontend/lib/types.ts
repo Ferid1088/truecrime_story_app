@@ -3887,3 +3887,70 @@ export interface ReadingReview {
   retained: ReadingFamily[];
   owner_review: ReadingFamily[];
 }
+
+export interface ReviewCandidate { reading: string; kind: string; ipa: string; loss: Record<string, number | null> }
+
+export interface ReviewWord {
+  n: number;
+  word: string;
+  audio_window: { start: number; end: number } | null;
+  expected: string | null;
+  candidates: ReviewCandidate[];
+  heard: string;
+  suggested: "PASS" | "FAIL" | "UNCERTAIN" | "NOT_EVALUABLE";
+  status: "PASS" | "FAIL" | "UNCERTAIN" | "NOT_EVALUABLE";
+  evidence: string[];
+  model_validation: string;
+  advisory: boolean;
+}
+
+export interface RepairAttempt {
+  strategy: string;
+  form: string;
+  take: string;
+  outcome: string;
+  at: string;
+  verification: { target_error_resolved: boolean | null; new_errors_detected: string[]; issues: string[]; final_decision: string; advisory: boolean;
+                  original_seconds: number; candidate_seconds: number };
+}
+
+export interface RepairProposal {
+  block_id: string;
+  word_id: number;
+  word: string;
+  suspected_root_cause: string;
+  evidence: string[];
+  verified_target_reading: string;
+  verified_target_phonemes: string;
+  strategies: { type: string; form: string; tts_text: string; reason: string }[];
+  estimated_characters: number;
+  estimated_eur?: number;
+  status: string;
+  attempts: RepairAttempt[];
+}
+
+export interface ReviewBlock {
+  block_id: string;
+  text: string;
+  voice_text: string | null;
+  has_take: boolean;
+  alignment: { status: string; english_text: string; issues: string[]; evidence: string[]; confidence: null; confidence_note: string };
+  voice_text_differs: string[];
+  counts: Record<string, number>;
+  flagged: ReviewWord[];
+  proposals: RepairProposal[];
+}
+
+export interface ReviewRunOverview {
+  summary: { run_id: string; created_at: string; words: number; blocks_reviewed: number; statuses: Record<string, number>; suggested: Record<string, number>;
+             proposals: number; advisory: boolean; model_validation: { validated: boolean; labelled_clips: number };
+             voice_text_differs_from_approved: Record<string, string[]>; spent_by_run_eur: number;
+             sources: Record<string, { id: number; approved_at: string | null }> & { notes: string[] } };
+  alignment_summary: { blocks: Record<string, number>; sentences: Record<string, number>; calibrated: boolean; verified_by_agent: boolean } | null;
+  blocks: ReviewBlock[];
+}
+
+export interface ReviewListing {
+  narrations: { label: string; folder_exists: boolean; runs: string[] }[];
+  validation: { validated: boolean; labelled_clips: number; note?: string };
+}

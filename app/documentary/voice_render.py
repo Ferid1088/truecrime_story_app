@@ -192,6 +192,7 @@ class VoiceRenderer:
         self._budget_usage_missing = False
         self.dictionaries: list[dict] = []        # the film's pronunciation dictionary locators (a prepared language)
         self.rules: list[dict] = []               # the rules of that dictionary (the plan carries them): each block's text is checked against them
+        self.text_overrides: dict[str, str] = {}  # block -> the text it is voiced with, instead of the planner's (ppie_review's assembly of a repair)
         self.block_dictionaries: BlockDictionaries | None = None
         self.trace = Trace(None)                  # what every take was sent with
         self.reviewer = None                      # the semantic audio reviewer (semantic_review.Reviewer) of a reviewed language
@@ -437,7 +438,9 @@ class VoiceRenderer:
             occurrences = []
         text = scrub_forbidden(b.get("tts_text") or b["text"])
         planned_rules: list[dict] = []
-        if self.voicing is not None and self.planner is not None:
+        if b["block_id"] in self.text_overrides:          # the exact text a block was voiced with (a reviewed narration assembled again)
+            text = self.text_overrides[b["block_id"]]
+        elif self.voicing is not None and self.planner is not None:
             plan = self.planner.plan(b["block_id"], text, self.voicing, allow_dictionary=prepared and bool(self.dictionaries),
                                      covered=frozenset(key_of(r.get("string_to_replace") or "") for r in self.rules))
             self.planner.register(plan)

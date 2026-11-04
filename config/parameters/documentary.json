@@ -569,6 +569,42 @@
     "folder_suffix": "_ppie",
     "run_file": "ppie_run.json"
   },
+  "ppie_review": {
+    "folder": "review",
+    "embedding_model": "BAAI/bge-m3",
+    "embedding_batch": 8,
+    "embedding_max_tokens": 256,
+    "alignment": {
+      "band": 0.2,
+      "max_group": 3,
+      "skip_gain": 0.0,
+      "match_floor": 0.45,
+      "aligned_min": 0.6,
+      "partial_min": 0.45,
+      "ambiguous_margin": 0.02,
+      "verify_with_agent": false
+    },
+    "analysis_speeds": [1.0, 0.8],
+    "analysis_rate": 16000,
+    "pitch_tolerance_cents": 50,
+    "acoustic": {
+      "pad_s": 0.05,
+      "min_window_s": 0.06,
+      "min_margin_per_frame": 0.25
+    },
+    "validation": {
+      "min_labels_per_class": 30,
+      "calibration_share": 0.5,
+      "min_precision": 0.9,
+      "min_recall": 0.8,
+      "max_false_positive_rate": 0.05
+    },
+    "correction": {
+      "max_attempts_per_word": 3,
+      "strategies": ["targeted_diacritics", "inline_ipa", "alternative_spelling"],
+      "use_agent": true
+    }
+  },
   "number_reading": {
     "digit_by_digit": ["۹۱۱", "۱۱۲", "۱۱۰", "۱۱۵", "۱۲۵"],
     "digit_cues": ["شماره", "شماره‌ی", "شمارهٔ", "تلفن", "کد", "پلاک"],
