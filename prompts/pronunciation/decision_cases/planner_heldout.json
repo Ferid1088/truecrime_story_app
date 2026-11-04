@@ -42,15 +42,14 @@
    }
   },
   {
-   "name": "high risk, another letter",
+   "name": "high risk, a reading the letters cannot spell",
    "category": "ambiguous_short_vowel",
-   "text": "از عهد گفت",
+   "text": "آشفته بود",
    "readings": [
-    "az",
-    "'ahd",
-    "goft"
+    "āshufte",
+    "bud"
    ],
-   "target": 1,
+   "target": 0,
    "signal": {
     "confidence": "low",
     "doubted": true
@@ -59,7 +58,7 @@
    "setup": {},
    "expect": {
     "strategy": "escalate",
-    "text": "از عهد گفت"
+    "text": "آشفته بود"
    }
   }
  ]

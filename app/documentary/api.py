@@ -744,6 +744,21 @@ def pronunciation_entries(language: str = "fa", status: str | None = None, db: S
     return pronunciation_review.entries(db, language, status)
 
 
+@router.get("/api/documentary/versions/{version_id}/pronunciation-plan")
+def pronunciation_plan(version_id: int, language: str = "fa", scope: str = "risky", db: Session = Depends(get_db)):
+    """Why each word of the version's narration is or is not changed for the voice (the planner run dry over the stored readings: no model, no voice,
+    nothing written): reference, ezafe, risk, decision, the exact text the voice is given, trust level and the block's place in the narration."""
+    from app.documentary import pronunciation_explain
+
+    _version_of(db, version_id)
+    if scope not in ("risky", "all"):
+        raise HTTPException(status_code=422, detail="scope is risky or all")
+    try:
+        return pronunciation_explain.explain(db, version_id, language, scope)
+    except OSError as e:
+        raise HTTPException(status_code=404, detail=f"No stored reading of this version in {language}") from e
+
+
 @router.get("/api/documentary/pronunciation/entries/{entry_id}/occurrences")
 def pronunciation_occurrences(entry_id: int, version_id: int, db: Session = Depends(get_db)):
     """Where the word is spoken in a narration, with the times of the words around it (synchronized playback and highlighting)."""

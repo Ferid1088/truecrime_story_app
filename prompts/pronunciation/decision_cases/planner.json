@@ -41,14 +41,13 @@
    }
   },
   {
-   "name": "high risk, the reading needs another letter (ayn to alef): nothing is invented",
+   "name": "high risk, the reading needs a letter the word does not have: nothing is invented",
    "category": "ambiguous_short_vowel",
-   "text": "از عهد حرف زد",
+   "text": "از گلوله گفت",
    "readings": [
     "az",
-    "'ahd",
-    "harf",
-    "zad"
+    "gulle",
+    "goft"
    ],
    "target": 1,
    "signal": {
@@ -59,7 +58,7 @@
    "setup": {},
    "expect": {
     "strategy": "escalate",
-    "text": "از عهد حرف زد"
+    "text": "از گلوله گفت"
    }
   },
   {
@@ -291,6 +290,28 @@
     "strategy": "selective_marks",
     "text": "این کِتاب بود",
     "needs_review": true
+   }
+  },
+  {
+   "name": "an ayn the reading starts with: marks on the word's own letters, the ayn kept",
+   "category": "ambiguous_short_vowel",
+   "text": "از عهد حرف زد",
+   "readings": [
+    "az",
+    "'ahd",
+    "harf",
+    "zad"
+   ],
+   "target": 1,
+   "signal": {
+    "confidence": "low",
+    "doubted": true
+   },
+   "names": false,
+   "setup": {},
+   "expect": {
+    "strategy": "selective_marks",
+    "text": "از عَهد حرف زد"
    }
   }
  ]

@@ -25,7 +25,8 @@ from app.db.models import PronunciationEntry, PronunciationIntervention
 from app.documentary.pronunciation_memory import APPROVED, PronunciationMemory
 from app.documentary.pronunciation_risk import RiskEngine, WordRisk
 from app.documentary.reading import ezafe as EZ
-from app.documentary.reading import spelling
+from app.documentary.reading import reference as REF
+from app.documentary.reading import scheme, spelling
 from app.documentary.reading.voicing import Voicing
 from app.documentary.reading.words import VOWEL_MARKS, Word, key_of, substitute, tokenize
 
@@ -46,10 +47,12 @@ class Decision:
     validated: bool = False                 # a person or an earlier validated use stands behind the replacement
     needs_review: bool = False
     intervention_id: int | None = None
+    reference: REF.Reference | None = None  # the complete phoneme-first reference of the word in its sentence (never the voice's input by itself)
 
     def describe(self) -> dict:
         return {"n": self.n, "surface": self.surface, "level": self.level, "strategy": self.strategy, "replacement": self.replacement, "basis": self.basis,
-                "validated": self.validated, "needs_review": self.needs_review, "intervention_id": self.intervention_id}
+                "validated": self.validated, "needs_review": self.needs_review, "intervention_id": self.intervention_id,
+                **({"reference": self.reference.describe()} if self.reference is not None and (self.strategy != "keep" or self.level in ("HIGH", "CRITICAL")) else {})}
 
 
 @dataclass
@@ -81,6 +84,12 @@ def naturalness(decisions: list[Decision]) -> dict:
         longest = max(longest, run)
     return {"words": len(decisions), "changed": sum(changed), "changed_fraction": round(sum(changed) / len(decisions), 3) if decisions else 0.0,
             "longest_run": longest, "unvalidated_changed": sum(1 for d, c in zip(decisions, changed, strict=True) if c and not d.validated)}
+
+
+def settled_reading(reading: str, b: EZ.Boundary) -> str:
+    """The reading with the ezafe the analyzer settled (an uncertain one stays as the agents read it): the reading the reference is built from."""
+    stem, _ = scheme.split_ezafe(scheme.split_pause(reading)[0])
+    return scheme.ezafe_form(stem) if b.ezafe_type in ("E", "YE") and stem else stem if b.ezafe_type == "NONE" else scheme.split_pause(reading)[0]
 
 
 def ezafe_sense(b: EZ.Boundary) -> str:
@@ -127,8 +136,9 @@ class Planner:
         signals = voicing.signals.get(block_id)
         boundaries = EZ.EzafeAnalyzer().analyze(words, readings, voicing.opinions.get(block_id), [s.confidence for s in signals] if signals else None,
                                                 frozenset(n for n, s in enumerate(signals or []) if s.overridden))
-        risks = self.engine.assess(words, readings, signals, boundaries)
-        decisions = [self.decide(w, r, readings[w.n], words, voicing, allow_dictionary, covered, boundaries[w.n]) for w, r in zip(words, risks, strict=True)]
+        references = [REF.reference_of(w, settled_reading(readings[w.n], boundaries[w.n])) for w in words]
+        risks = self.engine.assess(words, readings, signals, boundaries, references)
+        decisions = [self.decide(w, r, readings[w.n], words, voicing, allow_dictionary, covered, boundaries[w.n], references[w.n]) for w, r in zip(words, risks, strict=True)]
         self.limit(decisions)
         plan = BlockPlan(block_id, substitute(text, {d.n: d.replacement for d in decisions if d.strategy in ("respelling", "ezafe_mark", "selective_marks") and d.replacement}),
                          [self.rule(d) for d in decisions if d.strategy == "dictionary_rule"], decisions, risks, boundaries=boundaries)
@@ -150,9 +160,9 @@ class Planner:
         return {"string_to_replace": d.surface, "type": "alias", "alias": d.replacement}
 
     def decide(self, word: Word, risk: WordRisk, reading: str, words: list[Word], voicing: Voicing, allow_dictionary: bool, covered: frozenset[str],
-               boundary: EZ.Boundary | None = None) -> Decision:
+               boundary: EZ.Boundary | None = None, reference: REF.Reference | None = None) -> Decision:
         def made(strategy: str, basis: str, **fields) -> Decision:
-            return Decision(word.n, word.surface, risk.level, strategy, basis, **fields)
+            return Decision(word.n, word.surface, risk.level, strategy, basis, reference=reference, **fields)
 
         if word.number or reading == "NUM":
             return made("keep", "a number, read by code")
@@ -187,21 +197,19 @@ class Planner:
             if ezafe_only is not None:
                 return made("ezafe_mark", f"{risk.level} risk from its ezafe -{boundary.ezafe_type.lower()} ({boundary.grammatical_relation}): {risk.rationale}",
                             replacement=ezafe_only, needs_review=risk.level == "CRITICAL")
-        marked = self.marks(word, reading)
+        marked = self.marks(word, reference)
         if marked is None:
-            return made("escalate", f"{risk.level} risk, and the reading cannot be written on the word's own letters: {risk.rationale}", needs_review=True)
+            why = "; ".join(reference.problems) if reference is not None and reference.problems else "the reading cannot be written on the word's own letters"
+            return made("escalate", f"{risk.level} risk, and no validated reference to write on it ({why}): {risk.rationale}", needs_review=True)
         return made("selective_marks", f"{risk.level} risk: {risk.rationale}", replacement=marked, needs_review=risk.level == "CRITICAL")
 
     @staticmethod
-    def marks(word: Word, reading: str) -> str | None:
-        """The word's own letters with the short vowels of its reading as marks, or None when the reading cannot be written on them (another letter, a
-        colloquial spelling, a word that already has marks): then nothing is invented."""
-        if word.surface != word.plain:
+    def marks(word: Word, reference: REF.Reference | None) -> str | None:
+        """The minimal marking of the word's validated REFERENCE_IRAB (its short vowels, shaddas and ezafe on its own letters, no sukun), or None when
+        there is no valid reference, the word already has marks, or the reference needs a letter the text does not have: then nothing is invented."""
+        if word.surface != word.plain or reference is None or not reference.valid or reference.added_carrier:
             return None
-        try:
-            marked = spelling.persian(reading, final_h=spelling.final_h_for(word.surface))
-        except ValueError:
-            return None
+        marked = REF.minimal(reference.irab or "")
         return marked if skeleton(marked) == skeleton(word.surface) and marked != word.surface else None
 
     def limit(self, decisions: list[Decision]) -> None:
@@ -227,9 +235,12 @@ class Planner:
                 continue
             context: dict = {}
             b = plan.boundaries[d.n] if plan.boundaries else None
+            grammar = {"reference": d.reference.describe()} if d.reference is not None else {}
             if d.strategy == "ezafe_mark" and b is not None:      # an ezafe is kept with its context: the next word, the relation, the sentence
-                context = {"next_word": key_of(b.next_word), "sense": ezafe_sense(b), "grammar": {"ezafe": b.describe()},
-                           "sentence": " ".join(w.plain for w in words)}
+                context = {"next_word": key_of(b.next_word), "sense": ezafe_sense(b), "sentence": " ".join(w.plain for w in words)}
+                grammar["ezafe"] = b.describe()
+            if grammar:
+                context["grammar"] = grammar
             proposal = self.memory.propose(language=self.language, surface=d.surface, expected_irab=d.replacement or "", actor="agent:planner", voice_id=self.voice_id,
                                            model_id=self.model_id, scope="exact_form" if not context else "context", **context)
             if proposal.blocked_by is None:

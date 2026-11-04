@@ -2496,6 +2496,22 @@ class PronunciationRiskConfig(BaseModel):
         return self
 
 
+class MorphologyConfig(BaseModel):
+    """What the morphological segmentation (reading/reference.py) knows: the verb prefixes written with a half-space, the plural endings and the enclitics
+    with how many syllables each adds after a consonant (for the rule-based stress). It segments only where the writing shows a boundary (a half-space)
+    and never changes a pronunciation."""
+
+    verb_prefixes: dict[str, Literal["negation", "continuous"]]
+    plural: list[str]
+    enclitics: dict[str, int]
+
+
+class HomographsConfig(BaseModel):
+    """Written forms with more than one reading in use (مرد mard / mord): the voice cannot tell from the letters which one is meant."""
+
+    words: dict[str, list[str]]
+
+
 class EzafeConfig(BaseModel):
     """The Persian ezafe analyzer (reading/ezafe.py): for every word boundary of a block whether an ezafe is said there, -e or -ye by the spoken final sound of
     the word, the grammatical relation and how sure that is. The word lists are rules that hold whatever the context (a function word never takes an ezafe);
@@ -4432,6 +4448,8 @@ class AIConfig(BaseModel):
     prosody: ProsodyConfig
     pronunciation_risk: PronunciationRiskConfig
     ezafe: EzafeConfig
+    morphology: MorphologyConfig
+    homographs: HomographsConfig
     pronunciation_auto: PronunciationAutoConfig = Field(default_factory=PronunciationAutoConfig)
     semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)
     reading: ReadingConfig = Field(default_factory=ReadingConfig)

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -13,39 +12,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.ai_config import ai_config  # noqa: E402
 from app.db.base import SessionLocal  # noqa: E402
-from app.db.models import ReadingApproval, StoryVersion  # noqa: E402
 from app.documentary import voice_experiment as VE  # noqa: E402
-from app.documentary import voice_prepare as VP  # noqa: E402
-from app.documentary.performance import performance_for_version  # noqa: E402
+from app.documentary.pronunciation_explain import load  # noqa: E402
 from app.documentary.pronunciation_planner import Planner  # noqa: E402
-from app.documentary.reading import stage as RS  # noqa: E402
-from app.documentary.reading.answer import ReadingWord  # noqa: E402
-from app.documentary.reading.block import block_inputs  # noqa: E402
-from app.documentary.reading.table import FilmTable  # noqa: E402
-from app.documentary.reading.voicing import Voicing, WordSignal  # noqa: E402
-from app.documentary.reading.words import key_of  # noqa: E402
-
-
-def load(db, version_id: int, language: str):
-    version = db.get(StoryVersion, version_id)
-    cache = json.loads((Path(ai_config.voice.work_dir) / str(version.case_id) / ai_config.reading.folder / f"{language}_v{version.id}.json").read_text(encoding="utf-8"))
-    plan = performance_for_version(db, version)
-    items = block_inputs(plan["blocks"], VP.english_sources(db, version), ai_config.semantic_review.neighbour_chars)
-    approvals = [{"surface": a.surface, "latin": a.latin, "kind": a.kind} for a in db.query(ReadingApproval).filter(ReadingApproval.language == language)]
-    table = FilmTable.build(cache["reader"], approvals)
-    readings, signals = {}, {}
-    for item in items:
-        saved = cache["blocks"].get(item.block_id)
-        if not saved or len(saved["readings"]) != len(item.words):
-            continue
-        doubted = {d["n"] for d in saved["doubts"]}
-        overridden = {int(m.group(1)) for note in saved["notes"] if (m := re.match(r"word (\d+)", note))}
-        readings[item.block_id] = [r["latin"] for r in saved["readings"]]
-        signals[item.block_id] = [WordSignal(r["confidence"], r["n"] in doubted, r["n"] in overridden) for r in saved["readings"]]
-    opinions = RS.opinions_of({b: [ReadingWord(**r) for r in saved["readings"]] for b, saved in cache["blocks"].items() if b in readings})
-    voicing = Voicing({key_of(a["surface"]): a["latin"] for a in approvals}, readings, signals, RS.names_of(table), opinions)
-    covered = frozenset(key_of(r.get("string_to_replace") or "") for r in VP.sent_rules(version))
-    return version, plan, voicing, covered
 
 
 def main() -> None:

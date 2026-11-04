@@ -11,11 +11,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from plan_voice_experiment import load  # noqa: E402
-
 from app.core.ai_config import ai_config  # noqa: E402
 from app.db.base import SessionLocal  # noqa: E402
 from app.documentary import voice_prepare as VP  # noqa: E402
+from app.documentary.pronunciation_explain import load  # noqa: E402
 from app.documentary.pronunciation_planner import CHANGES, Planner  # noqa: E402
 from app.documentary.reading.block import block_inputs  # noqa: E402
 

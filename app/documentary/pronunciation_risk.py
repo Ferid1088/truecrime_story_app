@@ -23,6 +23,7 @@ from app.documentary import phonetic_benchmark
 from app.documentary.pronunciation_memory import APPROVED
 from app.documentary.reading import scheme
 from app.documentary.reading.ezafe import Boundary, EzafeAnalyzer
+from app.documentary.reading.reference import Reference
 from app.documentary.reading.voicing import WordSignal
 from app.documentary.reading.words import Word, key_of
 
@@ -84,6 +85,7 @@ class History:
 class RiskEngine:
     def __init__(self, db: Session, language: str, voice_id: str, model_id: str, names: frozenset[str] = frozenset()):
         self.cfg, self.names = ai_config.pronunciation_risk, names
+        self.homographs = {key_of(w): readings for w, readings in ai_config.homographs.words.items()}
         self.history = History(db, language, voice_id, model_id)
 
     def weight(self, name: str) -> int:
@@ -93,7 +95,7 @@ class RiskEngine:
         c = self.cfg
         return "CRITICAL" if score >= c.critical_from else "HIGH" if score >= c.high_from else "MEDIUM" if score >= c.medium_from else "LOW"
 
-    def signals_of(self, word: Word, reading: str, signal: WordSignal, boundary: Boundary | None = None) -> list[Signal]:
+    def signals_of(self, word: Word, reading: str, signal: WordSignal, boundary: Boundary | None = None, reference: Reference | None = None) -> list[Signal]:
         found: list[Signal] = []
 
         def add(name: str, evidence: str, weight: int | None = None) -> None:
@@ -113,6 +115,11 @@ class RiskEngine:
         if phonetic_benchmark.category_of(word.surface, stem, set()) == "colloquial":
             add("colloquial", "a colloquial form (spoken ending)")
         found += self.ezafe_signals(boundary)
+        readings_of = self.homographs.get(word.key)
+        if readings_of and word.surface == word.plain:
+            add("homograph", f"{word.plain} is written the same for {' / '.join(readings_of)}: the voice cannot tell from the letters which one is meant")
+        if reference is not None and reference.irab is None:
+            add("reference_unaligned", "the reading cannot be written on the word's own letters: the reading or the spelling is not what the other expects")
         letters = [ch for ch in self.cfg.hazard_letters if ch in word.plain]
         if letters and word.surface == word.plain:
             add("hazard_letter", f"unmarked letters that have tripped the voice: {' '.join(letters)}")
@@ -177,7 +184,8 @@ class RiskEngine:
         approved = [e for e in self.history.entries.get(word.key, []) if e.status in APPROVED and e.surface == word.surface]
         return "human_approved" if any(e.status == "human_approved" for e in approved) else "auto_verified" if approved else "unverified"
 
-    def assess(self, words: list[Word], readings: list[str], signals: list[WordSignal] | None = None, boundaries: list[Boundary] | None = None) -> list[WordRisk]:
+    def assess(self, words: list[Word], readings: list[str], signals: list[WordSignal] | None = None, boundaries: list[Boundary] | None = None,
+               references: list[Reference | None] | None = None) -> list[WordRisk]:
         """The risk of each word of a block (its readings, in order). A number is read by code and is LOW. `boundaries`: the ezafe analysis of the block
         (made here from the readings when not given)."""
         signals = signals or [WordSignal()] * len(words)
@@ -188,7 +196,7 @@ class RiskEngine:
             if word.number or reading == "NUM":
                 out.append(WordRisk(word.n, word.surface, reading, 0, "LOW", [Signal("number", 0, "read by code")]))
                 continue
-            found = self.signals_of(word, reading, signals[word.n], boundaries[word.n])
+            found = self.signals_of(word, reading, signals[word.n], boundaries[word.n], references[word.n] if references else None)
             score = sum(s.weight for s in found)
             out.append(WordRisk(word.n, word.surface, reading, score, self.level_of(score), found, self.verification_of(word)))
         return out

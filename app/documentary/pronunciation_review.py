@@ -10,22 +10,23 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.db.models import PronunciationEntry, StoryVersion
+from app.db.models import PronunciationEntry, PronunciationIntervention, StoryVersion
 from app.documentary import voice_review
-from app.documentary.pronunciation_memory import PronunciationMemory, nfc
+from app.documentary.pronunciation_memory import PronunciationMemory, nfc, trust_level
 from app.documentary.reading.words import EDGE_PUNCT, key_of
 
 CONTEXT_WORDS = 10                               # words shown before and after the word, with their times
 
 
-def describe(entry: PronunciationEntry) -> dict:
+def describe(entry: PronunciationEntry, interventions: list[PronunciationIntervention] | None = None) -> dict:
     origin = json.loads(entry.origin_data or "{}")
     return {"id": entry.id, "language": entry.language, "surface": entry.surface, "surface_key": entry.surface_key, "sense": entry.sense, "scope": entry.scope,
             "prev_word": entry.prev_word, "next_word": entry.next_word, "voice_id": entry.voice_id, "model_id": entry.model_id, "status": entry.status,
             "source": entry.source, "expected_irab": entry.expected_irab, "approved_pronunciation": entry.approved_pronunciation, "approved_ipa": entry.approved_ipa,
             "observed_wrong": entry.observed_wrong, "sentence": entry.sentence, "confidence": entry.confidence, "reviewer": entry.reviewer,
             "approved_at": entry.approved_at.isoformat() if entry.approved_at else None, "version": entry.version, "origin": entry.origin,
-            "sources": origin.get("sources", []), "different_readings": origin.get("different_readings", [])}
+            "sources": origin.get("sources", []), "different_readings": origin.get("different_readings", []),
+            "trust": trust_level(entry, interventions if interventions is not None else [])}
 
 
 def entries(db: Session, language: str, status: str | None = None) -> dict:
@@ -34,7 +35,10 @@ def entries(db: Session, language: str, status: str | None = None) -> dict:
     for e in query.all():
         counts[e.status] = counts.get(e.status, 0) + 1
     rows = (query.filter_by(status=status) if status else query).order_by(PronunciationEntry.surface_key, PronunciationEntry.id).all()
-    return {"counts": counts, "entries": [describe(e) for e in rows]}
+    tries: dict[int, list[PronunciationIntervention]] = {}
+    for i in db.query(PronunciationIntervention).filter(PronunciationIntervention.entry_id.in_([e.id for e in rows])):
+        tries.setdefault(i.entry_id, []).append(i)
+    return {"counts": counts, "entries": [describe(e, tries.get(e.id, [])) for e in rows]}
 
 
 def narration_words(version: StoryVersion) -> tuple[list[dict], Path | None]:

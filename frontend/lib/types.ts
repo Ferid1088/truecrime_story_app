@@ -3815,3 +3815,50 @@ export interface NarrationPreview extends NarrationPreviewSummary {
   source: string;
   blocks: { block_id: string; start: number; end: number; text: string; label?: string }[];
 }
+
+export interface PronunciationSignal { name: string; weight: number; evidence: string }
+
+export interface PronunciationReference {
+  surface: string;
+  finglish: string;
+  phonemes: string[];
+  ipa: string;
+  syllables: string[];
+  stress: number;
+  morphology: { text: string; kind: string }[];
+  reference_irab: string | null;
+  added_carrier: boolean;
+  valid: boolean;
+  problems: string[];
+}
+
+export interface PronunciationPlanWord {
+  block_id: string;
+  n: number;
+  word: string;
+  start: number;
+  end: number;
+  sentence: string;
+  finglish: string;
+  reference: PronunciationReference | null;
+  ezafe: { ezafe_type: string; grammatical_relation: string; phonological_class: string; evidence_type: string; expected_reading: string; written: boolean;
+           conflicts: string[]; confidence: number; tts_form: string | null } | null;
+  risk: { level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"; score: number; signals: PronunciationSignal[] };
+  decision: { strategy: string; basis: string; replacement: string | null; validated: boolean; needs_review: boolean };
+  tts_input: string;
+  audio: { start: number; end: number } | null;
+  memory: { id: number; surface: string; status: string; trust: string; next_word: string; sense: string; approved_pronunciation: string | null;
+            interventions: { kind: string; replacement: string; status: string; successes: number; failures: number }[] }[];
+  verification: string;
+}
+
+export interface PronunciationPlan {
+  version_id: number;
+  case_id: number;
+  language: string;
+  voice_id: string;
+  model_id: string;
+  audio_url: string | null;
+  counts: Record<string, number>;
+  words: PronunciationPlanWord[];
+}

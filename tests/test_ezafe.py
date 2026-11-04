@@ -133,7 +133,7 @@ def test_a_checker_that_agrees_is_not_listed_and_calls_no_arbiter():
 
 
 def test_the_owners_spoken_forms_and_the_ordinary_words_of_a_long_name_are_not_names_of_the_film():
-    table = FilmTable.build({"people": [{"id": "s", "first": {"fa": "سارا", "latin": "sārā"}}], "foreign": [],
+    table = FilmTable.build({"people": [{"id": "s", "first": {"fa": "سارا", "latin": "sārā"}, "titles": [{"fa": "رئیس", "latin": "ra'is"}]}], "foreign": [],
                             "places": [{"fa": "دادگاه عمومیِ شهرستان میامی", "latin": "dādgāh-e omumi-ye shahrestān-e miāmi"}, {"fa": "اوهایو", "latin": "ohāyo"}]},
                            [{"surface": "سلاح", "latin": "selāh", "kind": "spoken_form"}])
     assert RS.names_of(table) == frozenset({key_of("سارا"), key_of("اوهایو")})

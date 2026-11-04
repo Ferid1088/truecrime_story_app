@@ -44,9 +44,10 @@ async def voicing_of(db: Session, language: str, read: ReadingResult) -> Voicing
 
 
 def names_of(table: FilmTable | None) -> frozenset[str]:
-    """The words that are names wherever they stand: the film's people, its foreign words and its one-word places. Not the owner's spoken forms of ordinary
-    words, and not the ordinary words of a long institution's name (the دادگاه of "دادگاه عمومیِ شهرستان میامی" is a court everywhere else)."""
-    return frozenset(k for e in table.entries if e.kind in ("person", "foreign") or (e.kind == "place" and len(e.keys) == 1) for k in e.keys) if table else frozenset()
+    """The words that are names wherever they stand: each part of a person's name, the film's foreign words and its one-word places. Not the owner's
+    spoken forms of ordinary words, not a title (رئیس of "رئیس پلیس ...": the table keeps title + name as one entry, each name part has its own), and
+    not the ordinary words of a long institution's name (the دادگاه of "دادگاه عمومیِ شهرستان میامی" is a court everywhere else)."""
+    return frozenset(k for e in table.entries if e.kind == "foreign" or (e.kind in ("person", "place") and len(e.keys) == 1) for k in e.keys) if table else frozenset()
 
 
 def opinions_of(readings: dict[str, list[ReadingWord]]) -> dict[str, dict[int, list[Opinion]]]:

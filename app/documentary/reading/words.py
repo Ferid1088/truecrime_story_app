@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from app.documentary.persian_numbers import NUMBER
 
 TAG = re.compile(r"\[[^\[\]]*\]\s*")
+PIECE = re.compile(r"\S+")
 VOWEL_MARKS = re.compile("[ً-ْٰٔ]")      # fathatan .. sukun, the dagger alef, the hamza above
 EDGE_PUNCT = ".,;:!?؟،؛«»\"'()[]…-–—"
 NUMBER_WORD = "NUM"                                          # what a reading says for a number: the digits are read by code, not by an agent
@@ -22,6 +23,8 @@ class Word:
     key: str              # the plain form compared by code: no half-space, one form of ی and ک
     after: str            # the punctuation that follows the word in the text ("" when none)
     number: bool          # digits: read by code, never by an agent
+    start: int = -1       # where the word (its surface) stands in the text it was cut from: the text is never rewritten, a change is traced to it
+    end: int = -1
 
 
 def key_of(text: str) -> str:
@@ -29,22 +32,23 @@ def key_of(text: str) -> str:
 
 
 def tokenize(text: str) -> list[Word]:
-    """The words of a block in order. Audio tags are not words; a token with no letter or digit is punctuation and joins the word before it."""
+    """The words of a block in order, each with its place in `text`. Audio tags are not words; a token with no letter or digit is punctuation and joins
+    the word before it."""
     words: list[Word] = []
-    for token in TAG.sub(" ", text).split():
+    blanked = TAG.sub(lambda m: " " * len(m.group()), text)          # same length: the offsets are offsets of the text itself
+    for m in PIECE.finditer(blanked):
+        token = m.group()
         core = token.strip(EDGE_PUNCT)
         if not any(ch.isalnum() for ch in core):
             if words:
                 last = words[-1]
-                words[-1] = Word(last.n, last.surface, last.plain, last.key, last.after + token, last.number)
+                words[-1] = Word(last.n, last.surface, last.plain, last.key, last.after + token, last.number, last.start, last.end)
             continue
+        at = m.start() + token.index(core)
         after = token[token.rindex(core) + len(core):] if core else ""
         plain = VOWEL_MARKS.sub("", core)
-        words.append(Word(len(words), core, plain, key_of(core), after, bool(NUMBER.fullmatch(core))))
+        words.append(Word(len(words), core, plain, key_of(core), after, bool(NUMBER.fullmatch(core)), at, at + len(core)))
     return words
-
-
-PIECE = re.compile(r"\S+")
 
 
 def substitute(text: str, chosen: dict[int, str]) -> str:

@@ -16,3 +16,5 @@ EXAMPLES
 - Editor: فوریه = fevriye before a year in digits, and nothing decides → in "ezafe": {"n":1,"present":null,"relation":"date","confidence":0.4}
 - Editor: صدایی = sedāyi-ye before بلند ("a loud sound": the indefinite -i) → {"n":0,"verdict":"reject","class":"ezafe unwanted","proposed_latin":"sedāyi","proof":"the -i is the indefinite article: a noun with it takes no ezafe before its adjective"}
 - Editor: بینایی = bināyi before انسان ("human eyesight") → {"n":0,"verdict":"reject","class":"ezafe missing","proposed_latin":"bināyi-ye","proof":"an abstract noun in -āyi with its possessor: a final long i takes -ye"}
+- Editor: مرد = mard in "او در تصادف مرد" → {"n":3,"verdict":"reject","class":"wrong sense","proposed_latin":"mord","proof":"the verb: he died in the accident"}
+- Editor: نمی‌خوام = nemikhāham → {"n":0,"verdict":"reject","class":"wrong register","proposed_latin":"nemikhām","proof":"the text is colloquial: the formal ending is not what is written"}

@@ -17,11 +17,11 @@ HIGH = WordSignal("low", True, False)
 
 
 def blocks():
-    return [_block("FA_a_01", "act1", "این کتاب بود"), _block("FA_b_01", "act1", "او رفت خانه"), _block("FA_c_01", "act1", "از عهد گفت"), _block("FA_d_01", "act1", "من گرگ زدم")]
+    return [_block("FA_a_01", "act1", "این کتاب بود"), _block("FA_b_01", "act1", "او رفت خانه"), _block("FA_c_01", "act1", "از گلوله گفت"), _block("FA_d_01", "act1", "من گرگ زدم")]
 
 
 def voicing():
-    readings = {"FA_a_01": ["in", "ketāb", "bud"], "FA_b_01": ["u", "raft", "khāne"], "FA_c_01": ["az", "'ahd", "goft"], "FA_d_01": ["man", "gorg", "zadam"]}
+    readings = {"FA_a_01": ["in", "ketāb", "bud"], "FA_b_01": ["u", "raft", "khāne"], "FA_c_01": ["az", "gulle", "goft"], "FA_d_01": ["man", "gorg", "zadam"]}
     signals = {"FA_a_01": [WordSignal(), HIGH, WordSignal()], "FA_b_01": [WordSignal()] * 3, "FA_c_01": [WordSignal(), HIGH, WordSignal()], "FA_d_01": [WordSignal()] * 3}
     return Voicing({"گرگ": "gorg"}, readings, signals)
 
@@ -36,7 +36,7 @@ def test_every_group_is_chosen_and_the_arms_differ_only_where_the_planner_decide
     assert set(by) == {"control", "candidate", "escalated", "approved"}
     assert by["control"].texts == {"A": "او رفت خانه", "B": "او رفت خانه", "C": "او رفت خانه"}
     assert by["candidate"].texts["A"] == "این کتاب بود" and by["candidate"].texts["C"] == "این کِتاب بود" and by["candidate"].texts["B"] == "این کتاب بود"
-    assert set(by["escalated"].texts.values()) == {"از عهد گفت"}, "an escalated word is left as written in every arm"
+    assert set(by["escalated"].texts.values()) == {"از گلوله گفت"}, "an escalated word is left as written in every arm"
     assert by["approved"].texts["A"] == "من گرگ زدم" and by["approved"].texts["B"] == by["approved"].texts["C"] == "من گُرگ زدم"
 
 

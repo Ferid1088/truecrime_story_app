@@ -12,15 +12,13 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from plan_voice_experiment import load  # noqa: E402
 
 from app.core.ai_config import ai_config  # noqa: E402
 from app.db.base import SessionLocal  # noqa: E402
 from app.documentary import narration_preview as NP  # noqa: E402
 from app.documentary import voice_experiment as VE  # noqa: E402
 from app.documentary import voice_prepare as VP  # noqa: E402
+from app.documentary.pronunciation_explain import load  # noqa: E402
 from app.documentary.pronunciation_planner import Planner  # noqa: E402
 from app.documentary.voice_render import VoiceRenderer  # noqa: E402
 from app.providers.voice import get_voice_provider  # noqa: E402

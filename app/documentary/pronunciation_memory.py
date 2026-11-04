@@ -32,6 +32,29 @@ KINDS = ("dictionary_alias", "dictionary_phoneme", "irab", "alt_spelling", "rewr
 EVIDENCE_KINDS = ("acoustic", "phonetic", "model", "human", "inference")
 PROTECTED = ("human_approved", "auto_verified", "legacy_unverified")        # an agent does not change these
 APPROVED = ("human_approved", "auto_verified")                              # what a person or the app has approved: a reference (a person outranks the app)
+TRUST_LEVELS = ("OWNER_APPROVED_READING", "ACOUSTICALLY_VERIFIED", "LINGUISTICALLY_VALIDATED", "UNVERIFIED_CANDIDATE", "LEGACY_UNVERIFIED", "REJECTED",
+                "UNRESOLVED")
+
+
+def trust_level(entry: PronunciationEntry, interventions: list[PronunciationIntervention]) -> str:
+    """How far an entry can be trusted, read from what it holds (nothing is promoted here): a person's approval; the voice verified with a validated
+    intervention; a candidate whose reference the deterministic validator passed (linguistically validated, not heard); an untried candidate; an
+    imported legacy entry; a rejected one; one left open."""
+    if entry.status == "human_approved":
+        return "OWNER_APPROVED_READING"
+    if entry.status == "auto_verified" and any(i.status == "validated" for i in interventions):
+        return "ACOUSTICALLY_VERIFIED"
+    if entry.status == "legacy_unverified":
+        return "LEGACY_UNVERIFIED"
+    if entry.status == "rejected":
+        return "REJECTED"
+    if entry.status in ("unresolved", "contested", "uncertain", "auto_verified"):
+        return "UNRESOLVED"
+    try:
+        reference = json.loads(entry.grammar or "{}").get("reference") or {}
+    except ValueError:
+        reference = {}
+    return "LINGUISTICALLY_VALIDATED" if reference.get("valid") else "UNVERIFIED_CANDIDATE"
 
 
 class Contradiction(ValueError):
