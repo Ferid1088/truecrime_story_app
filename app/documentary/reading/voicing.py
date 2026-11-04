@@ -8,6 +8,7 @@ import logging
 from dataclasses import dataclass, field, replace
 
 from app.core.ai_config import ai_config
+from app.documentary.reading.ezafe import Opinion
 from app.documentary.reading.scheme import ezafe_form, split_ezafe, split_pause, to_ipa
 from app.documentary.reading.spelling import final_h_for, persian
 from app.documentary.reading.words import substitute, tokenize
@@ -31,6 +32,7 @@ class Voicing:
     readings: dict[str, list[str]]              # block -> the reading of each word (for the ezafe and the order of the words)
     signals: dict[str, list[WordSignal]] = field(default_factory=dict)      # block -> what the reading stage knew of each word
     names: frozenset[str] = frozenset()         # the plain forms of the film's people, places and foreign words
+    opinions: dict[str, dict[int, list[Opinion]]] = field(default_factory=dict)     # block -> word -> the reading agents' own ezafe judgements
 
     def with_fixed(self, more: dict[str, str]) -> Voicing:
         return replace(self, fixed={**self.fixed, **more})

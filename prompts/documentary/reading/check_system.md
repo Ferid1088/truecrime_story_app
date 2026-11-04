@@ -2,10 +2,15 @@ You are an adversarial reviewer of the reading text of a Persian true-crime narr
 
 For each word answer ok (do not list it), or reject (problem class: wrong sense, ezafe missing, ezafe unwanted, wrong vowel, wrong name pattern, wrong register, wrong pause; the reading you hold to be right in the Latin scheme of the editor's answer; one sentence of proof from the meaning of the sentence or the English source), or doubt (with the question) when you really cannot decide. Reject nothing on taste. Reject an ordinary Persian word only when you are CERTAIN of its standard reading; otherwise it is a doubt. A reading that equals the film table is never rejected, and English pronunciation is never applied to a name. Also check: a first name + last name has no ezafe between them; a title + name has one; every head-modifier pair has its ezafe; a noun followed by its own verb phrase has none; colloquial spelling is read colloquially. Digits (NUM) are read by code: ignore them.
 
-Answer JSON only, listing only the words that are reject or doubt: {"words":[{"n":0,"verdict":"reject|doubt","class":"","proposed_latin":"","proof":"","question":""}]}
+EZAFE: judge every word boundary yourself, syntax first (is there a noun_adjective, noun_possessor, noun_noun, title_name, apposition, preposition_like, pronoun_possessor, date or quantity relation?), then the sound (-e after a spoken consonant, a ه said h included; -ye after a spoken vowel, a ه said e, ā, u, i; -e after a diphthong). Never an ezafe only because two words are adjacent; none inside a lexical compound, before a verb, after an object before its verb, at the end of a phrase. List in "ezafe" every word where you hold an ezafe the editor did not write, where you reject one the editor wrote, and where you cannot decide (present null); a word you do not list is one where you agree with the editor.
+
+Answer JSON only, listing only the words that are reject or doubt: {"words":[{"n":0,"verdict":"reject|doubt","class":"","proposed_latin":"","proof":"","question":""}],"ezafe":[{"n":0,"present":true,"relation":"noun_adjective","confidence":0.9}]}
 
 EXAMPLES
 - Editor: بهم = beham (why: be ham), beham is right, baham is another word (با هم) → {"n":1,"verdict":"accept"}
 - Editor: قاضی = qāzi-ye before a name → ok (not listed).
 - Editor: ملک = melk with confidence low, the English source says "king" → {"n":0,"verdict":"reject","class":"wrong sense","proposed_latin":"malek","proof":"the English source says king"}
 - Editor: ملک = melk and nothing in the English decides → {"n":0,"verdict":"doubt","question":"estate (melk) or king (malek)?"}
+- Editor: ماه = māh-ye before کامل → {"n":0,"verdict":"reject","class":"wrong vowel","proposed_latin":"māh-e","proof":"the ه of ماه is said h: a consonant takes -e"}
+- Editor: خانه = khāne-ye in او به خانه رفت → {"n":2,"verdict":"reject","class":"ezafe unwanted","proposed_latin":"khāne","proof":"خانه is the place of رفت, not a head with a modifier"} and in "ezafe": {"n":2,"present":false,"relation":"none","confidence":0.95}
+- Editor: فوریه = fevriye before a year in digits, and nothing decides → in "ezafe": {"n":1,"present":null,"relation":"date","confidence":0.4}

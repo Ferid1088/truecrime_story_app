@@ -18,6 +18,8 @@ from app.documentary import voice_experiment as VE  # noqa: E402
 from app.documentary import voice_prepare as VP  # noqa: E402
 from app.documentary.performance import performance_for_version  # noqa: E402
 from app.documentary.pronunciation_planner import Planner  # noqa: E402
+from app.documentary.reading import stage as RS  # noqa: E402
+from app.documentary.reading.answer import ReadingWord  # noqa: E402
 from app.documentary.reading.block import block_inputs  # noqa: E402
 from app.documentary.reading.table import FilmTable  # noqa: E402
 from app.documentary.reading.voicing import Voicing, WordSignal  # noqa: E402
@@ -40,7 +42,8 @@ def load(db, version_id: int, language: str):
         overridden = {int(m.group(1)) for note in saved["notes"] if (m := re.match(r"word (\d+)", note))}
         readings[item.block_id] = [r["latin"] for r in saved["readings"]]
         signals[item.block_id] = [WordSignal(r["confidence"], r["n"] in doubted, r["n"] in overridden) for r in saved["readings"]]
-    voicing = Voicing({key_of(a["surface"]): a["latin"] for a in approvals}, readings, signals, frozenset(k for e in table.entries for k in e.keys))
+    opinions = RS.opinions_of({b: [ReadingWord(**r) for r in saved["readings"]] for b, saved in cache["blocks"].items() if b in readings})
+    voicing = Voicing({key_of(a["surface"]): a["latin"] for a in approvals}, readings, signals, RS.names_of(table), opinions)
     covered = frozenset(key_of(r.get("string_to_replace") or "") for r in VP.sent_rules(version))
     return version, plan, voicing, covered
 

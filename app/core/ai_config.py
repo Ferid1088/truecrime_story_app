@@ -2496,6 +2496,31 @@ class PronunciationRiskConfig(BaseModel):
         return self
 
 
+class EzafeConfig(BaseModel):
+    """The Persian ezafe analyzer (reading/ezafe.py): for every word boundary of a block whether an ezafe is said there, -e or -ye by the spoken final sound of
+    the word, the grammatical relation and how sure that is. The word lists are rules that hold whatever the context (a function word never takes an ezafe);
+    everything else comes from the reading agents and the text's own writing, and what the lists and the agents cannot settle stays UNCERTAIN."""
+
+    # Words that never take an ezafe themselves (conjunctions, prepositions that are not nouns, particles, demonstratives, quantifiers).
+    never_takes: list[str]
+    # Words before which no ezafe is said (object marker, conjunctions, particles).
+    never_before: list[str]
+    # A next word starting with one of these (a verb prefix with its half-space) ends the phrase: no ezafe before a verb.
+    verb_prefixes: list[str]
+    # Words that take the next word as their possessor or complement when they carry an ezafe: the relation is named, not guessed.
+    pronouns: list[str]
+    titles: list[str]
+    preposition_nouns: list[str]
+    # Month names: a month followed by a year in digits has no ezafe of its own unless the text writes one or a reading agent is sure (conventions vary).
+    months: list[str]
+    # Two words that are written apart but may be a compound (no ezafe) or a phrase (ezafe): uncertain unless the text writes the ezafe.
+    compound_pairs: list[list[str]]
+    # How sure each kind of evidence is (an estimate, never a proof of what the voice says).
+    confidence: dict[str, float]
+    # An agent's ezafe opinion below this confidence counts as uncertain.
+    uncertain_below: float = Field(default=0.6, ge=0, le=1)
+
+
 class PronunciationAutoConfig(BaseModel):
     """Autonomous verification of pronunciation entries (pronunciation_auto.py). Off until the phonetic recognizer has passed an independent evaluation on
     recordings a native speaker labelled: an entry is never approved by linguistic agreement alone, and never because the attempts ran out."""
@@ -4406,6 +4431,7 @@ class AIConfig(BaseModel):
     phoneme_alignment: PhonemeAlignmentConfig
     prosody: ProsodyConfig
     pronunciation_risk: PronunciationRiskConfig
+    ezafe: EzafeConfig
     pronunciation_auto: PronunciationAutoConfig = Field(default_factory=PronunciationAutoConfig)
     semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)
     reading: ReadingConfig = Field(default_factory=ReadingConfig)

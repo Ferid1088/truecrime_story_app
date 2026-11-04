@@ -4,27 +4,33 @@ and nothing for the words that need none. The block's text is the original text;
 Strategies, in the order they are tried for a word:
   respelling       a pronunciation a person (or the app) approved, or a validated respelling, for this exact written form in this context;
   dictionary_rule  a validated dictionary alias for it (only when the language's voice has a dictionary);
+  ezafe_mark       only the ezafe written on the word (a kasra, a hamza on ه, a carrier yeh), for a HIGH or CRITICAL word whose risk is its unwritten
+                   ezafe alone and whose ezafe the analyzer settled (reading/ezafe.py; a candidate);
   selective_marks  the word's own letters with their short vowels as marks, only for a HIGH or CRITICAL word whose reading can be written on its own
                    letters (a candidate: nothing says yet that the voice obeys it);
-  escalate         no safe change: the word stays as written and is reported for a person;
+  escalate         no safe change, or an ezafe the evidence does not settle: the word stays as written and is reported for a person;
   keep             the rest. LOW is no proof, MEDIUM is left to the listening QA.
 A candidate never becomes an approval here. How many unvalidated changes a block may carry is limited (config), so that the speech stays natural."""
 
 from __future__ import annotations
 
+import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
+from app.db.models import PronunciationEntry, PronunciationIntervention
 from app.documentary.pronunciation_memory import APPROVED, PronunciationMemory
 from app.documentary.pronunciation_risk import RiskEngine, WordRisk
+from app.documentary.reading import ezafe as EZ
 from app.documentary.reading import spelling
 from app.documentary.reading.voicing import Voicing
 from app.documentary.reading.words import VOWEL_MARKS, Word, key_of, substitute, tokenize
 
-CHANGES = ("respelling", "dictionary_rule", "selective_marks")
+CHANGES = ("respelling", "dictionary_rule", "ezafe_mark", "selective_marks")
+EZAFE_SIGNALS = ("ezafe_unwritten", "ezafe_uncertain", "ezafe_conflict", "ezafe_phonology")
 KIND_STRATEGY = {"dictionary_alias": "dictionary_rule", "dictionary_phoneme": "dictionary_rule", "irab": "respelling", "alt_spelling": "respelling", "rewrite": "respelling"}
 JOINERS = re.compile("[‌‍]")
 
@@ -54,6 +60,7 @@ class BlockPlan:
     decisions: list[Decision] = field(default_factory=list)
     risks: list[WordRisk] = field(default_factory=list)
     note: str = ""
+    boundaries: list[EZ.Boundary] = field(default_factory=list)       # the ezafe analysis of the block, one per word
 
     @property
     def naturalness(self) -> dict:
@@ -61,7 +68,8 @@ class BlockPlan:
 
     def describe(self) -> dict:
         return {"block_id": self.block_id, "note": self.note, "naturalness": self.naturalness, "rules": self.rules,
-                "words": [{"risk": r.describe(), "decision": d.describe()} for r, d in zip(self.risks, self.decisions, strict=True)]}
+                "words": [{"risk": r.describe(), "decision": d.describe(), **({"ezafe": b.describe()} if b.ezafe_type != "NONE" else {})}
+                          for r, d, b in zip(self.risks, self.decisions, self.boundaries or [None] * len(self.decisions), strict=True)]}
 
 
 def naturalness(decisions: list[Decision]) -> dict:
@@ -73,6 +81,27 @@ def naturalness(decisions: list[Decision]) -> dict:
         longest = max(longest, run)
     return {"words": len(decisions), "changed": sum(changed), "changed_fraction": round(sum(changed) / len(decisions), 3) if decisions else 0.0,
             "longest_run": longest, "unvalidated_changed": sum(1 for d, c in zip(decisions, changed, strict=True) if c and not d.validated)}
+
+
+def ezafe_sense(b: EZ.Boundary) -> str:
+    """The memory's sense of an ezafe correction: the type it was made for (a correction for -e is never reused where -ye is said)."""
+    return f"ezafe:{b.ezafe_type}"
+
+
+def unresolved(b: EZ.Boundary) -> bool:
+    """A disagreement about the ezafe that no arbiter settled in the reading's favour: nothing is written on it."""
+    return b.evidence_type == "conflict" and not any(o.source == "arbiter" and o.present == b.ezafe_required for o in b.opinions)
+
+
+def same_relation(entry_id: int, b: EZ.Boundary | None, db: Session) -> bool:
+    """Whether an entry kept for an ezafe was made for the same grammatical relation (an entry without one, or a relation nobody named, fits any)."""
+    entry = db.get(PronunciationEntry, entry_id)
+    try:
+        kept = (json.loads(entry.grammar or "{}").get("ezafe") or {}).get("grammatical_relation", "unknown") if entry else "unknown"
+    except ValueError:
+        kept = "unknown"
+    have = b.grammatical_relation if b is not None else "unknown"
+    return "unknown" in (kept, have) or kept == have
 
 
 def skeleton(text: str) -> str:
@@ -95,11 +124,17 @@ class Planner:
             return self.keep_all(block_id, text, "no reading of this block, or not the words of its reading: left as written")
         if self.engine is None:
             self.engine = RiskEngine(self.db, self.language, self.voice_id, self.model_id, voicing.names)
-        risks = self.engine.assess(words, readings, voicing.signals.get(block_id))
-        decisions = [self.decide(w, r, readings[w.n], words, voicing, allow_dictionary, covered) for w, r in zip(words, risks, strict=True)]
+        signals = voicing.signals.get(block_id)
+        boundaries = EZ.EzafeAnalyzer().analyze(words, readings, voicing.opinions.get(block_id), [s.confidence for s in signals] if signals else None,
+                                                frozenset(n for n, s in enumerate(signals or []) if s.overridden))
+        risks = self.engine.assess(words, readings, signals, boundaries)
+        decisions = [self.decide(w, r, readings[w.n], words, voicing, allow_dictionary, covered, boundaries[w.n]) for w, r in zip(words, risks, strict=True)]
         self.limit(decisions)
-        plan = BlockPlan(block_id, substitute(text, {d.n: d.replacement for d in decisions if d.strategy in ("respelling", "selective_marks") and d.replacement}),
-                         [self.rule(d) for d in decisions if d.strategy == "dictionary_rule"], decisions, risks)
+        plan = BlockPlan(block_id, substitute(text, {d.n: d.replacement for d in decisions if d.strategy in ("respelling", "ezafe_mark", "selective_marks") and d.replacement}),
+                         [self.rule(d) for d in decisions if d.strategy == "dictionary_rule"], decisions, risks, boundaries=boundaries)
+        for b, d in zip(boundaries, decisions, strict=True):
+            if b.ezafe_type in ("E", "YE"):
+                boundaries[b.n] = replace(b, requires_tts_intervention=d.strategy == "ezafe_mark" or (d.strategy == "selective_marks" and b.ezafe_required is True))
         self.plans[block_id] = plan
         return plan
 
@@ -112,7 +147,8 @@ class Planner:
     def rule(d: Decision) -> dict:
         return {"string_to_replace": d.surface, "type": "alias", "alias": d.replacement}
 
-    def decide(self, word: Word, risk: WordRisk, reading: str, words: list[Word], voicing: Voicing, allow_dictionary: bool, covered: frozenset[str]) -> Decision:
+    def decide(self, word: Word, risk: WordRisk, reading: str, words: list[Word], voicing: Voicing, allow_dictionary: bool, covered: frozenset[str],
+               boundary: EZ.Boundary | None = None) -> Decision:
         def made(strategy: str, basis: str, **fields) -> Decision:
             return Decision(word.n, word.surface, risk.level, strategy, basis, **fields)
 
@@ -124,19 +160,31 @@ class Planner:
         prev_key = key_of(words[word.n - 1].surface) if word.n else ""
         next_key = key_of(words[word.n + 1].surface) if word.n + 1 < len(words) else ""
         context = {"prev_word": prev_key, "next_word": next_key, "voice_id": self.voice_id, "model_id": self.model_id}
-        for i in self.memory.reusable(self.language, word.surface, **context):
-            strategy = KIND_STRATEGY[i.kind]
-            if strategy == "dictionary_rule" and not allow_dictionary:
-                strategy = "respelling"                           # the alias is the spelling itself
-            return made(strategy, f"validated intervention {i.id} ({i.kind}) for this exact form, voice and model", replacement=i.replacement, validated=True,
-                        intervention_id=i.id)
-        for m in self.memory.find(self.language, word.surface, **context):
-            if m.entry.status in APPROVED and m.entry.approved_pronunciation:
-                return made("respelling", f"entry {m.entry.id} approved ({m.entry.status}), matching context ({m.reason})", replacement=m.entry.approved_pronunciation, validated=True)
+        settled = boundary is not None and boundary.ezafe_type in ("E", "YE")
+        contexts = ([{**context, "sense": ezafe_sense(boundary)}] if settled else []) + [context]
+        for ctx in contexts:
+            for i in self.memory.reusable(self.language, word.surface, **ctx):
+                if not same_relation(i.entry_id, boundary, self.db):
+                    continue
+                strategy = KIND_STRATEGY[i.kind]
+                if strategy == "dictionary_rule" and not allow_dictionary:
+                    strategy = "respelling"                           # the alias is the spelling itself
+                return made(strategy, f"validated intervention {i.id} ({i.kind}) for this exact form, voice and model", replacement=i.replacement, validated=True,
+                            intervention_id=i.id)
+            for m in self.memory.find(self.language, word.surface, **ctx):
+                if m.entry.status in APPROVED and m.entry.approved_pronunciation and same_relation(m.entry.id, boundary, self.db):
+                    return made("respelling", f"entry {m.entry.id} approved ({m.entry.status}), matching context ({m.reason})", replacement=m.entry.approved_pronunciation, validated=True)
         if risk.level in ("HIGH", "CRITICAL") and word.key in covered:
             return made("keep", f"{risk.level} risk, but the language's dictionary already has a rule for this word: the planner adds nothing on top of it")
         if risk.level in ("LOW", "MEDIUM"):
             return made("keep", "low risk: no reason to change the text" if risk.level == "LOW" else "medium risk: left as written, the listening QA checks it")
+        if boundary is not None and (boundary.ezafe_type == "UNCERTAIN" or unresolved(boundary)):
+            return made("escalate", f"{risk.level} risk, and the ezafe after it is not settled ({boundary.evidence_type}): {risk.rationale}", needs_review=True)
+        if boundary is not None and self.engine.level_of(sum(s.weight for s in risk.signals if s.name not in EZAFE_SIGNALS)) in ("LOW", "MEDIUM"):
+            ezafe_only = EZ.mark(word, boundary)                  # the risk is the ezafe: only the ezafe is written
+            if ezafe_only is not None:
+                return made("ezafe_mark", f"{risk.level} risk from its ezafe -{boundary.ezafe_type.lower()} ({boundary.grammatical_relation}): {risk.rationale}",
+                            replacement=ezafe_only, needs_review=risk.level == "CRITICAL")
         marked = self.marks(word, reading)
         if marked is None:
             return made("escalate", f"{risk.level} risk, and the reading cannot be written on the word's own letters: {risk.rationale}", needs_review=True)
@@ -171,11 +219,17 @@ class Planner:
     def register(self, plan: BlockPlan) -> None:
         """Keeps each candidate (an unvalidated change) as a candidate intervention of a candidate entry, so that what the voice does with it can be
         booked. Never touches an entry a person has decided about."""
+        words = tokenize(plan.text)
         for d in plan.decisions:
-            if d.strategy != "selective_marks" or d.intervention_id is not None:
+            if d.strategy not in ("selective_marks", "ezafe_mark") or d.intervention_id is not None:
                 continue
+            context: dict = {}
+            b = plan.boundaries[d.n] if plan.boundaries else None
+            if d.strategy == "ezafe_mark" and b is not None:      # an ezafe is kept with its context: the next word, the relation, the sentence
+                context = {"next_word": key_of(b.next_word), "sense": ezafe_sense(b), "grammar": {"ezafe": b.describe()},
+                           "sentence": " ".join(w.plain for w in words)}
             proposal = self.memory.propose(language=self.language, surface=d.surface, expected_irab=d.replacement or "", actor="agent:planner", voice_id=self.voice_id,
-                                           model_id=self.model_id, scope="exact_form")
+                                           model_id=self.model_id, scope="exact_form" if not context else "context", **context)
             if proposal.blocked_by is None:
                 d.intervention_id = self.memory.add_intervention(proposal.entry.id, kind="irab", exact_form=d.surface, replacement=d.replacement or "",
                                                                  voice_id=self.voice_id, model_id=self.model_id).id
@@ -189,8 +243,6 @@ class Planner:
             return
         entry_id = None
         if decision.intervention_id is not None:
-            from app.db.models import PronunciationIntervention
-
             entry_id = self.db.get(PronunciationIntervention, decision.intervention_id).entry_id
             if not heard_right or self.cfg.validate_from_listener:
                 self.memory.record_outcome(decision.intervention_id, success=heard_right)

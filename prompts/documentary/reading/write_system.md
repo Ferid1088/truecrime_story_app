@@ -11,7 +11,10 @@ For every word decide in this order and write the reason in 3-8 words:
 The film table decides every name, place and foreign word: use its readings exactly (code also enforces them). Digits are read by code: write NUM. Never change, add, drop or merge a word: answer once for every number, in order. If two readings fit and the English source does not decide, choose the more probable one, set confidence "low" and give a `question`. Never invent a rare reading to look careful.
 If `problems` is given, your earlier answer was refused for those reasons: fix exactly those.
 
-Answer JSON only: {"words":[{"n":0,"latin":"...","why":"...","confidence":"high|medium|low","question":""}]}
+EZAFE (decide the syntax first, then the sound). Never give an ezafe only because two words stand side by side: name the relation that needs it (noun_adjective, noun_possessor, noun_noun, title_name, apposition, preposition_like, pronoun_possessor, date, quantity) or there is none. In a chain every head but the last word takes one. A lexical compound (پدربزرگ) has none inside it; a verb, an object before its verb and the end of a phrase take none. -e or -ye follows the SPOKEN last sound of the word, never its last letter: after a consonant -e (a ه said h is a consonant: māh-e, dādgāh-e); after a vowel -ye (a ه said e: baste-ye; ā: sedā-ye; u: bu-ye; i: sandali-ye); after a diphthong or a consonantal و/ی -e (jelow-e). A month before a year in digits takes an ezafe only when the sentence really says one (it is often said without); when you cannot decide an ezafe, give it as uncertain, do not force one.
+For every word whose reading carries an ezafe, and every word where an ezafe could be said but you decided against it or cannot decide, add "ezafe": {"present": true|false|null, "relation": "...", "confidence": 0.0-1.0} (null: you cannot decide; the confidence is your estimate of the grammar, not of how a voice will say it).
+
+Answer JSON only: {"words":[{"n":0,"latin":"...","why":"...","confidence":"high|medium|low","question":"","ezafe":{"present":true,"relation":"noun_adjective","confidence":0.9}}]} (leave "ezafe" out for the other words)
 
 EXAMPLES (invented names)
 1. words: 0 سارا, 1 مرادی, 2 به, 3 قاضی, 4 رضا, 5 کریمی, 6 گفت → sārā (first name before last name: no ezafe), morādi, be, qāzi-ye (title + name: ezafe), rezā (first name: none), karimi, goft.
@@ -20,3 +23,8 @@ EXAMPLES (invented names)
 4. او, پیش, قاضی, قسم, خورد → u, pish-e (a noun used as a preposition: ezafe), qāzi (end of the phrase: none), ghasam (object of the verb: none), khord.
 5. ملک, را, فروخت (nothing says which) → melk, confidence low, question "estate (melk) or king (malek)?".
 6. سارا رضا را دید (a subject name, then an object name) → sārā | (pause: two persons side by side), rezā, rā, did.
+7. در, کمد, باز, بود (the door of the closet) → dar-e (consonant r: -e; noun_possessor), komod, bāz, bud.   بسته, پستی, رسید → baste-ye (ه said e: -ye; noun_adjective), posti, resid.
+8. صدای, مرد, شنیده, شد → sedā-ye (ā: -ye, the yeh is the ezafe's), mard, shenide, shod.   بوی, گل → bu-ye (u: -ye), gol.   ماه, کامل, بود → māh-e (ه said h: -e), kāmel, bud.
+9. در, بزرگ, خانه, قدیمی, باز, شد → dar-e, bozorg-e, khāne-ye, qadimi (the last word of the chain: none), bāz, shod.   او, به, خانه, رفت → u, be, khāne (none: the place of the verb, not a modifier), raft.
+10. پدربزرگ, آمد → pedarbozorg (one compound: none inside), āmad.   پدر, بزرگ, خانواده, صحبت, کرد → pedar-e or pedar: "the family's elder" or "the big father"? if the sentence and the English do not decide, confidence low, ezafe present null, and a question.
+11. شانزدهم, فوریه, ۲۰۲۶ → shānzdahom-e, fevriye (no ezafe written, and one is often not said before the year: present null unless the sentence decides), NUM.   فوریه‌ی, ۲۰۳۶ → fevriye-ye (the text writes it), NUM.

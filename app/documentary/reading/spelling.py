@@ -60,9 +60,18 @@ def persian(reading: str, final_h: bool = False) -> str:
             else:
                 out.append(LONG[part])
     word = "".join(out)
-    if ezafe:
-        word += HAMZA_ABOVE if word.endswith("ه") else ("ی" if ezafe == "ye" else KASRA)
-    return word
+    return word + ezafe_mark(stem, word) if ezafe else word
+
+
+def ezafe_mark(stem: str, written: str) -> str:
+    """What writes the ezafe after a word, by its spoken final sound (never by its last letter alone): a hamza on a ه said as the vowel e (خانهٔ), a
+    kasra after a consonant (a ه said h too: دادگاهِ) and after a final i on its own yeh (صندلیِ), a yeh after the other vowels (صدای، بوی)."""
+    last = symbols(stem.split("-")[-1])[-1:] or [""]
+    if last[0] == "e" and written.endswith("ه"):
+        return HAMZA_ABOVE
+    if last[0] in ("ā", "u", "o", "e"):
+        return "ی"
+    return KASRA
 
 
 def final_h_for(surface: str) -> bool:

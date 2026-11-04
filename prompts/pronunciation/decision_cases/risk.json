@@ -83,7 +83,7 @@
    "expect": {
     "level": "LOW",
     "signals": [
-     "ezafe"
+     "ezafe_unwritten"
     ]
    }
   },
@@ -106,7 +106,7 @@
    "expect": {
     "level": "MEDIUM",
     "signals": [
-     "ezafe",
+     "ezafe_unwritten",
      "medium_confidence"
     ]
    }

@@ -12,10 +12,13 @@ from app.db.models import Case, ReadingApproval, StoryVersion
 from app.documentary import voice_prepare as VP
 from app.documentary.performance import performance_for_version
 from app.documentary.pipeline.errors import AwaitingReadingReview
+from app.documentary.reading.answer import ReadingWord
 from app.documentary.reading.block import BlockInput, block_inputs
 from app.documentary.reading.chooser import WordChooser
+from app.documentary.reading.ezafe import Opinion
 from app.documentary.reading.inspector import Inspector
 from app.documentary.reading.loop import ReadingLoop
+from app.documentary.reading.table import FilmTable
 from app.documentary.reading.text import ReadingResult, ReadingStage
 from app.documentary.reading.voicing import Voicing, WordSignal
 from app.documentary.reading.words import key_of
@@ -37,8 +40,24 @@ async def voicing_of(db: Session, language: str, read: ReadingResult) -> Voicing
     overridden = {block: {int(m.group(1)) for note in notes if (m := re.match(r"word (\d+)", note))} for block, notes in read.notes.items()}
     signals = {block: [WordSignal(r.confidence, r.n in read.doubts.get(block, set()), r.n in overridden.get(block, set())) for r in words]
                for block, words in read.readings.items()}
-    names = frozenset(k for e in read.table.entries for k in e.keys) if read.table else frozenset()
-    return Voicing(fixed, {block: [r.latin for r in words] for block, words in read.readings.items()}, signals, names)
+    return Voicing(fixed, {block: [r.latin for r in words] for block, words in read.readings.items()}, signals, names_of(read.table), opinions_of(read.readings))
+
+
+def names_of(table: FilmTable | None) -> frozenset[str]:
+    """The words that are names wherever they stand: the film's people, its foreign words and its one-word places. Not the owner's spoken forms of ordinary
+    words, and not the ordinary words of a long institution's name (the دادگاه of "دادگاه عمومیِ شهرستان میامی" is a court everywhere else)."""
+    return frozenset(k for e in table.entries if e.kind in ("person", "foreign") or (e.kind == "place" and len(e.keys) == 1) for k in e.keys) if table else frozenset()
+
+
+def opinions_of(readings: dict[str, list[ReadingWord]]) -> dict[str, dict[int, list[Opinion]]]:
+    """Each agent's own ezafe judgement of each word, for the ezafe analyzer (a reading cache written before the agents gave one has none)."""
+    out: dict[str, dict[int, list[Opinion]]] = {}
+    for block, words in readings.items():
+        for r in words:
+            found = [o for source, raw in (r.ezafe or {}).items() if (o := Opinion.parse(source, raw)) is not None]
+            if found:
+                out.setdefault(block, {})[r.n] = found
+    return out
 
 
 async def voicing(db: Session, case: Case, version: StoryVersion, language: str) -> Voicing:

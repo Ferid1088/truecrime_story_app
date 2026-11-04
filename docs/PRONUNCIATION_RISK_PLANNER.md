@@ -5,7 +5,7 @@ Both components are **deterministic** (no model call). Their decisions are speci
 (`risk.json` 13 cases, `planner.json` 12 cases; `*_heldout.json` are never used to tune anything). `tests/test_pronunciation_planner.py` runs them.
 
 ## Position in the pipeline
-Original text → Reading intelligence (`reading/`) → Pronunciation memory (`pronunciation_memory.py`) → **Risk engine** (`pronunciation_risk.py`) →
+Original text → Reading intelligence (`reading/`: editor, checker, arbiter) → **Ezafe analyzer** (`reading/ezafe.py`, see `docs/PERSIAN_EZAFE.md`) → Pronunciation memory (`pronunciation_memory.py`) → **Risk engine** (`pronunciation_risk.py`) →
 **Planner** (`pronunciation_planner.py`) → ElevenLabs (`voice_render.py`, the text and the block dictionary of each take) → listening QA (reading loop) →
 bounded correction loop (`reading/loop.py`, `reading.max_rounds`) → `Planner.learn` (evidence and intervention outcomes, never approvals) → the next risk assessment.
 
@@ -14,8 +14,8 @@ Score = sum of signal weights. LOW < `medium_from` ≤ MEDIUM < `high_from` ≤ 
 HIGH and CRITICAL always list them. `verification` is `human_approved`/`auto_verified` only when the memory holds an approval of this exact written form; LOW is
 `unverified` like the rest.
 
-Signals: reading doubt (checker/arbiter), editor confidence low/medium, film-table override, name/foreign, ezafe, colloquial ending, hazard letters (ع ء ئ ؤ ة unmarked),
-final consonant h, earlier failure in the memory (unverified or approved), failed interventions, a listening model that heard it wrong, acoustic/human mismatch or
+Signals: reading doubt (checker/arbiter), editor confidence low/medium, film-table override, name/foreign (people, foreign words, one-word places only), ezafe (only an unwritten, uncertain or disputed one, or a reading whose ezafe form its own final sound does not take: `ezafe_unwritten`, `ezafe_uncertain`, `ezafe_conflict`, `ezafe_phonology`), colloquial ending, hazard letters (ع ء ئ ؤ ة unmarked),
+final consonant h, earlier failure in the memory (an entry an earlier system or a person made, or one with an observed wrong form: the planner's own untried candidates do not count — fixed 2026-11-04, they made every word the planner once touched riskier by itself), failed interventions, a listening model that heard it wrong, acoustic/human mismatch or
 match (including a person's label of a benchmark clip). History counts only for the same voice and model (or entries without one).
 
 ## Planner (first match wins, per word)
@@ -25,6 +25,8 @@ match (including a person's label of a benchmark clip). History counts only for 
 4. an **approved** memory entry (human or app) matching the exact form and context (prev/next word, voice, model) → its approved pronunciation;
 5. HIGH/CRITICAL word already covered by a rule of the language's dictionary → keep (nothing is added on top);
 6. LOW/MEDIUM → keep (MEDIUM is left to the listening QA);
+6a. HIGH/CRITICAL whose ezafe is UNCERTAIN, or disputed without an arbiter's decision → `escalate`; HIGH/CRITICAL whose risk is its ezafe alone (the score without the
+   ezafe signals is LOW/MEDIUM) → `ezafe_mark`: only the ezafe written on the word, a candidate kept in the memory with its next word, type and relation;
 7. HIGH/CRITICAL: the word's own letters with the reading's short vowels as marks, **only if** the consonant skeleton is identical (otherwise nothing is invented) →
    `selective_marks`, a candidate (not validated; CRITICAL also `needs_review`); else `escalate` (text unchanged, reported once per word).
 A block may carry at most `max_changed_fraction` unvalidated changes and never more than `max_changed_in_a_row` in a row. No sentence is ever diacritized as a whole.

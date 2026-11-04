@@ -22,6 +22,7 @@ from app.db.models import (
 from app.documentary import phonetic_benchmark
 from app.documentary.pronunciation_memory import APPROVED
 from app.documentary.reading import scheme
+from app.documentary.reading.ezafe import Boundary, EzafeAnalyzer
 from app.documentary.reading.voicing import WordSignal
 from app.documentary.reading.words import Word, key_of
 
@@ -92,13 +93,13 @@ class RiskEngine:
         c = self.cfg
         return "CRITICAL" if score >= c.critical_from else "HIGH" if score >= c.high_from else "MEDIUM" if score >= c.medium_from else "LOW"
 
-    def signals_of(self, word: Word, reading: str, signal: WordSignal) -> list[Signal]:
+    def signals_of(self, word: Word, reading: str, signal: WordSignal, boundary: Boundary | None = None) -> list[Signal]:
         found: list[Signal] = []
 
         def add(name: str, evidence: str, weight: int | None = None) -> None:
             found.append(Signal(name, self.weight(name) if weight is None else weight, evidence))
 
-        stem, ezafe = scheme.split_ezafe(scheme.split_pause(reading)[0])
+        stem, _ = scheme.split_ezafe(scheme.split_pause(reading)[0])
         if signal.doubted:
             add("reading_doubt", "the checker and the arbiter left a doubt about this word's reading")
         if signal.confidence == "low":
@@ -109,11 +110,9 @@ class RiskEngine:
             add("code_override", "the editor's reading was replaced by the film table's: the two disagreed")
         if word.key in self.names:
             add("name_or_foreign", "a person, a place or a foreign word of this film")
-        category = phonetic_benchmark.category_of(word.surface, reading, set())
-        if category == "ezafe":
-            add("ezafe", f"the reading carries an ezafe ({ezafe})")
-        elif category == "colloquial":
+        if phonetic_benchmark.category_of(word.surface, stem, set()) == "colloquial":
             add("colloquial", "a colloquial form (spoken ending)")
+        found += self.ezafe_signals(boundary)
         letters = [ch for ch in self.cfg.hazard_letters if ch in word.plain]
         if letters and word.surface == word.plain:
             add("hazard_letter", f"unmarked letters that have tripped the voice: {' '.join(letters)}")
@@ -122,15 +121,37 @@ class RiskEngine:
         found += self.remembered(word, reading)
         return found
 
+    def ezafe_signals(self, b: Boundary | None) -> list[Signal]:
+        """Only what makes the ezafe after the word a risk for the voice: it is not written (the voice has to infer it), the evidence cannot settle it, the
+        sources disagree, or the reading writes a form its own final sound does not take. A settled, written ezafe is no risk, and neither is none."""
+        if b is None:
+            return []
+        found: list[Signal] = []
+        if b.ezafe_type == "UNCERTAIN":
+            found.append(Signal("ezafe_uncertain", self.weight("ezafe_uncertain"), f"whether an ezafe joins {b.word} and {b.next_word} is not settled ({b.grammatical_relation})"))
+        if b.evidence_type == "conflict":
+            found.append(Signal("ezafe_conflict", self.weight("ezafe_conflict"), f"the ezafe after {b.word}: {', '.join(b.conflicts)} disagree"))
+        if b.phonology_error:
+            found.append(Signal("ezafe_phonology", self.weight("ezafe_phonology"), b.phonology_error))
+        if b.ezafe_required and not b.written:
+            found.append(Signal("ezafe_unwritten", self.weight("ezafe_unwritten"), f"an ezafe -{b.ezafe_type.lower()} ({b.grammatical_relation}) that the text does not write"))
+        return found
+
+    @staticmethod
+    def failed_before(e: PronunciationEntry) -> bool:
+        """Whether an entry records that the voice got the word wrong: one an earlier system learned or a person made, or one with a wrong form observed.
+        The planner's own candidates (an untried change) are not failures: counting them would make every word it once touched riskier by itself."""
+        return e.source != "agent" or bool(e.observed_wrong)
+
     def remembered(self, word: Word, reading: str) -> list[Signal]:
         found: list[Signal] = []
         h = self.history
         for e in h.entries.get(word.key, []):
-            if e.status not in APPROVED:
+            if e.status not in APPROVED and self.failed_before(e):
                 found.append(Signal("earlier_failure", self.weight("earlier_failure"), f"an earlier system learned a correction for this word (entry {e.id}, {e.status}, unverified)"))
                 break
         else:
-            if any(e.surface == word.surface for e in h.entries.get(word.key, [])):
+            if any(e.surface == word.surface and e.status in APPROVED for e in h.entries.get(word.key, [])):
                 found.append(Signal("earlier_failure", self.weight("earlier_failure"), "this word is in the memory as an approved correction: it failed before"))
         for i in h.failed.get(word.key, []):
             found.append(Signal("intervention_failed", self.weight("intervention_failed"), f"intervention {i.id} ({i.kind}) failed {i.failures} time(s) with this voice"))
@@ -156,14 +177,18 @@ class RiskEngine:
         approved = [e for e in self.history.entries.get(word.key, []) if e.status in APPROVED and e.surface == word.surface]
         return "human_approved" if any(e.status == "human_approved" for e in approved) else "auto_verified" if approved else "unverified"
 
-    def assess(self, words: list[Word], readings: list[str], signals: list[WordSignal] | None = None) -> list[WordRisk]:
-        """The risk of each word of a block (its readings, in order). A number is read by code and is LOW."""
+    def assess(self, words: list[Word], readings: list[str], signals: list[WordSignal] | None = None, boundaries: list[Boundary] | None = None) -> list[WordRisk]:
+        """The risk of each word of a block (its readings, in order). A number is read by code and is LOW. `boundaries`: the ezafe analysis of the block
+        (made here from the readings when not given)."""
+        signals = signals or [WordSignal()] * len(words)
+        if boundaries is None:
+            boundaries = EzafeAnalyzer().analyze(words, readings, confidences=[s.confidence for s in signals], table_set=frozenset(n for n, s in enumerate(signals) if s.overridden))
         out: list[WordRisk] = []
         for word, reading in zip(words, readings, strict=True):
             if word.number or reading == "NUM":
                 out.append(WordRisk(word.n, word.surface, reading, 0, "LOW", [Signal("number", 0, "read by code")]))
                 continue
-            found = self.signals_of(word, reading, (signals or [WordSignal()] * len(words))[word.n])
+            found = self.signals_of(word, reading, signals[word.n], boundaries[word.n])
             score = sum(s.weight for s in found)
             out.append(WordRisk(word.n, word.surface, reading, score, self.level_of(score), found, self.verification_of(word)))
         return out

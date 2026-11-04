@@ -18,6 +18,7 @@ class ReadingWord:
     why: str = ""
     confidence: str = "high"
     question: str = ""
+    ezafe: dict | None = None         # each agent's own ezafe judgement of the word: {"editor"|"checker"|"arbiter": {"present", "relation", "confidence"}}
 
 
 class ReadingShapeError(ValueError):
@@ -45,14 +46,16 @@ def parse(raw: dict, words: list[Word]) -> list[ReadingWord]:
             problems.append(f"word {word.n} ({word.plain}) has no reading")
             continue
         out.append(ReadingWord(word.n, NUMBER_WORD if word.number else latin, pause or bool(item.get("pause_after")), str(item.get("why") or ""),
-                               str(item.get("confidence") or "high"), str(item.get("question") or "")))
+                               str(item.get("confidence") or "high"), str(item.get("question") or ""),
+                               {"editor": item["ezafe"]} if isinstance(item.get("ezafe"), dict) and not word.number else None))
     if problems:
         raise ReadingShapeError(problems)
     return out
 
 
 def enforce(readings: list[ReadingWord], words: list[Word], table: FilmTable, pause_between_names: bool) -> tuple[list[ReadingWord], list[str]]:
-    """The readings with the table applied: a name is read as the table says, and two persons side by side are separated by a pause. Returns
+    """The readings with the table applied: a name is read as the table says (with the ezafe the editor gave it in this sentence), and two persons side
+    by side are separated by a pause. Returns
     the readings and a note for each word code changed."""
     fixed = table.fixed_readings(words)
     pauses = table.pauses(words) if pause_between_names else set()
@@ -60,6 +63,8 @@ def enforce(readings: list[ReadingWord], words: list[Word], table: FilmTable, pa
     out: list[ReadingWord] = []
     for r in readings:
         latin, pause = fixed.get(r.n, r.latin), r.pause_after
+        if r.n in fixed and not scheme.split_ezafe(latin)[1] and scheme.split_ezafe(r.latin)[1]:
+            latin = scheme.ezafe_form(latin)             # the table sets the word's sounds; the ezafe is the sentence's grammar and stays
         if r.n in fixed and not scheme.same_reading(r.latin, latin):
             notes.append(f"word {r.n} ({words[r.n].plain}): {r.latin} -> {latin} (the film table)")
         if r.n in pauses and not pause:
