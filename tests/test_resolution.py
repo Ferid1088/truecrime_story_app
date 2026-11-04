@@ -94,6 +94,8 @@ def test_resolutions_and_the_owners_decision_are_kept_for_the_case(db_session):
         row = db_session.query(ReadingResolution).filter_by(case_id=case.id).one()
         assert (row.surface, row.reading, row.rule, json.loads(row.candidates)) == (key_of("پلیس"), "polis", "orthography", {"polis": ["b0"], "pulis": ["b0", "b1"]})
         assert RES.resolved_entries(db_session, case.id, "fa") == [{"surface": key_of("پلیس"), "latin": "polis", "kind": "resolved"}]
+        shown = RES.stored_family(RES.stored(db_session, case.id, "fa")[0]).describe()
+        assert (shown["word"], shown["status"], shown["rule"], shown["reading"]) == (key_of("پلیس"), "resolved", "orthography", "polis")
         open_family = family("بررسی", {"barresi": 2, "barrasi": 1})
         with pytest.raises(ValueError):
             RES.decide(db_session, case.id, "fa", open_family, "borrosi", "owner")

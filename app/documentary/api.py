@@ -772,7 +772,10 @@ def reading_review(version_id: int, language: str = "fa", db: Session = Depends(
     except OSError as e:
         raise HTTPException(status_code=404, detail=f"No stored reading of this version in {language}") from e
     families = RES.analyse(db, loaded, language)
-    return {"resolved": [f.describe() for f in families if f.status == "resolved"], "retained": [f.describe() for f in families if f.status == "retained_variant"],
+    live = {f.key for f in families}
+    stored = [RES.stored_family(r) for r in RES.stored(db, loaded.version.case_id, language) if r.surface not in live]
+    return {"resolved": [f.describe() for f in families if f.status == "resolved"] + [f.describe() for f in stored if f.status == "resolved"],
+            "retained": [f.describe() for f in families if f.status == "retained_variant"] + [f.describe() for f in stored if f.status == "retained_variant"],
             "owner_review": RES.review(db, loaded, language, families)}
 
 

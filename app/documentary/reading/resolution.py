@@ -237,3 +237,13 @@ def review(db: Session, loaded, language: str, families: list[Family]) -> list[d
                     "evidence_per_candidate": {r: {"written_on_the_letters": letters_fit(f.key, r), "blocks": len(b), "contexts": where.get(r, [])}
                                                for r, b in f.candidates.items()}})
     return out
+
+
+def stored(db: Session, case_id: int, language: str) -> list[ReadingResolution]:
+    """The resolutions kept for a case (the words they settled no longer conflict, so they are shown from here)."""
+    return db.query(ReadingResolution).filter_by(case_id=case_id, language=language).order_by(ReadingResolution.surface).all()
+
+
+def stored_family(row: ReadingResolution) -> Family:
+    candidates = json.loads(row.candidates or "{}")
+    return Family(row.surface, row.kind, candidates, {row.surface: []}, row.status, row.rule, row.reading, row.evidence)
