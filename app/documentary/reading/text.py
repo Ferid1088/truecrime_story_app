@@ -66,7 +66,7 @@ class ReadingStage:
         """The owner's approvals of the language and the case's reading resolutions (below them)."""
         from app.documentary.reading.resolution import resolved_entries
 
-        rows = self.db.query(ReadingApproval).filter(ReadingApproval.language == self.language).all()
+        rows = self.db.query(ReadingApproval).filter(ReadingApproval.language == self.language).order_by(ReadingApproval.updated_at).all()
         return [{"surface": r.surface, "latin": r.latin, "kind": r.kind} for r in rows] + resolved_entries(self.db, self.case_id, self.language)
 
     async def reader_table(self) -> tuple[dict, list[dict]]:

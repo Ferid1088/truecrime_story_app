@@ -191,7 +191,8 @@ class Planner:
         if word.number or reading == "NUM":
             return made("keep", "a number, read by code")
         if word.key in voicing.fixed:
-            spelled = Voicing.spell(Voicing.reading_of(voicing.fixed[word.key], reading), word.surface)
+            said = settled_reading(reading, boundary) if boundary is not None else reading     # the ezafe this sentence settles (the text's own ی)
+            spelled = Voicing.spell(Voicing.reading_of(voicing.fixed[word.key], said, word.surface), word.surface)
             return made("respelling", "the reading a person approved (or the reading loop verified) for this word", replacement=spelled, validated=True)
         prev_key = key_of(words[word.n - 1].surface) if word.n else ""
         next_key = key_of(words[word.n + 1].surface) if word.n + 1 < len(words) else ""

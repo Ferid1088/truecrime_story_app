@@ -108,4 +108,11 @@ def test_a_final_consonant_h_keeps_the_letter_the_word_is_written_with_and_heh_i
 
 def test_the_voice_is_given_the_words_own_final_letter_and_a_heh_is_never_turned_into_a_hah():
     voicing = Voicing({"مسلح": "mosallah", "شاه": "shāh"}, {"b": ["mosallah", "shāh"]})
-    assert voicing.text("b", "مسلح شاه") == "مُسَللَح شاه"
+    assert voicing.text("b", "مسلح شاه") == "مُسَلَّح شاه", "the word's own letters with a shadda: no letter added or replaced"
+
+
+def test_an_approved_reading_keeps_the_words_letters_and_its_ezafe_belongs_to_the_sentence():
+    assert Voicing.spell(Voicing.reading_of("pukkehā-ye", "pukkehā-ye", "پوکه‌های"), "پوکه‌های") == "پوکِّه‌هایِ", "no letter doubled, no half-space lost"
+    assert Voicing.spell(Voicing.reading_of("fevriye-ye", "fevriye", "فوریه"), "فوریه") == "فِوریِه", "an approval's ezafe is not put where the sentence has none"
+    assert Voicing.spell(Voicing.reading_of("'ahdhāye", "'ahdhā-ye", "عهدهای"), "عهدهای") == "اَهدهای", "an ezafe without its hyphen, and the alef the owner heard"
+    assert Voicing.spell(Voicing.reading_of("pat", "pat", "پرت"), "پرت") == "پَت", "a spoken form the letters do not show is respelled"

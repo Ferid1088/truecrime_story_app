@@ -37,7 +37,7 @@ async def result(db: Session, case: Case, version: StoryVersion, language: str) 
 
 
 async def voicing_of(db: Session, language: str, read: ReadingResult, items: list[BlockInput]) -> Voicing:
-    fixed = {key_of(a.surface): a.latin for a in db.query(ReadingApproval).filter(ReadingApproval.language == language)}
+    fixed = {key_of(a.surface): a.latin for a in db.query(ReadingApproval).filter(ReadingApproval.language == language).order_by(ReadingApproval.updated_at)}
     overridden = {block: {int(m.group(1)) for note in notes if (m := re.match(r"word (\d+)", note))} for block, notes in read.notes.items()}
     signals = {block: [WordSignal(r.confidence, r.n in read.doubts.get(block, set()), r.n in overridden.get(block, set())) for r in words]
                for block, words in read.readings.items()}

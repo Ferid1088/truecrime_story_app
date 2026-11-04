@@ -55,6 +55,26 @@ def person_entries(person: dict) -> list[Entry]:
     return entries
 
 
+def hyphenated(plain: str, reading: str) -> str:
+    """A table reading with an ezafe written without its hyphen given its hyphen: -ye after a vowel the word ends in, -e that no letter of the word
+    writes (reading/ezafe.unwritten_e)."""
+    from app.documentary.reading.ezafe import final_sound, unwritten_e
+
+    if scheme.split_ezafe(reading)[1] or len(reading) < 3:
+        return reading
+    if reading.endswith("ye") and reading[-3] in scheme.VOWELS and (plain.endswith(("ی", "ا", "و")) or plain.endswith("ه")):
+        return f"{reading[:-2]}-ye"
+    if reading.endswith("e") and final_sound(reading[:-1]) in scheme_consonants() and unwritten_e(plain, reading[:-1]):
+        return f"{reading[:-1]}-e"
+    return reading
+
+
+def scheme_consonants() -> frozenset[str]:
+    from app.documentary.reading.spelling import CONSONANTS
+
+    return frozenset(CONSONANTS)
+
+
 def with_words(e: Entry, words: dict[str, str]) -> Entry:
     """The entry with the owner's reading of each word it contains (قاضی پرت keeps the title and takes the approved پرت), each part keeping the ezafe
     the entry gave it."""
@@ -81,7 +101,8 @@ class FilmTable:
             entries += person_entries(person)
         for kind in ("places", "foreign"):
             entries += [entry(p["fa"], p["latin"], kind[:-1] if kind == "places" else kind, p["fa"]) for p in reader.get(kind) or []]
-        owners = [a for a in approvals or [] if a.get("kind") in ("person", "place", "foreign", "spoken_form")]
+        latest = {key_of(a["surface"]): a for a in approvals or [] if a.get("kind") in ("person", "place", "foreign", "spoken_form")}
+        owners = list(latest.values())                   # one approval per word: the owner's newest (the approvals come oldest first)
         owned = {key_of(a["surface"]) for a in owners}
         resolved = [a for a in approvals or [] if a.get("kind") in ("resolved", "resolved_name") and key_of(a["surface"]) not in owned]   # below the owner
         approved = [entry(a["surface"], a["latin"], a.get("kind") or "foreign", a["surface"]) for a in owners] + \
@@ -109,7 +130,9 @@ class FilmTable:
         return found
 
     def fixed_readings(self, words: list[Word]) -> dict[int, str]:
-        return {m.start + k: r for m in self.matches(words) for k, r in enumerate(m.entry.readings)}
+        """The table's reading of every word a name covers, its ezafe in the scheme's notation (the reader may write an ezafe without its hyphen inside a
+        long name: dādgāhe omumiye shahrestāne miāmi)."""
+        return {m.start + k: hyphenated(words[m.start + k].plain, r) for m in self.matches(words) for k, r in enumerate(m.entry.readings)}
 
     def pauses(self, words: list[Word]) -> set[int]:
         """The words after which a pause is said: two different persons side by side with no punctuation between them (a subject name and an

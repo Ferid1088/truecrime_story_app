@@ -37,6 +37,10 @@ def normal(reading: str) -> str:
         nxt = sounds[k + 1] if k + 1 < len(sounds) else ""
         if p == "y" and out and out[-1] in ("i", "y", "u") and (nxt in VOWELS or nxt == "y"):
             continue                                      # one yeh writes i and y (بقیه baghiye = baghiyye); a glide between u and a vowel (masnuyi = masnu'i)
+        if p == "y" and out and out[-1] == "e" and (not nxt or nxt == "i"):
+            p = "i" if not nxt else None                  # the indefinite ‌ای after e: digey, digeyi and dige-i say e + i
+            if p is None:
+                continue
         if p == "y" and not nxt and out and out[-1] in ("ā", "u", "o"):
             continue                                      # the carrier yeh of an ezafe left in the stem (جای jāy = jā; never the y of sa'y or key)
         if p == "y" and nxt == "e" and k + 2 == len(sounds) and out and out[-1] in VOWELS:

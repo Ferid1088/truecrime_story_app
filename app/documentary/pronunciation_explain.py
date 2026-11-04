@@ -27,6 +27,7 @@ from app.documentary.pronunciation_memory import trust_level
 from app.documentary.pronunciation_planner import CHANGES, Planner, settled_words
 from app.documentary.reading import answer as ANS
 from app.documentary.reading import consistency as CS
+from app.documentary.reading import doubts as DB
 from app.documentary.reading import resolution as RES
 from app.documentary.reading import stage as RS
 from app.documentary.reading.answer import ReadingWord
@@ -63,10 +64,11 @@ def read(db: Session, version_id: int, language: str) -> Loaded:
     cache = json.loads((base / str(version.case_id) / ai_config.reading.folder / f"{language}_v{version.id}.json").read_text(encoding="utf-8"))
     plan = performance_for_version(db, version)
     items = block_inputs(plan["blocks"], VP.english_sources(db, version), ai_config.semantic_review.neighbour_chars)
-    approvals = [{"surface": a.surface, "latin": a.latin, "kind": a.kind} for a in db.query(ReadingApproval).filter(ReadingApproval.language == language)]
+    approvals = [{"surface": a.surface, "latin": a.latin, "kind": a.kind} for a in db.query(ReadingApproval).filter(ReadingApproval.language == language).order_by(ReadingApproval.updated_at)]
     resolutions = RES.resolved_entries(db, version.case_id, language)
     table = FilmTable.build(cache["reader"], approvals + resolutions)
     readings, signals, words, stored, raw = {}, {}, {}, {}, {}
+    given = DB.answered(db, version.id)
     for item in items:
         saved = cache["blocks"].get(item.block_id)
         if not saved or len(saved["readings"]) != len(item.words):
@@ -75,6 +77,10 @@ def read(db: Session, version_id: int, language: str) -> Loaded:
         # a block read before the film table changed holds the old table's readings: the current table is applied as the reading stage applies it
         raw[item.block_id] = settled_words(item.words, [r["latin"] for r in saved["readings"]], [WordSignal() for _ in saved["readings"]])
         current, notes = ANS.enforce([ReadingWord(**r) for r in saved["readings"]], item.words, table, ai_config.reading.pause_between_names)
+        for r in list(current):                       # the owner's answer to a doubt of this word, as the reading stage applies it
+            hit = given.get((item.block_id, r.n))
+            if hit and hit[0] == item.words[r.n].surface:
+                current[r.n] = ReadingWord(r.n, hit[1], r.pause_after, r.why, "high")
         overridden = {int(m.group(1)) for note in saved["notes"] + notes if (m := re.match(r"word (\d+)", note))}
         readings[item.block_id] = [r.latin for r in current]
         signals[item.block_id] = [WordSignal(r.confidence, r.n in doubted, r.n in overridden) for r in current]
@@ -115,7 +121,7 @@ def block_times(version: StoryVersion, language: str) -> dict[str, tuple[float, 
 def canonical_of(db: Session, version: StoryVersion, language: str, voicing: Voicing, texts: dict[str, str]) -> list[dict]:
     """The film's canonical readings with their scope and provenance: a reading the owner approved is confirmed (it is stored as the owner's approval);
     a name only the film table reads is the reading agent's, not confirmed; a name whose readings disagreed without an approval is unresolved."""
-    approvals = {key_of(a.surface): a for a in db.query(ReadingApproval).filter(ReadingApproval.language == language)}
+    approvals = {key_of(a.surface): a for a in db.query(ReadingApproval).filter(ReadingApproval.language == language).order_by(ReadingApproval.updated_at)}
     out = []
     for key, latin in voicing.fixed.items():
         a = approvals.get(key)

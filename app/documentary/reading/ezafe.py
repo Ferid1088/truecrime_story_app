@@ -137,6 +137,17 @@ def written_ezafe(word: Word, sound: str) -> bool:
     return sound in ("ā", "u", "o") and word.plain.endswith(("ای", "وی"))
 
 
+def unwritten_e(plain: str, before: str) -> bool:
+    """Whether a reading's final e after `before` has no letter of its own in the word: after a consonant letter; after ه only when the ه is the
+    consonant h (dādgāh-e); after an ayn only when the reading says the glottal stop (moghe'-e); never after the ezafe's yeh (اداره‌ی)."""
+    last = plain[-1:]
+    if last == "ه":
+        return final_sound(before) == "h"
+    if last in "عء":
+        return before.endswith("'")
+    return last not in "یئ"
+
+
 def base_key(word: Word) -> str:
     """The word's key without a written ezafe (فوریه‌ی is فوریه), for the word lists."""
     return key_of(word.surface[:-2] if word.surface.endswith("ه" + ZWNJ + "ی") else word.surface)
@@ -171,9 +182,8 @@ class EzafeAnalyzer:
                  table_set: bool = False) -> Boundary:
         conf = self.cfg.confidence
         stem, ezafe, pause = plain_stem(reading)
-        if (not ezafe and len(stem) > 2 and stem.endswith("e") and word.plain[-1:] not in "هعءیئ" + KASRA and not word.surface.endswith(KASRA)
-                and final_sound(stem[:-1]) in CONSONANT_SOUNDS):
-            stem, ezafe = stem[:-1], "e"      # a final e no letter writes (not ه, not an ayn's vowel, not a written ezafe): an ezafe without its hyphen
+        if not ezafe and len(stem) > 2 and stem.endswith("e") and final_sound(stem[:-1]) in CONSONANT_SOUNDS and unwritten_e(word.plain, stem[:-1]):
+            stem, ezafe = stem[:-1], "e"      # a final e no letter of the word writes: an ezafe written without its hyphen (bedune, dādgāhe, moghe'e)
         next_stem = plain_stem(next_reading)[0] if next_reading else ""
         sound = final_sound(stem) if reading != NUMBER_WORD else ""
         written = written_ezafe(word, sound)
