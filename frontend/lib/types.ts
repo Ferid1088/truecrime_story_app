@@ -3844,7 +3844,7 @@ export interface PronunciationPlanWord {
   ezafe: { ezafe_type: string; grammatical_relation: string; phonological_class: string; evidence_type: string; expected_reading: string; written: boolean;
            conflicts: string[]; confidence: number; tts_form: string | null } | null;
   risk: { level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"; score: number; signals: PronunciationSignal[] };
-  decision: { strategy: string; basis: string; replacement: string | null; validated: boolean; needs_review: boolean };
+  decision: { strategy: string; basis: string; replacement: string | null; validated: boolean; needs_review: boolean; reference_status: string; reference_cause: string };
   tts_input: string;
   audio: { start: number; end: number } | null;
   memory: { id: number; surface: string; status: string; trust: string; next_word: string; sense: string; approved_pronunciation: string | null;
@@ -3861,5 +3861,6 @@ export interface PronunciationPlan {
   audio_url: string | null;
   counts: Record<string, number>;
   consistency: { word: string; kind: "name" | "word"; readings: Record<string, string[]>; legitimate: string }[];
+  canonical: { word: string; reading: string; kind: string; scope: string; provenance: string; status: string; note?: string }[];
   words: PronunciationPlanWord[];
 }

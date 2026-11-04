@@ -261,6 +261,8 @@ def align(letters: str, sounds: tuple[str, ...], given: list[frozenset[str]] | N
                 v = sounds[j0] if j0 < len(sounds) else None
                 if v in SHORT:
                     options.append(((c, (SHORT[v],)), i + 1, j0 + 1, SHORT[v]))
+        if c == "و" and i and piece_start(i) and sound == "o":
+            options.append(((c, ()), i + 1, j + 1, "conjunction"))   # the conjunction و said o inside a joined number (سی‌ویک si-o-yek)
         if c == TANWIN and sound == "n":
             options.append(((c, ()), i + 1, j + 1, "sukun"))
         if c == "ی" and sound == "ā" and (i + 1 == len(letters) or next_letter(i) == ZWNJ):
@@ -405,6 +407,8 @@ def decode(irab: str) -> tuple[str, ...]:
         elif c == "ی" and (vowel or SHADDA in marks) and SUKUN not in marks:
             doubled = ["y"] if SHADDA in marks else []          # one yeh for i and y after a consonant (بقیه، صندلیِ، فعالیت), else the consonant y
             out += (["i", "y"] if after_consonant else ["y"]) + doubled + ([vowel] if vowel else [])
+        elif c == "و" and not marks and piece_start[k] and k and nxt is not None and nxt[1]:
+            out.append("o")                                     # و that starts a piece before a marked consonant: the conjunction o (سی‌ویک)
         elif c in "وی" and not marks:
             glide = "y" if c == "ی" else "v"
             if after_consonant:
@@ -610,3 +614,70 @@ def evaluate(cases: list[dict]) -> dict:
         if problems:
             failures.append({"case": case["name"], "problems": problems, "expected": want, "got": ref.describe() if ref else None})
     return {"cases": len(cases), **totals, "failures": failures}
+
+
+# --- why a word has no valid reference ---------------------------------------------------------------------------------------------------------
+
+STATUSES = ("VALID", "UNREPRESENTABLE_BY_IRAB", "READING_UNRESOLVED", "NOT_APPLICABLE")
+SOUND_LETTERS = {**{sym: set(letters) for sym, letters in LETTERS.items()}, "m": {"م", "ن"}}     # n is said m before b
+
+
+def consonants_fit(letters: str, sounds: tuple[str, ...]) -> bool:
+    """Whether the reading's consonants can come from the word's letters in order, letters the spoken form leaves out allowed (an elision, never a
+    consonant the letters do not have)."""
+    wanted = [p for p in sounds if p in CONSONANTS and p != "'"]
+    k = 0
+    for c in letters:
+        if k < len(wanted) and c in SOUND_LETTERS.get(wanted[k], set()):
+            k += 1
+    return k == len(wanted)
+
+
+def diagnose(word: Word, reading: str, ref: Reference | None, *, owner: bool, doubted: bool, inconsistent: bool) -> tuple[str, str]:
+    """(status, cause) of a word's reference, by rules that keep two things apart: UNREPRESENTABLE_BY_IRAB, a reading that is trusted (the owner's, or a
+    colloquial form whose sounds all come from the letters) but that marks on these letters cannot write; and READING_UNRESOLVED, a reading that is
+    itself in question (not of the scheme, against a mark the approved text writes, read otherwise elsewhere in the film, doubted, with a consonant or
+    a long vowel the letters do not have, or leaving a written letter or suffix unread)."""
+    if word.number or reading == "NUM":
+        return "NOT_APPLICABLE", "digits are read by code"
+    if owner and ref is not None and ref.valid:
+        return "VALID", ""
+    if inconsistent and not owner:                     # a valid IRAB of a reading the film contradicts settles nothing
+        return "READING_UNRESOLVED", "the film reads this word otherwise elsewhere"
+    if doubted and not owner:
+        return "READING_UNRESOLVED", "the reading agents left the reading in doubt"
+    if ref is not None and ref.valid:
+        return "VALID", ""
+    if any(ch.isdigit() for ch in word.plain):
+        return "READING_UNRESOLVED", "tokenization: digits and letters in one token"
+    if ref is None:
+        return "READING_UNRESOLVED", "the reading is not one of the scheme"
+    if any("own mark" in p for p in ref.problems) or (ref.irab is None and irab_of(word.surface, ref.phonemes)[0] is None
+                                                     and irab_of(VOWEL_MARKS.sub("", word.surface), ref.phonemes)[0] is not None):
+        return "READING_UNRESOLVED", "the reading contradicts a mark the approved text writes"
+    if owner:
+        return "UNREPRESENTABLE_BY_IRAB", "the owner's spoken form: the letters cannot write it, the owner's respelling does"
+    letters = letters_of(word.surface)
+    if not consonants_fit(letters, ref.phonemes):
+        return "READING_UNRESOLVED", "a consonant of the reading is not among the word's letters"
+    said = {v: ref.phonemes.count(v) for v in LONG}
+    if said["ā"] > sum(letters.count(c) for c in "اآ") + letters.endswith("ی"):
+        return "READING_UNRESOLVED", "a long ā the letters do not write"
+    if said["i"] > letters.count("ی"):
+        return "READING_UNRESOLVED", "a long i the letters do not write"
+    if said["u"] > letters.count("و") and not ("ان" in letters or "ام" in letters):
+        return "READING_UNRESOLVED", "a long u the letters do not write (and no colloquial ān/ām to say it)"
+    if letters.endswith("ی") and ref.phonemes[-1:] and ref.phonemes[-1] in CONSONANTS:
+        return "READING_UNRESOLVED", "the written final yeh is not read"
+    if letters.endswith(ZWNJ + "ای") and not (len(ref.phonemes) >= 2 and ref.phonemes[-1] == "i" and ref.phonemes[-2] in ("y", "'", "e", "i")):
+        return "READING_UNRESOLVED", "the written suffix ‌ای is not read"
+    return "UNREPRESENTABLE_BY_IRAB", "a colloquial form whose sounds all come from the letters, which marks on them cannot write"
+
+
+def form_fits(irab: str, form: str) -> bool:
+    """Whether a voice form is the reference with marks only left out: the same letters, and every mark it puts on a letter is the reference's mark on
+    that letter (an independent check of what the planner sends)."""
+    mine, theirs = units_of(form), units_of(irab)
+    if mine is None or theirs is None or [c for c, _ in mine] != [c for c, _ in theirs]:
+        return False
+    return all(set(a) <= set(b) for (_, a), (_, b) in zip(mine, theirs, strict=True))

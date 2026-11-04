@@ -23,6 +23,8 @@ implemented and the rest is named. **Open** means not implemented, with the reas
 | 17. Bounded correction loop | Done | `reading/loop.py`: bounded rounds within the budget cap. An unfixed word is reported, never accepted. |
 | 18. Verified memory update | Partial | Failures are booked as evidence. A success validates nothing until a person approves or a validated recogniser exists. |
 
+| Reference status | Done | `reference.diagnose` keeps UNREPRESENTABLE_BY_IRAB (the reading is trusted — the owner's, or a colloquial form whose sounds all come from the letters — but marks cannot write it) apart from READING_UNRESOLVED (the reading itself is in question), each with a named cause. |
+| Independent check of the planner | Done | `reference.form_fits`: the voice form must be the reference with marks only left out. Otherwise the word is escalated. |
 | Cross-block consistency | Done | `reading/consistency.py`: every word read two ways across the film. Names must be one reading; homographs and free variants (config) are allowed. Notation and free colloquial variation are normalised: glottal stop, plural h, ow/o, y between i and a vowel. The loader applies the current film table to stored readings, as the reading stage does. |
 
 ## UI (Pronunciation tab → "Why words change")
@@ -44,53 +46,44 @@ Filters: changed, left for you, high risk kept, all, and a word search.
 
 ## Measured (Case 15, dry run, no calls)
 
+Counting unit: word occurrences (tokens) of the 236 blocks, 8,370 in all. The "428 failures" at 7ef6c42 were 428 occurrences of 190 distinct written
+forms, and 34 of them were numbers, which code reads and which have no reference by design. The audit (`scripts/audit_pronunciation_references.py`) exports
+every word that is not VALID with:
+- its sentence, block and character offsets;
+- the stored and settled readings;
+- phonemes, IPA, IRAB and ezafe;
+- the validator's problems;
+- its status, cause and provenance.
+
+It hashes the story text before and after: bf6b19a5…, unchanged.
+
 | | 7ef6c42 | now |
 |---|---|---|
-| LOW / MEDIUM / HIGH / CRITICAL | 6,977 / 871 / 514 / 8 | 6,593 / 1,294 / 482 / 1 |
-| Changed for the voice | 54 | 57 (46 owner respellings, 8 selective marks, 3 ezafe marks) |
-| Escalated | 46 | 2 |
-| Words without a valid reference | 428 | 71 |
-| Names read two ways | 2 (کالب, پرت) | 0 |
-| Ordinary words read two ways (not homograph or free variant) | not checked | 49 (listed for review) |
+| IRAB consistent with its reading | 7,942 / 8,324 | 8,300 / 8,335 |
+| VALID (the reading settled and its IRAB valid) | not measured | 7,807 |
+| NOT_APPLICABLE (numbers) | counted as failures | 34 |
+| UNREPRESENTABLE_BY_IRAB | not distinguished | 12 occurrences: 8 owner spoken forms (پرت ×7, ببخشتش); 4 colloquial forms (بیفته, میامیه, نمی‌برد, همه‌چیز) |
+| READING_UNRESOLVED | not distinguished | 517 occurrences, 87 written forms |
+| Names read two ways | 2 (کالب, پرت) | پرت settled by the owner's approval; کالب unresolved, for the owner |
+| Changed for the voice / escalated | 54 / 46 | 56 / 4 |
 
-MEDIUM rose because the new consistency signal (+1) is now counted. A MEDIUM word is not changed.
+READING_UNRESOLVED by cause:
+- **507 "read otherwise elsewhere":**
+  - کالب: 146 occurrences, kāleb 115 / kālb 31 blocks, no approval;
+  - 51 word families that the film reads two ways (پیام payām/peyām, بررسی barresi/barrasi, شلیک shelik/shellik, گلوله golule/gulle/gulule…). Inflected
+    forms count for their stem.
 
-The 71 words without a valid reference:
-- **34 numbers:** read by code.
-- **8 owner-approved spoken forms:** پرت → "pat" ×7, ببخشتش. The letters do not spell these readings; the owner's respelling path sends them.
-- **15 colloquial forms the spelling does not show:** شانزدهم "shunzdahom" ×5, گلوله "gulle" ×7, نمی‌برد, همه‌چیز, پلیس "pulis".
-- **8 agent reading errors:** دیجیتال "digitāl" ×2, آشفته "āshufte", نشیمن "neshimān", بیفته "biofte", الکترونیکی‌ای (the suffix is dropped), زیادی "ziyād", نرفته (a Cyrillic letter).
-- **1 reading against a mark the approved text writes:** به‌خودیِ‌خود.
-- **3 joined number words** whose و is said o (سی‌ویک, سی‌وشش). Not supported: a و that starts a written piece is read as v.
-- **1 tokenisation:** ۲۰۲۶—خبر is one token, because the em-dash has no spaces.
-- **1 hiatus notation:** میامیه.
+  No reading is chosen by frequency or model confidence.
+- **2 doubted by the agents.**
+- **2 with a consonant the letters lack:** دیجیتال "digitāl".
+- **2 with a long i the letters lack:** سی‌وشش "sioshish".
+- **1 not of the scheme:** a Cyrillic letter.
+- **1 that leaves the written ‌ای unread.**
+- **1 against the text's own kasra.**
+- **1 tokenisation:** ۲۰۲۶—خبر.
 
-Root causes fixed in this pass:
-- **Generator and decoder gaps:**
-  - tanwin;
-  - آ and a compound's alef inside a word;
-  - a geminate versus two letters across a half-space;
-  - a yeh for i+y with a shadda;
-  - ayn and hamza silent, as a glide, or carrying a vowel;
-  - the plural's h;
-  - n→m before b;
-  - ی said ā (dagger alef);
-  - a word-initial ayn before a long vowel;
-  - one written word read as several;
-  - a mark the approved text writes is now a constraint on the alignment.
-- **Scheme ambiguities, decided by the letters:** gh/zh/sh/kh versus two letters; ey versus e+i; "oo" means u.
-- **A doubled ezafe:** for readings written without the hyphen (edāreye-ye).
-- **Stale reading cache:** blocks read before the film table changed kept old name readings (کالب kāleb ×160 against the table's kālb). The loader now applies the current table.
-- **Film table:** the owner's approval of a name did not reach a title + name entry (قاضی پرت kept "part").
-- **Ezafe evidence:**
-  - the approved text's written ezafe now outranks an agent reading that leaves it out;
-  - a punctuation rule outranks an agent reading that puts an ezafe before a comma;
-  - a copula written with its own ه is not an ezafe;
-  - رو said "ru" takes an ezafe.
-
-Two remain escalated, rightly:
-- **سعی:** the film reads it two ways, sa'y / sa'i.
-- **شانزدهم "shunzdahom":** colloquial; the letters cannot show it.
+These words go to the voice as written and are escalated only when risky. An owner's approval in the Reading Review settles one; that changes the film
+table, and only the blocks containing the word are read again.
 
 ## Tests added in this pass
 - `tests/test_regression_unseen.py`: 19 invented sentences, one per failure found so far. Each names the failure it guards. Three hand-written expectations

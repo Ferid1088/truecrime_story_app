@@ -50,10 +50,13 @@ class Decision:
     intervention_id: int | None = None
     reference: REF.Reference | None = None  # the complete phoneme-first reference of the word in its sentence (never the voice's input by itself)
     candidates: dict[str, str] = field(default_factory=dict)       # the forms of the reference the voice could be given (minimal, complete)
+    reference_status: str = ""              # VALID | UNREPRESENTABLE_BY_IRAB | READING_UNRESOLVED | NOT_APPLICABLE (reference.diagnose)
+    reference_cause: str = ""
 
     def describe(self) -> dict:
         return {"n": self.n, "surface": self.surface, "level": self.level, "strategy": self.strategy, "replacement": self.replacement, "basis": self.basis,
                 "validated": self.validated, "needs_review": self.needs_review, "intervention_id": self.intervention_id, "candidates": self.candidates,
+                "reference_status": self.reference_status, "reference_cause": self.reference_cause,
                 **({"reference": self.reference.describe()} if self.reference is not None and (self.strategy != "keep" or self.level in ("HIGH", "CRITICAL")) else {})}
 
 
@@ -138,13 +141,19 @@ class Planner:
         if readings is None or len(readings) != len(words):
             return self.keep_all(block_id, text, "no reading of this block, or not the words of its reading: left as written")
         if self.engine is None:
-            self.engine = RiskEngine(self.db, self.language, self.voice_id, self.model_id, voicing.names, voicing.variants)
+            self.engine = RiskEngine(self.db, self.language, self.voice_id, self.model_id, voicing.names, voicing.variants, voicing.unresolved)
         signals = voicing.signals.get(block_id)
         boundaries = EZ.EzafeAnalyzer().analyze(words, readings, voicing.opinions.get(block_id), [s.confidence for s in signals] if signals else None,
                                                 frozenset(n for n, s in enumerate(signals or []) if s.overridden))
         references = [REF.reference_of(w, settled_reading(readings[w.n], boundaries[w.n])) for w in words]
+        diagnoses = [REF.diagnose(w, settled_reading(readings[w.n], boundaries[w.n]), references[w.n], owner=w.key in voicing.fixed,
+                                  doubted=bool(signals and signals[w.n].doubted),
+                                  inconsistent=bool(CS.family(w, voicing.variants) or CS.family(w, voicing.unresolved)))
+                     for w in words]
         risks = self.engine.assess(words, readings, signals, boundaries, references)
         decisions = [self.decide(w, r, readings[w.n], words, voicing, allow_dictionary, covered, boundaries[w.n], references[w.n]) for w, r in zip(words, risks, strict=True)]
+        for d, (status, cause) in zip(decisions, diagnoses, strict=True):
+            d.reference_status, d.reference_cause = status, cause
         self.limit(decisions)
         plan = BlockPlan(block_id, substitute(text, {d.n: d.replacement for d in decisions if d.strategy in ("respelling", "ezafe_mark", "selective_marks") and d.replacement}),
                          [self.rule(d) for d in decisions if d.strategy == "dictionary_rule"], decisions, risks, boundaries=boundaries)
@@ -196,10 +205,11 @@ class Planner:
             return made("keep", f"{risk.level} risk, but the language's dictionary already has a rule for this word: the planner adds nothing on top of it")
         if risk.level in ("LOW", "MEDIUM"):
             return made("keep", "low risk: no reason to change the text" if risk.level == "LOW" else "medium risk: left as written, the listening QA checks it")
-        readings_of = voicing.variants.get(word.key)
-        if readings_of and CS.normal(reading) != readings_of[0]:
-            return made("escalate", f"{risk.level} risk, and the film reads it in more than one way ({' / '.join(readings_of)}): this block's minority "
-                        f"reading is not written for the voice: {risk.rationale}", needs_review=True)
+        known = CS.family(word, voicing.unresolved) or CS.family(word, voicing.variants)
+        if known:
+            why = voicing.unresolved.get(known) or f"the film reads {known} in more than one way ({' / '.join(voicing.variants[known])})"
+            return made("escalate", f"{risk.level} risk; READING_UNRESOLVED: {why}. No reading is chosen by how often it occurs: a person decides: "
+                        f"{risk.rationale}", needs_review=True)
         if boundary is not None and (boundary.ezafe_type == "UNCERTAIN" or unresolved(boundary)):
             return made("escalate", f"{risk.level} risk, and the ezafe after it is not settled ({boundary.evidence_type}): {risk.rationale}", needs_review=True)
         if boundary is not None and self.engine.level_of(sum(s.weight for s in risk.signals if s.name not in EZAFE_SIGNALS)) in ("LOW", "MEDIUM"):
@@ -212,6 +222,8 @@ class Planner:
             why = "; ".join(reference.problems) if reference is not None and reference.problems else "the reading cannot be written on the word's own letters"
             return made("escalate", f"{risk.level} risk, and no validated reference to write on it ({why}): {risk.rationale}", needs_review=True)
         form, why = self.choose(word, candidates)
+        if not REF.form_fits(reference.irab or "", candidates[form]):        # the planner's own output is checked against the reference, not trusted
+            return made("escalate", f"{risk.level} risk, and the voice form {candidates[form]} does not fit the reference {reference.irab}", needs_review=True)
         return made("selective_marks", f"{risk.level} risk: {risk.rationale}; voice input: {form} ({why})", replacement=candidates[form],
                     needs_review=risk.level == "CRITICAL", candidates=candidates)
 

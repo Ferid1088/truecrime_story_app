@@ -46,13 +46,14 @@ def load(db: Session, version_id: int, language: str) -> tuple[StoryVersion, dic
     items = block_inputs(plan["blocks"], VP.english_sources(db, version), ai_config.semantic_review.neighbour_chars)
     approvals = [{"surface": a.surface, "latin": a.latin, "kind": a.kind} for a in db.query(ReadingApproval).filter(ReadingApproval.language == language)]
     table = FilmTable.build(cache["reader"], approvals)
-    readings, signals, words, stored = {}, {}, {}, {}
+    readings, signals, words, stored, raw = {}, {}, {}, {}, {}
     for item in items:
         saved = cache["blocks"].get(item.block_id)
         if not saved or len(saved["readings"]) != len(item.words):
             continue
         doubted = {d["n"] for d in saved["doubts"]}
         # a block read before the film table changed holds the old table's readings: the current table is applied as the reading stage applies it
+        raw[item.block_id] = list(zip(item.words, [r["latin"] for r in saved["readings"]], strict=True))
         current, notes = ANS.enforce([ReadingWord(**r) for r in saved["readings"]], item.words, table, ai_config.reading.pause_between_names)
         overridden = {int(m.group(1)) for note in saved["notes"] + notes if (m := re.match(r"word (\d+)", note))}
         readings[item.block_id] = [r.latin for r in current]
@@ -60,7 +61,9 @@ def load(db: Session, version_id: int, language: str) -> tuple[StoryVersion, dic
         words[item.block_id] = list(zip(item.words, readings[item.block_id], strict=True))
         stored[item.block_id] = current
     names = RS.names_of(table)
-    voicing = Voicing({key_of(a["surface"]): a["latin"] for a in approvals}, readings, signals, names, RS.opinions_of(stored), CS.inconsistent(CS.variants(words, names)))
+    fixed = {key_of(a["surface"]): a["latin"] for a in approvals}
+    voicing = Voicing(fixed, readings, signals, names, RS.opinions_of(stored), CS.inconsistent(CS.variants(words, names)),
+                      CS.unresolved_names(CS.variants(raw, names), table, fixed))
     covered = frozenset(key_of(r.get("string_to_replace") or "") for r in VP.sent_rules(version))
     return version, plan, voicing, covered
 
@@ -86,6 +89,27 @@ def block_times(version: StoryVersion, language: str) -> dict[str, tuple[float, 
     except (OSError, ValueError):
         return {}
     return {b["block_id"]: (b["start"], b["end"]) for b in manifest.get("timeline", {}).get("blocks", [])}
+
+
+def canonical_of(db: Session, version: StoryVersion, language: str, voicing: Voicing, texts: dict[str, str]) -> list[dict]:
+    """The film's canonical readings with their scope and provenance: a reading the owner approved is confirmed (it is stored as the owner's approval);
+    a name only the film table reads is the reading agent's, not confirmed; a name whose readings disagreed without an approval is unresolved."""
+    approvals = {key_of(a.surface): a for a in db.query(ReadingApproval).filter(ReadingApproval.language == language)}
+    out = []
+    for key, latin in voicing.fixed.items():
+        a = approvals.get(key)
+        out.append({"word": a.surface if a else key, "reading": latin, "kind": a.kind if a else "", "scope": "every film of the language",
+                    "provenance": f"owner approval ({a.source if a else 'owner'})", "status": "confirmed"})
+    first: dict[str, str] = {}
+    for b, text in texts.items():
+        for w, r in zip(tokenize(text), voicing.readings[b], strict=True):
+            first.setdefault(w.key, CS.normal(r))
+    for key in sorted((voicing.names - set(voicing.fixed)) & set(first)):
+        status = "READING_UNRESOLVED" if key in voicing.unresolved else "agent"
+        out.append({"word": key, "reading": first[key],
+                    "kind": "name", "scope": f"this film (case {version.case_id})", "provenance": "the film table (reading agent)", "status": status,
+                    "note": voicing.unresolved.get(key, "")})
+    return out
 
 
 def explain(db: Session, version_id: int, language: str, scope: str = "risky") -> dict:
@@ -125,5 +149,5 @@ def explain(db: Session, version_id: int, language: str, scope: str = "risky") -
     texts = {b["block_id"]: b.get("tts_text") or b["text"] for b in plan["blocks"] if b["block_id"] in voicing.readings}
     found = CS.variants({b: list(zip(tokenize(t), voicing.readings[b], strict=True)) for b, t in texts.items()}, voicing.names)
     return {"version_id": version.id, "case_id": version.case_id, "language": language, "voice_id": lang.voice_id, "model_id": lang.model_id,
-            "consistency": [v.describe() for v in found],
+            "consistency": [v.describe() for v in found], "canonical": canonical_of(db, version, language, voicing, texts),
             "audio_url": f"/api/documentary/versions/{version.id}/audio/narration" if times else None, "counts": counts, "words": rows}

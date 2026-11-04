@@ -19,13 +19,16 @@ const word = (strategy: string, extra: Record<string, unknown> = {}) => ({
   ezafe: { ezafe_type: "E", grammatical_relation: "noun_adjective", phonological_class: "EZAFE_CONSONANT_H", evidence_type: "linguistic_inference",
            expected_reading: "dādgāh-e omumi", written: false, conflicts: [], confidence: 0.8, tts_form: "دادگاهِ" },
   risk: { level: "HIGH", score: 5, signals: [{ name: "final_consonant_h", weight: 2, evidence: "a consonant h ends the word" }] },
-  decision: { strategy, basis: "HIGH risk: a consonant h ends the word", replacement: strategy === "keep" ? null : "دادگاهِ", validated: false, needs_review: false },
+  decision: { strategy, basis: "HIGH risk: a consonant h ends the word", replacement: strategy === "keep" ? null : "دادگاهِ", validated: false, needs_review: false,
+              reference_status: "VALID", reference_cause: "" },
   tts_input: strategy === "keep" ? "دادگاه" : "دادگاهِ", audio: { start: 10, end: 14 },
   memory: [{ id: 80, surface: "دادگاه", status: "candidate", trust: "UNVERIFIED_CANDIDATE", next_word: "", sense: "", approved_pronunciation: null,
              interventions: [{ kind: "irab", replacement: "دادگاهٔ", status: "candidate", successes: 0, failures: 0 }] }],
   verification: "UNVERIFIED", ...extra });
 const plan = { version_id: 7, case_id: 1, language: "fa", voice_id: "v", model_id: "eleven_v4", audio_url: "/api/documentary/versions/7/audio/narration",
   counts: { words: 3, LOW: 1, MEDIUM: 0, HIGH: 2, CRITICAL: 0, changed: 1, escalated: 0, reference_valid: 3, reference_checked: 3 },
+  canonical: [{ word: "کالب", reading: "kālb", kind: "name", scope: "this film", provenance: "the film table (reading agent)", status: "READING_UNRESOLVED",
+                note: "the name was read kālb (31 blocks) / kāleb (115 blocks)" }],
   consistency: [{ word: "بررسی", kind: "word", readings: { barresi: ["b1", "b2"], barrasi: ["b3"] }, legitimate: "" },
                 { word: "مرد", kind: "word", readings: { mard: ["b1"], mord: ["b2"] }, legitimate: "a homograph" }],
   words: [word("selective_marks"), word("keep", { n: 2, word: "عمومی", tts_input: "عمومی" })] };
@@ -49,6 +52,7 @@ test.describe("why words change", () => {
     await expect(detail.getByText("UNVERIFIED", { exact: true })).toBeVisible();
     await expect(detail.getByRole("button", { name: "Play the sentence" })).toBeVisible();
     await expect(page.getByLabel("Words of the plan").getByRole("button")).toHaveCount(1);
+    await expect(page.getByLabel("Names awaiting the owner")).toContainText("kālb (31 blocks) / kāleb (115 blocks)");
     await page.getByText("Read differently across blocks (1 words; names: 0)").click();
     await expect(page.getByText("barresi ×2 / barrasi ×1")).toBeVisible();
     await page.getByRole("button", { name: /High risk, kept/ }).click();

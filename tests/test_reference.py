@@ -134,3 +134,42 @@ def test_the_explanation_of_a_plan_shows_why_a_word_changed_and_what_the_voice_i
     assert (word["tts_input"], word["reference"]["reference_irab"], word["verification"]) == ("مُرد", "مُرْدْ", "UNVERIFIED")
     assert word["audio"] == {"start": 1.0, "end": 4.0} and word["sentence"] == "او در تصادف مرد" and out["counts"]["changed"] == 1
     assert {w["word"] for w in out["words"]} == {"مرد"}, "only the words worth explaining"
+
+
+@pytest.mark.parametrize("surface, reading, kwargs, status, cause", [
+    ("مرد", "mard", {}, "VALID", ""),
+    ("۹۱۱", "NUM", {}, "NOT_APPLICABLE", "digits"),
+    ("پرت", "pat", {"owner": True}, "UNREPRESENTABLE_BY_IRAB", "owner's spoken form"),
+    ("همه‌چیز", "hamechi", {}, "UNREPRESENTABLE_BY_IRAB", "colloquial form"),
+    ("دیجیتال", "digitāl", {}, "READING_UNRESOLVED", "consonant"),
+    ("نشیمن", "neshimān", {}, "READING_UNRESOLVED", "long ā"),
+    ("آشفته", "āshufte", {}, "READING_UNRESOLVED", "long u"),
+    ("سی‌وشش", "sioshish", {}, "READING_UNRESOLVED", "long i"),
+    ("زیادی", "ziyād", {}, "READING_UNRESOLVED", "final yeh"),
+    ("الکترونیکی‌ای", "elektroniki", {}, "READING_UNRESOLVED", "suffix"),
+    ("بازِ", "bāz", {}, "READING_UNRESOLVED", "contradicts a mark"),
+    ("مرد", "mard", {"inconsistent": True}, "READING_UNRESOLVED", "otherwise elsewhere"),
+    ("مرد", "mard", {"doubted": True}, "READING_UNRESOLVED", "doubt"),
+])
+def test_unrepresentable_and_unresolved_are_kept_apart(surface, reading, kwargs, status, cause):
+    word = tokenize(surface)[0]
+    args = {"owner": False, "doubted": False, "inconsistent": False, **kwargs}
+    got = REF.diagnose(word, reading, REF.reference_of(word, reading), **args)
+    assert got[0] == status and cause in got[1], got
+
+
+def test_the_joined_number_words_and_conjunction():
+    assert ref("سی‌ویک", "si-o-yek").irab == "سی‌ویِکْ"
+
+
+def test_the_planners_voice_form_is_checked_against_the_reference():
+    assert REF.form_fits("مُرْدْ", "مُرد") and REF.form_fits("مُرْدْ", "مُرْدْ")
+    assert not REF.form_fits("مُرْدْ", "مَرد"), "a mark the reference does not have"
+    assert not REF.form_fits("مُرْدْ", "مُرت"), "another letter"
+
+
+def test_planning_never_changes_the_original_text(db_session, language):  # noqa: F811
+    text = "او در تصادف مرد"
+    original = text.encode("utf-8")
+    Planner(db_session, language, VOICE, MODEL).plan("b", text, Voicing({}, {"b": ["u", "dar", "tasādof", "mord"]}, {"b": [WordSignal()] * 3 + [WordSignal("low", True, False)]}))
+    assert text.encode("utf-8") == original

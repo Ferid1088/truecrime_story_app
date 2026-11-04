@@ -49,6 +49,9 @@ function Detail({ w, lang, audioUrl }: { w: PronunciationPlanWord; lang: string;
         <Badge variant={LEVEL_TONE[w.risk.level]}>{w.risk.level} · {w.risk.score}</Badge>
         <Badge variant={w.decision.strategy === "escalate" ? "warning" : w.decision.strategy === "keep" ? "default" : "accent"}>{w.decision.strategy}</Badge>
         <Badge variant={w.verification === "UNVERIFIED" ? "outline" : "success"}>{w.verification}</Badge>
+        {w.decision.reference_status && w.decision.reference_status !== "VALID" && (
+          <Badge variant={w.decision.reference_status === "READING_UNRESOLVED" ? "danger" : "info"} title={w.decision.reference_cause}>{w.decision.reference_status}</Badge>
+        )}
       </div>
       <p lang={lang} dir={rtl ? "rtl" : "ltr"} className="rounded-md bg-muted/40 p-2 text-base leading-8">
         {words.map((t, i) => (
@@ -68,6 +71,7 @@ function Detail({ w, lang, audioUrl }: { w: PronunciationPlanWord; lang: string;
           {ref && (ref.valid ? <Badge variant="success" className="ml-2">validator: valid</Badge>
             : <span className="ml-2 text-xs text-rose-600 dark:text-rose-400">validator: {ref.problems.join("; ")}</span>)}
         </Row>
+        {w.decision.reference_cause && <Row label="Reference status"><span className="text-xs">{w.decision.reference_status}: {w.decision.reference_cause}</span></Row>}
         <Row label="Ezafe">
           {w.ezafe ? <span dir="ltr">{w.ezafe.ezafe_type} · {w.ezafe.phonological_class} · {w.ezafe.grammatical_relation} · {w.ezafe.evidence_type}
             {w.ezafe.written ? " · written in the text" : ""} · expected <em>{w.ezafe.expected_reading}</em></span> : "none after this word"}
@@ -130,6 +134,16 @@ export function PronunciationPlanView({ versionId, language }: { versionId: numb
         {" "}{c.escalated} left for you · reference valid for {c.reference_valid} of {c.reference_checked}. Linguistic decisions only: nothing here is verified by
         listening (every word stays UNVERIFIED until a person or a validated recognizer confirms it).
       </p>
+      {plan.data.canonical.some((c) => c.status === "READING_UNRESOLVED") && (
+        <div className="rounded-md border border-rose-500/30 p-2 text-xs" aria-label="Names awaiting the owner">
+          <p className="font-medium">Names whose reading is unresolved (approve one in the Reading Review tab):</p>
+          <ul className="mt-1 space-y-0.5">
+            {plan.data.canonical.filter((c) => c.status === "READING_UNRESOLVED").map((c) => (
+              <li key={c.word}><span lang={language} className="text-sm">{c.word}</span> · {c.note}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {plan.data.consistency.some((v) => !v.legitimate) && (
         <details className="rounded-md border border-border p-2 text-sm" aria-label="Read differently across blocks">
           <summary className="cursor-pointer text-xs font-medium">

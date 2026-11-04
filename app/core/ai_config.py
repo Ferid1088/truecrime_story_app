@@ -2511,6 +2511,9 @@ class MorphologyConfig(BaseModel):
     verb_prefixes: dict[str, Literal["negation", "continuous"]]
     plural: list[str]
     enclitics: dict[str, int]
+    # How each written suffix after a half-space is said (the colloquial forms too), to find the stem's reading in an inflected form: a stem is read
+    # the same in all its forms (گلوله / گلوله‌ها / گلوله‌هایی).
+    suffix_readings: dict[str, list[str]] = {}
 
 
 class HomographsConfig(BaseModel):
