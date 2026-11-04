@@ -1,0 +1,13 @@
+{
+ "persian_final": {
+  "id": 254,
+  "sha256": "90301aa4f24f549fc20e8678c4575f634b2c6d51dd0dff132348be6e363aa5f9",
+  "len": 43247
+ },
+ "english_final": {
+  "id": 240,
+  "sha256": "12ebe390ea9b587bd21a304f4d1045ca305e515e5bac6d5dee3dd97b7abececd",
+  "len": 47386
+ },
+ "approval": "Owner declined to review the texts (2026-11-04) and designated the story stage's final outputs (final, is_best, ready; approved_by=automatic) as the only sources. Not an owner content approval."
+}

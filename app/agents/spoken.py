@@ -3,8 +3,10 @@ the domain rules and storage helpers stay in app.documentary.spoken."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -43,9 +45,24 @@ from app.utils import language_quality
 
 
 class SpokenNarrator:
-    def __init__(self):
+    def __init__(self, resume_dir: Path | None = None):
+        """resume_dir: where a finished model answer is kept (by a hash of its role, system prompt and input), so a run that stops on a
+        provider error continues without paying for the answers it already has. None = every call goes to the provider."""
         self.gen = get_generation_provider()
         self.cfg = ai_config.spoken
+        self.resume_dir = resume_dir
+
+    def _kept(self, role: str, system: str, user: str) -> tuple[Path | None, dict | None]:
+        if self.resume_dir is None:
+            return None, None
+        path = self.resume_dir / (hashlib.sha256(json.dumps([role, system, user], ensure_ascii=False).encode()).hexdigest() + ".json")
+        return path, (json.loads(path.read_text(encoding="utf-8")) if path.exists() else None)
+
+    @staticmethod
+    def _keep(path: Path | None, res: GenerationResult, data: dict | None = None) -> None:
+        if path is not None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({"text": res.text, "model": res.model, "provider": res.provider, "data": data}, ensure_ascii=False), encoding="utf-8")
 
     # ------------------------------------------------------------------
     # model calls
@@ -56,17 +73,27 @@ class SpokenNarrator:
         user = json.dumps(payload, ensure_ascii=False)
         if task:
             user = f"{task}\n\nINPUT:\n{user}"
+        path, kept = self._kept(role, system, user)
+        if kept:
+            return GenerationResult(text=kept["text"], model=kept["model"], provider=kept["provider"])
         with track_run(db, case_id, label, input_summary=label) as run:
             res = await run_agent(role, self.gen, user, system=system)
             stamp_run(run, res, role)
             run.output_summary = f"words={len(res.text.split())}"
+        self._keep(path, res)
         return res
 
     async def _json(self, db, case_id, label, role, system, payload: dict):
+        user = json.dumps(payload, ensure_ascii=False)
+        path, kept = self._kept(role, system, user)
+        if kept:
+            return kept["data"] or {}, GenerationResult(text=kept["text"], model=kept["model"], provider=kept["provider"])
         with track_run(db, case_id, label, input_summary=label) as run:
-            data, res = await run_agent(role, self.gen, json.dumps(payload, ensure_ascii=False), system=system)
+            data, res = await run_agent(role, self.gen, user, system=system)
             stamp_run(run, res, role)
-        return data if isinstance(data, dict) else {}, res
+        data = data if isinstance(data, dict) else {}
+        self._keep(path, res, data)
+        return data, res
 
     async def _write(self, db, case_id, language, source: list[dict],
                      uncertain: list[str]) -> tuple[list[dict], GenerationResult, list[str]]:

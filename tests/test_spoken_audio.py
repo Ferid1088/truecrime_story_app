@@ -255,6 +255,45 @@ def _narrate(db, monkeypatch, gen, language="en", case_v=None):
     return case, v, asyncio.run(SP.SpokenNarrator().create(db, case, v, language))
 
 
+class FailsOnce(SpokenGen):
+    """The provider stops (like a 503) on the n-th model call, once."""
+
+    def __init__(self, fail_at: int):
+        super().__init__()
+        self.fail_at, self.seen = fail_at, 0
+
+    async def _maybe_fail(self):
+        self.seen += 1
+        if self.seen == self.fail_at:
+            raise RuntimeError("503 overloaded")
+
+    async def generate_text(self, role, system, user):
+        await self._maybe_fail()
+        return await super().generate_text(role, system, user)
+
+    async def generate_structured(self, role, system, user):
+        await self._maybe_fail()
+        return await super().generate_structured(role, system, user)
+
+
+def test_a_run_that_stops_on_a_provider_error_continues_without_paying_again(db_session, monkeypatch, tmp_path):
+    case, v = _with_blueprint(db_session, monkeypatch)
+    first = FailsOnce(fail_at=3)
+    monkeypatch.setattr("app.agents.spoken.get_generation_provider", lambda: first)
+    with pytest.raises(RuntimeError, match="503"):
+        asyncio.run(SP.SpokenNarrator(resume_dir=tmp_path).create(db_session, case, v, "en"))
+    kept = len(list(tmp_path.glob("*.json")))
+    assert kept == 2, "the two answers before the failure are kept"
+    second = SpokenGen()
+    monkeypatch.setattr("app.agents.spoken.get_generation_provider", lambda: second)
+    sv = asyncio.run(SP.SpokenNarrator(resume_dir=tmp_path).create(db_session, case, v, "en"))
+    assert sv.kind == "spoken"
+    plain = SpokenGen()
+    monkeypatch.setattr("app.agents.spoken.get_generation_provider", lambda: plain)
+    asyncio.run(SP.SpokenNarrator().create(db_session, case, v, "en"))
+    assert len(second.calls) == len(plain.calls) - kept, "only what was missing was asked again"
+
+
 def test_spoken_version_is_told_beat_by_beat(db_session, monkeypatch):
     gen = SpokenGen(style_rounds=[{"B02": "mixed"}], lead_in=True)
     case, master, sv = _narrate(db_session, monkeypatch, gen)
