@@ -141,7 +141,9 @@ export function BlockCard({ versionId, block, current, playingTake, onPlayBlock,
       ) : (
         <div className="mt-2 flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={() => setEditing(true)} disabled={busy}>Correct</Button>
-          {block.needs_sending && <Button size="sm" onClick={() => run(() => api.sendBlock(versionId, block.block_id))} disabled={busy}>{busy ? "Voicing…" : "Send to ElevenLabs"}</Button>}
+          <Button size="sm" variant={block.needs_sending ? "default" : "secondary"} onClick={() => run(() => api.sendBlock(versionId, block.block_id, !block.needs_sending))} disabled={busy}>
+            {busy ? "Voicing…" : block.needs_sending ? "Send to ElevenLabs" : "Voice again"}
+          </Button>
         </div>
       )}
       {error && <p role="alert" className="mt-1 text-sm text-rose-700">{error}</p>}

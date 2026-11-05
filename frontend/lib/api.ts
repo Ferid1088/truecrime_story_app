@@ -607,9 +607,9 @@ export const api = {
   openBlockReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/block-review/open`),
   editBlock: (versionId: number, blockId: string, body: { text?: string; words: { n: number; surface?: string; finglish?: string }[] }) =>
     put<BlockReviewBlock>(`/api/documentary/versions/${versionId}/block-review/blocks/${encodeURIComponent(blockId)}`, body),
-  sendBlock: (versionId: number, blockId: string) =>
+  sendBlock: (versionId: number, blockId: string, again = false) =>
     request<BlockReviewBlock>(`/api/documentary/versions/${versionId}/block-review/blocks/${encodeURIComponent(blockId)}/send`,
-      { method: "POST", body: "{}", timeoutMs: 600_000 }),
+      { method: "POST", body: JSON.stringify({ again }), timeoutMs: 600_000 }),
   sendAllBlocks: (versionId: number) =>
     request<BlockReviewOverview & { sent: string[]; failed: { block_id: string; error: string }[] }>(
       `/api/documentary/versions/${versionId}/block-review/send-all`, { method: "POST", body: "{}", timeoutMs: 1_800_000 }),

@@ -33,6 +33,10 @@ class EditIn(BaseModel):
     words: list[WordIn] = []
 
 
+class SendIn(BaseModel):
+    again: bool = False                 # voice the block's present text again (a new take), also when nothing was corrected
+
+
 class NoteIn(BaseModel):
     note: str | None = None
 
@@ -116,11 +120,11 @@ def save_edit(version_id: int, block_id: str, body: EditIn, db: Session = Depend
 
 
 @router.post("/api/documentary/versions/{version_id}/block-review/blocks/{block_id}/send")
-async def send_block(version_id: int, block_id: str, db: Session = Depends(get_db)):
+async def send_block(version_id: int, block_id: str, body: SendIn | None = None, db: Session = Depends(get_db)):
     version = _version(db, version_id)
     review = _review(db, version)
     try:
-        await S.send_block(db, review, block_id)
+        await S.send_block(db, review, block_id, again=bool(body and body.again))
     except S.ReviewError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return block_view(db, version, S.block_of(db, review, block_id))

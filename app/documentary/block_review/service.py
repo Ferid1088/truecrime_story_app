@@ -168,17 +168,17 @@ def alias_rules(db: Session, block: VoiceBlock, text: str) -> list[dict]:
             for w in sorted(words_of(db, block).values(), key=lambda w: w.word_n) if w.finglish and w.surface in text]
 
 
-async def send_block(db: Session, review: VoiceReview, block_id: str, provider=None) -> VoiceBlockTake:
-    """Voices the corrected text of a block again (a paid take with the film's voice settings; the finglish of its corrected words goes along as aliases).
-    The new take is ticked; the earlier takes stay, ticked off."""
+async def send_block(db: Session, review: VoiceReview, block_id: str, provider=None, again: bool = False) -> VoiceBlockTake:
+    """Voices a block again (a paid take with the film's voice settings; the finglish of its corrected words goes along as aliases): its corrected text, or
+    with `again` the text it has now (a new take of the same words, another seed). The new take is ticked; the earlier takes stay, ticked off."""
     from app.services.cost_model import load_pricing
 
     block = block_of(db, review, block_id)
-    if not needs_sending(db, block):
+    if not again and not needs_sending(db, block):
         raise ReviewError(f"block {block_id} has no correction to send")
     takes = takes_of(db, block)
     base = json.loads(takes[0].request_json)
-    text = block.draft_text
+    text = block.draft_text if block.draft_text is not None else block.voice_text
     rules = alias_rules(db, block, text)
     renderer = VoiceRenderer(provider=provider or default_provider(), db=db, budget_case_id=review.case_id, budget_stage=f"tts:{review.language}",
                              use_asr=False, use_listener=False)

@@ -139,3 +139,23 @@ def test_approving_makes_the_assembled_narration_the_films_and_keeps_the_old_one
     assert len(kept) == 1 and S.sha256_of(kept[0]) == old_sha
     manifest = json.loads((main / "manifest.json").read_text(encoding="utf-8"))
     assert "/reviewed/" not in json.dumps(manifest["files"])
+
+
+def test_any_block_can_be_voiced_again_as_often_as_wanted_with_a_new_seed_and_every_take_stays(narration):
+    db, _, version, voice = narration
+    review = S.open_review(db, version)
+    with pytest.raises(S.ReviewError, match="no correction to send"):
+        asyncio.run(S.send_block(db, review, "FA_B03_g01_01", provider=voice))
+    seeds = []
+    for turn in (2, 3, 4):
+        take = asyncio.run(S.send_block(db, review, "FA_B03_g01_01", provider=voice, again=True))
+        seeds.append(voice.requests[-1].seed)
+        assert take.take_no == turn and take.source == "correction" and voice.requests[-1].text == TEXTS[2] and voice.dictionaries == []
+    block = S.block_of(db, review, "FA_B03_g01_01")
+    original_seed = json.loads(S.takes_of(db, block)[0].request_json)["seed"]
+    assert seeds == [original_seed + 1, original_seed + 2, original_seed + 3], "every voicing is another take, never the old one again"
+    assert [(t.take_no, t.active) for t in S.takes_of(db, block)] == [(1, False), (2, False), (3, False), (4, True)]
+    assert not block.edited and block.voice_text == TEXTS[2], "a new take of the same words is not a correction: the block stays unmarked"
+    S.save_edit(db, review, "FA_B03_g01_01", "بعد رفت و آمد.", [])        # then corrected, and voiced again
+    last = asyncio.run(S.send_block(db, review, "FA_B03_g01_01", provider=voice, again=True))
+    assert last.take_no == 5 and voice.requests[-1].text == "بعد رفت و آمد." and S.block_of(db, review, "FA_B03_g01_01").edited

@@ -23,7 +23,7 @@ const take = (take_no: number, active: boolean, source: "original" | "correction
 test("a corrected block stays yellow and its corrected word red, a new take is voiced and ticked, and the person can tick the earlier take again", async ({ page }) => {
   let block2 = { block_id: "FA_B02_g01_01", position: 1, canonical_text: "دورِ تخت نبود.", voice_text: "دورِ تخت نبود.", draft_text: null as string | null, text: "دورِ تخت نبود.",
                  edited: false, needs_sending: false, words: words("دورِ تخت نبود."), takes: [take(1, true, "original")] };
-  const block1 = { ...block2, block_id: "FA_B01_g01_01", position: 0, canonical_text: "او آمد.", voice_text: "او آمد.", text: "او آمد.", words: words("او آمد."),
+  let block1 = { ...block2, block_id: "FA_B01_g01_01", position: 0, canonical_text: "او آمد.", voice_text: "او آمد.", text: "او آمد.", words: words("او آمد."),
                    takes: [{ ...take(1, true, "original"), audio_url: "/api/x" }] };
   const state = () => ({ exists: true, version_id: 7, language: "fa", status: "open", assembled_current: false, assembled_at: null, approved: false,
                          corrected_blocks: block2.edited ? 1 : 0, to_send: block2.needs_sending ? 1 : 0, assembled_audio_url: null, blocks: [block1, block2] });
@@ -44,6 +44,12 @@ test("a corrected block stays yellow and its corrected word red, a new take is v
     block2 = { ...block2, needs_sending: false, draft_text: null, voice_text: block2.text, words: block2.words.map((w) => ({ ...w, pending: false })),
                takes: [take(1, false, "original"), take(2, true, "correction")] };
     await r.fulfill(ok(block2));
+  });
+  await page.route("**/api/documentary/versions/7/block-review/blocks/FA_B01_g01_01/send", async (r: Route) => {
+    expect(r.request().postDataJSON()).toEqual({ again: true });                      // nothing was corrected: the same words, another take
+    const n = block1.takes.length + 1;
+    block1 = { ...block1, takes: [...block1.takes.map((t) => ({ ...t, active: false })), { ...take(n, true, "correction"), audio_url: `/api/x${n}` }] };
+    await r.fulfill(ok(block1));
   });
   await page.route("**/api/documentary/versions/7/block-review/blocks/FA_B02_g01_01/takes/*/activate", async (r: Route) => {
     const no = Number(r.request().url().split("/takes/")[1].split("/")[0]);
@@ -76,4 +82,12 @@ test("a corrected block stays yellow and its corrected word red, a new take is v
   await expect(card.getByLabel("Use take 1 of FA_B02_g01_01")).toBeChecked();
   await expect(card.getByLabel("Use take 2 of FA_B02_g01_01")).not.toBeChecked();
   await expect(card.locator("[data-active=false]")).toHaveCount(1);                 // the other take stays, marked not used
+
+  const first = page.getByTestId("block-FA_B01_g01_01");                            // any block can be voiced again and again, corrected or not
+  await first.getByRole("button", { name: "Voice again" }).click();
+  await expect(first.getByLabel("Use take 2 of FA_B01_g01_01")).toBeChecked();
+  await first.getByRole("button", { name: "Voice again" }).click();
+  await expect(first.getByLabel("Use take 3 of FA_B01_g01_01")).toBeChecked();
+  await expect(first.locator("[data-active=false]")).toHaveCount(2);
+  await expect(first).toHaveAttribute("data-edited", "false");                       // a new take of the same words is not a correction
 });
