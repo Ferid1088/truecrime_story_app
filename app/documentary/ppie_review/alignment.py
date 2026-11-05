@@ -16,8 +16,17 @@ from dataclasses import dataclass, field
 from app.core.ai_config import ai_config
 from app.documentary.persian_numbers import DIGITS
 
-SENTENCE = re.compile(r"[^.!?؟…\n]+(?:[.!?؟…]+[»\"”'’)]*)?")
-MARKER = re.compile(r"\[\[[^\]]*\]\]|\[[^\[\]\n]{1,40}\]")          # section markers and audio tags: not story text
+def sentence_pattern() -> re.Pattern:
+    """A sentence: text up to its end marks and the quotes or brackets that close it (config ppie_review.alignment)."""
+    cfg = ai_config.ppie_review.alignment
+    ends, closing = re.escape(cfg.sentence_end_marks), re.escape(cfg.closing_marks)
+    return re.compile(f"[^{ends}\\n]+(?:[{ends}]+[{closing}]*)?")
+
+
+def marker_pattern() -> re.Pattern:
+    """Section markers ([[ACT:act1]]) and audio tags ([calm]): not story text."""
+    return re.compile(f"\\[\\[[^\\]]*\\]\\]|\\[[^\\[\\]\\n]{{1,{ai_config.ppie_review.alignment.max_tag_chars}}}\\]")
+
 DIGIT_RUN = re.compile(r"[0-9۰-۹٠-٩]+")
 WORD = re.compile(r"\w")
 STATUSES = ("ALIGNED", "PARTIAL", "AMBIGUOUS", "MISMATCH", "MISSING_REFERENCE")      # best to worst
@@ -66,9 +75,9 @@ class BlockAlignment:
 
 def segments(text: str) -> list[Unit]:
     """The sentences of a story with their offsets in it (markers and tags blanked, so the offsets stay those of the text itself)."""
-    blanked = MARKER.sub(lambda m: " " * len(m.group()), text)
+    blanked = marker_pattern().sub(lambda m: " " * len(m.group()), text)
     out = []
-    for m in SENTENCE.finditer(blanked):
+    for m in sentence_pattern().finditer(blanked):
         piece = m.group()
         stripped = piece.strip()
         if not WORD.search(stripped):
@@ -191,7 +200,7 @@ def block_status(statuses: list[str]) -> str:
 
 def located(story: str, text: str, after: int) -> tuple[int, int] | None:
     """Where a block's text stands in the story from `after` on, whitespace and tags aside (None: not found, the block is not the approved text)."""
-    words = [w for w in MARKER.sub(" ", text).split() if w]
+    words = [w for w in marker_pattern().sub(" ", text).split() if w]
     if not words:
         return None
     pattern = re.compile(r"\s+".join(re.escape(w) for w in words))

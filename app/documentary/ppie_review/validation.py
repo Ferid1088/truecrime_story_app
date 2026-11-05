@@ -18,10 +18,15 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import PhoneticSample
 from app.documentary.phonetic_benchmark import BASE
-from app.documentary.ppie_review.acoustic import FRAME
 
-REPORT = BASE / "validation.json"
-MARGINS = [round(0.05 * k, 2) for k in range(1, 31)]
+
+def report_path() -> Path:
+    return BASE / ai_config.ppie_review.validation.report_file
+
+
+def margins() -> list[float]:
+    cfg = ai_config.ppie_review.validation
+    return [round(cfg.margin_step * k, 4) for k in range(1, int(cfg.margin_max / cfg.margin_step + 1e-9) + 1)]
 
 
 def held_out(sample_id: int) -> bool:
@@ -39,7 +44,7 @@ def scores(listener, path: Path, candidates: list[dict], speed: float) -> dict[s
         out = {}
         for c in candidates:
             try:
-                out[c["key"]] = listener.fit(lp, 0.0, lp.shape[0] * FRAME, c["ipa"]) / max(1, lp.shape[0])
+                out[c["key"]] = listener.fit(lp, 0.0, lp.shape[0] * listener.FRAME, c["ipa"]) / max(1, lp.shape[0])
             except ValueError:
                 continue
         return out
@@ -74,8 +79,9 @@ def evaluate(db: Session, listener, language: str = "fa") -> dict:
     for speed in ai_config.ppie_review.analysis_speeds:
         scored = [(s, scores(listener, BASE / s.audio_path, json.loads(s.candidates), speed)) for s in samples]
         calibration = [(s.human_key != s.expected_key, losses, s.expected_key) for s, losses in scored if not held_out(s.id)]
-        margin = next((m for m in MARGINS if (p := metrics([(w, decide(losses, e, m)) for w, losses, e in calibration])["precision"]) is not None
-                       and p >= cfg.min_precision), MARGINS[-1])
+        grid = margins()
+        margin = next((m for m in grid if (p := metrics([(w, decide(losses, e, m)) for w, losses, e in calibration])["precision"]) is not None
+                       and p >= cfg.min_precision), grid[-1])
         test = [(s, s.human_key != s.expected_key, decide(losses, s.expected_key, margin)) for s, losses in scored if held_out(s.id)]
         result = metrics([(w, d) for _, w, d in test])
         result["by_category"] = {cat: metrics([(w, d) for s, w, d in test if s.category == cat]) for cat in sorted({s.category for s, _, _ in test})}
@@ -95,12 +101,12 @@ def evaluate(db: Session, listener, language: str = "fa") -> dict:
 def save(report: dict) -> None:
     from app.documentary import storage
 
-    storage.write_atomic(REPORT, json.dumps(report, ensure_ascii=False, indent=1))
+    storage.write_atomic(report_path(), json.dumps(report, ensure_ascii=False, indent=1))
 
 
 def current() -> dict:
     """The last validation report; an empty, unvalidated one when none exists."""
     try:
-        return json.loads(REPORT.read_text(encoding="utf-8"))
+        return json.loads(report_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {"validated": False, "labelled_clips": 0, "note": "the recognizer has never been validated"}

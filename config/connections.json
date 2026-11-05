@@ -77,6 +77,10 @@
       "rate_limited",
       "unauthorized",
       "quota"
-    ]
+    ],
+    "quota_http_status": [
+      402
+    ],
+    "models": {}
   }
 }

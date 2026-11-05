@@ -11,7 +11,6 @@ from app.core.ai_config import ai_config
 from app.documentary.reading import scheme
 
 CONSONANT_FREE = set(scheme.VOWELS) | {"-", "'", "|"}
-MAX_CANDIDATES = 10
 
 
 @dataclass(frozen=True)
@@ -46,7 +45,7 @@ def for_word(expected: str, alternatives: list[str] | None = None) -> list[Candi
     found: dict[str, Candidate] = {}
 
     def add(reading: str, kind: str) -> None:
-        if reading and reading not in found and len(found) < MAX_CANDIDATES:
+        if reading and reading not in found and len(found) < ai_config.ppie_review.max_candidates:
             with contextlib.suppress(KeyError, ValueError):
                 found[reading] = made(reading, kind)
 

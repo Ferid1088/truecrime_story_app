@@ -37,21 +37,22 @@ def samples(path: Path, rate: int):
 
 
 def median_pitch(audio, rate: int) -> float | None:
-    """The median fundamental frequency of the voiced frames (autocorrelation, 75–400 Hz); None when fewer than ten frames are voiced."""
+    """The median fundamental frequency of the voiced frames (autocorrelation, config ppie_review.pitch); None when too few frames are voiced."""
     import numpy as np
 
-    size, hop, found = int(0.04 * rate), int(0.02 * rate), []
-    lo, hi = int(rate / 400), int(rate / 75)
+    cfg = ai_config.ppie_review.pitch
+    size, hop, found = int(cfg.frame_s * rate), int(cfg.hop_s * rate), []
+    lo, hi = int(rate / cfg.max_hz), int(rate / cfg.min_hz)
     for start in range(0, len(audio) - size, hop):
         frame = audio[start:start + size] - audio[start:start + size].mean()
         energy = float(frame @ frame)
-        if energy < 1e-4 * size:
+        if energy < cfg.silence * size:
             continue
         corr = np.correlate(frame, frame, "full")[size - 1:]
         lag = lo + int(np.argmax(corr[lo:hi]))
-        if corr[lag] / corr[0] > 0.5:
+        if corr[lag] / corr[0] > cfg.voicing:
             found.append(rate / lag)
-    return float(np.median(found)) if len(found) >= 10 else None
+    return float(np.median(found)) if len(found) >= cfg.min_frames else None
 
 
 def stretch(original: Path, target: Path, speed: float, rate: int) -> None:

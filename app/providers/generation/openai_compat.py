@@ -82,6 +82,7 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
     # Set by __init__ for a second gateway; otherwise the active provider's (connections.json).
     secret_env: str | None = None
     inactivity_timeout_s: float | None = None
+    model_map: dict[str, str] = {}
 
     def __init__(self, endpoint=None):
         """`endpoint`: another gateway than the active provider (a GenerationFailoverConfig: its name, address, key and timeout); the models
@@ -95,6 +96,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         self.secret_env = provider_cfg.secret_env
         self.api_key = env_value(provider_cfg.secret_env)
         self.inactivity_timeout_s = provider_cfg.inactivity_timeout_s
+        if endpoint is not None:
+            self.model_map = dict(endpoint.models)
 
     def is_configured(self) -> bool:
         return bool(self.api_key)
@@ -418,7 +421,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
     ) -> GenerationResult:
         gen = ai_config.generation_for(role)
         attempted = ai_config.model_for(role)
-        candidates = [attempted] + ai_config.fallback_models_for(role)
+        candidates = [self.model_map.get(m, m) for m in [attempted] + ai_config.fallback_models_for(role)]
+        attempted = candidates[0]
         last_error: GenerationError | None = None
         # Usage already billed by a discarded attempt (a same-model retry or
         # an earlier fallback candidate that failed AFTER the provider

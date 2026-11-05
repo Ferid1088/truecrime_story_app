@@ -12,8 +12,11 @@ from app.core.ai_config import ai_config
 from app.documentary.persian_numbers import DIGITS, NUMBER, to_words, value_of
 from app.documentary.reading.words import Word, key_of
 
-ORDINAL = re.compile(r"^([0-9۰-۹٠-٩]+)‌?(مین|ام|م)$")
-ORDINAL_WORD = {"یک": "یکم", "سه": "سوم", "سی": "سی‌ام"}
+
+def ordinal_pattern() -> re.Pattern:
+    """Digits, an optional half-space and one of the configured ordinal suffixes (number_reading.ordinal_suffixes, longest first)."""
+    suffixes = sorted(ai_config.number_reading.ordinal_suffixes, key=len, reverse=True)
+    return re.compile("^([0-9۰-۹٠-٩]+)\u200c?(" + "|".join(re.escape(x) for x in suffixes) + ")$")
 
 
 @dataclass(frozen=True)
@@ -31,7 +34,7 @@ def respelled(words: str) -> str:
 
 def ordinal(n: int, suffix: str) -> str:
     words = to_words(n).split(" ")
-    words[-1] = ORDINAL_WORD.get(words[-1], words[-1] + ("ی‌ام" if words[-1].endswith("ی") else "م"))
+    words[-1] = ai_config.number_reading.ordinal_words.get(words[-1], words[-1] + ("ی‌ام" if words[-1].endswith("ی") else "م"))
     return " ".join(words) + ("ین" if suffix == "مین" else "")
 
 
@@ -43,7 +46,7 @@ def cue_before(words: list[Word], n: int, cues: list[str]) -> str | None:
 def read(words: list[Word], n: int) -> NumberReading:
     cfg, word = ai_config.number_reading, words[n]
     if not word.number:
-        found = ORDINAL.match(word.surface)
+        found = ordinal_pattern().match(word.surface)
         if found:
             return NumberReading("ordinal", respelled(ordinal(value_of(found.group(1)), found.group(2))), f"an ordinal ({found.group(2)} after the digits)")
         return NumberReading("unread", None, "a number written with other characters among its digits: not read by code, left as written for a person")

@@ -17,10 +17,11 @@ from app.providers.generation.base import GenerationError, GenerationProvider, G
 log = logging.getLogger(__name__)
 
 
-def failure_of(error: GenerationError) -> str:
-    """The configured name of a failure ("quota" is a 402; another 403 is a permission or content refusal, never moved)."""
+def failure_of(error: GenerationError, cfg: GenerationFailoverConfig) -> str:
+    """The configured name of a failure ("quota": a status of cfg.quota_http_status; another refusal is a permission or content refusal, never
+    moved)."""
     if error.kind == "forbidden":
-        return "quota" if "(402)" in str(error) else "forbidden"
+        return "quota" if any(f"({code})" in str(error) for code in cfg.quota_http_status) else "forbidden"
     return error.kind
 
 
@@ -54,7 +55,7 @@ class FailoverGenerationProvider(GenerationProvider):
             return self._until.get(self.primary.name, 0.0) > time.monotonic()
 
     def moved(self, error: GenerationError) -> bool:
-        if failure_of(error) not in self.cfg.on or not self.secondary.is_configured():
+        if failure_of(error, self.cfg) not in self.cfg.on or not self.secondary.is_configured():
             return False
         with self._lock:
             self._until[self.primary.name] = time.monotonic() + self.cfg.cooldown_s

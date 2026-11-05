@@ -86,11 +86,9 @@ async def build(db: Session, name: str, renderer, case_id: int | None) -> dict:
             "folder": str(folder), "samples": added}
 
 
-NOTATION = ("s l a ʃ", "s l æ ʃ", "s l ɑ ʃ", "s l ɐ ʃ")          # "slash" as the recognizer hears it: the voice read the notation aloud
-
-
 def read_aloud(phones: str) -> bool:
-    return any(n in phones for n in NOTATION)
+    """Whether the recognizer heard "slash" (config ppie_review.notation_patterns): the voice read the notation aloud."""
+    return any(n in phones for n in ai_config.ppie_review.notation_patterns)
 
 
 def flag_defective(db: Session, listener, set_name: str) -> list[int]:

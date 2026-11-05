@@ -24,7 +24,6 @@ from app.documentary.reading import scheme, spelling
 from app.documentary.reading.ask import ask
 from app.documentary.reading.words import tokenize
 
-MAX_LENGTH_CHANGE = 0.15                         # a new take more than this much longer or shorter than the original is flagged
 
 
 @dataclass
@@ -135,7 +134,7 @@ def verify(original: list[dict], candidate: list[dict], target_n: int, original_
     new_errors = [w["word"] for n, w in after.items() if n != target_n and w.get("suggested") == "FAIL" and before.get(n, {}).get("suggested") != "FAIL"]
     change = abs(candidate_seconds - original_seconds) / original_seconds if original_seconds else 0.0
     issues = ([f"the take is {round(change * 100)}% {'longer' if candidate_seconds > original_seconds else 'shorter'}"]
-              if change > MAX_LENGTH_CHANGE else [])
+              if change > ai_config.ppie_review.correction.max_length_change else [])
     from app.documentary.ppie_review.controlled import read_aloud
 
     if read_aloud(target.get("heard") or ""):

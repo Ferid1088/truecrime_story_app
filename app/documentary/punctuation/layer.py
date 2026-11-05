@@ -11,7 +11,10 @@ from dataclasses import dataclass, field
 from app.core.ai_config import ai_config
 from app.documentary.reading.words import TAG, Word, tokenize
 
-PUNCTUATION = set("،,؛;:.!?؟…«»\"'()-–—")
+
+def punctuation() -> set[str]:
+    """What counts as punctuation in a gap (config semantic_punctuation.punctuation_chars)."""
+    return set(ai_config.semantic_punctuation.punctuation_chars)
 
 
 @dataclass(frozen=True)
@@ -75,10 +78,10 @@ class Layer:
 def applied(gap: str, edit: Edit) -> str:
     """The gap with the edit: an insertion right after the word, a replacement or removal of the gap's first such mark (tags untouched)."""
     allowed = set(ai_config.semantic_punctuation.marks) | set(ai_config.semantic_punctuation.normalize)
-    if edit.new and edit.new not in allowed or edit.old and edit.old not in PUNCTUATION:
+    if edit.new and edit.new not in allowed or edit.old and edit.old not in punctuation():
         raise LayerError(f"{edit.old!r} -> {edit.new!r} is not a punctuation change the layer may make")
     if not edit.old:
-        if any(ch in PUNCTUATION for ch in TAG.sub("", gap).strip()[:1]):
+        if any(ch in punctuation() for ch in TAG.sub("", gap).strip()[:1]):
             raise LayerError(f"the gap after word {edit.after} already has punctuation: replace it instead")
         return edit.new + gap
     outside = TAG.sub(lambda m: "\0" * len(m.group()), gap)
@@ -99,7 +102,8 @@ def check(layer: Layer) -> list[str]:
         problems.append("the base's words are not the approved text's")
     if TAG.findall(layer.base) != TAG.findall(layer.text):
         problems.append("the tags differ from the base")
-    strip = lambda s: re.sub(r"\s", "", "".join(ch for ch in TAG.sub("", s) if ch not in PUNCTUATION))  # noqa: E731
+    marks = punctuation()
+    strip = lambda s: re.sub(r"\s", "", "".join(ch for ch in TAG.sub("", s) if ch not in marks))  # noqa: E731
     if strip(layer.base) != strip(layer.text):
         problems.append("something other than punctuation changed")
     return problems

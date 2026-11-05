@@ -423,6 +423,10 @@ class GenerationFailoverConfig(BaseModel):
     secret_env: str
     inactivity_timeout_s: float = Field(default=90.0, gt=0.0, le=900.0)
     cooldown_s: float = Field(default=300.0, ge=0.0)
+    # The HTTP status codes that mean "no quota left" (the failure `quota`); another permission refusal is never moved.
+    quota_http_status: list[int] = [402]
+    # A model the second gateway names differently: active provider's model ID -> its ID there (the same ID when not listed).
+    models: dict[str, str] = {}
     on: list[Literal["unreachable", "timeout", "provider_error", "model_unavailable", "rate_limited", "unauthorized", "quota"]]
 
 
@@ -2571,7 +2575,26 @@ class SemanticPunctuationConfig(BaseModel):
     max_rounds: int = Field(default=2, ge=1, le=4)
     marks: list[str]
     normalize: dict[str, str] = {}
+    # What counts as punctuation in a gap (the layer changes nothing else), what ends a phrase (no ezafe crosses it), and the final letters after
+    # which an ezafe is said -ye.
+    punctuation_chars: str
+    phrase_end_marks: str
+    vowel_letters: list[str]
     run_file: str = "punctuation.json"
+
+
+class PitchConfig(BaseModel):
+    """The pitch measure of an analysis copy (ppie_review/audio_prep.py): autocorrelation over frames of `frame_s` every `hop_s`, between `min_hz`
+    and `max_hz`; a frame is voiced when its correlation peak reaches `voicing` (a frame below `silence` is skipped); fewer than `min_frames`
+    voiced frames give no measure."""
+
+    frame_s: float = Field(gt=0)
+    hop_s: float = Field(gt=0)
+    min_hz: float = Field(gt=0)
+    max_hz: float = Field(gt=0)
+    voicing: float = Field(gt=0, lt=1)
+    min_frames: int = Field(ge=1)
+    silence: float = Field(gt=0)            # mean energy per sample below which a frame is silence
 
 
 class ReviewAlignmentConfig(BaseModel):
@@ -2582,6 +2605,10 @@ class ReviewAlignmentConfig(BaseModel):
 
     band: float = Field(gt=0, le=1)
     max_group: int = Field(ge=1, le=3)
+    # Where a sentence ends (and the quotes or brackets that may close it), and the longest bracketed tag ([calm]) that is not story text.
+    sentence_end_marks: str
+    closing_marks: str
+    max_tag_chars: int = Field(ge=1)
     skip_gain: float = 0.0
     match_floor: float = Field(ge=0, le=1)
     aligned_min: float = Field(ge=0, le=1)
@@ -2609,6 +2636,10 @@ class ReviewValidationConfig(BaseModel):
     min_precision: float = Field(ge=0, le=1)
     min_recall: float = Field(ge=0, le=1)
     max_false_positive_rate: float = Field(ge=0, le=1)
+    # The margins tried on the calibration part (step, step * 2 ... up to max), and the report's file in the benchmark folder.
+    margin_step: float = Field(gt=0)
+    margin_max: float = Field(gt=0)
+    report_file: str = "validation.json"
 
 
 class ReviewCorrectionConfig(BaseModel):
@@ -2617,6 +2648,8 @@ class ReviewCorrectionConfig(BaseModel):
     leave an asset at the provider."""
 
     max_attempts_per_word: int = Field(ge=1, le=6)
+    # A new take more than this share longer or shorter than the original is flagged.
+    max_length_change: float = Field(gt=0, le=1)
     strategies: list[Literal["targeted_diacritics", "inline_ipa", "alternative_spelling"]]
     use_agent: bool = True
 
@@ -2627,6 +2660,11 @@ class PPIEReviewConfig(BaseModel):
     live in the run's own folder (`folder` inside the narration folder) and are never read by another run."""
 
     folder: str = "review"
+    # The most candidate readings a word is scored against.
+    max_candidates: int = Field(ge=2)
+    # The recognizer's phones for "slash": a take in which the voice read inline IPA's notation aloud.
+    notation_patterns: list[str]
+    pitch: PitchConfig
     embedding_model: str
     embedding_batch: int = Field(ge=1)
     embedding_max_tokens: int = Field(ge=32)
@@ -2658,6 +2696,9 @@ class NumberReadingConfig(BaseModel):
     year_range: tuple[int, int] = (1000, 2100)
     digit_words: list[str] = Field(min_length=10, max_length=10)
     respelled: dict[str, str] = {}
+    # An ordinal written as digits and a suffix (۱۵ام), and the ordinal of a last number word that is not the word + م.
+    ordinal_suffixes: list[str]
+    ordinal_words: dict[str, str] = {}
 
 
 class HomographsConfig(BaseModel):

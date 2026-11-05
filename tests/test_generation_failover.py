@@ -83,7 +83,16 @@ def test_without_a_key_for_the_second_gateway_nothing_moves_and_the_quota_is_tol
     primary, secondary = Fake("apimaster", error("timeout")), Fake("apiko", configured=False)
     with pytest.raises(GenerationError):
         asyncio.run(FailoverGenerationProvider(primary, secondary, CFG).generate_text("r", "s", "u"))
-    assert failure_of(error("forbidden", "x (402)")) == "quota" and failure_of(error("forbidden", "x (403)")) == "forbidden"
+    assert failure_of(error("forbidden", "x (402)"), CFG) == "quota" and failure_of(error("forbidden", "x (403)"), CFG) == "forbidden"
+
+
+def test_a_model_the_second_gateway_names_differently_is_called_by_its_name_there(monkeypatch):
+    from app.providers.generation.openai_compat import OpenAICompatibleGenerationProvider
+
+    monkeypatch.delenv("TRUECRIME_TEST_NO_REAL_PROVIDERS", raising=False)
+    renamed = CFG.model_copy(update={"models": {"gpt-6.1-sol": "gpt-6.1-sol-x"}, "quota_http_status": [402, 429]})
+    assert OpenAICompatibleGenerationProvider(renamed).model_map == {"gpt-6.1-sol": "gpt-6.1-sol-x"}
+    assert failure_of(error("forbidden", "x (429)"), renamed) == "quota", "the quota statuses come from the config"
 
 
 def test_the_configured_gateway_lists_its_key_by_name_only_and_serves_the_models_of_the_active_provider():

@@ -8,7 +8,7 @@ from __future__ import annotations
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.documentary.punctuation.boundary import REQUIRED, BoundaryDecision
-from app.documentary.punctuation.layer import PUNCTUATION, Edit, Layer
+from app.documentary.punctuation.layer import Edit, Layer, punctuation
 from app.documentary.reading.ask import ask
 from app.documentary.reading.words import TAG
 
@@ -36,7 +36,7 @@ def safe(edit: Edit, layer: Layer, boundaries: list[BoundaryDecision]) -> str:
     if edit.new in ("،", "؛", ":", ".") and decision.status == REQUIRED:
         return f"the boundary needs its ezafe ({decision.reason}): a mark there would cut the construction"
     gap = TAG.sub("", layer.gaps()[edit.after + 1]).strip()
-    if not edit.old and any(ch in PUNCTUATION for ch in gap):
+    if not edit.old and any(ch in punctuation() for ch in gap):
         return "the gap already has punctuation"
     if edit.old and edit.old not in gap:
         return f"the gap has no {edit.old!r}"

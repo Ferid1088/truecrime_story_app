@@ -177,6 +177,7 @@ class Listener:
     """A fake recognizer: the loss of each sound string is given; frames are fixed phones."""
 
     name = "fake"
+    FRAME = 0.02
 
     def __init__(self, losses: dict[str, float]):
         self.losses = losses
@@ -184,7 +185,7 @@ class Listener:
     def fit(self, log_probs, start, end, ipa):
         if ipa not in self.losses:
             raise ValueError("does not fit")
-        return self.losses[ipa] * round((end - start) / AC.FRAME)
+        return self.losses[ipa] * round((end - start) / self.FRAME)
 
     @staticmethod
     def between(frames, start, end):
@@ -240,7 +241,8 @@ def test_the_validation_measures_detection_and_never_counts_uncertain_as_right()
 
 
 def test_without_a_passing_benchmark_the_recognizer_is_unvalidated(tmp_path, monkeypatch):
-    monkeypatch.setattr(VA, "REPORT", tmp_path / "none.json")
+    monkeypatch.setattr(ai_config.ppie_review.validation, "report_file", "none.json")
+    monkeypatch.setattr(VA, "BASE", tmp_path)
     assert VA.current()["validated"] is False
 
 

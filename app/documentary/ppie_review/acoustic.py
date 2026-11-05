@@ -16,8 +16,6 @@ from app.documentary.ppie_review.candidates import Candidate
 from app.documentary.reading.words import Word, key_of, tokenize
 from app.documentary.voice_render import _spoken_span, tag_mask
 
-FRAME = 0.02
-
 
 @dataclass
 class WordReview:
@@ -94,7 +92,7 @@ def matched(text: str, voice_text: str) -> list[list[Word]]:
 
 def loss(listener, log_probs, start: float, end: float, ipa: str) -> float | None:
     try:
-        return round(listener.fit(log_probs, start, end, ipa) / max(1, round((end - start) / FRAME)), 3)
+        return round(listener.fit(log_probs, start, end, ipa) / max(1, round((end - start) / listener.FRAME)), 3)
     except ValueError:
         return None
 

@@ -574,10 +574,16 @@
     "max_rounds": 2,
     "marks": ["،", "؛", ":", ".", "؟", "!"],
     "normalize": {",": "،", ";": "؛", "?": "؟"},
+    "punctuation_chars": "،,؛;:.!?؟…«»\"'()-–—",
+    "phrase_end_marks": "،,؛;:.!?؟…«»\"()—–",
+    "vowel_letters": ["ا", "و", "ی"],
     "run_file": "punctuation.json"
   },
   "ppie_review": {
     "folder": "review",
+    "max_candidates": 10,
+    "notation_patterns": ["s l a ʃ", "s l æ ʃ", "s l ɑ ʃ", "s l ɐ ʃ"],
+    "pitch": {"frame_s": 0.04, "hop_s": 0.02, "min_hz": 75, "max_hz": 400, "voicing": 0.5, "min_frames": 10, "silence": 0.0001},
     "embedding_model": "BAAI/bge-m3",
     "embedding_batch": 8,
     "embedding_max_tokens": 256,
@@ -589,6 +595,9 @@
       "aligned_min": 0.6,
       "partial_min": 0.45,
       "ambiguous_margin": 0.02,
+      "sentence_end_marks": ".!?؟…",
+      "closing_marks": "»\"”'’)",
+      "max_tag_chars": 40,
       "verify_with_agent": false
     },
     "analysis_speeds": [1.0, 0.8],
@@ -604,10 +613,14 @@
       "calibration_share": 0.5,
       "min_precision": 0.9,
       "min_recall": 0.8,
-      "max_false_positive_rate": 0.05
+      "max_false_positive_rate": 0.05,
+      "margin_step": 0.05,
+      "margin_max": 1.5,
+      "report_file": "validation.json"
     },
     "correction": {
       "max_attempts_per_word": 3,
+      "max_length_change": 0.15,
       "strategies": ["targeted_diacritics", "inline_ipa", "alternative_spelling"],
       "use_agent": true
     }
@@ -619,7 +632,9 @@
     "year_cues": ["سال", "ژانویه", "فوریه", "فوریهٔ", "فوریه‌ی", "مارس", "آوریل", "مه", "مِه", "ژوئن", "ژوئیه", "اوت", "سپتامبر", "سپتامبرِ", "اکتبر", "نوامبر", "دسامبر"],
     "year_range": [1000, 2100],
     "digit_words": ["صفر", "یک", "دو", "سه", "چهار", "پنج", "شش", "هفت", "هشت", "نُه"],
-    "respelled": {"نه": "نُه"}
+    "respelled": {"نه": "نُه"},
+    "ordinal_suffixes": ["مین", "ام", "م"],
+    "ordinal_words": {"یک": "یکم", "سه": "سوم", "سی": "سی‌ام"}
   },
   "homographs": {
     "words": {"مرد": ["mard", "mord"], "گل": ["gol", "gel"], "علم": ["alam", "elm"], "کرد": ["kard", "kord"], "ملک": ["melk", "malek", "molk"], "شکر": ["shekar", "shokr"], "سر": ["sar", "serr"], "کشتی": ["kashti", "koshti"], "کشت": ["kesht", "kosht", "kasht"], "حس": ["hes", "hess"], "پر": ["por", "par"], "خرد": ["kherad", "khord", "kharad"], "سم": ["sam", "som"], "دین": ["din", "deyn"], "مهر": ["mehr", "mohr"], "نه": ["na", "noh"], "کی": ["ki", "key"], "رو": ["ro", "ru"], "تو": ["tu", "to"], "دور": ["dur", "dowr"]},
