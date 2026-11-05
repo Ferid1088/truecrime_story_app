@@ -196,4 +196,6 @@ def test_a_block_voiced_again_gets_the_same_settings_and_the_same_post_speed_as_
     asyncio.run(S.send_block(db, review, "FA_B02_g01_01", provider=voice))
     old, new = S.takes_of(db, S.block_of(db, review, "FA_B02_g01_01"))
     assert json.loads(new.request_json)["settings"] == json.loads(old.request_json)["settings"], "the same voice settings as the original take"
+    sent = voice.requests[-1]
+    assert (sent.model_id, sent.settings["speed"], sent.settings["stability"]) == ("eleven_v4", 1.2, 0.2), "what ElevenLabs gets: speed 1.2, stability 0.2"
     assert tempos == [ai_config.voice.post_speed["fa"]] == [1.1], "the finished block is the raw take played 1.1 times faster, like every other block"
