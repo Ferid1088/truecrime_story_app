@@ -425,6 +425,9 @@ class GenerationFailoverConfig(BaseModel):
     cooldown_s: float = Field(default=300.0, ge=0.0)
     # The HTTP status codes that mean "no quota left" (the failure `quota`); another permission refusal is never moved.
     quota_http_status: list[int] = [402]
+    # A 403 whose message holds one of these texts (lower case) is also "no quota left": APIMaster answers an empty balance with a 403. A 403 without one
+    # is a permission or content refusal and is never moved.
+    quota_messages: list[str] = []
     # A model the second gateway names differently: active provider's model ID -> its ID there (the same ID when not listed).
     models: dict[str, str] = {}
     on: list[Literal["unreachable", "timeout", "provider_error", "model_unavailable", "rate_limited", "unauthorized", "quota"]]

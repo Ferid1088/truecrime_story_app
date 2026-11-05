@@ -49,6 +49,15 @@ def error(kind: str, message: str = "x", **usage) -> GenerationError:
     return e
 
 
+def test_an_empty_balance_answered_with_a_403_moves_but_another_403_never_does():
+    cfg = CFG.model_copy(update={"quota_messages": ["insufficient balance"]})
+    empty = error("forbidden", "APIMaster permission/quota failure (403): Insufficient balance for this request. Remaining: $0.0001.")
+    assert failure_of(empty, cfg) == "quota" and failure_of(error("forbidden", "x (403): content risk"), cfg) == "forbidden"
+    primary, secondary = Fake("apimaster", empty), Fake("apiko")
+    result = asyncio.run(FailoverGenerationProvider(primary, secondary, cfg).generate_text("reading_checker", "s", "u"))
+    assert (result.provider, secondary.calls) == ("apiko", ["reading_checker"])
+
+
 @pytest.mark.parametrize("failure", [error("unreachable"), error("timeout"), error("provider_error", "APIMaster error (HTTP 503)"),
                                      error("model_unavailable"), error("rate_limited"), error("unauthorized"),
                                      error("forbidden", "APIMaster permission/quota failure (402): no balance")])

@@ -18,10 +18,12 @@ log = logging.getLogger(__name__)
 
 
 def failure_of(error: GenerationError, cfg: GenerationFailoverConfig) -> str:
-    """The configured name of a failure ("quota": a status of cfg.quota_http_status; another refusal is a permission or content refusal, never
+    """The configured name of a failure ("quota": a status of cfg.quota_http_status or a message of cfg.quota_messages; another refusal is a permission or content refusal, never
     moved)."""
     if error.kind == "forbidden":
-        return "quota" if any(f"({code})" in str(error) for code in cfg.quota_http_status) else "forbidden"
+        text = str(error).lower()
+        empty = any(f"({code})" in text for code in cfg.quota_http_status) or any(m in text for m in cfg.quota_messages)
+        return "quota" if empty else "forbidden"
     return error.kind
 
 

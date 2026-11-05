@@ -81,6 +81,9 @@
     "quota_http_status": [
       402
     ],
+    "quota_messages": [
+      "insufficient balance"
+    ],
     "models": {}
   }
 }
