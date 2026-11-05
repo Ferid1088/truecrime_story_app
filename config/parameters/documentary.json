@@ -600,7 +600,7 @@
       "max_tag_chars": 40,
       "verify_with_agent": false
     },
-    "analysis_speeds": [1.0, 0.8],
+    "analysis_speeds": [1.0],
     "analysis_rate": 16000,
     "pitch_tolerance_cents": 50,
     "acoustic": {

@@ -155,7 +155,8 @@ def test_the_reading_agent_never_sees_ppies_reading_and_an_unanswered_word_is_un
 
 # --- local analysis copies ----------------------------------------------------------------------------------------------------------------
 
-def test_the_analysis_copies_are_local_pitch_kept_and_removed_and_the_original_is_never_written(tmp_path):
+def test_the_analysis_copies_are_local_pitch_kept_and_removed_and_the_original_is_never_written(tmp_path, monkeypatch):
+    monkeypatch.setattr(ai_config.ppie_review, "analysis_speeds", [1.0, 0.8])          # the mechanism with a slower copy (the production config makes none)
     original = tmp_path / "take.mp3"
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=180:duration=2", "-ar", "44100", str(original)], check=True)
     before = digest(original)
@@ -432,3 +433,17 @@ def test_a_take_in_which_the_voice_read_the_notation_aloud_is_rejected_even_unva
     after = [{**before[0], "suggested": "UNCERTAIN", "heard": "s l æ ʃ eɪ tʃ oʊ k eɪ ɛ m s l æ ʃ"}]
     checked = CO.verify(before, after, 0, 2.0, 2.2)
     assert checked["final_decision"] == "REJECTED" and "notation aloud" in checked["issues"][0]
+
+
+def test_the_review_listens_to_the_finished_block_at_its_production_speed_never_to_a_slowed_copy(monkeypatch):
+    from app.documentary.ppie_review.run import final_alignment
+
+    monkeypatch.setattr(ai_config.voice, "post_speed", {"fa": 1.1})
+    monkeypatch.setattr(ai_config.voice, "lead_pad_ms", 60)
+    raw = {"characters": list("ab c"), "starts": [1.1, 1.65, 2.2, 2.75], "ends": [1.65, 2.2, 2.75, 3.3]}
+    final = final_alignment(raw, "fa")
+    assert final["characters"] == raw["characters"]
+    # every time is divided by the post-speed (1.1) and the start the renderer cut off (first word at 1.0 s, minus a 60 ms lead) is taken away
+    assert [round(t, 3) for t in final["starts"]] == [0.06, 0.56, 1.06, 1.56]
+    assert [round(t, 3) for t in final["ends"]] == [0.56, 1.06, 1.56, 2.06]
+    assert ai_config.ppie_review.analysis_speeds == [1.0], "no slowed or other-speed copy of the finished audio is made"

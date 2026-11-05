@@ -63,7 +63,7 @@ class NoVoice:
 
 
 def takes(folder: Path, plan_blocks: list[dict]) -> dict[str, dict]:
-    """The take each block of a narration was assembled from: {block: {"meta", "mp3", "text", "seconds"}}. The manifest keeps a block's voice text
+    """The take each block of a narration was assembled from: {block: {"meta", "mp3" (the provider's), "wav" (the finished block: post-speed applied, trimmed), "text", "seconds"}}. The manifest keeps a block's voice text
     only when it differs from the block's own, so the plan's text (as the renderer sent it) stands for the others; the seed must match too."""
     from app.documentary.voice_performance import scrub_forbidden
 
@@ -77,10 +77,23 @@ def takes(folder: Path, plan_blocks: list[dict]) -> dict[str, dict]:
     for b in manifest.get("blocks", []):
         text = b.get("tts_text") or own.get(b["block_id"])
         for meta, path in metas.get(b["block_id"], []):
-            if meta.get("text") == text and meta.get("seed") == b.get("seed") and path.with_suffix(".mp3").exists():
-                out[b["block_id"]] = {"meta": meta, "mp3": path.with_suffix(".mp3"), "text": text, "seconds": b.get("actual_seconds")}
+            if meta.get("text") == text and meta.get("seed") == b.get("seed") and path.with_suffix(".mp3").exists() and path.with_suffix(".wav").exists():
+                out[b["block_id"]] = {"meta": meta, "mp3": path.with_suffix(".mp3"), "wav": path.with_suffix(".wav"), "text": text, "seconds": b.get("actual_seconds")}
                 break
     return out
+
+
+def final_alignment(alignment: dict, language: str) -> dict:
+    """The provider's character timing as it stands in the finished block: every time divided by the post-speed and moved by the start the renderer cut
+    off (what `VoiceRenderer` does to the take), so a word's window is a window of the audio that is shipped."""
+    from app.documentary.voice_render import words_from_alignment
+
+    tempo = ai_config.voice.post_speed.get(language, 1.0)
+    chars = alignment.get("characters") or []
+    starts, ends = [t / tempo for t in alignment.get("starts") or []], [t / tempo for t in alignment.get("ends") or []]
+    words = words_from_alignment(chars, starts, ends) if chars else []
+    t0 = max(0.0, (words[0]["start"] if words else 0.0) - ai_config.voice.lead_pad_ms / 1000)
+    return {"characters": chars, "starts": [t - t0 for t in starts], "ends": [t - t0 for t in ends]}
 
 
 def differing_words(text: str, voice_text: str) -> list[str]:
@@ -221,8 +234,8 @@ class ReviewRun:
         return {(w["block_id"], w["n"]): {"reading": w["finglish"], "tts_input": w["tts_input"]} for w in record.get("words", [])}
 
     def review_take(self, text: str, take: dict, expected: dict[int, EX.Expectation], listener, validation: dict) -> list[AC.WordReview]:
-        spans = AC.windows(text, take["text"], take["meta"].get("alignment") or {})
-        with analysis_copies(take["mp3"], self.folder) as copies:
+        spans = AC.windows(text, take["text"], final_alignment(take["meta"].get("alignment") or {}, language="fa"))
+        with analysis_copies(take["wav"], self.folder) as copies:             # the finished block at its production speed, never a slowed or other-speed copy
             signals = {speed: listener.log_probs(str(c.path)) for speed, c in copies.items() if c.usable}
             frames = listener.frames(str(copies[1.0].path))
         out = []
