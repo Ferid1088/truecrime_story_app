@@ -706,6 +706,7 @@
     "max_rounds": 3,
     "max_writer_retries": 3,
     "checker_mode": "blind",
+    "blind_check": "risk",
     "pause_between_names": true,
     "folder": "reading",
     "call_retries": 3,

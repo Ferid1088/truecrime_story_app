@@ -2422,6 +2422,10 @@ class ReadingConfig(BaseModel):
     # the two readings word by word, so an assumption of the editor cannot pass by being shown to the checker; "review" judges the editor's answer (cheaper:
     # it answers only for the words it rejects).
     checker_mode: Literal["blind", "review"] = "blind"
+    # Which blocks the checker reads: "all" every block; "risk" only a block where the editor itself is unsure of a word (confidence below high, a question, or an
+    # ezafe it holds with low confidence) -- the names and foreign words of the film table are fixed by code and never questioned, so they do not call the checker.
+    # The words of a block that is not checked are still validated by code and every voiced block is listened to afterwards.
+    blind_check: Literal["all", "risk"] = "all"
     # How many blocks are written and checked at the same time.
     parallel_blocks: int = Field(default=6, ge=1, le=32)
     # How many blocks are listened to at the same time.

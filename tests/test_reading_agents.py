@@ -150,6 +150,7 @@ def test_the_blocks_of_a_plan_get_their_neighbours_and_the_english_of_their_sect
 @pytest.fixture
 def stage_env(db_session, tmp_path, monkeypatch):
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
+    monkeypatch.setattr(ai_config.reading, "blind_check", "all")          # these tests are about the stage's bookkeeping: every block is checked
     case = Case(canonical_title="Reading", slug=f"rd-{uuid4().hex[:8]}", language="en")
     db_session.add(case)
     db_session.flush()
@@ -280,3 +281,30 @@ def test_a_word_the_blind_checker_leaves_out_is_not_taken_as_agreement(monkeypat
     (out, doubts), _, arbiter = blind({"words": [{"n": 0, "latin": "sārā"}]}, monkeypatch)
     assert arbiter.seen == [] and doubts == [] and [r.latin for r in out] == ["sārā", "baham", "goft"]
     assert out[1].ezafe is None, "no judgement is filled in for a word the checker did not read"
+
+
+def test_the_risk_gate_sends_only_a_block_the_editor_is_unsure_of_to_the_independent_checker(db_session, stage_env, monkeypatch):
+    monkeypatch.setattr(ai_config.reading, "blind_check", "risk")
+    case, version = stage_env
+    calls = {"write": 0, "check": 0}
+
+    class Reader:
+        async def build(self, blocks):
+            return READER, []
+
+    async def write(gen, body):
+        calls["write"] += 1
+        words = json.loads(body)["words"]
+        answer = answer_for(["x" for _ in words])
+        if words[0]["text"] == "او":
+            answer["words"][0]["confidence"] = "low"
+        return answer, None
+
+    async def check(gen, body):
+        calls["check"] += 1
+        return {"words": []}, None
+
+    items = [item("سارا بهم گفت", "B1"), item("او رفت", "B2")]
+    stage_run = ReadingStage(db_session, case.id, version, "zz", items, Reader(), write, check, Script({"decision": "doubt"}))
+    asyncio.run(stage_run.run())
+    assert calls == {"write": 2, "check": 1} and stage_run.stats == {"checked": 1, "skipped": 1}, "the sure block is validated by code only; the unsure one is checked"

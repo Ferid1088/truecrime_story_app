@@ -21,6 +21,7 @@ from app.documentary.reading.answer import ReadingWord
 from app.documentary.reading.block import BlockInput
 from app.documentary.reading.checker import Checker, Doubt
 from app.documentary.reading.glossary import Glossary
+from app.documentary.reading.risk_gate import unsure_words
 from app.documentary.reading.table import FilmTable
 from app.documentary.reading.writer import Writer, context
 
@@ -56,6 +57,7 @@ class ReadingStage:
         base = Path(ai_config.voice.work_dir)
         self.path = (base if base.is_absolute() else ROOT / base) / str(case_id) / ai_config.reading.folder / f"{language}_v{version.id}.json"
         self.cache: dict = {}
+        self.stats = {"checked": 0, "skipped": 0}          # the blocks the checker read, and the ones it did not (the risk gate)
         if not self.fresh:
             try:
                 self.cache = json.loads(self.path.read_text(encoding="utf-8"))
@@ -87,13 +89,19 @@ class ReadingStage:
         return table, doubts
 
     async def block(self, item: BlockInput, table: FilmTable, gate: asyncio.Semaphore) -> tuple[list[ReadingWord], list[Doubt], list[str]]:
-        key = sha(context(item, table), prompts_sha(), ai_config.reading.pause_between_names, ai_config.reading.checker_mode)
+        key = sha(context(item, table), prompts_sha(), ai_config.reading.pause_between_names, ai_config.reading.checker_mode, ai_config.reading.blind_check)
         saved = self.cache.setdefault("blocks", {}).get(item.block_id)
         if saved and saved["key"] == key:
             return [ReadingWord(**r) for r in saved["readings"]], [Doubt(**d) for d in saved["doubts"]], saved["notes"]
         async with gate:
             readings, notes = await Writer(self.db, self.case_id, table, self.runners[0]).write(item)
-            readings, doubts = await Checker(self.db, self.case_id, table, self.runners[1], self.runners[2]).check(item, readings)
+            unsure = unsure_words(item, readings, table.fixed_readings(item.words))
+            if ai_config.reading.blind_check == "risk" and not unsure:
+                self.stats["skipped"] += 1
+                doubts = []
+            else:
+                self.stats["checked"] += 1
+                readings, doubts = await Checker(self.db, self.case_id, table, self.runners[1], self.runners[2]).check(item, readings)
         self.cache["blocks"][item.block_id] = {"key": key, "readings": [asdict(r) for r in readings], "doubts": [asdict(d) for d in doubts], "notes": notes}
         self.save()
         return readings, doubts, notes
