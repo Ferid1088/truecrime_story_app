@@ -156,6 +156,25 @@ def save_edit(db: Session, review: VoiceReview, block_id: str, text: str | None,
     return block
 
 
+def replace_everywhere(db: Session, review: VoiceReview, find: str, replacement: str, apply: bool) -> list[dict]:
+    """The blocks in which the words `find` stand, and with `apply` the correction of each (a draft: the block yellow, the new words red). Without
+    `apply` nothing is changed: it is the preview of what would be."""
+    if not find.strip() or not replacement.strip() or E.surfaces(find) == E.surfaces(replacement):
+        raise ReviewError("give the words to find and the different words to put in their place")
+    found = []
+    for block in blocks_of(db, review):
+        text = block.draft_text if block.draft_text is not None else block.voice_text
+        new, count = E.replace_text(text, find, replacement)
+        if not count:
+            continue
+        start = E.find_spans(text, find)[0][0]
+        found.append({"block_id": block.block_id, "position": block.position, "count": count, "before": text[max(0, start - 30):start + len(find) + 30],
+                      "after": new[max(0, start - 30):start + len(replacement) + 30]})
+        if apply:
+            save_edit(db, review, block.block_id, new, [])
+    return found
+
+
 def needs_sending(db: Session, block: VoiceBlock) -> bool:
     return block.draft_text is not None and (block.draft_text != block.voice_text or any(w.pending and w.finglish for w in words_of(db, block).values()))
 

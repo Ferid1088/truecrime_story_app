@@ -3973,3 +3973,14 @@ export interface BlockReviewStatus {
   blink: boolean;
   review_open: boolean;
 }
+
+export interface BlockReviewReplaceMatch {
+  block_id: string;
+  position: number;
+  count: number;
+  before: string;
+  after: string;
+}
+
+export type BlockReviewReplace = { applied: false; blocks_found: number; places_found: number; matches: BlockReviewReplaceMatch[] } |
+  (BlockReviewOverview & { applied: true; blocks_found: number; places_found: number; matches: BlockReviewReplaceMatch[] });

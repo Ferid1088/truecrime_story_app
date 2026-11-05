@@ -37,6 +37,12 @@ class SendIn(BaseModel):
     again: bool = False                 # voice the block's present text again (a new take), also when nothing was corrected
 
 
+class ReplaceIn(BaseModel):
+    find: str
+    replace: str
+    apply: bool = False                 # False: only show where the words stand
+
+
 class NoteIn(BaseModel):
     note: str | None = None
 
@@ -128,6 +134,15 @@ async def send_block(version_id: int, block_id: str, body: SendIn | None = None,
     except S.ReviewError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return block_view(db, version, S.block_of(db, review, block_id))
+
+
+@router.post("/api/documentary/versions/{version_id}/block-review/replace")
+def replace_everywhere(version_id: int, body: ReplaceIn, db: Session = Depends(get_db)):
+    """Words to find and the words for their place, in every block: the preview, or (apply) a correction of each block that has them."""
+    version = _version(db, version_id)
+    review = _review(db, version)
+    matches = _guard(lambda: S.replace_everywhere(db, review, body.find, body.replace, body.apply))
+    return {"applied": body.apply, "blocks_found": len(matches), "places_found": sum(m["count"] for m in matches), "matches": matches, **(overview(db, version, review) if body.apply else {})}
 
 
 @router.post("/api/documentary/versions/{version_id}/block-review/send-all")

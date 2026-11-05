@@ -60,3 +60,30 @@ def remap(old: str, new: str, marks: dict[int, Mark]) -> tuple[dict[int, Mark], 
                 moved[n] = Mark(n, before.was if before else was, b[n])           # a replaced word starts without an alias: the old one was for the old word
                 changed.append(n)
     return moved, changed
+
+
+def find_spans(text: str, find: str) -> list[tuple[int, int]]:
+    """Where the words of `find` stand one after the other in `text` (compared without vowel marks and half-spaces, only a space between them): the
+    start of the first and the end of the last word of each place."""
+    want = [w.key for w in tokenize(find)]
+    words = tokenize(text)
+    if not want:
+        return []
+    spans, i = [], 0
+    while i + len(want) <= len(words):
+        run = words[i:i + len(want)]
+        joined = all(not text[a.end:b.start].replace("‌", "").strip() for a, b in zip(run, run[1:], strict=False))
+        if [w.key for w in run] == want and joined:
+            spans.append((run[0].start, run[-1].end))
+            i += len(want)
+        else:
+            i += 1
+    return spans
+
+
+def replace_text(text: str, find: str, replacement: str) -> tuple[str, int]:
+    """`text` with every place of `find` written as `replacement` (the punctuation and tags around stay), and how many places were changed."""
+    spans = find_spans(text, find)
+    for start, end in reversed(spans):
+        text = text[:start] + replacement.strip() + text[end:]
+    return text, len(spans)

@@ -159,3 +159,23 @@ def test_any_block_can_be_voiced_again_as_often_as_wanted_with_a_new_seed_and_ev
     S.save_edit(db, review, "FA_B03_g01_01", "بعد رفت و آمد.", [])        # then corrected, and voiced again
     last = asyncio.run(S.send_block(db, review, "FA_B03_g01_01", provider=voice, again=True))
     assert last.take_no == 5 and voice.requests[-1].text == "بعد رفت و آمد." and S.block_of(db, review, "FA_B03_g01_01").edited
+
+
+def test_replace_in_all_blocks_previews_first_then_corrects_every_block_that_has_the_words(narration):
+    db, _, version, voice = narration
+    review = S.open_review(db, version)
+    S.block_of(db, review, "FA_B03_g01_01").voice_text = "بعد نُه یک یک رفت."          # the words stand in the block as it was voiced, like «تماس نُه یک یک» in the narration
+    db.commit()
+    texts = {b.block_id: b.voice_text for b in S.blocks_of(db, review)}
+    with pytest.raises(S.ReviewError, match="give the words"):
+        S.replace_everywhere(db, review, "نُه یک یک", "نُه یک یک", True)
+    seen = S.replace_everywhere(db, review, "نُه یک یک", "نهصد و یازده", apply=False)
+    assert [(m["block_id"], m["count"]) for m in seen] == [("FA_B03_g01_01", 1)] and seen[0]["after"].count("نهصد و یازده") == 1
+    assert S.block_of(db, review, "FA_B03_g01_01").draft_text is None and not S.block_of(db, review, "FA_B01_g01_01").edited, "a preview changes nothing"
+    done = S.replace_everywhere(db, review, "نه یک یک", "نهصد و یازده", apply=True)
+    block = S.block_of(db, review, "FA_B03_g01_01")
+    assert len(done) == 1 and block.draft_text == "بعد نهصد و یازده رفت." and block.edited and S.needs_sending(db, block)
+    assert [w.surface for w in S.words_of(db, block).values()] == ["نهصد", "و", "یازده"] and {w.was for w in S.words_of(db, block).values()} == {"نُه", "یک"}
+    assert {b.block_id: b.voice_text for b in S.blocks_of(db, review)} == texts and not S.block_of(db, review, "FA_B02_g01_01").edited
+    sent = asyncio.run(S.send_block(db, review, "FA_B03_g01_01", provider=voice))
+    assert voice.requests[-1].text == "بعد نهصد و یازده رفت." and sent.active

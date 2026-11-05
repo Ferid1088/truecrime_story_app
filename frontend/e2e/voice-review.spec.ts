@@ -91,3 +91,45 @@ test("a corrected block stays yellow and its corrected word red, a new take is v
   await expect(first.locator("[data-active=false]")).toHaveCount(2);
   await expect(first).toHaveAttribute("data-edited", "false");                       // a new take of the same words is not a correction
 });
+
+test("replace in all blocks shows the places first and only then corrects the blocks, which turn yellow with red words", async ({ page }) => {
+  const mk = (n: number, text: string, hit = false) => ({
+    block_id: `FA_B0${n}_g01_01`, position: n - 1, canonical_text: text, voice_text: text, draft_text: hit ? text.replace("نُه یک یک", "نهصد و یازده") : null,
+    text: hit ? text.replace("نُه یک یک", "نهصد و یازده") : text, edited: hit, needs_sending: hit,
+    words: words(hit ? text.replace("نُه یک یک", "نهصد و یازده") : text).map((w) => (hit && ["نهصد", "و", "یازده"].includes(w.surface) ? { ...w, corrected: true } : w)),
+    takes: [{ ...take(1, true, "original"), audio_url: `/api/x${n}` }],
+  });
+  const plain = [mk(1, "او آمد."), mk(2, "تماس نُه یک یک بود."), mk(3, "بعد نُه یک یک رفت.")];
+  const done = [plain[0], mk(2, "تماس نُه یک یک بود.", true), mk(3, "بعد نُه یک یک رفت.", true)];
+  const overviewOf = (blocks: unknown[]) => ({ exists: true, version_id: 7, language: "fa", status: "open", assembled_current: false, assembled_at: null, approved: false,
+                                              corrected_blocks: blocks.filter((b) => (b as { edited: boolean }).edited).length, to_send: blocks.filter((b) => (b as { needs_sending: boolean }).needs_sending).length,
+                                              assembled_audio_url: null, blocks });
+  const matches = [2, 3].map((n) => ({ block_id: `FA_B0${n}_g01_01`, position: n - 1, count: 1, before: "تماس نُه یک یک بود", after: "تماس نهصد و یازده بود" }));
+  const calls: { find: string; replace: string; apply: boolean }[] = [];
+  await mockApi(page);
+  await page.route("**/api/documentary/settings", (r: Route) => r.fulfill(ok(settings)));
+  await page.route("**/api/cases/1/documentary", (r: Route) => r.fulfill(ok(overview)));
+  await page.route("**/api/cases/1/costs", (r: Route) => r.fulfill(ok(costs)));
+  await page.route("**/api/documentary/pronunciation/entries?**", (r: Route) => r.fulfill(ok({ counts: {}, entries: [] })));
+  await page.route("**/api/documentary/versions/7/block-review", (r: Route) => r.fulfill(ok(overviewOf(plain))));
+  await page.route("**/api/documentary/versions/7/block-review/replace", async (r: Route) => {
+    const body = r.request().postDataJSON() as { find: string; replace: string; apply: boolean };
+    calls.push(body);
+    await r.fulfill(ok(body.apply ? { ...overviewOf(done), applied: true, blocks_found: 2, places_found: 2, matches } : { applied: false, blocks_found: 2, places_found: 2, matches }));
+  });
+  await page.goto("/documentary/1?tab=Pronunciation");
+  await page.getByRole("button", { name: "Voice review" }).click();
+  await page.getByText("Replace in all blocks").click();
+  await expect(page.getByRole("button", { name: "Find the places" })).toBeDisabled();
+  await page.getByLabel("Words to find").fill("نُه یک یک");
+  await page.getByLabel("Words to put in their place").fill("نهصد و یازده");
+  await page.getByRole("button", { name: "Find the places" }).click();
+  await expect(page.getByLabel("Places found").getByRole("listitem")).toHaveCount(2);
+  await expect(page.getByTestId("block-review")).toContainText("0 corrected · 0 to send");           // a preview changes nothing
+  await page.getByRole("button", { name: "Replace in 2 blocks (2 places)" }).click();
+  await expect(page.getByTestId("block-review")).toContainText("2 corrected · 2 to send");
+  await expect(page.getByTestId("block-FA_B02_g01_01")).toHaveAttribute("data-edited", "true");
+  await expect(page.getByTestId("block-FA_B03_g01_01").locator("[data-corrected=true]")).toHaveCount(3);
+  await expect(page.getByTestId("block-FA_B01_g01_01")).toHaveAttribute("data-edited", "false");
+  expect(calls.map((c) => c.apply)).toEqual([false, true]);
+});

@@ -43,6 +43,11 @@ def test_the_whole_review_through_the_routes(client, narration, monkeypatch):  #
     client.post(f"{base}/blocks/FA_B02_g01_01/takes/2/activate")
 
     client.put(f"{base}/blocks/FA_B03_g01_01", json={"text": "بعد رفت و آمد."})
+    seen = client.post(f"{base}/replace", json={"find": "رفت و آمد", "replace": "برگشت"}).json()
+    assert seen["applied"] is False and seen["blocks_found"] == 1 and seen["places_found"] == 1 and seen["matches"][0]["block_id"] == "FA_B03_g01_01" and "blocks" not in seen
+    assert client.post(f"{base}/replace", json={"find": "x", "replace": "x"}).status_code == 409
+    applied = client.post(f"{base}/replace", json={"find": "رفت و آمد", "replace": "برگشت", "apply": True}).json()
+    assert applied["applied"] is True and applied["blocks_found"] == 1 and isinstance(applied["blocks"], list) and len(applied["blocks"]) == 3, "the count and the list of blocks do not share a name"
     everything = client.post(f"{base}/send-all").json()
     assert everything["sent"] == ["FA_B03_g01_01"] and everything["failed"] == [] and everything["to_send"] == 0
 

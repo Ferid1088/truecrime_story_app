@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/state";
 import { BlockCard } from "./block-card";
+import { ReplaceInBlocks } from "./block-replace";
 
 const apiBase = (url: string) => apiFileUrl(url);
 
@@ -144,6 +145,7 @@ export function BlockReview({ versionId }: { versionId: number }) {
         {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
         <p className="text-xs text-muted-foreground">No film is rendered before you approve the narration.</p>
       </div>
+      <ReplaceInBlocks versionId={versionId} onApplied={(r) => setReview(r)} />
       <audio ref={audio} preload="none" onEnded={onEnded} onPause={() => setPaused(true)} onPlay={() => setPaused(false)} aria-label="Block player" className="hidden" />
       <ol className="space-y-2" aria-label="Blocks in story order">
         {blocks.map((b, i) => (

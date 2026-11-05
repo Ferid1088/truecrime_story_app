@@ -7,6 +7,7 @@ import type {
   BlockReview,
   BlockReviewBlock,
   BlockReviewOverview,
+  BlockReviewReplace,
   BlockReviewStatus,
   PronunciationPlan,
   PunctuationBlock,
@@ -610,6 +611,8 @@ export const api = {
   sendBlock: (versionId: number, blockId: string, again = false) =>
     request<BlockReviewBlock>(`/api/documentary/versions/${versionId}/block-review/blocks/${encodeURIComponent(blockId)}/send`,
       { method: "POST", body: JSON.stringify({ again }), timeoutMs: 600_000 }),
+  replaceInBlocks: (versionId: number, body: { find: string; replace: string; apply: boolean }) =>
+    post<BlockReviewReplace>(`/api/documentary/versions/${versionId}/block-review/replace`, body),
   sendAllBlocks: (versionId: number) =>
     request<BlockReviewOverview & { sent: string[]; failed: { block_id: string; error: string }[] }>(
       `/api/documentary/versions/${versionId}/block-review/send-all`, { method: "POST", body: "{}", timeoutMs: 1_800_000 }),

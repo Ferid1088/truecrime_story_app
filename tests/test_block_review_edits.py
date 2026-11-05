@@ -34,3 +34,13 @@ def test_an_inserted_word_is_marked_and_a_removed_word_marks_nothing():
     assert changed == [2] and marks[2].surface == "که" and marks[2].was == ""
     marks, changed = E.remap("او گفت که نه", "او نه", {})
     assert changed == [] and marks == {}
+
+
+def test_a_phrase_is_found_by_its_words_with_or_without_vowel_marks_and_replaced_where_it_stands():
+    text = "[calm] این با تماس نُه یک یک جور بود. بعد نه یک نفر، یک."
+    assert E.find_spans(text, "نُه یک یک") == E.find_spans(text, "نه یک یک") and len(E.find_spans(text, "نُه یک یک")) == 1
+    new, count = E.replace_text(text, "نُه یک یک", "نهصد و یازده")
+    assert (new, count) == ("[calm] این با تماس نهصد و یازده جور بود. بعد نه یک نفر، یک.", 1), "the other «نه یک» (no, one person) is not the phrase"
+    assert E.replace_text("نُه یک یک و نُه یک یک.", "نُه یک یک", "x") == ("x و x.", 2)
+    assert E.replace_text("نُه، یک یک", "نُه یک یک", "x") == ("نُه، یک یک", 0), "a comma between the words: not the same phrase"
+    assert E.replace_text("متن", "", "x") == ("متن", 0)
