@@ -3477,3 +3477,75 @@ class PhoneticLabel(Base):
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     detail: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class VoiceReview(Base):
+    """The hand review of one voiced narration (a person listens, corrects blocks, voices them again, assembles the narration, approves it)."""
+
+    __tablename__ = "voice_reviews"
+    __table_args__ = (UniqueConstraint("story_version_id", name="uq_voice_review_version"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    story_version_id: Mapped[int] = mapped_column(ForeignKey("story_versions.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20), default="open")             # open | assembled | approved
+    assembled_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    assembled_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    assembled_takes_json: Mapped[str] = mapped_column(Text, default="{}")      # block -> the take the assembled narration used
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class VoiceBlock(Base):
+    """One block of a reviewed narration. `edited` stays true for good once a correction was made (the block is shown yellow); `draft_text` is a
+    correction not yet sent to the voice."""
+
+    __tablename__ = "voice_blocks"
+    __table_args__ = (UniqueConstraint("review_id", "block_id", name="uq_voice_block"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    review_id: Mapped[int] = mapped_column(ForeignKey("voice_reviews.id"), index=True)
+    block_id: Mapped[str] = mapped_column(String(80))
+    position: Mapped[int] = mapped_column(Integer)
+    canonical_text: Mapped[str] = mapped_column(Text)                          # the approved text of the block, never changed
+    voice_text: Mapped[str] = mapped_column(Text)                              # the text of the active take
+    draft_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    edited: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class VoiceBlockWord(Base):
+    """A word of a block the person corrected: shown red for good. `finglish` is sent to the voice as an alias of the corrected word."""
+
+    __tablename__ = "voice_block_words"
+    __table_args__ = (UniqueConstraint("block_pk", "word_n", name="uq_voice_block_word"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    block_pk: Mapped[int] = mapped_column(ForeignKey("voice_blocks.id"), index=True)
+    word_n: Mapped[int] = mapped_column(Integer)
+    was: Mapped[str] = mapped_column(String(200))                               # the word before the first correction
+    surface: Mapped[str] = mapped_column(String(200))                           # the word as corrected
+    finglish: Mapped[str] = mapped_column(String(200), default="")
+    pending: Mapped[bool] = mapped_column(Boolean, default=True)                # not sent to the voice yet
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class VoiceBlockTake(Base):
+    """One voiced take of a block. Exactly one take of a block is active (ticked): the narration is assembled from the active ones."""
+
+    __tablename__ = "voice_block_takes"
+    __table_args__ = (UniqueConstraint("block_pk", "take_no", name="uq_voice_block_take"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    block_pk: Mapped[int] = mapped_column(ForeignKey("voice_blocks.id"), index=True)
+    take_no: Mapped[int] = mapped_column(Integer)
+    source: Mapped[str] = mapped_column(String(12))                             # original | correction
+    text_sent: Mapped[str] = mapped_column(Text)
+    request_json: Mapped[str] = mapped_column(Text, default="{}")               # the whole request, so the take can be found again without paying
+    aliases_json: Mapped[str] = mapped_column(Text, default="[]")               # the alias rules sent (corrected word -> finglish)
+    request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    characters: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cost_eur: Mapped[float] = mapped_column(Float, default=0.0)
+    duration_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
