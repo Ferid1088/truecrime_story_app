@@ -1,5 +1,5 @@
 """How a number written in digits is said, decided by the words around it (config number_reading), never by how often a reading occurs: a service
-number digit by digit (۹۱۱ "nine one one", not "nine hundred eleven"), an identifier after a cue word digit by digit when it is long, a year after a
+number the config lists (`digit_by_digit`, empty for Persian: ۹۱۱ is "nohsad o yazdah") digit by digit, an identifier after a cue word digit by digit when it is long, a year after a
 cue word, an ordinal by its suffix, every other whole number as a cardinal. The words go to the voice in place of the digits (the story keeps its
 digits); a number written with other characters inside it (۲:۳۱, ۱۰٫۵) is not read by code and is left for a person."""
 

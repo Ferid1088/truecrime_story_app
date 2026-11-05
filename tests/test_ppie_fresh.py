@@ -152,7 +152,7 @@ def test_a_ppie_reading_stage_reads_every_block_again_and_keeps_nothing(db_sessi
 
 
 @pytest.mark.parametrize("text, n, kind, words", [
-    ("شماره‌ای که گرفت ۹۱۱ بود", 3, "service", "نُه یک یک"),
+    ("شماره‌ای که گرفت ۹۱۱ بود", 3, "cardinal", "نهصد و یازده"),
     ("شانزدهم فوریهٔ ۲۰۲۶ بود", 2, "year", "دو هزار و بیست و شش"),
     ("سال ۲۰۱۳ تو فصل دوازدهم", 1, "year", "دو هزار و سیزده"),
     ("مدرک شماره‌ی ۱۰ بود", 2, "cardinal", "ده"),
@@ -169,11 +169,20 @@ def test_a_number_is_read_by_its_context_never_by_frequency(text, n, kind, words
     assert (said.kind, said.words) == (kind, words)
 
 
+def test_every_number_is_read_as_a_persian_number_and_only_a_configured_number_digit_by_digit(monkeypatch):
+    assert ai_config.number_reading.digit_by_digit == [], "the owner wants 911 read as a number: nohsad o yazdah"
+    for digits, words in (("۹۱۱", "نهصد و یازده"), ("۱۱۲", "صد و دوازده"), ("۲۴", "بیست و چهار")):
+        said = NUM.read(tokenize(f"تماس با {digits} گرفت"), 2)
+        assert (said.kind, said.words) == ("cardinal", words)
+    monkeypatch.setattr(ai_config.number_reading, "digit_by_digit", ["۹۱۱"])           # the mechanism stays: a number the owner lists is said digit by digit
+    assert NUM.read(tokenize("تماس با ۹۱۱ گرفت"), 2).kind == "service"
+
+
 def test_the_planner_gives_the_voice_the_number_words_and_leaves_a_number_it_cannot_read_for_a_person(db_session):
     voicing = Voicing({}, {"b": ["tamās", "bā", "NUM", "gereft"], "c": ["sāat", "NUM", "bud"]}, {})
     planner = Planner(db_session, "fa", VOICE, MODEL)
     plan = planner.plan("b", "تماس با ۹۱۱ گرفت", voicing)
-    assert plan.text == "تماس با نُه یک یک گرفت" and plan.decisions[2].strategy == "number_words" and "service" in plan.decisions[2].basis
+    assert plan.text == "تماس با نهصد و یازده گرفت" and plan.decisions[2].strategy == "number_words" and "cardinal" in plan.decisions[2].basis
     left = planner.plan("c", "ساعت ۲:۳۱ بود", voicing).decisions[1]
     assert (left.strategy, left.needs_review) == ("escalate", True)
 
@@ -230,11 +239,11 @@ def test_the_approved_story_stays_byte_for_byte_and_the_voice_gets_the_planner_t
     renderer.voicing, renderer.planner = voicing, Planner(db_session, "fa", VOICE, MODEL)
     plan = {"language": "fa", "blocks": [_block("FA_a_01", "act1", source.story_text)]}
     asyncio.run(renderer.render(plan, case_id=source.case_id, story_version_id=source.id))
-    assert [r.text for r in tts.requests] == ["عمر نُه یک یک"] and tts.requests[0].pronunciation_dictionaries == []
+    assert [r.text for r in tts.requests] == ["عمر نهصد و یازده"] and tts.requests[0].pronunciation_dictionaries == []
     record = PE.save_run(db_session, source, "fa", plan, renderer.planner, voicing, renderer.out_dir(source.case_id, "fa", source.id))
     shown = PE.run_record(source, "fa")
     assert record.exists() and shown["fresh"] is True and [(w["word"], w["tts_input"], w["voice_text"]) for w in shown["words"]] == [
-        ("۹۱۱", "نُه یک یک", "عمر نُه یک یک")]
+        ("۹۱۱", "نهصد و یازده", "عمر نهصد و یازده")]
     db_session.refresh(source)
     assert hashlib.sha256(source.story_text.encode()).hexdigest() == sha
 
