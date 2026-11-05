@@ -127,7 +127,10 @@ export function BlockReview({ versionId }: { versionId: number }) {
             {busy === "assemble" ? "Assembling…" : "Check and assemble the narration"}
           </Button>
           <Button size="sm" disabled={busy !== null || !review.assembled_current || review.approved}
-            onClick={() => act("approve", () => api.approveBlockReview(versionId), () => "Approved. The film may go on.")}>
+            onClick={() => {
+              if (!window.confirm("Approve this narration? It becomes the film's narration and the film may go on. The earlier narration is kept.")) return;
+              void act("approve", () => api.approveBlockReview(versionId), () => "Approved. The film may go on.");
+            }}>
             Approve this narration
           </Button>
         </div>
