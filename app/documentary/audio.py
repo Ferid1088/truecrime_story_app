@@ -46,12 +46,22 @@ def probe_duration(path: str | Path) -> float:
 def to_wav(
     src: str | Path, dst: str | Path, sample_rate: int,
     start: float | None = None, end: float | None = None, tempo: float = 1.0,
+    fade_in: float = 0.0, fade_out: float = 0.0,
 ) -> Path:
     """Decode (and optionally speed up, pitch kept, and trim) to mono 16-bit PCM WAV. Trimming is
-    sample-accurate because -ss/-to come after -i; with a tempo, start and end are seconds of the sped-up audio."""
+    sample-accurate because -ss/-to come after -i; with a tempo, start and end are seconds of the sped-up audio.
+    `fade_in` / `fade_out`: seconds of a fade at the cut start and the cut end (a cut that begins or ends inside a sound has no click)."""
     args = ["ffmpeg", "-y", "-v", "error", "-i", str(src)]
+    filters = []
     if tempo != 1.0:
-        args += ["-filter:a", f"atempo={tempo:.4f}"]
+        filters.append(f"atempo={tempo:.4f}")
+    lo = max(start or 0.0, 0.0)
+    if fade_in > 0:
+        filters.append(f"afade=t=in:st={lo:.3f}:d={fade_in:.3f}")
+    if fade_out > 0 and end is not None:
+        filters.append(f"afade=t=out:st={max(end - fade_out, lo):.3f}:d={fade_out:.3f}")
+    if filters:
+        args += ["-filter:a", ",".join(filters)]
     if start is not None:
         args += ["-ss", f"{max(start, 0.0):.3f}"]
     if end is not None:
@@ -59,6 +69,23 @@ def to_wav(
     args += ["-ac", "1", "-ar", str(sample_rate), "-c:a", "pcm_s16le", str(dst)]
     _run(args)
     return Path(dst)
+
+
+def audible_span(src: str | Path, floor_db: float, frame_ms: float = 5.0, sample_rate: int = 16000) -> tuple[float, float]:
+    """Where the sound of a file is: the first and the last moment louder than `floor_db` (dBFS, RMS of `frame_ms` frames), in seconds of the file as it is.
+    The voice's own noise floor and the silence around a take are below it. (0.0, 0.0) for a file with no sound."""
+    import numpy as np
+
+    x = decode_f32(src, sample_rate)
+    hop = max(1, int(sample_rate * frame_ms / 1000))
+    n = len(x) // hop
+    if n == 0:
+        return 0.0, 0.0
+    rms = np.sqrt((x[: n * hop].reshape(n, hop) ** 2).mean(axis=1))
+    loud = np.nonzero(20 * np.log10(np.maximum(rms, 1e-9)) > floor_db)[0]
+    if loud.size == 0:
+        return 0.0, 0.0
+    return float(loud[0] * hop / sample_rate), float((loud[-1] + 1) * hop / sample_rate)
 
 
 def extract_audio(video: str | Path, dst: str | Path, sample_rate: int) -> Path:

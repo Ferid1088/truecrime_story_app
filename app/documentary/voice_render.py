@@ -343,7 +343,16 @@ class VoiceRenderer:
         speech_end = words[-1]["end"] if words else raw_duration
         t0 = max(0.0, speech_start - self.cfg.lead_pad_ms / 1000)
         t1 = min(raw_duration, speech_end + self.cfg.tail_pad_ms / 1000)
-        await asyncio.to_thread(A.to_wav, raw, wav, self.loud.sample_rate, t0, t1, tempo)
+        edge = self.cfg.edges.get(language) if self.narration else None
+        fades, ends = (0.0, 0.0), None
+        if edge is not None:               # a language cut by its sound: where the voice really begins and ends, with a fade at each cut
+            on, off = await asyncio.to_thread(A.audible_span, raw, edge.floor_db)
+            on, off = on / tempo, off / tempo
+            if off > on:
+                t0, t1 = max(0.0, on - edge.lead_keep_ms / 1000), min(raw_duration, off + edge.tail_keep_ms / 1000)
+                fades = (edge.fade_in_ms / 1000, edge.fade_out_ms / 1000)
+                ends = {"lead_ms": round((on - t0) * 1000), "tail_ms": round((t1 - off) * 1000)}
+        await asyncio.to_thread(A.to_wav, raw, wav, self.loud.sample_rate, t0, t1, tempo, *fades)
         duration = await asyncio.to_thread(A.probe_duration, wav)
         local_words = [
             {**w, "start": round(w["start"] - t0, 3), "end": round(w["end"] - t0, 3)}
@@ -370,7 +379,7 @@ class VoiceRenderer:
             "beats": local_beats, "sentences": local_sentences,
             "character_cost": None if cache_hit else meta.get("character_cost"),
             "request_id": meta.get("request_id"), "asr": asr,
-            "text": req.text, "alignment": al,
+            "text": req.text, "alignment": al, "edges": ends,
         }
 
     async def _heard(self, wav: Path, meta: dict, meta_path: Path, language: str) -> str:
@@ -522,6 +531,43 @@ class VoiceRenderer:
     # whole plan
     # ------------------------------------------------------------------
 
+    def check_joins(self, language: str, results: list[dict], timeline: list[dict]) -> dict:
+        """Every join of the assembled narration measured and checked (config voice.joins.check): the silence between the last sound of a block and the
+        first sound of the next, a block that begins or ends hard (no silence around its sound), a join with more silence than allowed. A language that is
+        not cut by its sound is not checked."""
+        join = self.cfg.joins.get(language)
+        if join is None or not self.cfg.edges.get(language):
+            return {"checked": 0, "flagged": [], "silence_ms": {}}
+        silences, flagged = [], []
+        for i in range(len(results) - 1):
+            a, b = results[i]["take"].get("edges"), results[i + 1]["take"].get("edges")
+            if not a or not b:
+                continue
+            silence = a["tail_ms"] + timeline[i]["pause_after_ms"] + b["lead_ms"]
+            silences.append(silence)
+            flags = []
+            if b["lead_ms"] < join.min_lead_ms:
+                flags.append("join_hard_start")
+            if a["tail_ms"] < join.min_tail_ms:
+                flags.append("join_hard_end")
+            kind = timeline[i].get("pause_after_kind")
+            if (kind in join.silence_ms or kind in (None, "paragraph")) and silence > join.max_silence_ms:
+                flags.append("join_too_long")
+            if flags:
+                flagged.append({"after": results[i]["block"]["block_id"], "silence_ms": silence, "flags": flags})
+        ordered = sorted(silences)
+        return {"checked": len(silences), "flagged": flagged,
+                "silence_ms": {"median": ordered[len(ordered) // 2], "max": ordered[-1], "min": ordered[0]} if ordered else {}}
+
+    def join_gap_ms(self, language: str, block: dict, following: dict, planned_ms: int) -> int:
+        """The silence put between two blocks so that the silence between the last sound of one and the first sound of the next is the configured one
+        (config voice.joins): the next block goes on in the same beat of the story, or the planned kind of the pause; a kind not listed keeps the planned pause."""
+        join, edge = self.cfg.joins[language], self.cfg.edges[language]
+        kind = block.get("pause_after_kind")
+        same_beat = following["section_id"].split(".")[0] == block["section_id"].split(".")[0]
+        target = join.silence_ms.get("same_beat" if kind in (None, "paragraph") and same_beat else kind)
+        return planned_ms if target is None else max(0, target - edge.tail_keep_ms - edge.lead_keep_ms)
+
     async def render(
         self, plan: dict, *, case_id: int, story_version_id: int,
         max_seconds: float | None = None, style: str | None = None,
@@ -619,6 +665,8 @@ class VoiceRenderer:
                     same = results[i + 1]["block"]["section_id"] == b["section_id"]
                     gap_ms = (self.cfg.between_blocks_ms if same
                               else self.cfg.between_sections_ms)
+            if i + 1 < len(results) and self.cfg.joins.get(language) and self.cfg.edges.get(language):
+                gap_ms = self.join_gap_ms(language, b, results[i + 1]["block"], gap_ms)
             timeline_blocks.append({
                 "block_id": b["block_id"], "section_id": b["section_id"],
                 "style": block_style(b),
@@ -757,6 +805,8 @@ class VoiceRenderer:
                 "flags": block_flags,
             })
 
+        joins = self.check_joins(language, results, timeline_blocks)
+        flags += [f"{j['after']}:{flag}" for j in joins["flagged"] for flag in j["flags"]]
         trace_info = self.trace.save(dest) if self.trace.entries else None
         plan_info = self.save_plan(dest)
         manifest = {
@@ -786,6 +836,7 @@ class VoiceRenderer:
             "flags": flags,
             "pronunciation_trace": trace_info,
             "pronunciation_plan": plan_info,
+            "joins": joins,
             "semantic_review_failed": held,
             "dynamic_eq": eq_report,
             "files": {

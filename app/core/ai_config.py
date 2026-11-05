@@ -1544,6 +1544,28 @@ class ElevenLabsConfig(BaseModel):
     audio_tag_models: list[str] = ["eleven_v4"]
 
 
+class EdgeConfig(BaseModel):
+    """How a voiced block is cut (config voice.edges, per language): by the sound itself, not by the provider's timing of its letters. The sound is what is
+    louder than `floor_db`; `lead_keep_ms` / `tail_keep_ms` of silence stay around it; the cut fades in and out so that no sound begins or ends with a click."""
+
+    floor_db: float = Field(le=-20)
+    lead_keep_ms: int = Field(ge=0)
+    tail_keep_ms: int = Field(ge=0)
+    fade_in_ms: int = Field(ge=0)
+    fade_out_ms: int = Field(ge=0)
+
+
+class JoinConfig(BaseModel):
+    """The silence between the last sound of a block and the first sound of the next (config voice.joins, per language): `silence_ms` by the kind of the join
+    (`same_beat`: the next block goes on in the same beat of the story; or the planned kind of the pause: paragraph, breath); a kind that is not listed (music,
+    sting, silence, chapter break) keeps the planned pause. `check`: what the assembly reports as a bad join."""
+
+    silence_ms: dict[str, int]
+    min_lead_ms: int = Field(ge=0)              # a block whose sound begins sooner than this after its start has a hard start
+    min_tail_ms: int = Field(ge=0)
+    max_silence_ms: int = Field(gt=0)           # a join of a kind in `silence_ms` with more silence than this is too long
+
+
 class ReviewRequiredVoice(BaseModel):
     """The settings a block voiced again in the voice review must have (config voice.review_required)."""
 
@@ -1569,6 +1591,9 @@ class VoiceConfig(BaseModel):
     # What every block voiced again from the voice review must carry, per language: the provider's speed and stability and the post speed after it. A block
     # whose settings differ is not sent (nothing is paid): the owner's values are not left to the settings an earlier take happened to have.
     review_required: dict[str, "ReviewRequiredVoice"] = {}
+    # Languages whose blocks are cut by their sound (not by the provider's timing) and the silence of their joins: a narration that flows, checked at every assembly.
+    edges: dict[str, EdgeConfig] = {}
+    joins: dict[str, JoinConfig] = {}
     # The pause after a paragraph or a breath of one language is this share of the planned pause (a fast voice needs shorter ones); chapter breaks and music moments keep theirs.
     breath_gap_scale: dict[str, float] = {}
     # Styles of one language that replace the same-named style of `styles` (Persian: stability 0.30 and the provider's top speed).
