@@ -105,3 +105,8 @@ data/audits/
 data/phonetic_benchmark/controlled/
 data/phonetic_benchmark/validation.json
 data/_archive_*/
+
+# run artifacts of the Persian narration of case 15 (full texts, caches, provider logs): kept on the machine, never published
+reports/persian_reset_case15_20261104/run_v290/
+reports/persian_reset_case15_20261104/*.log
+reports/persian_reset_case15_20261104/blocks_sent_to_elevenlabs.json
