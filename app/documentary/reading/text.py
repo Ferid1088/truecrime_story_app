@@ -47,7 +47,7 @@ def prompts_sha() -> str:
 
 class ReadingStage:
     def __init__(self, db: Session, case_id: int, version: StoryVersion, language: str, items: list[BlockInput], glossary: Glossary | None = None,
-                 writer_runner=None, check_runner=None, arbitrate_runner=None):
+                 writer_runner=None, check_runner=None, arbitrate_runner=None, run_cache: Path | None = None):
         from app.documentary.voice_render import ROOT
 
         self.db, self.case_id, self.version, self.language, self.items = db, case_id, version, language, items
@@ -56,16 +56,19 @@ class ReadingStage:
         self.fresh = ai_config.ppie.fresh(language)
         base = Path(ai_config.voice.work_dir)
         self.path = (base if base.is_absolute() else ROOT / base) / str(case_id) / ai_config.reading.folder / f"{language}_v{version.id}.json"
+        self.run_cache = run_cache          # a PPIE run's own file, so a run stopped by a provider error continues without paying again; never read by another run
+        if run_cache is not None:
+            self.path = run_cache
         self.cache: dict = {}
         self.stats = {"checked": 0, "skipped": 0}          # the blocks the checker read, and the ones it did not (the risk gate)
-        if not self.fresh:
+        if not self.fresh or run_cache is not None:
             try:
                 self.cache = json.loads(self.path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 pass
 
     def save(self) -> None:
-        if self.fresh:                   # this run's readings live in memory only: the next run reads again
+        if self.fresh and self.run_cache is None:                   # this run's readings live in memory only: the next run reads again
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(self.cache, ensure_ascii=False), encoding="utf-8")
