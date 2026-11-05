@@ -33,7 +33,7 @@ class Encoder:
         import numpy as np
         import torch
 
-        cfg, rows = ai_config.ppie_review, []
+        cfg, rows = ai_config.english_reference, []
         with self.lock, torch.no_grad():
             for i in range(0, len(texts), cfg.embedding_batch):
                 batch = self.tokenizer(texts[i:i + cfg.embedding_batch], padding=True, truncation=True, max_length=cfg.embedding_max_tokens,
@@ -49,4 +49,4 @@ def _encoder(model_name: str) -> Encoder:
 
 
 def get_encoder() -> Encoder:
-    return _encoder(ai_config.ppie_review.embedding_model)
+    return _encoder(ai_config.english_reference.embedding_model)

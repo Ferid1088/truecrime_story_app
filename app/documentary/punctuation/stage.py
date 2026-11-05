@@ -171,9 +171,9 @@ async def for_version(db: Session, case_id: int, version, plan: dict, stage: Pun
     stage = stage or PunctuationStage(db, case_id)
     english = {}
     if stage.use_agents:
-        from app.documentary.ppie_review import alignment as AL
-        from app.documentary.ppie_review import sources as SRC
-        from app.documentary.ppie_review.embeddings import get_encoder
+        from app.documentary.english_reference import alignment as AL
+        from app.documentary.english_reference import sources as SRC
+        from app.documentary.english_reference.embeddings import get_encoder
 
         sources = SRC.approved_sources(db, version)
         story, text = sources.narration.story_text or "", sources.english.story_text or ""

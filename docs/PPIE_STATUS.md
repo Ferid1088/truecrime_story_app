@@ -30,20 +30,12 @@ block's punctuation layer, and the planner gets the settled boundaries.
 Free dry run of Case 15 v270 (rules only, `scripts/punctuation_dry_run.py`): checksum unchanged, 0 EUR, 0.5 s, 0 integrity violations, 0 changes;
 boundaries: 469 required (written), 1849 forbidden, 1905 need no analysis, 4125 context-dependent (the meaning decides: the syntax agent's work).
 
-## Review after the voice (`app/documentary/ppie_review`, 2026-11-04)
+## Review after the voice (2026-11-05)
 
-| Part | Status | Where / evidence |
-|---|---|---|
-| Approved sources | Done | `sources.py`: narration = spoken version (never a voice-prepare rewrite), its approved Persian final, the approved English final of the English film. Case 15: 270 / 254 / 240. 270 itself has no approval date (noted in every run). |
-| English–Persian alignment | Done, uncalibrated | `alignment.py`: sentences with offsets, local BGE-M3, monotonic DP with 1–3 sentence groups per side, numbers and nearby rivals checked; verifier agent optional (billable). Case 15: 164 blocks ALIGNED, 26 PARTIAL, 36 AMBIGUOUS, 10 MISSING_REFERENCE, 0 MISMATCH. No reviewed alignment exists, so no confidence number is given. |
-| Independent expected reading | Done (not run live: billable) | `expectation.py` + `prompts/documentary/ppie_review/expect_system.md`: sees the text, its neighbours and the English passage, never PPIE's reading. Readings a person decided can be given instead (`scripts/ppie_review.py --expect`). |
-| Analysis copies | Done | `audio_prep.py`: ffmpeg, 16 kHz mono, original and `atempo=0.8`, pitch measured (copy unusable beyond 50 cents), original hashed before/after, temp folder removed. |
-| Acoustic review | Done, advisory | `acoustic.py`: every word of the approved text gets its window from the voice's own timing (also when the take was voiced from another text: words matched on their plain form); the expected reading and its rule-made rivals (vowel swaps, epenthesis, ezafe added/dropped, -e said -ye) scored by CTC loss per frame; PASS/FAIL only by a margin; slower copy recorded as a second look. |
-| Validation gate | Done; recognizer NOT validated | `validation.py`: human-labelled clips only, hash split calibration/held-out, precision/recall/FPR/FNR per category and speed. 2 labelled clips (the owner's two reports), 0 held out: every decision is advisory. |
-| Repair | Done (no paid take made) | `correction.py`: code diagnosis (PPIE reading, inserted vowel/ezafe, number, voice, unknown), candidates (targeted marks, inline `/IPA/`, Persian respelling; no SSML, no dictionary), failed forms not repeated, attempts capped; corrector agent may only reorder. A new take only with the owner's authorization and cost limit; checked by code against the original (target word, every other word, length); the owner keeps or rejects it; keeping it assembles the narration from existing takes with a voice that refuses every request, after keeping the old narration. |
-| UI | Done | Pronunciation tab → "Audio review". |
-
-First live result (free): the Case 15 preview voiced from v289, reviewed against approved v270 with the owner's two readings: both reported errors are found as suspected (نوه‌هاش heard as novehāsh, margin 0.32; عمر heard as omer, margin 0.27), advisory. 49 blocks of that preview were voiced from another text than the approved one and are reported as such. A full review of 236 blocks took 13 minutes and 3.5 GB of memory on this machine.
+The automatic acoustic review (wav2vec2, the independent expected-reading agent, the repair proposals) was removed. On Case 15 it found 6 of the 13
+errors the owner heard, so it could not replace listening. A person listens to the voiced blocks and corrects them by hand in the voice review
+(Pronunciation tab, "Narration preview"). The English reference (the sentence alignment with the approved English story) stays, as
+`app/documentary/english_reference`, for the semantic punctuation stage.
 
 ## Pipeline as it runs (`VoiceRenderer` → `Planner.plan`)
 

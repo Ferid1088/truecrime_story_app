@@ -672,27 +672,6 @@
       "description": "Independently audits proposed punctuation of a Persian narration block: meaning kept, no word changed, no ezafe connection broken, no wrong connection encouraged, no robotic pause; PASS, REVISE (with the smallest change), UNCERTAIN or REJECT.",
       "used_by": "app/documentary/punctuation/check.py"
     },
-    "documentary.ppie_review.expect": {
-      "role": "ppie_expectation",
-      "prompt": "documentary/ppie_review/expect_system",
-      "output": "json",
-      "description": "Reads one block of the approved Persian narration word by word from the text, its neighbours and the matched English passage alone (never PPIE's reading or the voice's input): the expected reading, the other readings the letters allow when the context does not settle them, and why.",
-      "used_by": "app/documentary/ppie_review/expectation.py"
-    },
-    "documentary.ppie_review.align_verify": {
-      "role": "ppie_alignment_verifier",
-      "prompt": "documentary/ppie_review/align_verify_system",
-      "output": "json",
-      "description": "Checks whether an English passage of the approved English story tells the same events and meaning as a Persian passage of the approved Persian narration: ALIGNED, PARTIAL, AMBIGUOUS, MISMATCH or MISSING_REFERENCE, with the differences it found.",
-      "used_by": "app/documentary/ppie_review/alignment.py"
-    },
-    "documentary.ppie_review.correct": {
-      "role": "ppie_corrector",
-      "prompt": "documentary/ppie_review/correct_system",
-      "output": "json",
-      "description": "Diagnoses why the voice said a Persian word wrong (PPIE's reading, its voice form, a number, the voice itself, the reading agent, the recognizer or the alignment) and chooses among the voice-input candidates code made for it.",
-      "used_by": "app/documentary/ppie_review/correction.py"
-    },
     "documentary.irab.write": {
       "role": "reading_editor",
       "prompt": "documentary/irab/write_system",

@@ -7,10 +7,6 @@ import type {
   PronunciationPlan,
   PunctuationBlock,
   PunctuationSummary,
-  RepairAttempt,
-  RepairProposal,
-  ReviewListing,
-  ReviewRunOverview,
   ReadingReview,
   PhoneticSample,
   PronunciationEntry,
@@ -598,23 +594,6 @@ export const api = {
     request<PunctuationSummary>(`/api/documentary/versions/${versionId}/semantic-punctuation?language=fa`, { timeoutMs: 120_000 }),
   semanticPunctuationBlock: (versionId: number, blockId: string) =>
     request<PunctuationBlock>(`/api/documentary/versions/${versionId}/semantic-punctuation/${blockId}?language=fa`, { timeoutMs: 120_000 }),
-  ppieReviews: (versionId: number) => request<ReviewListing>(`/api/documentary/versions/${versionId}/ppie-review`),
-  ppieReview: (versionId: number, label: string, run: string) =>
-    request<ReviewRunOverview>(`/api/documentary/versions/${versionId}/ppie-review/${encodeURIComponent(label)}/${encodeURIComponent(run)}`, { timeoutMs: 120_000 }),
-  startPpieReview: (versionId: number, label: string, body: { agents: boolean; max_eur: number; by: string }) =>
-    post<{ run_id: string; status: string }>(`/api/documentary/versions/${versionId}/ppie-review/${encodeURIComponent(label)}`, body),
-  repairPpieWord: (versionId: number, label: string, run: string, blockId: string, n: number, body: { strategy: number; max_eur: number; by: string }) =>
-    request<RepairAttempt>(`/api/documentary/versions/${versionId}/ppie-review/${encodeURIComponent(label)}/${encodeURIComponent(run)}/proposals/${blockId}/${n}/generate`,
-      { method: "POST", body: JSON.stringify(body), timeoutMs: 600_000 }),
-  acceptPpieRepair: (versionId: number, label: string, run: string, blockId: string, n: number, body: { attempt: number; by: string }) =>
-    request<RepairProposal>(`/api/documentary/versions/${versionId}/ppie-review/${encodeURIComponent(label)}/${encodeURIComponent(run)}/proposals/${blockId}/${n}/accept`,
-      { method: "POST", body: JSON.stringify(body), timeoutMs: 600_000 }),
-  rejectPpieRepair: (versionId: number, label: string, run: string, blockId: string, n: number, by: string) =>
-    post<RepairProposal>(`/api/documentary/versions/${versionId}/ppie-review/${encodeURIComponent(label)}/${encodeURIComponent(run)}/proposals/${blockId}/${n}/reject`,
-      { attempt: 0, by }),
-  ppieReviewAudioUrl: (versionId: number, label: string, run: string, blockId: string, n?: number, attempt?: number) =>
-    apiFileUrl(`/api/documentary/versions/${versionId}/ppie-review/${encodeURIComponent(label)}/${encodeURIComponent(run)}/audio/${blockId}${
-      n !== undefined && attempt !== undefined ? `?n=${n}&attempt=${attempt}` : ""}`),
   pronunciationPlan: (versionId: number, language: string) =>
     request<PronunciationPlan>(`/api/documentary/versions/${versionId}/pronunciation-plan?language=${encodeURIComponent(language)}`),
   narrationPreviews: () => request<NarrationPreviewSummary[]>("/api/documentary/previews"),

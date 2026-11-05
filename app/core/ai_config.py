@@ -157,11 +157,6 @@ REQUIRED_ROLES = {
     "reading_checker",
     "reading_arbiter",
     "reading_listener",
-    # The review of a Persian narration (ppie_review): the reading of each word from the approved text and its English meaning alone (never PPIE's),
-    # the check that an English passage tells what a Persian one tells, and the diagnosis and repair of a word the voice said wrong.
-    "ppie_expectation",
-    "ppie_alignment_verifier",
-    "ppie_corrector",
     # Semantic punctuation of a Persian narration (documentary/punctuation): the structure and meaning of a block, the punctuation that makes it
     # clear to the voice, and the independent check of that punctuation (another model).
     "punctuation_syntax",
@@ -2586,25 +2581,11 @@ class SemanticPunctuationConfig(BaseModel):
     run_file: str = "punctuation.json"
 
 
-class PitchConfig(BaseModel):
-    """The pitch measure of an analysis copy (ppie_review/audio_prep.py): autocorrelation over frames of `frame_s` every `hop_s`, between `min_hz`
-    and `max_hz`; a frame is voiced when its correlation peak reaches `voicing` (a frame below `silence` is skipped); fewer than `min_frames`
-    voiced frames give no measure."""
-
-    frame_s: float = Field(gt=0)
-    hop_s: float = Field(gt=0)
-    min_hz: float = Field(gt=0)
-    max_hz: float = Field(gt=0)
-    voicing: float = Field(gt=0, lt=1)
-    min_frames: int = Field(ge=1)
-    silence: float = Field(gt=0)            # mean energy per sample below which a frame is silence
-
-
-class ReviewAlignmentConfig(BaseModel):
-    """The English–Persian alignment of a PPIE review (ppie_review/alignment.py). The thresholds are set by reasoning, not calibrated: no reviewed
-    alignment exists yet, so the statuses they give are reported as uncalibrated and no confidence number is invented. `band`: how far from the
+class EnglishAlignmentConfig(BaseModel):
+    """The English–Persian alignment (documentary/english_reference/alignment.py). The thresholds are set by reasoning, not calibrated: no reviewed
+    alignment exists, so the statuses they give are reported as uncalibrated and no confidence number is invented. `band`: how far from the
     diagonal (as a share of the story) a match may lie; `max_group`: the most sentences one side of a match may join; a match must reach
-    `match_floor` to be made at all (else the sentence has no English match); `verify_with_agent`: the verifier agent checks each match (billable)."""
+    `match_floor` to be made at all (else the sentence has no English match)."""
 
     band: float = Field(gt=0, le=1)
     max_group: int = Field(ge=1, le=3)
@@ -2617,73 +2598,16 @@ class ReviewAlignmentConfig(BaseModel):
     aligned_min: float = Field(ge=0, le=1)
     partial_min: float = Field(ge=0, le=1)
     ambiguous_margin: float = Field(ge=0, le=1)
-    verify_with_agent: bool = False
 
 
-class ReviewAcousticConfig(BaseModel):
-    """How a word's competing readings are scored on the audio (ppie_review/acoustic.py): the word's window from the voice's own timeline, padded by
-    `pad_s`; a window shorter than `min_window_s` is not evaluable; a reading wins only by `min_margin_per_frame` (CTC loss per frame of the window)."""
+class EnglishReferenceConfig(BaseModel):
+    """The approved English story as a reference of the Persian text (documentary/english_reference): the local embedding model that aligns the sentences
+    of the two stories, and the alignment."""
 
-    pad_s: float = Field(ge=0, le=0.3)
-    min_window_s: float = Field(gt=0)
-    min_margin_per_frame: float = Field(gt=0)
-
-
-class ReviewValidationConfig(BaseModel):
-    """When the recognizer's decisions may stand on their own (ppie_review/validation.py): at least `min_labels_per_class` human-labelled clips of
-    each class (said right, said wrong) in the held-out part, and on it a precision, recall and false-positive rate within these limits. Thresholds are
-    chosen on the calibration part only (`calibration_share` of the labels). Until then every decision is advisory."""
-
-    min_labels_per_class: int = Field(ge=1)
-    calibration_share: float = Field(gt=0, lt=1)
-    min_precision: float = Field(ge=0, le=1)
-    min_recall: float = Field(ge=0, le=1)
-    max_false_positive_rate: float = Field(ge=0, le=1)
-    # The margins tried on the calibration part (step, step * 2 ... up to max), and the report's file in the benchmark folder.
-    margin_step: float = Field(gt=0)
-    margin_max: float = Field(gt=0)
-    report_file: str = "validation.json"
-
-
-class ReviewCorrectionConfig(BaseModel):
-    """The repair of a word the voice said wrong (ppie_review/correction.py): the voice-input strategies code may propose, in order, how many attempts
-    a word gets in one run, and whether the corrector agent (billable) diagnoses and chooses. A scoped dictionary rule is not a strategy here: it would
-    leave an asset at the provider."""
-
-    max_attempts_per_word: int = Field(ge=1, le=6)
-    # A new take more than this share longer or shorter than the original is flagged.
-    max_length_change: float = Field(gt=0, le=1)
-    strategies: list[Literal["targeted_diacritics", "inline_ipa", "alternative_spelling"]]
-    use_agent: bool = True
-
-
-class PPIEReviewConfig(BaseModel):
-    """The review of a PPIE narration after the voice (ppie_review): the English passage of each block, the independent expected reading, the local
-    acoustic analysis of the original take (and slower copies of it), the advisory decisions, and the repair proposals the owner authorizes. Records
-    live in the run's own folder (`folder` inside the narration folder) and are never read by another run."""
-
-    folder: str = "review"
-    # The most candidate readings a word is scored against.
-    max_candidates: int = Field(ge=2)
-    # The recognizer's phones for "slash": a take in which the voice read inline IPA's notation aloud.
-    notation_patterns: list[str]
-    pitch: PitchConfig
     embedding_model: str
     embedding_batch: int = Field(ge=1)
     embedding_max_tokens: int = Field(ge=32)
-    alignment: ReviewAlignmentConfig
-    analysis_speeds: list[float]
-    analysis_rate: int = Field(ge=8000)
-    pitch_tolerance_cents: float = Field(gt=0)
-    acoustic: ReviewAcousticConfig
-    validation: ReviewValidationConfig
-    correction: ReviewCorrectionConfig
-
-    @model_validator(mode="after")
-    def _speeds(self) -> "PPIEReviewConfig":
-        if not self.analysis_speeds or self.analysis_speeds[0] != 1.0 or any(not 0.5 <= s <= 1.0 for s in self.analysis_speeds):
-            raise ValueError("ppie_review.analysis_speeds: the original (1.0) first, then slower copies between 0.5 and 1.0")
-        return self
+    alignment: EnglishAlignmentConfig
 
 
 class NumberReadingConfig(BaseModel):
@@ -4653,7 +4577,7 @@ class AIConfig(BaseModel):
     morphology: MorphologyConfig
     homographs: HomographsConfig
     ppie: PPIEConfig = Field(default_factory=PPIEConfig)
-    ppie_review: PPIEReviewConfig
+    english_reference: EnglishReferenceConfig
     semantic_punctuation: SemanticPunctuationConfig
     number_reading: NumberReadingConfig
     pronunciation_auto: PronunciationAutoConfig = Field(default_factory=PronunciationAutoConfig)

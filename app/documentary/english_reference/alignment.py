@@ -3,8 +3,7 @@
 Both stories are cut into sentences with their offsets (the texts are never changed). Sentences are embedded locally (embeddings.py) and aligned in
 story order by dynamic programming: a match joins one or two sentences on each side (one-to-one, one-to-many, many-to-one, many-to-many), a sentence
 with no match good enough stays unmatched (MISSING_REFERENCE), and a match is only searched near the diagonal (config band). The similarity is a hint:
-each match is checked against the numbers both sides write and against the best English sentence elsewhere, and can be checked by the verifier
-agent (billable, config). Thresholds are set by reasoning and are not calibrated: no alignment has been reviewed yet, so no confidence number is
+each match is checked against the numbers both sides write and against the best English sentence elsewhere. Thresholds are set by reasoning and are not calibrated: no alignment has been reviewed yet, so no confidence number is
 given. A block gets the English spans of the sentences inside it and the worst status among them."""
 
 from __future__ import annotations
@@ -17,15 +16,15 @@ from app.core.ai_config import ai_config
 from app.documentary.persian_numbers import DIGITS
 
 def sentence_pattern() -> re.Pattern:
-    """A sentence: text up to its end marks and the quotes or brackets that close it (config ppie_review.alignment)."""
-    cfg = ai_config.ppie_review.alignment
+    """A sentence: text up to its end marks and the quotes or brackets that close it (config english_reference.alignment)."""
+    cfg = ai_config.english_reference.alignment
     ends, closing = re.escape(cfg.sentence_end_marks), re.escape(cfg.closing_marks)
     return re.compile(f"[^{ends}\\n]+(?:[{ends}]+[{closing}]*)?")
 
 
 def marker_pattern() -> re.Pattern:
     """Section markers ([[ACT:act1]]) and audio tags ([calm]): not story text."""
-    return re.compile(f"\\[\\[[^\\]]*\\]\\]|\\[[^\\[\\]\\n]{{1,{ai_config.ppie_review.alignment.max_tag_chars}}}\\]")
+    return re.compile(f"\\[\\[[^\\]]*\\]\\]|\\[[^\\[\\]\\n]{{1,{ai_config.english_reference.alignment.max_tag_chars}}}\\]")
 
 DIGIT_RUN = re.compile(r"[0-9۰-۹٠-٩]+")
 WORD = re.compile(r"\w")
@@ -53,7 +52,6 @@ class Match:
     status: str
     evidence: list[str] = field(default_factory=list)
     issues: list[str] = field(default_factory=list)
-    verified_by: str = "code"
 
 
 @dataclass
@@ -101,7 +99,7 @@ def align(persian: list[Unit], english: list[Unit], fa_vectors, en_vectors) -> l
     """The monotonic alignment of the two sentence lists (see the module's doc)."""
     import numpy as np
 
-    cfg = ai_config.ppie_review.alignment
+    cfg = ai_config.english_reference.alignment
     n, m, k = len(persian), len(english), cfg.max_group
     sims = {(a, b): grouped(fa_vectors, a) @ grouped(en_vectors, b).T for a in range(1, k + 1) for b in range(1, k + 1)}
     single = sims[(1, 1)]
@@ -152,7 +150,7 @@ def align(persian: list[Unit], english: list[Unit], fa_vectors, en_vectors) -> l
 
 def judge(match: Match, persian: list[Unit], english: list[Unit]) -> Match:
     """The status of a match from its evidence: similarity, the margin over the best English sentence elsewhere, and the numbers both sides write."""
-    cfg = ai_config.ppie_review.alignment
+    cfg = ai_config.english_reference.alignment
     fa = frozenset().union(*(persian[p].numbers for p in range(*match.persian)))
     en = frozenset().union(*(english[e].numbers for e in range(*match.english)))
     match.evidence = [f"similarity {match.similarity}", f"best English sentence elsewhere {match.best_elsewhere}",
@@ -169,20 +167,6 @@ def judge(match: Match, persian: list[Unit], english: list[Unit]) -> Match:
     else:
         match.status = "MISMATCH"
     return match
-
-
-async def verify(matches: list[Match], persian: list[Unit], english: list[Unit], runner) -> list[Match]:
-    """The verifier agent's judgement of every match (billable): its status replaces code's, with what it found; a missing English passage stays."""
-    for match in matches:
-        if match.english is None:
-            continue
-        answer = await runner({"persian": " ".join(persian[p].text for p in range(*match.persian)),
-                               "english": " ".join(english[e].text for e in range(*match.english)), "code_found": match.issues})
-        status = str(answer.get("status") or "").upper()
-        if status in STATUSES:
-            match.status, match.verified_by = status, "agent"
-            match.issues += [str(d) for d in answer.get("differences") or []]
-    return matches
 
 
 def block_status(statuses: list[str]) -> str:
@@ -229,7 +213,7 @@ def blocks(plan_blocks: list[dict], story: str, english_story: str, persian: lis
 
 
 def prepare(story: str, english_story: str, encoder) -> tuple[list[Unit], list[Unit], list[Match]]:
-    """The sentences of both stories and their alignment by code (the verifier agent may check the matches afterwards: `verify`)."""
+    """The sentences of both stories and their alignment by code."""
     persian, english = segments(story), segments(english_story)
     return persian, english, align(persian, english, encoder.encode([u.text for u in persian]), encoder.encode([u.text for u in english]))
 
@@ -237,8 +221,7 @@ def prepare(story: str, english_story: str, encoder) -> tuple[list[Unit], list[U
 def summary(persian: list[Unit], english: list[Unit], matches: list[Match], found: list[BlockAlignment]) -> dict:
     return {"persian_sentences": len(persian), "english_sentences": len(english), "matches": len(matches),
             "sentences": {s: sum(m.persian[1] - m.persian[0] for m in matches if m.status == s) for s in STATUSES},
-            "blocks": {s: sum(1 for b in found if b.status == s) for s in STATUSES}, "calibrated": False,
-            "verified_by_agent": any(m.verified_by == "agent" for m in matches)}
+            "blocks": {s: sum(1 for b in found if b.status == s) for s in STATUSES}, "calibrated": False}
 
 
 def save(path, found: list[BlockAlignment], summary: dict) -> None:

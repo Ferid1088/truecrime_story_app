@@ -147,9 +147,6 @@
         "reading_checker": "sol",
         "reading_arbiter": "reading_premium",
         "reading_listener": "reading_listener",
-        "ppie_expectation": "reading_premium",
-        "ppie_alignment_verifier": "sol",
-        "ppie_corrector": "reading_premium",
         "punctuation_syntax": "reading_premium",
         "punctuation_editor": "reading_premium",
         "punctuation_checker": "sol"
@@ -506,18 +503,6 @@
     "reading_listener": {
       "temperature": 0.0,
       "max_tokens": 6000
-    },
-    "ppie_expectation": {
-      "temperature": 0.0,
-      "max_tokens": 16000
-    },
-    "ppie_alignment_verifier": {
-      "temperature": 0.0,
-      "max_tokens": 4000
-    },
-    "ppie_corrector": {
-      "temperature": 0.0,
-      "max_tokens": 4000
     },
     "punctuation_syntax": {
       "temperature": 0.0,
