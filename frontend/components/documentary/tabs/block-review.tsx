@@ -66,7 +66,11 @@ export function BlockReview({ versionId }: { versionId: number }) {
     else { setIndex(null); setPaused(true); setTakePlaying(null); }
   }
 
-  const replace = (b: BlockReviewBlock) => setReview((r) => r && { ...r, blocks: r.blocks.map((x) => (x.block_id === b.block_id ? b : x)), assembled_current: false, to_send: r.blocks.filter((x) => (x.block_id === b.block_id ? b : x).needs_sending).length, corrected_blocks: r.blocks.filter((x) => (x.block_id === b.block_id ? b : x).edited).length });
+  const replace = (b: BlockReviewBlock) => {
+    if (!review) return;
+    const all = review.blocks.map((x) => (x.block_id === b.block_id ? b : x));
+    setReview({ ...review, blocks: all, assembled_current: false, to_send: all.filter((x) => x.needs_sending).length, corrected_blocks: all.filter((x) => x.edited).length });
+  };
 
   async function act<T extends BlockReviewOverview>(name: string, job: () => Promise<T>, done: (r: T) => string) {
     setBusy(name);
