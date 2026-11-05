@@ -20,6 +20,8 @@ class Mark:
     n: int                       # the word's place in the new text
     was: str                     # the word as it stood before the first correction
     surface: str                 # the word as corrected
+    finglish: str = ""           # what the voice is given for it (an alias)
+    pending: bool = True         # not sent to the voice yet
 
 
 def surfaces(text: str) -> list[str]:
@@ -49,12 +51,12 @@ def remap(old: str, new: str, marks: dict[int, Mark]) -> tuple[dict[int, Mark], 
             for k in range(b1 - b0):
                 if a0 + k in marks:
                     m = marks[a0 + k]
-                    moved[b0 + k] = Mark(b0 + k, m.was, m.surface)
+                    moved[b0 + k] = Mark(b0 + k, m.was, m.surface, m.finglish, m.pending)
         elif tag in ("replace", "insert"):
             for k in range(b1 - b0):
                 n = b0 + k
                 was = a[a0 + k] if tag == "replace" and (a1 - a0) == (b1 - b0) else ""
                 before = marks.get(a0 + k) if tag == "replace" and (a1 - a0) == (b1 - b0) else None
-                moved[n] = Mark(n, before.was if before else was, b[n])
+                moved[n] = Mark(n, before.was if before else was, b[n])           # a replaced word starts without an alias: the old one was for the old word
                 changed.append(n)
     return moved, changed
