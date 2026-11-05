@@ -20,8 +20,8 @@ _PROVIDERS: dict[str, type[GenerationProvider]] = {
 def get_generation_provider() -> GenerationProvider:
     """Return the configured generation/reasoning provider.
 
-    APIMaster is the active provider. Historical provider strings remain
-    readable in stored rows; they are not active provider registrations.
+    APIMaster is the active provider; when config generation_failover names a second gateway, calls move there while APIMaster is not
+    available (failover.py). Historical provider strings remain readable in stored rows; they are not active provider registrations.
     The instance reports configured=False when its credentials are missing.
     """
     if (os.environ.get("TC_TEST_NO_NETWORK") == "1"
@@ -35,7 +35,14 @@ def get_generation_provider() -> GenerationProvider:
             f"Unknown generation provider {name!r}. "
             f"Known: {sorted(_PROVIDERS)}",
         )
-    return cls()
+    primary = cls()
+    failover = ai_config.generation_failover
+    if failover is None or not failover.enabled:
+        return primary
+    from app.providers.generation.failover import FailoverGenerationProvider
+    from app.providers.generation.openai_compat import OpenAICompatibleGenerationProvider
+
+    return FailoverGenerationProvider(primary, OpenAICompatibleGenerationProvider(failover), failover)
 
 
 __all__ = [

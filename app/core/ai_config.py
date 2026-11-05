@@ -410,6 +410,22 @@ class ResearchProviderSection(BaseModel):
         return self
 
 
+class GenerationFailoverConfig(BaseModel):
+    """A second OpenAI-compatible gateway the generation calls move to when the active provider is not available (providers/generation/
+    failover.py). It is called with the same model IDs (it must list them). `on`: the failures that count as not available (`quota`: a 402);
+    a content refusal, an invalid request or invalid output never moves a call, so quality failures stay visible. After a move every call goes
+    to the second gateway for `cooldown_s`, so that a dead primary is not waited for on each call."""
+
+    enabled: bool = True
+    name: str
+    label: str
+    base_url: str
+    secret_env: str
+    inactivity_timeout_s: float = Field(default=90.0, gt=0.0, le=900.0)
+    cooldown_s: float = Field(default=300.0, ge=0.0)
+    on: list[Literal["unreachable", "timeout", "provider_error", "model_unavailable", "rate_limited", "unauthorized", "quota"]]
+
+
 class GenerationProviderSection(BaseModel):
     enabled: bool
     base_url: str
@@ -4503,6 +4519,7 @@ class ArtifactsConfig(BaseModel):
 class AIConfig(BaseModel):
     production_policies: ProductionPolicies
     providers: ProviderSelection
+    generation_failover: GenerationFailoverConfig | None = None
     research_providers: dict[str, ResearchProviderSection]
     generation_providers: dict[str, GenerationProviderSection]
     generation: dict[str, GenerationSettings]

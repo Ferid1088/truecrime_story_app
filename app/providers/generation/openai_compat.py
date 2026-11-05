@@ -79,13 +79,22 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
     # Endpoint paths (OpenAI-compatible defaults; subclasses may override).
     models_path = "/models"
     chat_path = "/chat/completions"
+    # Set by __init__ for a second gateway; otherwise the active provider's (connections.json).
+    secret_env: str | None = None
+    inactivity_timeout_s: float | None = None
 
-    def __init__(self):
+    def __init__(self, endpoint=None):
+        """`endpoint`: another gateway than the active provider (a GenerationFailoverConfig: its name, address, key and timeout); the models
+        and their settings are the active provider's either way."""
         from app.core.provider_guard import guard_real_provider
+        if endpoint is not None:
+            self.name, self.label = endpoint.name, endpoint.label
         guard_real_provider(self.name)
-        provider_cfg = ai_config.generation_provider()
+        provider_cfg = endpoint or ai_config.generation_provider()
         self.base_url = provider_cfg.base_url.rstrip("/")
+        self.secret_env = provider_cfg.secret_env
         self.api_key = env_value(provider_cfg.secret_env)
+        self.inactivity_timeout_s = provider_cfg.inactivity_timeout_s
 
     def is_configured(self) -> bool:
         return bool(self.api_key)
@@ -94,7 +103,7 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         if not self.api_key:
             raise GenerationError(
                 "missing_key",
-                f"{ai_config.generation_provider().secret_env} is not configured.",
+                f"{self.secret_env or ai_config.generation_provider().secret_env} is not configured.",
             )
         return {
             "Authorization": f"Bearer {self.api_key}",
@@ -312,14 +321,13 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             body["stream"] = True
             body["stream_options"] = {"include_usage": True}
         try:
-            cfg = ai_config.generation_provider()
             # Non-streaming: the provider may hold the connection with no bytes until the
             # whole completion is ready, so httpx's `read` timeout is then a ceiling on the
             # total call. A model that streams resets it with every chunk: a true inactivity
             # timeout, which long, high-effort generations need.
             timeout = httpx.Timeout(
                 connect=30.0,
-                read=cfg.inactivity_timeout_s,
+                read=self.inactivity_timeout_s or ai_config.generation_provider().inactivity_timeout_s,
                 write=30.0,
                 pool=30.0,
             )

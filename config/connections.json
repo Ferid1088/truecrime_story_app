@@ -60,5 +60,23 @@
     "max_poll_minutes": 20.0,
     "fit": "contain",
     "engine": null
+  },
+  "generation_failover": {
+    "enabled": true,
+    "name": "apiko",
+    "label": "Apiko",
+    "base_url": "https://api.apiko.app/v1",
+    "secret_env": "TRUECRIME_APICO",
+    "inactivity_timeout_s": 900,
+    "cooldown_s": 300,
+    "on": [
+      "unreachable",
+      "timeout",
+      "provider_error",
+      "model_unavailable",
+      "rate_limited",
+      "unauthorized",
+      "quota"
+    ]
   }
 }
