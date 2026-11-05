@@ -463,3 +463,9 @@ def test_a_paid_reading_of_this_run_is_read_back_as_it_was_written():
 
     e = EX.Expectation(3, "عمر", "omr", ["omer"], "context", True)
     assert EX.stored(e.describe()) == e
+
+
+def test_a_word_with_no_reference_gets_the_forms_that_do_not_need_one():
+    forms = CO.forms("۹۱۱", "NUM")
+    assert "targeted_diacritics" not in forms, "a number has no reference to write marks from"
+    assert isinstance(CO.forms("عمر", "xyz!"), dict), "a reading outside the scheme does not stop the repair proposals"

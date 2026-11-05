@@ -73,7 +73,7 @@ def forms(surface: str, target: str) -> dict[str, str]:
     word = tokenize(surface)[0] if tokenize(surface) else None
     if word is not None:
         ref = REF.reference_of(word, target)
-        if ref.valid and ref.irab and not ref.added_carrier:
+        if ref is not None and ref.valid and ref.irab and not ref.added_carrier:       # None: a number, or a reading that is not of the scheme
             out["targeted_diacritics"] = REF.minimal(ref.irab)
     with contextlib.suppress(KeyError, ValueError):
         out["inline_ipa"] = f"/{' '.join(scheme.to_ipa(p) for p in target.split())}/"
