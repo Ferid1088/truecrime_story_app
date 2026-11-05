@@ -201,6 +201,7 @@ async def send_block(db: Session, review: VoiceReview, block_id: str, provider=N
     rules = alias_rules(db, block, text)
     renderer = VoiceRenderer(provider=provider or default_provider(), db=db, budget_case_id=review.case_id, budget_stage=f"tts:{review.language}",
                              use_asr=False, use_listener=False)
+    renderer.narration = True            # a take of the film's narration: it gets the language's post speed (1.1 for Persian) like every other block
     locators = list(base.get("pronunciation_dictionaries") or [])
     if rules:
         made = await renderer.provider.create_pronunciation_dictionary(f"review-{review.story_version_id}-{block_id}-t{len(takes) + 1}", rules)

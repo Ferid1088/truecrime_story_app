@@ -179,3 +179,21 @@ def test_replace_in_all_blocks_previews_first_then_corrects_every_block_that_has
     assert {b.block_id: b.voice_text for b in S.blocks_of(db, review)} == texts and not S.block_of(db, review, "FA_B02_g01_01").edited
     sent = asyncio.run(S.send_block(db, review, "FA_B03_g01_01", provider=voice))
     assert voice.requests[-1].text == "بعد نهصد و یازده رفت." and sent.active
+
+
+def test_a_block_voiced_again_gets_the_same_settings_and_the_same_post_speed_as_every_other_block(narration, monkeypatch):
+    """The take the review makes must sound like the rest of the narration: the voice settings of the original take (speed 1.2, stability 0.2 for Persian)
+    and the language's post speed (1.1) when the finished file is made."""
+    from app.documentary import voice_render as VR
+
+    tempos: list[float] = []
+    original = VR.A.to_wav
+    monkeypatch.setattr(VR.A, "to_wav", lambda *a, **k: (tempos.append(a[5]), original(*a, **k))[1])      # (raw, wav, rate, start, end, tempo)
+    db, _, version, voice = narration
+    review = S.open_review(db, version)
+    S.save_edit(db, review, "FA_B02_g01_01", "دورِ تخت نبود، نه.", [])
+    tempos.clear()
+    asyncio.run(S.send_block(db, review, "FA_B02_g01_01", provider=voice))
+    old, new = S.takes_of(db, S.block_of(db, review, "FA_B02_g01_01"))
+    assert json.loads(new.request_json)["settings"] == json.loads(old.request_json)["settings"], "the same voice settings as the original take"
+    assert tempos == [ai_config.voice.post_speed["fa"]] == [1.1], "the finished block is the raw take played 1.1 times faster, like every other block"
