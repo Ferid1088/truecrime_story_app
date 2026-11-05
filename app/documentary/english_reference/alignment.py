@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from app.core.ai_config import ai_config
 from app.documentary.persian_numbers import DIGITS
 
+
 def sentence_pattern() -> re.Pattern:
     """A sentence: text up to its end marks and the quotes or brackets that close it (config english_reference.alignment)."""
     cfg = ai_config.english_reference.alignment

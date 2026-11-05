@@ -12,7 +12,6 @@ from app.db.models import StoryVersion
 from app.documentary.english_reference import alignment as AL
 from app.documentary.english_reference import sources as SRC
 
-
 # --- sources ------------------------------------------------------------------------------------------------------------------------------
 
 @pytest.fixture
