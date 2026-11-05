@@ -5,3 +5,6 @@ The owner SELECTED Persian final v254 and English final v240 as the starting tex
 ## Cleanup step 2 (cost EUR 0)
 fa spoken_version artifacts (16) deleted; fa voice_performances archived (9); case-15 fa audio/renders/production/irab/prepare/reading and data/phonetic_benchmark clips/controlled/labels moved to data/_archive_persian_20261104 (gitignored, also in the backup).
 step1 spoken: cost EUR 7.32 (incl. failed attempts)
+
+## Budget cap 2026-11-05
+Owner said 'no cost cap for now'. The app stopped at EUR 300.02 (policies.json budget.total_cap_eur 300). Raised to 1000 as a technical ceiling on the owner's instruction; spend is reported per step.
