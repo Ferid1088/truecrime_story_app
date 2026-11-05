@@ -52,7 +52,7 @@ class Run:
                 break
             except Exception as e:  # noqa: BLE001  a provider error stops the attempt; the next one continues from what is kept
                 self.db.rollback()
-                transient = "503" in str(e) or "overloaded" in str(e) or "timed out" in str(e).lower()
+                transient = any(k in str(e).lower() for k in ("503", "overloaded", "timed out", "truncated at max_tokens"))           # a provider hiccup or a runaway answer: the next attempt asks only for what is missing
                 print(f"[{name}] attempt {attempt} failed: {str(e)[:160]}", flush=True)
                 if not transient or attempt == tries:
                     self.report["steps"][name] = {"failed": str(e)[:400], "cost_eur": round(self.spent() - before, 4)}
