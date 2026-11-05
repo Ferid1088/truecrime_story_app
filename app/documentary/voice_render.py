@@ -529,7 +529,10 @@ class VoiceRenderer:
         self, plan: dict, *, case_id: int, story_version_id: int,
         max_seconds: float | None = None, style: str | None = None,
         force_block_ids: list[str] | None = None,
+        fixed_requests: dict[str, VoiceRequest] | None = None, output_dir: Path | None = None,
     ) -> dict:
+        """`fixed_requests`: block -> the exact request of the take the narration is assembled from (a take already made is found by its content and
+        never paid again). `output_dir`: where the narration and its manifest are written (the takes stay in the narration's own `blocks` folder)."""
         language = plan["language"]
         self.narration = True
         lang_cfg = self.cfg.for_language(language)
@@ -549,12 +552,17 @@ class VoiceRenderer:
         out = self.out_dir(case_id, language, story_version_id)
         blocks_dir = out / "blocks"
         blocks_dir.mkdir(parents=True, exist_ok=True)
+        dest = output_dir or out
+        dest.mkdir(parents=True, exist_ok=True)
         self.block_dictionaries = BlockDictionaries(self.provider, self.rules, self.dictionaries, language=language, case_id=case_id,
                                                     version_id=story_version_id, folder=out)
         self.trace = Trace(self.block_dictionaries)
         chosen = select_blocks(plan["blocks"], max_seconds)
 
         async def one_block(b: dict) -> dict:
+            if fixed_requests and b["block_id"] in fixed_requests:
+                take = await self._take(b, fixed_requests[b["block_id"]], blocks_dir, language)
+                return {"block": b, "take": take, "attempts": 1, "takes": [take], "fixes": []}
             # A forced re-render is a NEW take (different seed), still
             # reproducible; normal renders reuse the cached take.
             seed = self.cfg.seed + (10 if b["block_id"] in force else 0) + self.seed_bumps.get(b["block_id"], 0)
@@ -646,9 +654,9 @@ class VoiceRenderer:
                     pieces.append(str(gap))
                     t += gap_ms / 1000
 
-        raw_mix = out / "narration_unnormalized.wav"
-        final_wav = out / "narration.wav"
-        final_mp3 = out / "narration.mp3"
+        raw_mix = dest / "narration_unnormalized.wav"
+        final_wav = dest / "narration.wav"
+        final_mp3 = dest / "narration.mp3"
         await asyncio.to_thread(A.concat_wavs, pieces, raw_mix)
         before = await asyncio.to_thread(
             A.normalize_loudness, raw_mix, final_wav,
@@ -670,7 +678,7 @@ class VoiceRenderer:
         active_wav = final_wav
         try:
             eq_report = await asyncio.to_thread(
-                DEQ.process_into, final_wav, out, language,
+                DEQ.process_into, final_wav, dest, language,
                 ai_config.dynamic_eq.resolved(language), sr,
             )
         except Exception as e:  # noqa: BLE001 — error recovery, not a crash
@@ -678,14 +686,14 @@ class VoiceRenderer:
                          "applied": False, "active": "original",
                          "error": f"{type(e).__name__}: {e}"[:300]}
         if eq_report.get("applied"):
-            active_wav = out / "narration_enhanced.wav"
+            active_wav = dest / "narration_enhanced.wav"
         else:
-            (out / "narration_original.mp3").unlink(missing_ok=True)
+            (dest / "narration_original.mp3").unlink(missing_ok=True)
 
         await asyncio.to_thread(A.encode_mp3, active_wav, final_mp3)
         if eq_report.get("applied"):
             await asyncio.to_thread(
-                A.encode_mp3, final_wav, out / "narration_original.mp3")
+                A.encode_mp3, final_wav, dest / "narration_original.mp3")
         raw_mix.unlink(missing_ok=True)
         total = await asyncio.to_thread(A.probe_duration, final_wav)
 
@@ -752,8 +760,8 @@ class VoiceRenderer:
                 "flags": block_flags,
             })
 
-        trace_info = self.trace.save(out) if self.trace.entries else None
-        plan_info = self.save_plan(out)
+        trace_info = self.trace.save(dest) if self.trace.entries else None
+        plan_info = self.save_plan(dest)
         manifest = {
             "case_id": case_id, "story_version_id": story_version_id,
             "language": language, "voice_id": lang_cfg.voice_id,
@@ -785,10 +793,10 @@ class VoiceRenderer:
             "dynamic_eq": eq_report,
             "files": {
                 "narration_wav": _rel(final_wav), "narration_mp3": _rel(final_mp3),
-                "manifest": _rel(out / "manifest.json"),
-                **({"narration_enhanced_wav": _rel(out / "narration_enhanced.wav"),
-                    "narration_original_mp3": _rel(out / "narration_original.mp3"),
-                    "dynamics_json": _rel(out / "dynamics.json")}
+                "manifest": _rel(dest / "manifest.json"),
+                **({"narration_enhanced_wav": _rel(dest / "narration_enhanced.wav"),
+                    "narration_original_mp3": _rel(dest / "narration_original.mp3"),
+                    "dynamics_json": _rel(dest / "dynamics.json")}
                    if eq_report.get("applied") else {}),
             },
             "blocks": qa_blocks,
@@ -799,7 +807,7 @@ class VoiceRenderer:
                 "sentences": sentences_global,
             },
         }
-        storage.write_atomic(out / "manifest.json",
+        storage.write_atomic(dest / "manifest.json",
                              json.dumps(manifest, ensure_ascii=False, indent=2))
         if self.db is not None and self.budget_case_id is not None and self._budget_usage_missing:
             from app.services.budget import BudgetService
