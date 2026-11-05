@@ -1,0 +1,9 @@
+{
+  "note": "Labels are what the owner heard when listening to these ElevenLabs clips on 2026-11-03 (a native speaker, informal listening, one listener). They are NOT a validated reference set: too few clips for error rates, one word, one voice. The word is spoken inside the sentence 'از عهدهایی حرف زد که روز ازدواجش بسته بود.'. Candidates are the two pronunciations of the word that are compared with what the recognizer heard.",
+  "clips": [
+    {"clip": "clips/ahd_plain.wav", "word": "عهدهایی", "label": "ohd", "how": "plain text; the owner reported the voice says ohd", "candidates": {"ahd": "ʔæhdhɑːji", "ohd": "ʔohdhɑːji"}},
+    {"clip": "clips/ahd_ipa_ae.wav", "word": "عهدهایی", "label": "ahd", "how": "inline IPA /ʔæhdhɑːji/; owner: says ahd", "candidates": {"ahd": "ʔæhdhɑːji", "ohd": "ʔohdhɑːji"}},
+    {"clip": "clips/ahd_ipa_a.wav", "word": "عهدهایی", "label": "ahd", "how": "inline IPA /ʔahdhɑːji/; owner: says ahd", "candidates": {"ahd": "ʔæhdhɑːji", "ohd": "ʔohdhɑːji"}},
+    {"clip": "clips/ahd_persian_respell.wav", "word": "عهدهایی", "label": "ahd", "how": "respelling اَهدهایی; owner: says ahd", "candidates": {"ahd": "ʔæhdhɑːji", "ohd": "ʔohdhɑːji"}}
+  ]
+}
