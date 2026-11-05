@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import pickle
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -46,11 +48,22 @@ class BlockResult:
 
 class PunctuationStage:
     def __init__(self, db: Session | None, case_id: int | None, use_agents: bool | None = None, syntax_runner=None, punctuate_runner=None,
-                 check_runner=None):
+                 check_runner=None, memo_path: Path | None = None):
+        """memo_path: this run's own file for the finished blocks, so a run stopped by a provider error continues without paying again (a local
+        file written and read by this code only; another run does not use it)."""
         self.db, self.case_id = db, case_id
+        self.memo_path = memo_path
         self.use_agents = ai_config.semantic_punctuation.use_agents if use_agents is None else use_agents
         self.runners = (syntax_runner, punctuate_runner, check_runner)
         self.memo: dict[str, BlockResult] = {}
+        if memo_path is not None and memo_path.exists():
+            self.memo = pickle.loads(memo_path.read_bytes())
+
+    def remember(self, key: str, out: BlockResult) -> None:
+        self.memo[key] = out
+        if self.memo_path is not None:
+            self.memo_path.parent.mkdir(parents=True, exist_ok=True)
+            self.memo_path.write_bytes(pickle.dumps(self.memo))
 
     def paid(self) -> None:
         if self.db is not None and self.case_id is not None:
@@ -68,7 +81,7 @@ class PunctuationStage:
         layer = Layer(b["block_id"], b["text"], base)
         if check(layer):
             out = BlockResult(layer, [], flags=[f"source integrity: {p}" for p in check(layer)], review="REJECT")
-            self.memo[key] = out
+            self.remember(key, out)
             return out
         syntax = None
         if self.use_agents:
@@ -84,7 +97,7 @@ class PunctuationStage:
         if check(layer):
             out.flags += [f"source integrity: {p}" for p in check(layer)]
             layer.edits, out.review = [], "REJECT"
-        self.memo[key] = out
+        self.remember(key, out)
         return out
 
     async def agents(self, out: BlockResult, rules: list[Edit], english: str, previous: str, following: str) -> None:

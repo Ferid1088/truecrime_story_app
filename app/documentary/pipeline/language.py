@@ -143,9 +143,7 @@ class LanguageChain:
                 plan = PS.applied(plan, marked[0])
             if RS.required(lang):           # the words the owner has fixed go to the voice as IPA
                 items, read = holder.pop("reading", None) or await RS.result(db, case, version, lang)
-                renderer.voicing = await RS.voicing_of(db, lang, read, items)
-                if fresh:
-                    renderer.voicing.boundaries = PS.boundaries_of(marked[0])
+                renderer.voicing = await RS.voicing_of(db, lang, read, items, PS.boundaries_of(marked[0]) if fresh else None)
                 if ai_config.pronunciation_risk.enabled:      # what each word is given follows its risk and the memory
                     from app.documentary.pronunciation_planner import Planner
 

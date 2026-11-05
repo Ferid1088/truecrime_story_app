@@ -183,3 +183,16 @@ def test_the_stage_gives_the_plan_its_layer_and_the_planner_its_boundaries_and_o
     assert applied["blocks"][0]["tts_text"] == "او آمد، رفت" and applied["blocks"][0]["text"] == "او آمد, رفت"
     assert PS.boundaries_of(results)["a"][1]["status"] == BD.FORBIDDEN
     assert ai_config.ppie.fresh("fa") and not ai_config.ppie.fresh("en"), "the stage runs only in the Persian path"
+
+
+def test_a_run_that_stopped_continues_from_its_own_memo_without_asking_the_models_again(tmp_path):
+    text = "او آمد و نشست"
+    first, _ = staged(text, {"boundaries": []}, [[]])
+    memo = tmp_path / "memo.pkl"
+    one = PS.PunctuationStage(None, None, use_agents=True, syntax_runner=agent({"boundaries": []}), punctuate_runner=agent({"edits": []}), check_runner=never(), memo_path=memo)
+    done = asyncio.run(one.block(block(text)))
+    again = PS.PunctuationStage(None, None, use_agents=True, syntax_runner=never(), punctuate_runner=never(), check_runner=never(), memo_path=memo)
+    assert asyncio.run(again.block(block(text))).layer.text == done.layer.text == first.layer.text, "the second stage reads the finished block from the file"
+    elsewhere = PS.PunctuationStage(None, None, use_agents=True, syntax_runner=agent({"boundaries": []}), punctuate_runner=agent({"edits": []}), check_runner=never())
+    asyncio.run(elsewhere.block(block(text)))
+    assert elsewhere.memo, "without a memo file nothing is kept between runs"

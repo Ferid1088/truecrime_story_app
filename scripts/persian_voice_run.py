@@ -99,7 +99,7 @@ async def main() -> None:
             plan = performance_for_version(db, run.version)
             ai_config.semantic_punctuation.use_agents = True
             holder["plan"] = plan
-            holder["punctuation"] = await PS.for_version(db, args.case, run.version, plan, PS.PunctuationStage(db, args.case, use_agents=True))
+            holder["punctuation"] = await PS.for_version(db, args.case, run.version, plan, PS.PunctuationStage(db, args.case, use_agents=True, memo_path=run.out / "punctuation_memo.pkl"))
             return holder["punctuation"][1]
 
         async def reading():
@@ -126,8 +126,7 @@ async def main() -> None:
             plan = PS.applied(holder["plan"], marked[0])
             renderer = VoiceRenderer(db=db, budget_case_id=args.case, budget_stage=f"tts:{LANG}", use_asr=False, use_listener=False, arbiter=None)
             items, read = holder["reading"]
-            renderer.voicing = await RS.voicing_of(db, LANG, read, items)
-            renderer.voicing.boundaries = PS.boundaries_of(marked[0])
+            renderer.voicing = await RS.voicing_of(db, LANG, read, items, PS.boundaries_of(marked[0]))
             voice_cfg = ai_config.voice.for_language(LANG)
             renderer.planner = Planner(db, LANG, voice_cfg.voice_id, voice_cfg.model_id)
             manifest = await render_documentary_audio(plan, case_id=args.case, story_version_id=run.version.id, db=db, renderer=renderer, with_music=False)
