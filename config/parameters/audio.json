@@ -149,6 +149,9 @@
     "post_speed": {
       "fa": 1.1
     },
+    "review_required": {
+      "fa": {"speed": 1.2, "stability": 0.2, "post_speed": 1.1}
+    },
     "breath_gap_scale": {
       "fa": 0.6
     },

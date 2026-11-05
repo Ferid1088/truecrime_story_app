@@ -90,6 +90,7 @@ function Takes({ block, playing, onPlay, onTick }: { block: BlockReviewBlock; pl
               {playing === id ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
             </button>
             <span>take {t.take_no} · {t.source === "original" ? "original" : "corrected"} · {clock(t.duration_s)}{t.source === "correction" ? ` · €${t.cost_eur.toFixed(4)}` : ""}{t.active ? "" : " · not used"}</span>
+            <span dir="ltr" title="ElevenLabs speed · stability · speed-up of the finished file" data-testid={`voice-${block.block_id}-${t.take_no}`}>speed {t.voice.speed} · stability {t.voice.stability} · ×{t.voice.post_speed}</span>
             {t.aliases.length > 0 && <span dir="ltr" className="truncate" title={t.aliases.map((a) => `${a.string_to_replace} → ${a.alias}`).join(", ")}>alias: {t.aliases.map((a) => a.alias).join(", ")}</span>}
           </li>
         );

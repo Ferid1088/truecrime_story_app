@@ -34,6 +34,7 @@ def test_the_whole_review_through_the_routes(client, narration, monkeypatch):  #
 
     sent = client.post(f"{base}/blocks/FA_B02_g01_01/send").json()
     assert [(t["take_no"], t["active"]) for t in sent["takes"]] == [(1, False), (2, True)] and not sent["needs_sending"] and sent["edited"]
+    assert all(t["voice"] == {"speed": 1.2, "stability": 0.2, "post_speed": 1.1} for t in sent["takes"]), "every take shows what it was voiced with"
     assert client.get(sent["takes"][1]["audio_url"]).status_code == 200 and client.get(sent["takes"][0]["audio_url"]).status_code == 200
     assert client.post(f"{base}/blocks/FA_B02_g01_01/send").status_code == 409
     again = client.post(f"{base}/blocks/FA_B01_g01_01/send", json={"again": True}).json()

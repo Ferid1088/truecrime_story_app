@@ -33,6 +33,19 @@ def default_provider():
     return None
 
 
+def required_settings(language: str, settings: dict) -> dict:
+    """The voice settings a block voiced from the review must have (config voice.review_required): the provider's speed and stability, and the post speed after
+    it. Refuses (nothing is sent, nothing is paid) when the request or the film's post speed differs; a language without required values is not checked."""
+    want = ai_config.voice.review_required.get(language)
+    if want is None:
+        return {"speed": settings.get("speed"), "stability": settings.get("stability"), "post_speed": ai_config.voice.post_speed.get(language, 1.0)}
+    have = {"speed": settings.get("speed"), "stability": settings.get("stability"), "post_speed": ai_config.voice.post_speed.get(language, 1.0)}
+    wrong = {k: (have[k], getattr(want, k)) for k in have if have[k] != getattr(want, k)}
+    if wrong:
+        raise ReviewError("the block is not voiced: its settings are not the required ones (" + ", ".join(f"{k} {a} instead of {b}" for k, (a, b) in wrong.items()) + ")")
+    return have
+
+
 def request_of(record: dict) -> VoiceRequest:
     return VoiceRequest(**{k: record[k] for k in REQUEST_FIELDS if k in record})
 
@@ -208,6 +221,7 @@ async def send_block(db: Session, review: VoiceReview, block_id: str, provider=N
         locators.append({"pronunciation_dictionary_id": made["id"], "version_id": made["version_id"]})
     seed = max(json.loads(t.request_json)["seed"] for t in takes) + 1
     req = request_of({**base, "text": text, "seed": seed, "pronunciation_dictionaries": locators})
+    required_settings(review.language, req.settings)          # before anything is created or paid: speed, stability and post speed are the required ones
     version = db.get(StoryVersion, review.story_version_id)
     take = await renderer._take({"block_id": block_id, "text": text, "beats": [], "sentences": []}, req, narration_folder(version) / "blocks", review.language)
     characters = take.get("character_cost")

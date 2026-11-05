@@ -74,6 +74,12 @@ def take_path(version: StoryVersion, take: VoiceBlockTake, block_id: str, suffix
     return S.narration_folder(version) / "blocks" / f"{block_id}__{key}{suffix}"
 
 
+def take_voice(version: StoryVersion, take: VoiceBlockTake) -> dict:
+    """What a take was voiced with: the provider's speed and stability, and the post speed the finished file gets."""
+    settings = json.loads(take.request_json)["settings"]
+    return {"speed": settings.get("speed"), "stability": settings.get("stability"), "post_speed": ai_config.voice.post_speed.get(version.language or "fa", 1.0)}
+
+
 def block_view(db: Session, version: StoryVersion, block: VoiceBlock) -> dict:
     text = block.draft_text if block.draft_text is not None else block.voice_text
     marked = S.words_of(db, block)
@@ -84,7 +90,7 @@ def block_view(db: Session, version: StoryVersion, block: VoiceBlock) -> dict:
                        "finglish": marked[w.n].finglish if w.n in marked else "", "pending": marked[w.n].pending if w.n in marked else False}
                       for w in tokenize(text)],
             "takes": [{"take_no": t.take_no, "source": t.source, "active": t.active, "duration_s": t.duration_s, "cost_eur": round(t.cost_eur, 5),
-                       "text": t.text_sent, "aliases": json.loads(t.aliases_json or "[]"), "created_at": t.created_at.isoformat(),
+                       "text": t.text_sent, "aliases": json.loads(t.aliases_json or "[]"), "created_at": t.created_at.isoformat(), "voice": take_voice(version, t),
                        "audio_url": f"/api/documentary/versions/{version.id}/block-review/blocks/{block.block_id}/takes/{t.take_no}/audio"}
                       for t in takes]}
 

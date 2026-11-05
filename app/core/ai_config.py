@@ -1544,6 +1544,14 @@ class ElevenLabsConfig(BaseModel):
     audio_tag_models: list[str] = ["eleven_v4"]
 
 
+class ReviewRequiredVoice(BaseModel):
+    """The settings a block voiced again in the voice review must have (config voice.review_required)."""
+
+    speed: float
+    stability: float
+    post_speed: float
+
+
 class VoiceConfig(BaseModel):
     provider: str = "elevenlabs"
     # False: nothing is listened to after the voice: no semantic review of the blocks and no reading loop (phoneme listener, word choice, retakes).
@@ -1558,6 +1566,9 @@ class VoiceConfig(BaseModel):
     review_languages: list[str] = []
     # The finished narration of a language is played this much faster (pitch kept) after the provider made it: the provider's own speed stops at 1.2.
     post_speed: dict[str, float] = {}
+    # What every block voiced again from the voice review must carry, per language: the provider's speed and stability and the post speed after it. A block
+    # whose settings differ is not sent (nothing is paid): the owner's values are not left to the settings an earlier take happened to have.
+    review_required: dict[str, "ReviewRequiredVoice"] = {}
     # The pause after a paragraph or a breath of one language is this share of the planned pause (a fast voice needs shorter ones); chapter breaks and music moments keep theirs.
     breath_gap_scale: dict[str, float] = {}
     # Styles of one language that replace the same-named style of `styles` (Persian: stability 0.30 and the provider's top speed).

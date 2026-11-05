@@ -3927,6 +3927,7 @@ export interface BlockReviewTake {
   text: string;
   aliases: { string_to_replace: string; type: string; alias: string }[];
   created_at: string;
+  voice: { speed: number | null; stability: number | null; post_speed: number };
   audio_url: string;
 }
 

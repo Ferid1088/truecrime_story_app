@@ -16,7 +16,7 @@ const ok = (body: unknown) => ({ status: 200, contentType: "application/json", b
 const words = (text: string, corrected: Record<number, { was: string; finglish: string }> = {}) =>
   text.split(" ").map((surface, n) => ({ n, surface, corrected: n in corrected, was: corrected[n]?.was ?? "", finglish: corrected[n]?.finglish ?? "", pending: n in corrected }));
 const take = (take_no: number, active: boolean, source: "original" | "correction") => ({
-  take_no, source, active, duration_s: 4.2, cost_eur: source === "correction" ? 0.0021 : 0, text: "", aliases: [], created_at: "2026-11-05T10:00:00Z",
+  voice: { speed: 1.2, stability: 0.2, post_speed: 1.1 }, take_no, source, active, duration_s: 4.2, cost_eur: source === "correction" ? 0.0021 : 0, text: "", aliases: [], created_at: "2026-11-05T10:00:00Z",
   audio_url: `/api/documentary/versions/7/block-review/blocks/FA_B02_g01_01/takes/${take_no}/audio`,
 });
 
@@ -75,6 +75,7 @@ test("a corrected block stays yellow and its corrected word red, a new take is v
   await card.getByRole("button", { name: "Send to ElevenLabs" }).click();
   await expect(card.getByLabel("Use take 2 of FA_B02_g01_01")).toBeChecked();
   await expect(card.getByLabel("Use take 1 of FA_B02_g01_01")).not.toBeChecked();
+  await expect(card.getByTestId("voice-FA_B02_g01_01-2")).toHaveText("speed 1.2 · stability 0.2 · ×1.1");      // what the take was voiced with is shown
   await expect(card).toHaveAttribute("data-edited", "true");                        // yellow for good
   await expect(card.locator("[data-corrected=true]")).toHaveCount(1);               // red for good
 
