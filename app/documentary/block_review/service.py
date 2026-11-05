@@ -28,6 +28,11 @@ class ReviewError(RuntimeError):
     """A request the review cannot do (no narration, an unknown block, nothing to send)."""
 
 
+def default_provider():
+    """The voice a correction is sent to (None: the film's own voice provider). One place, so a test can put a fake voice in."""
+    return None
+
+
 def request_of(record: dict) -> VoiceRequest:
     return VoiceRequest(**{k: record[k] for k in REQUEST_FIELDS if k in record})
 
@@ -175,7 +180,8 @@ async def send_block(db: Session, review: VoiceReview, block_id: str, provider=N
     base = json.loads(takes[0].request_json)
     text = block.draft_text
     rules = alias_rules(db, block, text)
-    renderer = VoiceRenderer(provider=provider, db=db, budget_case_id=review.case_id, budget_stage=f"tts:{review.language}", use_asr=False, use_listener=False)
+    renderer = VoiceRenderer(provider=provider or default_provider(), db=db, budget_case_id=review.case_id, budget_stage=f"tts:{review.language}",
+                             use_asr=False, use_listener=False)
     locators = list(base.get("pronunciation_dictionaries") or [])
     if rules:
         made = await renderer.provider.create_pronunciation_dictionary(f"review-{review.story_version_id}-{block_id}-t{len(takes) + 1}", rules)

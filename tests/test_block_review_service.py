@@ -11,7 +11,14 @@ import pytest
 from test_voice_render import FakeTTS, _block
 
 from app.core.ai_config import ai_config
-from app.db.models import Case, StoryVersion, VoiceBlock, VoiceBlockTake, VoiceBlockWord, VoiceReview
+from app.db.models import (
+    Case,
+    StoryVersion,
+    VoiceBlock,
+    VoiceBlockTake,
+    VoiceBlockWord,
+    VoiceReview,
+)
 from app.documentary.block_review import edits as E
 from app.documentary.block_review import service as S
 from app.documentary.voice_render import VoiceRenderer
