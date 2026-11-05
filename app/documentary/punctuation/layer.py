@@ -64,6 +64,8 @@ class Layer:
     def word_map(self) -> list[dict]:
         """Each word's place in the approved text, the base and the layer's text (inserted punctuation never shifts a word's reference)."""
         canonical, out_words = tokenize(self.canonical), tokenize(self.text)
+        if len(canonical) != len(out_words) or len(self.words) != len(canonical):
+            return []                      # the voice text has other words than the approved text (a base that joined two words): no map is made, `check` reports it
         return [{"n": w.n, "word": w.surface, "canonical": [c.start, c.end], "base": [w.start, w.end], "tts": [t.start, t.end],
                  "story": [self.story_span[0] + c.start, self.story_span[0] + c.end] if self.story_span else None}
                 for w, c, t in zip(self.words, canonical, out_words, strict=True)]

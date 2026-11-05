@@ -196,3 +196,9 @@ def test_a_run_that_stopped_continues_from_its_own_memo_without_asking_the_model
     elsewhere = PS.PunctuationStage(None, None, use_agents=True, syntax_runner=agent({"boundaries": []}), punctuate_runner=agent({"edits": []}), check_runner=never())
     asyncio.run(elsewhere.block(block(text)))
     assert elsewhere.memo, "without a memo file nothing is kept between runs"
+
+
+def test_a_voice_text_that_joined_two_words_has_no_word_map_and_is_reported_not_crashed():
+    rejected = asyncio.run(PS.PunctuationStage(None, None, use_agents=False).block(block("با باتنر، بدون اشلی.", tts="با باتنر—بدون اشلی.")))
+    assert rejected.review == "REJECT" and any("source integrity" in f for f in rejected.flags)
+    assert rejected.describe()["word_map"] == [], "the record is written; the block is flagged"
