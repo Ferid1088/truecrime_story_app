@@ -48,5 +48,5 @@ test("the punctuation view shows the approved text, the voice text, the change w
   await expect(detail.getByLabel("Punctuation changes")).toContainText("آرام tells how he entered");
   await expect(detail.getByLabel("Ezafe decisions")).toContainText("EZAFE_FORBIDDEN");
   await expect(detail.getByLabel("Ezafe decisions")).toContainText("EZAFE_CONTEXT_DEPENDENT");
-  await expect(detail.getByText("Acoustic result: none.")).toBeVisible();
+  await expect(detail.getByText("This layer is text only.")).toBeVisible();
 });
