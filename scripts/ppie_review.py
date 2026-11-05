@@ -41,13 +41,14 @@ async def main() -> None:
     p.add_argument("--agents", action="store_true")
     p.add_argument("--max-eur", type=float, default=0.0)
     p.add_argument("--by", default="")
+    p.add_argument("--run-id", help="continue this run of the narration: its paid readings are used, not asked again")
     p.add_argument("--expect")
     p.add_argument("--blocks", nargs="*", help="review these blocks only")
     args = p.parse_args()
     with SessionLocal() as db:
         version = db.get(StoryVersion, args.version)
         folder = Path(args.folder) if args.folder else VoiceRenderer.out_dir_for(version.case_id, "fa", version.id)
-        run = ReviewRun(db, version, folder)
+        run = ReviewRun(db, version, folder, args.run_id)
         run.authorize(Authorization(agents=args.agents, tts=False, max_eur=args.max_eur, by=args.by, at=utc_now().isoformat()))
         given = None
         if args.expect:

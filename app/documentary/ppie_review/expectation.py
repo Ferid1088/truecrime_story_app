@@ -28,6 +28,12 @@ class Expectation:
                 "source": "independent_reading_agent"}
 
 
+def stored(record: dict) -> Expectation:
+    """An expectation of this run's own `expectations.json` (written by `describe`), so a review that stopped after the paid readings continues without paying again."""
+    return Expectation(int(record["word_id"]), record["canonical_text"], record["expected_reading"], list(record.get("alternative_readings") or []),
+                       record.get("contextual_reason") or "", bool(record.get("settled", True)))
+
+
 def phonemes(reading: str) -> str:
     try:
         return " ".join(scheme.to_ipa(part) for part in reading.split())

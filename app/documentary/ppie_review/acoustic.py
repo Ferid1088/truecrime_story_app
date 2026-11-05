@@ -121,7 +121,7 @@ def review_word(word: Word, window: tuple[float, float] | None, expected: str | 
     if mine is None or len(scored) < 2:
         out.evidence.append("the expected reading's sounds do not fit the window")
         return out
-    rivals = sorted((s, c) for s, c in scored if c["kind"] != "expected")
+    rivals = sorted(((s, c) for s, c in scored if c["kind"] != "expected"), key=lambda pair: pair[0])
     best_rival, rival = rivals[0]
     if best_rival - mine >= cfg.min_margin_per_frame:
         out.suggested = "PASS"

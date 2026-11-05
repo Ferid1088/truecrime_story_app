@@ -215,13 +215,19 @@ class ReviewRun:
     async def expectations(self, plan: dict, aligned: dict, runner) -> dict[str, dict[int, EX.Expectation]]:
         out: dict[str, dict[int, EX.Expectation]] = {}
         blocks = plan["blocks"]
+        saved = self.read("expectations.json") or {}                     # this run's own readings, paid before the run stopped
         for i, b in enumerate(blocks):
+            if b["block_id"] in saved:
+                out[b["block_id"]] = {e.n: e for e in map(EX.stored, saved[b["block_id"]])}
+                continue
             self.allow("agents")
             a = aligned.get(b["block_id"])
             found = await EX.expect(self.db, self.version.case_id, b["block_id"], b["text"], blocks[i - 1]["text"] if i else "",
                                     blocks[i + 1]["text"] if i + 1 < len(blocks) else "", a.english_text if a else "",
                                     a.status if a else "MISSING_REFERENCE", runner)
             out[b["block_id"]] = {e.n: e for e in found}
+            if len(out) % 10 == 0:
+                self.write("expectations.json", {k: [e.describe() for e in v.values()] for k, v in out.items()})        # kept as it goes: a stop does not lose paid readings
         self.write("expectations.json", {b: [e.describe() for e in found.values()] for b, found in out.items()})
         return out
 

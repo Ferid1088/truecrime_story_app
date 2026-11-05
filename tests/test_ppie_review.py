@@ -447,3 +447,19 @@ def test_the_review_listens_to_the_finished_block_at_its_production_speed_never_
     assert [round(t, 3) for t in final["starts"]] == [0.06, 0.56, 1.06, 1.56]
     assert [round(t, 3) for t in final["ends"]] == [0.56, 1.06, 1.56, 2.06]
     assert ai_config.ppie_review.analysis_speeds == [1.0], "no slowed or other-speed copy of the finished audio is made"
+
+
+def test_two_rival_readings_that_fit_equally_well_do_not_stop_the_review():
+    from app.documentary.ppie_review.candidates import for_word
+
+    rivals = [c.reading for c in for_word("omr") if c.kind != "expected"]
+    assert len(rivals) >= 2, "the case needs two rivals"
+    tied = {"omr": 2.0, **{r: 1.0 for r in rivals}}
+    assert judged(tied, validated=True).suggested == "FAIL"
+
+
+def test_a_paid_reading_of_this_run_is_read_back_as_it_was_written():
+    from app.documentary.ppie_review import expectation as EX
+
+    e = EX.Expectation(3, "عمر", "omr", ["omer"], "context", True)
+    assert EX.stored(e.describe()) == e
