@@ -84,7 +84,7 @@ function Detail({ versionId, blockId }: { versionId: number; blockId: string }) 
           ))}
         </ul>
       </div>
-      <p className="text-xs text-muted-foreground">Acoustic result: none. No audio of this layer was listened to; the Audio review shows a narration once it exists.</p>
+      <p className="text-xs text-muted-foreground">This layer is text only. Listen to the voiced narration in the Voice review.</p>
     </div>
   );
 }
