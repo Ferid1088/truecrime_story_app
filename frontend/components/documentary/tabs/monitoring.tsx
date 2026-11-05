@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pause, Play } from "lucide-react";
-import { monitoringApi } from "@/lib/api";
+import { api, monitoringApi } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { formatDateTime } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ export function MonitoringTab({
   const [tick, setTick] = useState(0);
   const [live, setLive] = useState(true);
   const { data, error, loading } = useApi(() => monitoringApi.snapshot(caseId), [caseId, tick], { keepPrevious: true });
+  const voiceReview = useApi(() => api.blockReviewStatus(caseId), [caseId, tick], { keepPrevious: true });
   const { act, busy, note } = useMonitoringActions({ onOpenTab, onChanged: () => { onChanged(); setTick((t) => t + 1); } });
   const refreshMs = (data?.refresh_seconds ?? 5) * 1000;
 
@@ -51,6 +52,21 @@ export function MonitoringTab({
             {loading && " · refreshing…"}
           </span>
         </div>
+        {voiceReview.data?.ready && (
+          <Button
+            size="sm"
+            variant={voiceReview.data.blink ? "default" : "secondary"}
+            className={voiceReview.data.blink ? "animate-pulse ring-2 ring-amber-400" : ""}
+            data-testid="voice-review-shortcut"
+            data-blinking={voiceReview.data.blink}
+            onClick={() => {
+              try { window.sessionStorage.setItem("pronunciation-view", "voice"); } catch { /* the tab opens on its first view */ }
+              onOpenTab("Pronunciation");
+            }}
+          >
+            {voiceReview.data.blink ? "Voice review is ready" : "Voice review"}
+          </Button>
+        )}
         <Button variant="secondary" size="sm" onClick={() => setLive((v) => !v)}>
           {live ? <Pause className="size-3.5" /> : <Play className="size-3.5" />} {live ? "Pause updates" : "Resume updates"}
         </Button>

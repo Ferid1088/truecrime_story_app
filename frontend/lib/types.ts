@@ -3908,3 +3908,68 @@ export interface PunctuationSummary {
   statistics: Record<string, number | boolean | Record<string, number>>;
   blocks: { block_id: string; changed: boolean; edits: number; review: string; flags: number; boundaries: Record<string, number> }[];
 }
+
+export interface BlockReviewWord {
+  n: number;
+  surface: string;
+  corrected: boolean;
+  was: string;
+  finglish: string;
+  pending: boolean;
+}
+
+export interface BlockReviewTake {
+  take_no: number;
+  source: "original" | "correction";
+  active: boolean;
+  duration_s: number | null;
+  cost_eur: number;
+  text: string;
+  aliases: { string_to_replace: string; type: string; alias: string }[];
+  created_at: string;
+  audio_url: string;
+}
+
+export interface BlockReviewBlock {
+  block_id: string;
+  position: number;
+  canonical_text: string;
+  voice_text: string;
+  draft_text: string | null;
+  text: string;
+  edited: boolean;
+  needs_sending: boolean;
+  words: BlockReviewWord[];
+  takes: BlockReviewTake[];
+}
+
+export interface BlockReviewMissing {
+  exists: false;
+  version_id: number;
+  can_open: boolean;
+}
+
+export interface BlockReviewOverview {
+  exists: true;
+  version_id: number;
+  language: string;
+  status: "open" | "assembled" | "approved";
+  assembled_current: boolean;
+  assembled_at: string | null;
+  approved: boolean;
+  corrected_blocks: number;
+  to_send: number;
+  assembled_audio_url: string | null;
+  blocks: BlockReviewBlock[];
+}
+
+export type BlockReview = BlockReviewMissing | BlockReviewOverview;
+
+export interface BlockReviewStatus {
+  ready: boolean;
+  version_id: number | null;
+  language: string;
+  approved: boolean;
+  blink: boolean;
+  review_open: boolean;
+}

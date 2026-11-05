@@ -4,6 +4,10 @@ import type {
   PhoneticListing,
   NarrationPreview,
   NarrationPreviewSummary,
+  BlockReview,
+  BlockReviewBlock,
+  BlockReviewOverview,
+  BlockReviewStatus,
   PronunciationPlan,
   PunctuationBlock,
   PunctuationSummary,
@@ -599,6 +603,24 @@ export const api = {
   narrationPreviews: () => request<NarrationPreviewSummary[]>("/api/documentary/previews"),
   narrationPreview: (name: string) => request<NarrationPreview>(`/api/documentary/previews/${encodeURIComponent(name)}`),
   narrationPreviewAudioUrl: (name: string) => apiFileUrl(`/api/documentary/previews/${encodeURIComponent(name)}/audio`),
+  blockReview: (versionId: number) => request<BlockReview>(`/api/documentary/versions/${versionId}/block-review`),
+  openBlockReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/block-review/open`),
+  editBlock: (versionId: number, blockId: string, body: { text?: string; words: { n: number; surface?: string; finglish?: string }[] }) =>
+    put<BlockReviewBlock>(`/api/documentary/versions/${versionId}/block-review/blocks/${encodeURIComponent(blockId)}`, body),
+  sendBlock: (versionId: number, blockId: string) =>
+    request<BlockReviewBlock>(`/api/documentary/versions/${versionId}/block-review/blocks/${encodeURIComponent(blockId)}/send`,
+      { method: "POST", body: "{}", timeoutMs: 600_000 }),
+  sendAllBlocks: (versionId: number) =>
+    request<BlockReviewOverview & { sent: string[]; failed: { block_id: string; error: string }[] }>(
+      `/api/documentary/versions/${versionId}/block-review/send-all`, { method: "POST", body: "{}", timeoutMs: 1_800_000 }),
+  activateTake: (versionId: number, blockId: string, takeNo: number) =>
+    post<BlockReviewBlock>(`/api/documentary/versions/${versionId}/block-review/blocks/${encodeURIComponent(blockId)}/takes/${takeNo}/activate`),
+  assembleBlockReview: (versionId: number) =>
+    request<BlockReviewOverview>(`/api/documentary/versions/${versionId}/block-review/assemble`, { method: "POST", body: "{}", timeoutMs: 900_000 }),
+  approveBlockReview: (versionId: number, note?: string) =>
+    post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/block-review/approve`, { note: note ?? null }),
+  blockReviewStatus: (caseId: number, language = "fa") =>
+    request<BlockReviewStatus>(`/api/cases/${caseId}/voice-review-status?language=${encodeURIComponent(language)}`),
   phoneticSamples: (language: string, status?: string, category?: string, source?: string) =>
     request<PhoneticListing>(`/api/documentary/phonetic/samples${query({ language, status, category, source })}`),
   phoneticAudioUrl: (sampleId: number) => apiFileUrl(`/api/documentary/phonetic/samples/${sampleId}/audio`),

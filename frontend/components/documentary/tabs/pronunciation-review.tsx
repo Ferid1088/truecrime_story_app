@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/state";
+import { BlockReview } from "./block-review";
 import { NarrationPreviews } from "./narration-preview";
 import { PhoneticBenchmark } from "./phonetic-benchmark";
 import { PunctuationView } from "./punctuation-view";
@@ -302,7 +303,15 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
   const versionId = overview.languages[language]?.version_id ?? null;
   const [status, setStatus] = useState<string>("legacy_unverified");
   const [selected, setSelected] = useState<number | null>(null);
-  const [view, setView] = useState<"entries" | "plan" | "conflicts" | "punctuation" | "benchmark" | "preview">("entries");
+  const [view, setView] = useState<"entries" | "plan" | "conflicts" | "punctuation" | "benchmark" | "preview" | "voice">(() => {
+    try {
+      const wanted = typeof window === "undefined" ? null : window.sessionStorage.getItem("pronunciation-view");
+      if (wanted === "voice") window.sessionStorage.removeItem("pronunciation-view");       // the Monitoring shortcut asks for the voice review once
+      return wanted === "voice" ? "voice" : "entries";
+    } catch {
+      return "entries";
+    }
+  });
   const [reviewer, setReviewer] = useState(() => {
     try {
       return typeof window === "undefined" ? "" : (window.localStorage.getItem(REVIEWER_KEY) ?? "");
@@ -348,8 +357,10 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
             <Button size="sm" variant={view === "conflicts" ? "default" : "secondary"} onClick={() => setView("conflicts")}>Conflicting readings</Button>
             <Button size="sm" variant={view === "punctuation" ? "default" : "secondary"} onClick={() => setView("punctuation")}>Punctuation</Button>
             <Button size="sm" variant={view === "benchmark" ? "default" : "secondary"} onClick={() => setView("benchmark")}>Phonetic benchmark</Button>
+            <Button size="sm" variant={view === "voice" ? "default" : "secondary"} onClick={() => setView("voice")}>Voice review</Button>
             <Button size="sm" variant={view === "preview" ? "default" : "secondary"} onClick={() => setView("preview")}>Narration preview</Button>
           </div>
+          {view === "voice" && (versionId != null ? <BlockReview versionId={versionId} /> : <EmptyState title="No narration yet" description="The voice review opens when this language has a narration." />)}
           {view === "preview" && <NarrationPreviews />}
           {view === "plan" && <PronunciationPlanView versionId={versionId} language={language} />}
           {view === "punctuation" && <PunctuationView versionId={versionId} />}
