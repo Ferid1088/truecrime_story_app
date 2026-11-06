@@ -252,6 +252,13 @@
       "description": "Host plan.",
       "used_by": "app/agents/host.py"
     },
+    "host_angle": {
+      "role": "host_angle",
+      "prompt": null,
+      "output": "json",
+      "description": "Decides the angle of one host appearance before it is written: the one concrete moment it reacts to (quoted from the narration), what it does to the host, how the host talks about it and the question for the viewer.",
+      "used_by": "app/agents/host.py"
+    },
     "host_writer": {
       "role": "host_writer",
       "prompt": null,

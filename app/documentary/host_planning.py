@@ -60,6 +60,32 @@ def inherit(report: dict) -> dict:
     return report
 
 
+def fit_plan(segments: list[dict], made_for: HostStory, story: HostStory, cfg: HostConfig | None = None) -> list[dict]:
+    """The appearances of a plan placed in the story of the version that is voiced. A plan is made for the film's story in its acts (a few large ones); a
+    spoken version is told beat by beat (dozens of small ones), so "after act 7" would be after the seventh beat. Each middle appearance keeps its place in
+    the story (its share of the words heard) and goes to the beat that is nearest to it, not on a hook and not right before a payoff; the opening stays the
+    opening and the outro stays after the last beat. Raises when the placed plan is not valid."""
+    cfg = cfg or ai_config.host
+    if [a.id for a in made_for.acts] == [a.id for a in story.acts]:
+        return segments
+    total_for, total = sum(a.words for a in made_for.acts) or 1, sum(a.words for a in story.acts) or 1
+    heard = [sum(a.words for a in story.acts[:k]) / total for k in range(len(story.acts) + 1)]
+    placed, last = [], 0
+    for seg in segments:
+        entry = {"id": seg["id"], "position": seg["position"], "role": seg["role"], "reason": seg.get("reason", "")}
+        if seg["position"] == "mid":
+            share = sum(a.words for a in made_for.acts[:seg["cutoff"]]) / total_for
+            k = max(min(range(1, len(story.acts)), key=lambda i: abs(heard[i] - share)), last + cfg.min_acts_between)
+            while k < len(story.acts) and (story.acts[k - 1].hook or story.acts[k].payoff):
+                k += 1 if story.acts[k - 1].hook else -1
+            entry["after_act"], last = story.acts[k - 1].id, k
+        placed.append(entry)
+    plan, report = validate_host_plan({"notes": "placed by the share of the story heard", "segments": placed}, story, cfg)
+    if report["errors"]:
+        raise RuntimeError("the host plan does not fit the story of this version: " + "; ".join(e["code"] for e in report["errors"][:4]))
+    return plan["segments"]
+
+
 def validate_host_plan(raw: dict, story: HostStory, cfg: HostConfig | None = None
                        ) -> tuple[dict, dict]:
     """The director's structure, checked against the story and the config. Errors go back to the
@@ -114,6 +140,8 @@ def validate_host_plan(raw: dict, story: HostStory, cfg: HostConfig | None = Non
             "reason": str(s.get("reason") or "")[:300]})
 
     segments.sort(key=lambda x: x["cutoff"])
+    for number, seg in enumerate(segments, 1):
+        seg["id"] = f"S{number}"          # the appearances of a film are always S1, S2, ... in film order
     counts = {p: sum(1 for s in segments if s["position"] == p) for p in POSITIONS}
     if counts["opening"] != 1:
         errors.append({"code": "needs_exactly_one_opening", "count": counts["opening"]})
@@ -123,9 +151,6 @@ def validate_host_plan(raw: dict, story: HostStory, cfg: HostConfig | None = Non
     if not least <= len(segments) <= cfg.max_appearances:
         errors.append({"code": "appearance_count_out_of_range", "count": len(segments),
                        "min": least, "max": cfg.max_appearances})
-    ids = [s["id"] for s in segments]
-    if len(set(ids)) != len(ids):
-        errors.append({"code": "duplicate_segment_ids"})
     for a, b in zip(segments, segments[1:], strict=False):
         if b["cutoff"] - a["cutoff"] < cfg.min_acts_between:
             errors.append({"code": "appearances_too_close", "segments": [a["id"], b["id"]],

@@ -36,6 +36,7 @@ from app.db.models import (
     Source, StoryVersion,
 )
 from app.documentary.blueprint import version_sections
+from app.documentary.host_angle import story_state
 from app.documentary.host_story import HostStory
 from app.documentary.identity_line import with_identity
 from app.documentary.spoken import digits_left, numbers_rule
@@ -54,7 +55,7 @@ DIMENSIONS = (
 CHECKS = ("adds_value", "conversational", "native", "fresh", "shows_not_tells",
           "emotion_justified", "verified", "respectful", "short_enough",
           "direct_address", "informal_form", "friend_tone", "hook", "no_spoiler",
-          "builds_on_story")
+          "builds_on_story", "concrete", "settled")
 
 
 def persona_prompt(cfg: HostConfig | None = None) -> str:
@@ -271,8 +272,24 @@ def writer_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
         dimensions=", ".join(DIMENSIONS))
 
 
+def angle_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
+    return prompt("documentary/host/angle_system_prompt").format(persona_prompt=persona_prompt(cfg or ai_config.host))
+
+
+def angle_input(story: HostStory, seg: dict, language: str, arch_mem: dict[str, dict], earlier: list, cfg: HostConfig | None = None) -> dict:
+    """What the host's editor gets to decide the angle of ONE appearance: the story up to its cutoff and the state of the story there, never anything after."""
+    from app.documentary.host_firewall import segment_context
+
+    cfg = cfg or ai_config.host
+    return {"language": language,
+            "segment": {"id": seg["id"], "position": seg["position"], "role": seg["role"], "acts_heard": seg["cutoff"], "target_seconds": seg["target_seconds"],
+                        "requires_question": cfg.roles[seg["role"]].requires_question},
+            **segment_context(story, seg, cfg), "state": story_state(story, int(seg["cutoff"])), "memories": list(arch_mem.values()),
+            "earlier_angles": [a.describe() for a in earlier]}
+
+
 def writer_input(story: HostStory, seg: dict, language: str, arch_mem: dict[str, dict],
-                 recent: list[dict], earlier: list[str], cfg: HostConfig | None = None) -> dict:
+                 recent: list[dict], earlier: list[str], cfg: HostConfig | None = None, angle=None) -> dict:
     """Everything the writer of ONE appearance gets: its plan entry, the story up to its
     cutoff (host_firewall), the memories, the host's earlier words in this film and recent
     episodes. Nothing after the cutoff."""
@@ -293,6 +310,7 @@ def writer_input(story: HostStory, seg: dict, language: str, arch_mem: dict[str,
         "earlier_in_this_film": earlier,
         "recent_segments": [r["dialogue"] for r in recent],
         "avoid_phrases": cfg.language_rules[language].stock_phrases,
+        **({"state": story_state(story, int(seg["cutoff"])), "angle": angle.describe()} if angle is not None else {}),
     }
 
 
@@ -349,6 +367,10 @@ def _trigrams(text: str) -> set[tuple[str, ...]]:
 
 def _first_words(text: str, n: int = 3) -> tuple[str, ...]:
     return tuple(x.lower() for x in _WORD.findall(text or "")[:n])
+
+
+def _normalized(sentence: str) -> str:
+    return re.sub(r"[\W_]+", " ", sentence.lower()).strip()
 
 
 def spoken_issues(sentences: list[str], cfg: HostConfig) -> list[dict]:
@@ -433,6 +455,12 @@ def dialogue_issues(seg: dict, dialogue: str, language: str, recent: list[dict],
         issues.append({"type": "repeated_opening", "quote": " ".join(start)})
     if any(_first_words(o, 2) == _first_words(text, 2) for o in others):
         issues.append({"type": "same_start_as_other_segment"})
+    mine_short = {_normalized(x) for x in sentences if len(x.split()) <= cfg.spoken.short_sentence_words}
+    for o in others:
+        again = mine_short & {_normalized(x) for x in _SENTENCE_END.split(o) if x.strip() and len(x.split()) <= cfg.spoken.short_sentence_words}
+        if again:
+            issues.append({"type": "repeated_short_sentence", "quote": sorted(again)[0]})
+            break
     for o in others:
         theirs = _trigrams(o)
         if mine and theirs and len(mine & theirs) / len(mine) > cfg.max_trigram_overlap:
@@ -599,6 +627,12 @@ def latest_story_host_plan(db: Session, story_plan_id: int) -> HostPlan | None:
 def latest_host_segments(db: Session, version_id: int) -> HostSegments | None:
     return (db.query(HostSegments).filter(HostSegments.story_version_id == version_id)
             .order_by(HostSegments.version.desc()).first())
+
+
+def current_segments(db: Session, case_id: int, language: str) -> HostSegments | None:
+    """The newest host text of a case in a language (the one the film is made from): its scenes are the Host tab's, the scenes of an older text are not shown."""
+    return (db.query(HostSegments).filter(HostSegments.case_id == case_id, HostSegments.language == language)
+            .order_by(HostSegments.id.desc()).first())
 
 
 def persona_state(row) -> dict:

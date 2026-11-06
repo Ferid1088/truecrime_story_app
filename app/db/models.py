@@ -5,7 +5,6 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Float,
-    false,
     ForeignKey,
     Index,
     Integer,
@@ -13,6 +12,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     event,
+    false,
     select,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
@@ -3480,10 +3480,11 @@ class PhoneticLabel(Base):
 
 
 class VoiceReview(Base):
-    """The hand review of one voiced narration (a person listens, corrects blocks, voices them again, assembles the narration, approves it)."""
+    """The hand review of one voiced narration (a person listens, corrects blocks, voices them again, assembles the narration, approves it), or of the host's
+    voice of the same version (`kind` "host": its blocks are the host's scenes; there is nothing to assemble or approve)."""
 
     __tablename__ = "voice_reviews"
-    __table_args__ = (UniqueConstraint("story_version_id", name="uq_voice_review_version"),)
+    __table_args__ = (UniqueConstraint("story_version_id", "kind", name="uq_voice_review_version_kind"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
@@ -3504,6 +3505,7 @@ class VoiceBlock(Base):
     __table_args__ = (UniqueConstraint("review_id", "block_id", name="uq_voice_block"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(12), default="narration")          # narration | host
     review_id: Mapped[int] = mapped_column(ForeignKey("voice_reviews.id"), index=True)
     block_id: Mapped[str] = mapped_column(String(80))
     position: Mapped[int] = mapped_column(Integer)

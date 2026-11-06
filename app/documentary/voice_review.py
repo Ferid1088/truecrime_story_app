@@ -67,6 +67,12 @@ def approve(version: StoryVersion, note: str | None = None) -> dict:
     return state(version)
 
 
+def kept(version: StoryVersion, language: str) -> bool:
+    """True when the owner has approved exactly this narration: a run never makes it again (that would replace the audio he approved, with his hand
+    corrections, by a new one that needs a new approval) and does not prepare its text again either."""
+    return required(language) and (folder(version) / "manifest.json").exists() and state(version)["approved"]
+
+
 def guard(version: StoryVersion, language: str) -> None:
     """Stops the run (resumable) until the narration of a language the owner hears first is approved."""
     if not required(language):

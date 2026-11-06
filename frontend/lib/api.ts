@@ -98,6 +98,7 @@ import type {
   DocumentaryScheduler,
   DocumentarySettings,
   HostSceneOutfit,
+  HostSectionOutfits,
   HostScene,
   ChapterPlanRecord,
   StudioPatch,
@@ -575,6 +576,10 @@ export const api = {
   chooseSceneOutfit: (sceneId: number, body: { option_key: string | null; item_id?: number; create_host: boolean }) =>
     post<{ scene: HostScene; started: boolean; outfit: { id: number; name: string } | null }>(
       `/api/host-scenes/${sceneId}/outfit`, body),
+  hostSectionOutfits: (caseId: number, language: string) =>
+    request<HostSectionOutfits>(`/api/cases/${caseId}/host-section-outfits${query({ language })}`),
+  chooseSectionOutfit: (caseId: number, body: { language: string; section: string; option_key: string | null; item_id?: number }) =>
+    post<Omit<HostSectionOutfits, "options">>(`/api/cases/${caseId}/host-section-outfits`, body),
   runHostScene: (id: number, until: "voice" | "avatar") =>
     post<HostScene>(`/api/host-scenes/${id}/run`, { until }),
   pronunciationEntries: (language: string, status?: string) =>
@@ -623,6 +628,20 @@ export const api = {
   approveBlockReview: (versionId: number, note?: string) =>
     request<BlockReviewOverview>(`/api/documentary/versions/${versionId}/block-review/approve`,
       { method: "POST", body: JSON.stringify({ note: note ?? null }), timeoutMs: 2_400_000 }),
+  hostReview: (versionId: number) => request<BlockReview>(`/api/documentary/versions/${versionId}/host-voice-review`),
+  openHostReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/host-voice-review/open`),
+  editHostBlock: (versionId: number, blockId: string, body: { text?: string; words: { n: number; surface?: string; finglish?: string }[] }) =>
+    put<BlockReviewBlock>(`/api/documentary/versions/${versionId}/host-voice-review/blocks/${encodeURIComponent(blockId)}`, body),
+  sendHostBlock: (versionId: number, blockId: string, again = false) =>
+    request<BlockReviewBlock>(`/api/documentary/versions/${versionId}/host-voice-review/blocks/${encodeURIComponent(blockId)}/send`,
+      { method: "POST", body: JSON.stringify({ again }), timeoutMs: 600_000 }),
+  replaceInHostBlocks: (versionId: number, body: { find: string; replace: string; apply: boolean }) =>
+    post<BlockReviewReplace>(`/api/documentary/versions/${versionId}/host-voice-review/replace`, body),
+  sendAllHostBlocks: (versionId: number) =>
+    request<BlockReviewOverview & { sent: string[]; failed: { block_id: string; error: string }[] }>(
+      `/api/documentary/versions/${versionId}/host-voice-review/send-all`, { method: "POST", body: "{}", timeoutMs: 1_800_000 }),
+  activateHostTake: (versionId: number, blockId: string, takeNo: number) =>
+    post<BlockReviewBlock>(`/api/documentary/versions/${versionId}/host-voice-review/blocks/${encodeURIComponent(blockId)}/takes/${takeNo}/activate`),
   blockReviewStatus: (caseId: number, language?: string) =>
     request<BlockReviewStatus>(`/api/cases/${caseId}/voice-review-status${language ? `?language=${encodeURIComponent(language)}` : ""}`),
   phoneticSamples: (language: string, status?: string, category?: string, source?: string) =>

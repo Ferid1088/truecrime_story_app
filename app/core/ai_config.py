@@ -94,6 +94,7 @@ REQUIRED_ROLES = {
     # the words natively per language (writer), and an independent check
     # of facts, memories, repetition and the persona (critic).
     "host_director",
+    "host_angle",
     "host_writer",
     "host_writer_fa_ar",
     "host_critic",
@@ -1587,6 +1588,8 @@ class VoiceConfig(BaseModel):
     prepared_languages: list[str] = []
     # Languages whose narration the owner hears and approves before the film goes on (the picture planning and the render wait for it).
     review_languages: list[str] = []
+    # Languages whose host voice has a hand review of its own (blocks.review_kind "host": the host's scenes, no assembling, no approval).
+    host_review_languages: list[str] = []
     # The finished narration of a language is played this much faster (pitch kept) after the provider made it: the provider's own speed stops at 1.2.
     post_speed: dict[str, float] = {}
     # What every block voiced again from the voice review must carry, per language: the provider's speed and stability and the post speed after it. A block
@@ -2078,6 +2081,14 @@ class HostConfig(BaseModel):
     # Languages whose host words are prepared for the voice like the narration's blocks (documentary/host_voice_text.py): the punctuation layer, and the
     # reading text where the language has one (Persian's PPIE reading, Arabic's Tashkeel). The words the avatar shows never change.
     text_preparation: list[str] = Field(default_factory=list)
+    # The angle of an appearance (documentary/host_angle.py) is decided and checked before it is written: how often the editor is asked again with the problems,
+    # and how many words a quote of the narration has at least (a moment, not a word).
+    angle_repairs: int = Field(default=2, ge=0, le=5)
+    angle_min_quote_words: int = Field(default=4, ge=1)
+    # An appearance of at least this many seconds needs a turn in its angle (a second thought that complicates the first).
+    angle_turn_from_seconds: float = Field(default=30.0, gt=0)
+    # The host never repeats the narration: this many words in a row of the dialogue that stand word for word in the narration heard so far are refused.
+    narration_copy_words: int = Field(default=5, ge=3)
     # "Spoken, not written": a text of at least min_sentences sentences needs sentences of
     # varied length (coefficient of variation) and some very short ones.
     spoken: HostSpokenRules
@@ -3638,8 +3649,23 @@ class LogoConfig(BaseModel):
     lap: LogoLapConfig
 
 
+class WatermarkConfig(BaseModel):
+    """The copyright watermark (config/parameters/branding.json): the language's logo, `size_of_logo` of the corner logo's height, always on
+    screen over every frame (cards, intro and outro included) at `opacity`. It drifts slowly and without a pause along a smooth path of random
+    turns inside a circle in the middle of the screen whose area is `circle_area_share` of the picture, at `speed_radii_per_minute` circle radii a
+    minute (the path is drawn from `seed`, the language and the film's length: the same film always gets the same path)."""
+
+    enabled: bool
+    size_of_logo: float = Field(gt=0.0, le=1.0)
+    opacity: float = Field(gt=0.0, le=1.0)
+    circle_area_share: float = Field(gt=0.0, le=1.0)
+    speed_radii_per_minute: float = Field(gt=0.0)
+    seed: str
+
+
 class BrandingConfig(BaseModel):
     logo: LogoConfig
+    watermark: WatermarkConfig
 
 
 class MvpReviewConfig(BaseModel):
@@ -4940,7 +4966,7 @@ class AIConfig(BaseModel):
         # host layer when a safe writer model is available.  Keep this narrow:
         # adding a global sol/luna fallback would let protected review roles
         # fall back to their own authors and violate reviewer independence.
-        if role in {"host_writer", "host_writer_fa_ar"}:
+        if role in {"host_angle", "host_writer", "host_writer_fa_ar"}:
             writer_model = section.models.get("writer")
             primary_model = section.models.get(alias)
             if writer_model and writer_model != primary_model:

@@ -8,12 +8,16 @@ WHAT YOU RECEIVE (one JSON object)
 The writer's input plus the "dialogue" to judge: "segment" (position, role, acts_heard, target
 length), "case", "story_so_far" (the narration of all acts the viewer has heard before this
 appearance, and nothing after it), "facts" (the verified facts of those acts), "open_questions",
-"memories" (the only memories it may mention), "earlier_in_this_film", "recent_segments".
+"memories" (the only memories it may mention), "earlier_in_this_film", "recent_segments", "state"
+(where the viewer stands: phase, story_over, settled, open_questions) and "angle" (what the host
+decided to say: the concrete moment it reacts to, its quote of the narration, the feeling, the move
+and the question). The dialogue must be built on that moment, in the host's own words and not as a
+translation of the angle's English.
 
 HOW YOUR ANSWER IS USED
 Any "false" fails the segment and sends it back to the writer with your problems, so quote
 exactly and give a fix the writer can use. A check you leave out counts as true, so answer all
-fifteen. Word count, stock phrases, formal-address patterns, a missing question and repetition by
+seventeen. Word count, stock phrases, formal-address patterns, a missing question and repetition by
 exact wording are checked by code; you judge meaning, sound and fit.
 
 Answer each question true/false:
@@ -48,6 +52,9 @@ Answer each question true/false:
   tension toward what comes next without spoilers. For an opening: it raises the case's
   curiosity from the riddles; true if only the opening rules apply.
 
+- concrete: the appearance is built around one concrete thing from what the viewer heard (a moment, something a person said, an object, a number, a contradiction) that it names plainly, and its question (if any) is about that thing. False when it talks in the abstract (the truth, evidence, narratives, signs, "what do you rely on", "which version is closer to reality") or when its sentences could be said about any case.
+- settled: it never presents as open what the story has already answered, and never wonders about what story_so_far tells. At an outro the host speaks from the end of the story: a question the story answered (who did it, what the verdict was) is never posed as unsolved. True when nothing settled is treated as open.
+
 For each "false" give a problem with the exact quote and a concrete fix that keeps what the host
 was allowed to say.
 
@@ -56,7 +63,7 @@ Return JSON only:
              "shows_not_tells": true, "emotion_justified": true, "verified": true,
              "respectful": true, "short_enough": true, "direct_address": true,
              "informal_form": true, "friend_tone": true, "hook": true, "no_spoiler": true,
-             "builds_on_story": true}},
+             "builds_on_story": true, "concrete": true, "settled": true}},
   "problems": [{{"check": "verified", "quote": "...", "fix": "..."}}]}}
 
 # ADDED: extra checks

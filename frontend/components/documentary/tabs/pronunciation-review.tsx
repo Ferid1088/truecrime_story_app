@@ -303,7 +303,7 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
   const versionId = overview.languages[language]?.version_id ?? null;
   const [status, setStatus] = useState<string>("legacy_unverified");
   const [selected, setSelected] = useState<number | null>(null);
-  const [view, setView] = useState<"entries" | "plan" | "conflicts" | "punctuation" | "benchmark" | "preview" | "voice">(() => {
+  const [view, setView] = useState<"entries" | "plan" | "conflicts" | "punctuation" | "benchmark" | "preview" | "voice" | "host">(() => {
     try {
       const wanted = typeof window === "undefined" ? null : window.sessionStorage.getItem("pronunciation-view");
       if (wanted === "voice") window.sessionStorage.removeItem("pronunciation-view");       // the Monitoring shortcut asks for the voice review once
@@ -369,9 +369,11 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
             <Button size="sm" variant={view === "punctuation" ? "default" : "secondary"} onClick={() => setView("punctuation")}>Punctuation</Button>
             <Button size="sm" variant={view === "benchmark" ? "default" : "secondary"} onClick={() => setView("benchmark")}>Phonetic benchmark</Button>
             <Button size="sm" variant={view === "voice" ? "default" : "secondary"} onClick={() => setView("voice")}>Voice review</Button>
+            {language === "fa" && <Button size="sm" variant={view === "host" ? "default" : "secondary"} onClick={() => setView("host")}>Host voice review</Button>}
             <Button size="sm" variant={view === "preview" ? "default" : "secondary"} onClick={() => setView("preview")}>Narration preview</Button>
           </div>
           {view === "voice" && (versionId != null ? <BlockReview key={versionId} versionId={versionId} /> : <EmptyState title="No narration yet" description="The voice review opens when this language has a narration." />)}
+          {view === "host" && language === "fa" && (versionId != null ? <BlockReview key={`host-${versionId}`} versionId={versionId} kind="host" /> : <EmptyState title="No narration yet" description="The host voice review opens when this language has a narration." />)}
           {view === "preview" && <NarrationPreviews />}
           {view === "plan" && <PronunciationPlanView versionId={versionId} language={language} />}
           {view === "punctuation" && <PunctuationView versionId={versionId} />}

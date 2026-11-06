@@ -17,6 +17,14 @@
         "intro",
         "outro"
       ]
+    },
+    "watermark": {
+      "enabled": true,
+      "size_of_logo": 0.3333,
+      "opacity": 1.0,
+      "circle_area_share": 0.28,
+      "seed": "watermark",
+      "speed_radii_per_minute": 0.75
     }
   }
 }

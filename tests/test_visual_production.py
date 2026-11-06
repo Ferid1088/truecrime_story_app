@@ -1784,3 +1784,52 @@ def test_a_planning_job_without_an_earlier_narration_says_so_instead_of_making_o
     stages = {s["name"]: s for s in json.loads(job.stages_json)}
     assert job.status == "failed" and "uses the narration of an earlier run" in (job.error or "")
     assert stages["voice:en"]["status"] == "skipped" and json.loads(job.result_json or "{}").get("tts_characters", {}) == {}
+
+
+@needs_ffmpeg
+def test_a_narration_the_owner_approved_is_kept_by_the_next_run_which_does_not_make_or_prepare_it_again(
+        db_session, documentary_env, isolated_host_history, monkeypatch):
+    from test_host import HostGen
+
+    from app.core.ai_config import ai_config
+    from app.db.models import StoryVersion
+    from app.documentary import jobs as J
+    from app.documentary import voice_review as VRV
+
+    monkeypatch.setattr(ai_config.voice, "review_languages", ["en"])
+    monkeypatch.setattr(ai_config, "host", ai_config.host.model_copy(update={
+        "min_gap_seconds": 0, "min_acts_between": 0, "max_total_share": 0.5}))
+    documentary_env.host = HostGen(plans=[{"segments": [
+        {"id": "S1", "position": "opening", "role": "opening", "after_act": None, "reason": "r"},
+        {"id": "S2", "position": "mid", "role": "transition", "after_act": "B03", "reason": "r"},
+        {"id": "S4", "position": "final", "role": "outro", "after_act": None, "reason": "r"}]}])
+    case, master = _story(db_session)
+    case.resolution_status = "UNSOLVED"
+    db_session.commit()
+
+    first = J.create_job(db_session, case, master, ["en"], "pilot", 80.0, "preview")
+    asyncio.run(J.run_job(first.id))
+    db_session.expire_all()
+    first = db_session.get(DocumentaryJob, first.id)
+    assert first.status == "failed" and "Awaiting voice review" in (first.error or ""), "the first run waits for the owner"
+    stages = {s["name"]: s for s in json.loads(first.stages_json)}
+    version = db_session.get(StoryVersion, stages["spoken:en"]["detail"]["version_id"])
+    assert not VRV.kept(version, "en")
+    VRV.approve(version, "approved by hand")
+    sha = VRV.checksum(version)
+    assert VRV.kept(version, "en")
+
+    second = J.create_job(db_session, case, master, ["en"], "pilot", 80.0, "preview")
+    asyncio.run(J.run_job(second.id))
+    db_session.expire_all()
+    second = db_session.get(DocumentaryJob, second.id)
+    stages = {s["name"]: s for s in json.loads(second.stages_json)}
+    assert stages["voice:en"]["status"] == "skipped" and "approved is kept" in json.dumps(stages["voice:en"]), stages["voice:en"]
+    assert "Awaiting voice review" not in (second.error or ""), second.error
+    assert VRV.checksum(version) == sha, "the approved narration is the very same file"
+    manifest = json.loads(VRV.folder(version).joinpath("manifest.json").read_text(encoding="utf-8"))
+    assert manifest.get("mix", {}).get("files", {}).get("documentary_wav"), "the music is mixed under the approved narration (the film's sound is that mix)"
+    assert VRV.folder(version).joinpath("documentary.mp3").exists()
+    assert json.loads(second.result_json or "{}").get("tts_characters", {}).get("en", 0) == 0, "nothing is voiced again"
+    VRV.folder(version).joinpath("narration.mp3").write_bytes(b"another narration")
+    assert not VRV.kept(version, "en"), "an audio that is not the approved one is not kept"

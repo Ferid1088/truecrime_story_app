@@ -180,10 +180,11 @@ def test_time_accounting_adds_the_host_or_counts_it_inside_the_requested_minutes
     assert ai_config.host.story_minutes(60) == 60.0
     assert ai_config.language_pipeline.minutes_range(60) == (60.0, 70.0)
     inside = _cfg(time_accounting="inside_requested")
-    assert inside.story_minutes(60) == pytest.approx(60 - min(240, 0.08 * 3600) / 60)
+    assert inside.story_minutes(60) == pytest.approx(60 - min(ai_config.host.max_total_seconds, ai_config.host.max_total_share * 3600) / 60)
     monkeypatch.setattr(ai_config, "host", inside)
     low, high = ai_config.language_pipeline.minutes_range(60)
-    assert low == pytest.approx(56.0) and high == pytest.approx(66.0)
+    host_minutes = min(inside.max_total_seconds, inside.max_total_share * 3600) / 60
+    assert low == pytest.approx(60.0 - host_minutes) and high == pytest.approx(70.0 - host_minutes)
 
 
 # ---------------------------------------------------------------------------
@@ -232,15 +233,26 @@ def test_a_valid_structure_gets_computed_seconds_and_cutoffs():
     assert rep["host_seconds"] == round(sum(s["target_seconds"] for s in plan["segments"]), 1)
 
 
-def test_the_number_of_appearances_is_not_fixed():
+def test_every_film_has_exactly_four_appearances_named_s1_to_s4():
+    plan, rep = validate_host_plan(plan_raw(), story())
+    assert rep["status"] == "valid" and [s["id"] for s in plan["segments"]] == ["S1", "S2", "S3", "S4"]
+    assert [s["position"] for s in plan["segments"]] == ["opening", "mid", "mid", "final"]
     two = plan_raw(segments=[plan_raw()["segments"][0], plan_raw()["segments"][3]])
-    plan, rep = validate_host_plan(two, story())
-    assert rep["status"] == "valid" and len(plan["segments"]) == 2
-    one = plan_raw(segments=[plan_raw()["segments"][0]])
-    assert "appearance_count_out_of_range" in codes(validate_host_plan(one, story())[1]["errors"])
-    tight = _cfg(max_appearances=3)
-    _, rep = validate_host_plan(plan_raw(), story(), tight)
-    assert "appearance_count_out_of_range" in codes(rep["errors"])
+    assert "appearance_count_out_of_range" in codes(validate_host_plan(two, story())[1]["errors"])
+    five = plan_raw()
+    five["segments"].insert(2, {"id": "S9", "position": "mid", "role": "reflection", "after_act": "act4",
+                                "reason": "one more"})
+    assert "appearance_count_out_of_range" in codes(validate_host_plan(five, story())[1]["errors"])
+
+
+def test_the_director_ids_are_replaced_by_film_order():
+    raw = plan_raw()
+    for seg, name in zip(raw["segments"], ["x", "a", "b", "z"], strict=True):
+        seg["id"] = name
+    raw["segments"].reverse()
+    plan, _ = validate_host_plan(raw, story())
+    assert [(s["id"], s["role"]) for s in plan["segments"]] == [
+        ("S1", "opening"), ("S2", "transition"), ("S3", "viewer_question"), ("S4", "outro")]
 
 
 def test_structure_errors():
@@ -271,9 +283,6 @@ def test_structure_errors():
     raw = plan_raw()
     raw["segments"] = raw["segments"][:3]                # no outro
     assert "needs_exactly_one_outro" in codes(validate_host_plan(raw, story())[1]["errors"])
-    raw = plan_raw()
-    raw["segments"][2]["id"] = "S2"
-    assert "duplicate_segment_ids" in codes(validate_host_plan(raw, story())[1]["errors"])
 
 
 def test_spacing_in_acts_and_in_story_seconds():
@@ -312,8 +321,8 @@ def test_a_short_film_needs_only_the_short_film_gap_between_appearances():
     short_prompt = director_system_prompt(narration_seconds=420)
     import re
 
-    assert re.search(r"between\s+3 and", short_prompt) and "only a warning" in short_prompt
-    assert re.search(r"between\s+2 and", director_system_prompt(narration_seconds=3600))
+    assert re.search(r"\b4 to 4\b", short_prompt) and "only a warning" in short_prompt
+    assert re.search(r"\b4 to 4\b", director_system_prompt(narration_seconds=3600))
     two = {**plan_raw(), "segments": [plan_raw()["segments"][0], plan_raw()["segments"][3]]}
     _, rep = validate_host_plan(two, short)
     assert "appearance_count_out_of_range" in codes(rep["errors"])
@@ -565,6 +574,11 @@ class HostGen:
         res = GenerationResult(text="{}", model=f"m/{role}", provider="fake")
         if role == "host_director":
             return (self.plans.pop(0) if len(self.plans) > 1 else self.plans[0]), res
+        if role == "host_angle":
+            heard = data["story_so_far"][-1]["narration"].split() if data["story_so_far"] else []
+            return {"moment": "a detail of the last beat", "quote": " ".join(heard[:6]), "feeling": "it unsettles me", "thought": "I think it matters more than it looks",
+                    "turn": "but I could be wrong about that", "move": "highlight a detail worth attention",
+                    "question": "Would you have noticed it?", "dimension": "curiosity"}, res
         if role.startswith("host_writer"):
             seg = data["segment"]
             language = data["language"]
@@ -982,7 +996,7 @@ def test_each_language_is_written_by_its_own_writer_agent_and_checked_by_an_inde
     aliases = ai_config.generation_providers["apimaster"].models
     model_of = {role: aliases[routing[role]] for role in
                 ("host_director", "host_writer", "host_writer_fa_ar", "host_critic")}
-    assert model_of["host_writer_fa_ar"] == "gpt-5.6-luna" and model_of["host_writer"] == "gpt-6.1-sol"
+    assert model_of["host_writer_fa_ar"] == "claude-sonnet-5-5" and model_of["host_writer"] == "claude-sonnet-5-5"
     assert model_of["host_critic"] not in (model_of["host_writer"], model_of["host_writer_fa_ar"],
                                            model_of["host_director"])
     case, master, _ = _plan_story(db_session)
@@ -1029,7 +1043,7 @@ def test_a_blueprint_story_is_planned_and_written_through_its_beats(
     case, master = _story(db_session)
     bp = _with_blueprint(db_session, case, master)
     wide = _cfg(min_gap_seconds=0, min_acts_between=0, max_total_share=0.5,
-                short_film_min_appearances=2)
+                min_appearances=2, max_appearances=5, short_film_min_appearances=2)
     monkeypatch.setattr("app.agents.host.get_generation_provider", lambda: gen)
     def director_init(self):
         self.gen, self.cfg = gen, wide
@@ -1054,7 +1068,7 @@ def test_host_api(client, db_session, isolated_host_history, monkeypatch):
     monkeypatch.setattr("app.agents.host.get_generation_provider", lambda: gen)
     # (the blueprint's four short beats cannot hold the real spacing rules)
     monkeypatch.setattr(ai_config, "host", _cfg(min_gap_seconds=0, min_acts_between=0,
-                                                max_total_share=0.5, short_film_min_appearances=2))
+                                                max_total_share=0.5, min_appearances=2, max_appearances=5, short_film_min_appearances=2))
     case, master = _story(db_session)
     assert client.post(f"/api/cases/{case.id}/documentary/host-plan").status_code == 409
     bp = _with_blueprint(db_session, case, master)
@@ -1155,7 +1169,7 @@ def test_settings_show_channels_and_credential_presence_only(client, monkeypatch
 
 def test_host_time_caps_are_the_owner_decision():
     assert ai_config.host.max_appearance_seconds <= 120
-    assert ai_config.host.max_total_seconds == 240
+    assert ai_config.host.max_total_seconds == 420, "raised from 240 on the owner's word that the host texts were too short (2026-11-06)"
     assert ai_config.host.final_enabled is True
 
 

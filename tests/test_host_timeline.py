@@ -230,3 +230,22 @@ def test_a_still_that_would_flash_for_a_moment_after_the_host_is_not_split():
     out = HT.insert_host(script, [_item(2, "mid", "B1", 8.0)])
     images = [(s["asset_id"], s["start"], s["end"]) for s in out["shots"] if s["kind"] == "image"]
     assert images == [("A1", 0.0, 20.0), ("A2", 28.0, 68.0)]
+
+
+def test_the_board_windows_move_with_the_film_so_a_repair_never_puts_a_card_over_the_zoom_map():
+    from app.documentary.production import preflight as PF
+
+    script = _script()
+    script["shots"] = [{"index": 0, "kind": "image", "start": 0.0, "end": 12.0, "asset_id": "A1", "beat_id": "B1"},
+                       {"index": 1, "kind": "map", "command": "SHOW_MAP", "zoom_video": True, "clip_start": 0.0, "clip_end": 24.0, "start": 12.0,
+                        "end": 36.0, "asset_id": "Z1", "beat_id": "B1"},
+                       {"index": 2, "kind": "image", "start": 36.0, "end": 40.0, "asset_id": "A2", "beat_id": "B2"},
+                       {"index": 3, "kind": "detective_board", "command": "DETECTIVE_BOARD", "start": 40.0, "end": 60.0, "beat_id": "B2"}]
+    script["board"] = [{"beat_id": "B2", "start": 40.0, "end": 60.0}]
+    out = HT.insert_host(script, [_item(1, "opening", None, 10.0)])
+    assert (out["board"][0]["start"], out["board"][0]["end"]) == (50.0, 70.0)
+    PF.repair(out["shots"], out["duration"], out["board"])
+    zoom = next(s for s in out["shots"] if s.get("zoom_video"))
+    assert (zoom["start"], zoom["end"]) == (22.0, 46.0)
+    board = next(s for s in out["shots"] if s["kind"] == "detective_board")
+    assert (board["start"], board["end"]) == (50.0, 70.0)

@@ -41,6 +41,7 @@ from app.documentary.render.cards import (
 )
 from app.documentary.render.drawing_layer import DrawingLayer
 from app.documentary.render.logo import LogoBug, _bug, logo_path
+from app.documentary.render.watermark import Watermark
 from app.documentary.visuals.typography import RTL
 from app.documentary.visuals.typography import overlay as text_layer
 
@@ -626,6 +627,7 @@ class VideoRenderer:
         ]
         overlays = Overlays(script, W, H, cfg.burn_subtitles)
         logo = LogoBug(script, W, H)
+        watermark = Watermark(script, W, H)
         drawing = DrawingLayer(script, W, H)
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         total = int(math.ceil((duration + pre) * fps))
@@ -633,7 +635,7 @@ class VideoRenderer:
         try:
             for f in range(total):
                 if f / fps < pre:
-                    proc.stdin.write(np.ascontiguousarray(maker.intro_frame(f / fps)).tobytes())
+                    proc.stdin.write(np.ascontiguousarray(watermark.apply(maker.intro_frame(f / fps), 0.0)).tobytes())
                     continue
                 t = f / fps - pre
                 while idx + 1 < len(shots) and shots[idx + 1]["start"] <= t:
@@ -656,7 +658,7 @@ class VideoRenderer:
                     frame = (frame.astype(np.float32) * _ease(since / 1.2)).astype(np.uint8)
                 if duration - t < 1.5:  # fade out at the very end
                     frame = (frame.astype(np.float32) * _ease((duration - t) / 1.5)).astype(np.uint8)
-                frame = overlays.apply(logo.apply(drawing.apply(frame, t), t), t)
+                frame = watermark.apply(overlays.apply(logo.apply(drawing.apply(frame, t), t), t), t)
                 proc.stdin.write(np.ascontiguousarray(frame).tobytes())
                 maker.release_clips(t)
                 if progress and f % (fps * 5) == 0:

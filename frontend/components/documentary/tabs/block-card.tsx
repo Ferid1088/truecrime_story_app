@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { Pause, Play } from "lucide-react";
-import { api } from "@/lib/api";
 import { isRtl, langLabel } from "@/lib/format";
 import type { BlockReviewBlock, BlockReviewTake } from "@/lib/types";
+import { reviewCalls, type ReviewKind } from "./block-calls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -37,7 +37,7 @@ function Words({ block, language }: { block: BlockReviewBlock; language: string 
 }
 
 /** The correction of a block: the whole text, and every word with its spelling and the alias that goes to the voice (finglish in Persian, the vowelled word in Arabic). */
-function Editor({ versionId, block, language, onSaved, onCancel }: { versionId: number; block: BlockReviewBlock; language: string; onSaved: (b: BlockReviewBlock) => void; onCancel: () => void }) {
+function Editor({ versionId, kind, block, language, onSaved, onCancel }: { versionId: number; kind: ReviewKind; block: BlockReviewBlock; language: string; onSaved: (b: BlockReviewBlock) => void; onCancel: () => void }) {
   const [text, setText] = useState(block.text);
   const [rows, setRows] = useState(block.words.map((w) => ({ n: w.n, surface: w.surface, finglish: w.finglish })));
   const [busy, setBusy] = useState(false);
@@ -51,7 +51,7 @@ function Editor({ versionId, block, language, onSaved, onCancel }: { versionId: 
       const words = wholeTextChanged ? [] : rows
         .filter((r, i) => r.surface !== block.words[i].surface || r.finglish !== block.words[i].finglish)
         .map((r) => ({ n: r.n, surface: r.surface, finglish: r.finglish }));
-      onSaved(await api.editBlock(versionId, block.block_id, { text: wholeTextChanged ? text : undefined, words }));
+      onSaved(await reviewCalls(kind).edit(versionId, block.block_id, { text: wholeTextChanged ? text : undefined, words }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -109,8 +109,9 @@ function Takes({ block, playing, onPlay, onTick }: { block: BlockReviewBlock; pl
   );
 }
 
-export function BlockCard({ versionId, language, block, current, playingTake, onPlayBlock, onPlayTake, onChanged }: {
+export function BlockCard({ versionId, kind, language, block, current, playingTake, onPlayBlock, onPlayTake, onChanged }: {
   versionId: number;
+  kind: ReviewKind;
   language: string;
   block: BlockReviewBlock;
   current: boolean;
@@ -149,18 +150,18 @@ export function BlockCard({ versionId, language, block, current, playingTake, on
       {block.draft_text !== null && block.needs_sending && <p className="mb-1 text-xs text-amber-700">Draft: this text is not voiced yet; the ticked take still has the earlier text.</p>}
       <Words block={block} language={language} />
       {editing ? (
-        <Editor versionId={versionId} block={block} language={language} onCancel={() => setEditing(false)} onSaved={(b) => { setEditing(false); onChanged(b); }} />
+        <Editor versionId={versionId} kind={kind} block={block} language={language} onCancel={() => setEditing(false)} onSaved={(b) => { setEditing(false); onChanged(b); }} />
       ) : (
         <div className="mt-2 flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={() => setEditing(true)} disabled={busy}>Correct</Button>
-          <Button size="sm" variant={block.needs_sending ? "default" : "secondary"} onClick={() => run(() => api.sendBlock(versionId, block.block_id, !block.needs_sending))} disabled={busy}>
+          <Button size="sm" variant={block.needs_sending ? "default" : "secondary"} onClick={() => run(() => reviewCalls(kind).send(versionId, block.block_id, !block.needs_sending))} disabled={busy}>
             {busy ? "Voicing…" : block.needs_sending ? "Send to ElevenLabs" : "Voice again"}
           </Button>
         </div>
       )}
       {error && <p role="alert" className="mt-1 text-sm text-rose-700">{error}</p>}
       <div className="mt-2">
-        <Takes block={block} playing={playingTake} onPlay={onPlayTake} onTick={(t) => run(() => api.activateTake(versionId, block.block_id, t.take_no))} />
+        <Takes block={block} playing={playingTake} onPlay={onPlayTake} onTick={(t) => run(() => reviewCalls(kind).activate(versionId, block.block_id, t.take_no))} />
       </div>
     </li>
   );

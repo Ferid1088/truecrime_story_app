@@ -100,8 +100,9 @@
         "pronunciation_editor": "sol",
         "case_status_verifier": "premium",
         "host_director": "sol",
-        "host_writer": "sol",
-        "host_writer_fa_ar": "luna",
+        "host_angle": "premium",
+        "host_writer": "premium",
+        "host_writer_fa_ar": "premium",
         "host_critic": "writer",
         "chapter_writer": "premium",
         "chapter_auditor": "writer",
@@ -291,6 +292,11 @@
     "host_director": {
       "temperature": 0.5,
       "max_tokens": 12000,
+      "reasoning_effort": "medium"
+    },
+    "host_angle": {
+      "temperature": 0.7,
+      "max_tokens": 6000,
       "reasoning_effort": "medium"
     },
     "host_writer": {

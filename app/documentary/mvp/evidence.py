@@ -62,8 +62,8 @@ async def localize_graphics(db: Session, case: Case, plan_row: VisualPlan, langu
                 refs[ref] = (zoom, "place_label")
                 zoom["label_language"] = language
             spec = shot.get("graphic")
-            if not spec or spec.get("language") == language:
-                continue
+            if not spec or (spec.get("language") == language and not holds_another_script(spec, language)):
+                continue                                   # a card marked as localized that still holds English words (an earlier run's) is localized again
             for holder, key in collect_texts(spec["data"], spec["type"]):
                 ref = f"g{len(pending)}"
                 pending[ref] = holder[key]
@@ -75,6 +75,13 @@ async def localize_graphics(db: Session, case: Case, plan_row: VisualPlan, langu
     plan_row.plan_json = json.dumps(plan, ensure_ascii=False)
     db.commit()
     return {"localized": len(pending), "left_in_another_script": left_in_another_script(plan, language)}
+
+
+def holds_another_script(spec: dict, language: str) -> bool:
+    """Whether a graphic of a language written in its own script still holds a text in Latin letters (an earlier run marked it as localized, its texts were not)."""
+    from app.documentary import names as NS
+
+    return NS.uses_native_script(language) and any(NS.LATIN_WORD.search(str(holder[key])) for holder, key in collect_texts(spec["data"], spec["type"]))
 
 
 def left_in_another_script(plan: dict, language: str) -> list[dict]:

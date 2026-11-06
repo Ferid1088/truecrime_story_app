@@ -16,6 +16,7 @@ from app.db.base import SessionLocal, get_db
 from app.db.models import HostScene, HostSegments
 from app.documentary import storage
 from app.documentary import studio as ST
+from app.documentary.host import current_segments
 from app.documentary.host_scenes import plan_host_scenes, run_scene, scene_dict
 
 log = logging.getLogger(__name__)
@@ -93,13 +94,18 @@ def sync_studio_files():
 
 
 @router.get("/api/host-scenes")
-def list_host_scenes(case_id: int | None = None, language: str | None = None,
+def list_host_scenes(case_id: int | None = None, language: str | None = None, current: bool = True,
                      db: Session = Depends(get_db)):
+    """The host's scenes. For one case and language, `current` (the default) shows only the scenes of the newest host text; the scenes of older texts stay in the
+    database but are not listed (`current=false` lists everything)."""
     q = db.query(HostScene)
     if case_id is not None:
         q = q.filter(HostScene.case_id == case_id)
     if language:
         q = q.filter(HostScene.language == language)
+    if current and case_id is not None and language:
+        newest = current_segments(db, case_id, language)
+        q = q.filter(HostScene.host_segments_id == (newest.id if newest else -1))
     return [scene_dict(s) for s in q.order_by(HostScene.id.desc()).limit(200)]
 
 

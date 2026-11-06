@@ -244,6 +244,7 @@
         "name": "documentary_host",
         "authors": [
           "host_director",
+          "host_angle",
           "host_writer",
           "host_writer_fa_ar"
         ],

@@ -152,6 +152,9 @@
       "de",
       "en"
     ],
+    "host_review_languages": [
+      "fa"
+    ],
     "post_speed": {
       "fa": 1.1
     },
@@ -480,13 +483,6 @@
         "mode": "strict"
       },
       "ar": {
-        "host_conversational": {
-          "stability": 0.2,
-          "similarity_boost": 0.75,
-          "style": 0.0,
-          "use_speaker_boost": true,
-          "speed": 0.9
-        },
         "model": "large-v3-turbo",
         "max_word_error_rate": 0.2,
         "max_missing_run": 4,
@@ -494,23 +490,9 @@
         "mode": "strict"
       },
       "en": {
-        "host_conversational": {
-          "stability": 0.2,
-          "similarity_boost": 0.75,
-          "style": 0.0,
-          "use_speaker_boost": true,
-          "speed": 0.9
-        },
         "mode": "warn"
       },
       "de": {
-        "host_conversational": {
-          "stability": 0.2,
-          "similarity_boost": 0.75,
-          "style": 0.0,
-          "use_speaker_boost": true,
-          "speed": 0.9
-        },
         "mode": "warn"
       },
       "es": {
@@ -885,24 +867,10 @@
     "languages": {
       "en": {},
       "de": {
-        "host_conversational": {
-          "stability": 0.2,
-          "similarity_boost": 0.75,
-          "style": 0.0,
-          "use_speaker_boost": true,
-          "speed": 0.9
-        },
         "threshold_offset_delta_db": 0.5,
         "deesser_threshold_offset_delta_db": 1.0
       },
       "ar": {
-        "host_conversational": {
-          "stability": 0.2,
-          "similarity_boost": 0.75,
-          "style": 0.0,
-          "use_speaker_boost": true,
-          "speed": 0.9
-        },
         "deesser_threshold_offset_delta_db": 0.5
       },
       "fa": {

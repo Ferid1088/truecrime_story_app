@@ -23,6 +23,8 @@ from app.db.models import (
 from app.documentary.host import (
     _memory_index,
     _pack,
+    angle_input,
+    angle_system_prompt,
     archive,
     critic_input,
     critic_system_prompt,
@@ -45,8 +47,9 @@ from app.documentary.host import (
     writer_input,
     writer_system_prompt,
 )
+from app.documentary import host_angle as HA
 from app.documentary.host_firewall import reveal_issues
-from app.documentary.host_planning import inherit, story_seconds, validate_host_plan
+from app.documentary.host_planning import fit_plan, inherit, story_seconds, validate_host_plan
 from app.documentary.host_story import HostStory, load_story
 from app.documentary.identity_line import ends_with_identity, identity_line, strip_identity, with_identity
 from app.providers.generation import get_generation_provider
@@ -125,6 +128,25 @@ class HostDirector:
         bp_row = db.get(EditorialBlueprint, plan_row.blueprint_id) if plan_row.blueprint_id else None
         return self._story(db, case, version, bp_row)
 
+    async def _angle(self, db: Session, case: Case, story: HostStory, seg: dict, language: str, arch_mem: dict[str, dict], earlier: list[HA.Angle]) -> HA.Angle:
+        """The angle of one appearance (documentary/host_angle.py): decided before it is written, asked again with the problems until code accepts it."""
+        payload, problems, angle = angle_input(story, seg, language, arch_mem, earlier, self.cfg), [], HA.parse({})
+        for attempt in range(self.cfg.angle_repairs + 1):
+            raw, _ = await self._json(db, case.id, f"Host Angle {language} {seg['id']}" + (f" repair {attempt}" if attempt else ""), "host_angle",
+                                      angle_system_prompt(language, self.cfg),
+                                      {**payload, **({"previous_angle": angle.describe(), "problems_to_fix": problems} if problems else {})})
+            angle = HA.parse(raw)
+            problems = HA.issues(angle, story, seg, earlier, self.cfg)
+            if not problems:
+                return angle
+        raise RuntimeError(f"the angle of the host appearance {seg['id']} stays wrong after {self.cfg.angle_repairs} repairs: {'; '.join(problems[:3])}")
+
+    def _placed(self, db: Session, case: Case, plan_row: HostPlan, story: HostStory) -> list[dict]:
+        """The plan's appearances in the story of the version that is voiced (the plan's acts are not a spoken version's beats)."""
+        bp_row = db.get(EditorialBlueprint, plan_row.blueprint_id) if plan_row.blueprint_id else None
+        made_for = self._story(db, case, db.get(StoryVersion, bp_row.story_version_id), bp_row) if bp_row is not None else story
+        return fit_plan(json.loads(plan_row.plan_json or "{}").get("segments") or [], made_for, story, self.cfg)
+
     async def write(self, db: Session, case: Case, version: StoryVersion,
                     plan_row: HostPlan) -> HostSegments:
         """The host's dialogue in the version's language: one appearance after the other, in film
@@ -137,13 +159,17 @@ class HostDirector:
         arch_mem = _memory_index(archive(db, case.id), memories(db, case.id))
         recent = recent_segments(db, case.id, language)
         written: dict[str, dict] = {}
+        angles: dict[str, HA.Angle] = {}
         verdicts: dict[str, dict] = {}
         notes: list[dict] = []
         repairs = 0
         res = None
-        for seg in plan.get("segments") or []:
+        plan["segments"] = self._placed(db, case, plan_row, story)
+        for seg in plan["segments"]:
             earlier = [w["dialogue"] for w in written.values() if w["dialogue"]]
-            wi = writer_input(story, seg, language, arch_mem, recent, earlier, self.cfg)
+            angle = await self._angle(db, case, story, seg, language, arch_mem, list(angles.values()))
+            angles[seg["id"]] = angle
+            wi = writer_input(story, seg, language, arch_mem, recent, earlier, self.cfg, angle)
             raw, res = await self._json(db, case.id, f"Host Writer {language} {seg['id']}",
                                         self.cfg.writer_agents[language],
                                         writer_system_prompt(language, self.cfg), wi)
@@ -169,8 +195,8 @@ class HostDirector:
             if current["memory_note"] and verdict["pass"]:
                 notes.append({**current["memory_note"], "segment_id": seg["id"]})
 
-        segments = [segment_output(s, written[s["id"]], language, story, verdicts[s["id"]], arch_mem)
-                    for s in plan.get("segments") or []]
+        segments = [{**segment_output(s, written[s["id"]], language, story, verdicts[s["id"]], arch_mem), "angle": angles[s["id"]].describe()}
+                    for s in plan["segments"]]
         failed = [s["segment_id"] for s in segments if not s["quality"]["pass"]]
         status = "needs_review" if failed else "valid"
         report = {"status": status, "failed_segments": failed, "repair_iterations": repairs,
@@ -204,6 +230,7 @@ class HostDirector:
                        if ref in arch_mem else "")
         deterministic = dialogue_issues(seg, dialogue, language, recent, earlier, self.cfg)
         deterministic += reveal_issues(story, seg["cutoff"], dialogue, memory_text, self.cfg)
+        deterministic += HA.retelling_issues(dialogue, story, seg["cutoff"], self.cfg)
         if ref and ref not in arch_mem:
             deterministic.append({"type": "unverified_memory", "ref": ref})
         if deterministic:
@@ -235,8 +262,7 @@ class HostDirector:
         case = db.get(Case, scene.case_id)
         assert version and plan_row and case, "the appearance belongs to a stored plan"
         story = self._plan_story(db, case, version, plan_row)
-        plan = json.loads(plan_row.plan_json or "{}")
-        seg = next(s for s in plan["segments"] if s["id"] == scene.host_segment_id)
+        seg = next(s for s in self._placed(db, case, plan_row, story) if s["id"] == scene.host_segment_id)
         arch_mem = _memory_index(archive(db, case.id), memories(db, case.id))
         recent = recent_segments(db, case.id, scene.language)
         segments = json.loads(seg_row.segments_json or "[]")
@@ -277,6 +303,7 @@ class HostDirector:
                                                  self.cfg)
                       if i["type"] not in ("too_short", "too_long")]
             issues += reveal_issues(story, seg["cutoff"], text, cfg=self.cfg)
+            issues += HA.retelling_issues(text, story, seg["cutoff"], self.cfg)
             if not issues:
                 break
             fix = {**fix, "previous_dialogue": text,

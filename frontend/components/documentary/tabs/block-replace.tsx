@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { reviewCalls, type ReviewKind } from "./block-calls";
 import { isRtl } from "@/lib/format";
 import type { BlockReviewOverview, BlockReviewReplaceMatch } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 
 /** Words to find and the words for their place, in every block at once: first a preview of the places, then a correction of each block that has them
  *  (the blocks turn yellow, the new words red; they are voiced with "Send corrected blocks"). */
-export function ReplaceInBlocks({ versionId, language, onApplied }: { versionId: number; language: string; onApplied: (review: BlockReviewOverview) => void }) {
+export function ReplaceInBlocks({ versionId, kind, language, onApplied }: { versionId: number; kind: ReviewKind; language: string; onApplied: (review: BlockReviewOverview) => void }) {
   const [find, setFind] = useState("");
   const [replace, setReplace] = useState("");
   const [seen, setSeen] = useState<{ blocks_found: number; places_found: number; matches: BlockReviewReplaceMatch[] } | null>(null);
@@ -22,7 +22,7 @@ export function ReplaceInBlocks({ versionId, language, onApplied }: { versionId:
     setError(null);
     setNote(null);
     try {
-      const r = await api.replaceInBlocks(versionId, { find, replace, apply });
+      const r = await reviewCalls(kind).replace(versionId, { find, replace, apply });
       if (r.applied) {
         onApplied(r);
         setSeen(null);

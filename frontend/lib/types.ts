@@ -3960,6 +3960,7 @@ export interface BlockReviewOverview {
   approved: boolean;
   corrected_blocks: number;
   to_send: number;
+  kind?: "host";
   assembled_audio_url: string | null;
   blocks: BlockReviewBlock[];
 }

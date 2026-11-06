@@ -1618,7 +1618,14 @@ async def create_host_segments(version_id: int, db: Session = Depends(get_db)):
     if not plan:
         raise HTTPException(status_code=409, detail="Create the host plan first.")
     row = await HostDirector().write(db, db.get(Case, v.case_id), v, plan)
-    return host_segments_dict(row)
+    from app.documentary.host_scenes import plan_host_scenes
+    from app.documentary.studio import StudioError
+
+    try:
+        scenes, studio_error = [s.id for s in plan_host_scenes(db, row)], None            # the new text has its scenes at once: the Host tab shows them
+    except StudioError as e:
+        scenes, studio_error = [], str(e)
+    return {**host_segments_dict(row), "host_scene_ids": scenes, **({"studio_error": studio_error} if studio_error else {})}
 
 
 @router.get("/api/documentary/host/memory")

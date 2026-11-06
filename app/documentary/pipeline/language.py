@@ -43,6 +43,9 @@ class LanguageChain:
             sh.vp_row, sh.visual_ready, sh.visual_state, sh.renders)
 
         planning = job.mode == "plan"       # the pictures only: the narration of an earlier run is used, nothing is made
+        from app.documentary import voice_review as VRV
+
+        approved = not planning and VRV.kept(version, lang)         # the narration the owner approved is used as it is, never made again
 
         async def skipped(reason: str) -> dict:
             return {"skipped": True, "reason": reason}
@@ -208,9 +211,32 @@ class LanguageChain:
             finally:
                 pass_turn()
 
+        async def mix_approved():
+            """The narration the owner approved has no music under it yet (the review makes the voice alone): the music is mixed under that exact audio, once."""
+            from app.documentary.production.audio import mix_narration
+            from app.documentary.voice_render import VoiceRenderer
+
+            folder = VoiceRenderer.out_dir_for(case.id, lang, version.id)
+            manifest = _load_manifest(case.id, version)
+            if manifest.get("mix") and (folder / "documentary.mp3").exists():
+                return {"skipped": True, "reason": "the narration the owner approved is kept, its music is mixed"}
+            plan = performance_for_version(db, version)
+            manifest = await mix_narration(manifest, plan, folder, db=db)
+            holder["m"] = manifest
+            mix = manifest.get("mix") or {}
+            return {"skipped": True, "reason": "the narration the owner approved is kept, the music is mixed under it",
+                    "music_moments": mix.get("music_moments"), "silences": mix.get("silences"), "beds": mix.get("beds"),
+                    "library_misses": mix.get("library_misses", []), "music_paid": mix.get("music_characters_paid")}
+
         async def reuse_narration():
-            pass_turn()
-            return await skipped("planning job: the narration of an earlier run is used")
+            if planning:
+                pass_turn()
+                return await skipped("planning job: the narration of an earlier run is used")
+            await sh.music_turns[sh.languages.index(lang)].wait()
+            try:
+                return await mix_approved()
+            finally:
+                pass_turn()
 
         from app.documentary.reading import stage as RS
 
@@ -224,7 +250,7 @@ class LanguageChain:
             holder["reading"] = await RS.result(db, case, version, lang)          # the voice of this run is given these readings, not a stored copy
             return RS.summary(*holder["reading"], lang)
 
-        if not planning and (RS.required(lang) or ai_config.semantic_punctuation.covers(lang)):           # the text is prepared before anything is voiced; doubts wait for the owner
+        if not planning and not approved and (RS.required(lang) or ai_config.semantic_punctuation.covers(lang)):           # the text is prepared before anything is voiced; doubts wait for the owner
             try:
                 if ai_config.semantic_punctuation.covers(lang):          # the punctuation layer comes before the reading
                     await pipe._stage(f"punctuation:{lang}", punctuation)
@@ -233,7 +259,7 @@ class LanguageChain:
             except BaseException:
                 pass_turn()                  # the next language's turn does not wait for a stage that stopped
                 raise
-        await pipe._stage(f"voice:{lang}", reuse_narration if planning else voice)
+        await pipe._stage(f"voice:{lang}", reuse_narration if planning or approved else voice)
         try:
             manifest = holder.get("m") or _load_manifest(case.id, version)
         except FileNotFoundError as e:

@@ -96,7 +96,7 @@ def insert_host(script: dict, items: list[dict], intro_seconds: float | None = N
         t = t_orig + offset
         logo = float(intro_seconds) if item["position"] == "opening" and intro_seconds else 0.0
         script["shots"] = _split_spanning(script["shots"], t)
-        for key in ("shots", "beats", "voice", "subtitles", "overlays", "silences", "sentence_entities"):
+        for key in ("shots", "beats", "voice", "subtitles", "overlays", "silences", "sentence_entities", "board"):      # the board appearances too: a later repair restores each card to its window
             _shift(script.get(key) or [], t, d + logo)
         _shift(script.get("music") or [], t, d + logo, keys=("start",))
         if script.get("intro") and script["intro"].get("start") is not None \

@@ -63,52 +63,52 @@
   "host": {
     "enabled": true,
     "time_accounting": "added",
-    "min_appearances": 2,
-    "max_appearances": 5,
+    "min_appearances": 4,
+    "max_appearances": 4,
     "min_acts_between": 1,
     "min_gap_seconds": 240,
     "short_film_seconds": 600,
     "short_film_min_gap_seconds": 90,
-    "short_film_min_appearances": 3,
+    "short_film_min_appearances": 4,
     "roles": {
       "opening": {
         "position": "opening",
-        "base_seconds": 40,
-        "min_seconds": 25,
-        "max_seconds": 75,
+        "base_seconds": 60,
+        "min_seconds": 40,
+        "max_seconds": 100,
         "requires_question": true
       },
       "transition": {
         "position": "mid",
-        "base_seconds": 18,
-        "min_seconds": 10,
-        "max_seconds": 35
+        "base_seconds": 35,
+        "min_seconds": 20,
+        "max_seconds": 60
       },
       "reflection": {
         "position": "mid",
-        "base_seconds": 26,
-        "min_seconds": 15,
-        "max_seconds": 45
+        "base_seconds": 50,
+        "min_seconds": 30,
+        "max_seconds": 90
       },
       "viewer_question": {
         "position": "mid",
-        "base_seconds": 16,
-        "min_seconds": 8,
-        "max_seconds": 30,
+        "base_seconds": 30,
+        "min_seconds": 15,
+        "max_seconds": 55,
         "requires_question": true
       },
       "outro": {
         "position": "final",
-        "base_seconds": 28,
-        "min_seconds": 15,
-        "max_seconds": 50
+        "base_seconds": 55,
+        "min_seconds": 35,
+        "max_seconds": 100
       }
     },
     "act_weight_gain": 0.5,
     "position_gain": 0.3,
-    "max_appearance_seconds": 90,
-    "max_total_seconds": 240,
-    "max_total_share": 0.08,
+    "max_appearance_seconds": 120,
+    "max_total_seconds": 420,
+    "max_total_share": 0.12,
     "final_enabled": true,
     "words_per_minute": {
       "en": 162,
@@ -213,7 +213,7 @@
           "بینندگان عزیز",
           "در این ویدیو"
         ],
-        "register_note": "Write the way two friends talk in everyday Persian, not the way a book or a newsreader writes. Use the spoken forms: verbs in their colloquial endings (می‌گه، اومده، رفته، می‌دونی، نمی‌تونم، می‌خوام، می‌شه، هست)، «رو» instead of «را», «خونه» not «خانه», «اینجوری/اونجوری», «چون» → «آخه/چون», contractions such as «می‌دونم», «نمی‌دونم», «یه», «یه چیزی». Address one person with «تو» (ببین، فکر کن، می‌دونی، بهت می‌گم), never «شما» or «تو را» in the book form. Short sentences, one breath each; start with a question or a plain statement, not a literary opening such as «گاهی یک پرونده…». Avoid passive and literary constructions («دیده شده که», «انجام گرفت», «می‌گردد», «اینکه…»); say who does what. Names stay as the narration writes them. Rhythm: in every appearance put one or two very short sentences of at most six words between the longer ones (a reaction, a doubt, a pause: «نمی‌دونم.» «عجیبه.» «صبر کن.»), and make the other sentences clearly different in length. Always the spoken «یه» and never the written «یک» for 'a/one' (یه تماس، یه نفر), «از بین» not «از میان», «اینکه/که» sparingly. Never a word that makes light of a death or of what the victim lived through (not «ناراحتی»): speak of it plainly and with weight."
+        "register_note": "Write the way two friends talk in everyday Persian, not the way a book or a newsreader writes. Use the spoken forms: verbs in their colloquial endings (می‌گه، اومده، رفته، می‌دونی، نمی‌تونم، می‌خوام، می‌شه، هست)، «رو» instead of «را», «خونه» not «خانه», «اینجوری/اونجوری», «چون» → «آخه/چون», contractions such as «می‌دونم», «نمی‌دونم», «یه», «یه چیزی». Address one person with «تو» (ببین، فکر کن، می‌دونی، بهت می‌گم), never «شما» or «تو را» in the book form. Short sentences, one breath each; start with a question or a plain statement, not a literary opening such as «گاهی یک پرونده…». Avoid passive and literary constructions («دیده شده که», «انجام گرفت», «می‌گردد», «اینکه…»); say who does what. Names stay as the narration writes them. Rhythm: in every appearance put one or two very short sentences of at most six words between the longer ones (a reaction to something specific you just said, a different one each time and never one an earlier appearance used), and make the other sentences clearly different in length. Always the spoken «یه» and never the written «یک» for 'a/one' (یه تماس، یه نفر), «از بین» not «از میان», «اینکه/که» sparingly. Never a word that makes light of a death or of what the victim lived through (not «ناراحتی»): speak of it plainly and with weight."
       },
       "ar": {
         "address_patterns": [
@@ -269,6 +269,10 @@
     },
     "max_writer_repairs": 5,
     "text_preparation": ["fa", "ar", "en", "de"],
+    "angle_repairs": 2,
+    "angle_min_quote_words": 4,
+    "angle_turn_from_seconds": 30,
+    "narration_copy_words": 5,
     "required_for_film": true
   },
   "studio": {

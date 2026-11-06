@@ -10,14 +10,17 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/state";
 import { BlockCard } from "./block-card";
+import { reviewCalls, type ReviewKind } from "./block-calls";
 import { ReplaceInBlocks } from "./block-replace";
 
 const apiBase = (url: string) => apiFileUrl(url);
 
 /** The hand review of a voiced narration: the blocks one after the other with their text and voice, played in a row from the first block (pause any time),
  *  corrected block by block (yellow block, red words), voiced again, ticked, assembled, approved. */
-export function BlockReview({ versionId }: { versionId: number }) {
-  const state = useApi(() => api.blockReview(versionId), [versionId]);
+export function BlockReview({ versionId, kind = "narration" }: { versionId: number; kind?: ReviewKind }) {
+  const calls = reviewCalls(kind);
+  const host = kind === "host";
+  const state = useApi(() => calls.get(versionId), [versionId, kind]);
   const [local, setReview] = useState<BlockReviewOverview | null>(null);          // what the person changed here; before that, what the server sent
   const review = local ?? (state.data?.exists ? state.data : null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -92,11 +95,11 @@ export function BlockReview({ versionId }: { versionId: number }) {
     if (!review) return null;
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={review.approved ? "success" : "warning"} data-testid="review-state">{review.approved ? "approved" : review.assembled_current ? "assembled — not approved" : "in review"}</Badge>
+        <Badge variant={host ? "outline" : review.approved ? "success" : "warning"} data-testid="review-state">{host ? "host voice" : review.approved ? "approved" : review.assembled_current ? "assembled — not approved" : "in review"}</Badge>
         <span className="text-xs text-muted-foreground">{blocks.length} blocks · {review.corrected_blocks} corrected · {review.to_send} to send</span>
       </div>
     );
-  }, [review, blocks.length]);
+  }, [review, blocks.length, host]);
 
   if (state.error) return <ErrorState message={state.error} onRetry={state.refetch} />;
   if (!state.data) return <Skeleton className="h-40 w-full" />;
@@ -104,9 +107,9 @@ export function BlockReview({ versionId }: { versionId: number }) {
     const can = !state.data.exists && state.data.can_open;
     return (
       <EmptyState
-        title="No voice review yet"
-        description={can ? "The narration is made. Open the review to listen to its blocks and correct them by hand. Nothing is voiced or paid by opening it." : "The narration of this version is not made yet."}
-        action={can ? <Button onClick={() => act("open", () => api.openBlockReview(versionId), () => "Review opened.")} disabled={busy !== null}>Open voice review</Button> : undefined}
+        title={host ? "No host voice review yet" : "No voice review yet"}
+        description={can ? (host ? "The host has a voice. Open the review to listen to each appearance and correct it by hand. Nothing is voiced or paid by opening it." : "The narration is made. Open the review to listen to its blocks and correct them by hand. Nothing is voiced or paid by opening it.") : (host ? "This version has no host voice yet." : "The narration of this version is not made yet.")}
+        action={can ? <Button onClick={() => act("open", () => calls.open(versionId), () => "Review opened.")} disabled={busy !== null}>{host ? "Open host voice review" : "Open voice review"}</Button> : undefined}
       />
     );
   }
@@ -120,24 +123,28 @@ export function BlockReview({ versionId }: { versionId: number }) {
             {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />} {paused ? (index === null ? "Play all" : "Resume") : "Pause"}
           </Button>
           <Button size="sm" variant="secondary" disabled={busy !== null || review.to_send === 0}
-            onClick={() => act("send", async () => { const r = await api.sendAllBlocks(versionId); if (r.failed.length) setError(`${r.failed.length} block(s) failed: ${r.failed.map((f) => f.block_id).join(", ")}`); return r; }, (r) => `${r.sent.length} corrected block(s) voiced.`)}>
+            onClick={() => act("send", async () => { const r = await calls.sendAll(versionId); if (r.failed.length) setError(`${r.failed.length} block(s) failed: ${r.failed.map((f) => f.block_id).join(", ")}`); return r; }, (r) => `${r.sent.length} corrected block(s) voiced.`)}>
             {busy === "send" ? "Voicing…" : `Send ${review.to_send} corrected block${review.to_send === 1 ? "" : "s"} to ElevenLabs`}
           </Button>
-          <Button size="sm" disabled={busy !== null || review.to_send > 0 || (review.approved && review.assembled_current)}
-            title={review.to_send > 0 ? "Send the corrected blocks to ElevenLabs first" : undefined}
-            onClick={() => {
-              if (!window.confirm("Approve this narration? The app assembles it from the ticked takes now (about 10 to 15 minutes, nothing is voiced or paid), makes it the film's narration and approves it, so the film may go on. The earlier narration is kept.")) return;
-              void act("approve", () => api.approveBlockReview(versionId), () => "Assembled from the ticked takes, made the film's narration and approved. The film may go on.");
-            }}>
-            {busy === "approve" ? "Assembling and approving… (about 10 to 15 minutes)" : "Approve this narration"}
-          </Button>
-          <Button size="sm" variant="secondary" disabled={busy !== null || review.to_send > 0}
-            title="Only to listen first: it does not change the film's narration"
-            onClick={() => act("assemble", () => api.assembleBlockReview(versionId), () => "Assembled from the ticked takes. Listen to it below; the film's narration is not changed until you approve.")}>
-            {busy === "assemble" ? "Assembling…" : "Preview the assembled narration (optional)"}
-          </Button>
+          {!host && (
+            <>
+              <Button size="sm" disabled={busy !== null || review.to_send > 0 || (review.approved && review.assembled_current)}
+                title={review.to_send > 0 ? "Send the corrected blocks to ElevenLabs first" : undefined}
+                onClick={() => {
+                  if (!window.confirm("Approve this narration? The app assembles it from the ticked takes now (about 10 to 15 minutes, nothing is voiced or paid), makes it the film's narration and approves it, so the film may go on. The earlier narration is kept.")) return;
+                  void act("approve", () => api.approveBlockReview(versionId), () => "Assembled from the ticked takes, made the film's narration and approved. The film may go on.");
+                }}>
+                {busy === "approve" ? "Assembling and approving… (about 10 to 15 minutes)" : "Approve this narration"}
+              </Button>
+              <Button size="sm" variant="secondary" disabled={busy !== null || review.to_send > 0}
+                title="Only to listen first: it does not change the film's narration"
+                onClick={() => act("assemble", () => api.assembleBlockReview(versionId), () => "Assembled from the ticked takes. Listen to it below; the film's narration is not changed until you approve.")}>
+                {busy === "assemble" ? "Assembling…" : "Preview the assembled narration (optional)"}
+              </Button>
+            </>
+          )}
         </div>
-        {review.assembled_audio_url && (
+        {!host && review.assembled_audio_url && (
           <div className="text-xs text-muted-foreground">
             Assembled narration{review.assembled_current ? "" : " (out of date: ticked takes changed)"}:
             <audio controls preload="none" className="mt-1 w-full" src={apiBase(review.assembled_audio_url)} aria-label="Assembled narration" />
@@ -145,13 +152,15 @@ export function BlockReview({ versionId }: { versionId: number }) {
         )}
         {note && <p role="status" className="text-sm text-emerald-700">{note}</p>}
         {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
-        <p className="text-xs text-muted-foreground">No film is rendered before you approve the narration.</p>
+        <p className="text-xs text-muted-foreground">
+          {host ? "A take you tick is the host's voice at once and the avatar is made again from it. Approving the film's voice is done in Voice review only." : "No film is rendered before you approve the narration."}
+        </p>
       </div>
-      <ReplaceInBlocks versionId={versionId} language={review.language} onApplied={(r) => setReview(r)} />
+      <ReplaceInBlocks versionId={versionId} kind={kind} language={review.language} onApplied={(r) => setReview(r)} />
       <audio ref={audio} preload="none" onEnded={onEnded} onPause={() => setPaused(true)} onPlay={() => setPaused(false)} aria-label="Block player" className="hidden" />
       <ol className="space-y-2" aria-label="Blocks in story order">
         {blocks.map((b, i) => (
-          <BlockCard key={b.block_id} versionId={versionId} language={review.language} block={b} current={index === i} playingTake={takePlaying}
+          <BlockCard key={b.block_id} versionId={versionId} kind={kind} language={review.language} block={b} current={index === i} playingTake={takePlaying}
             onPlayBlock={() => play(i)} onPlayTake={(t) => playTake(t, b.block_id)} onChanged={replace} />
         ))}
       </ol>

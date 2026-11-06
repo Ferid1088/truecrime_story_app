@@ -80,7 +80,7 @@ def take_voice(version: StoryVersion, take: VoiceBlockTake) -> dict:
     return {"speed": settings.get("speed"), "stability": settings.get("stability"), "post_speed": ai_config.voice.post_speed.get(version.language or "fa", 1.0)}
 
 
-def block_view(db: Session, version: StoryVersion, block: VoiceBlock) -> dict:
+def block_view(db: Session, version: StoryVersion, block: VoiceBlock, route: str = "block-review") -> dict:
     text = block.draft_text if block.draft_text is not None else block.voice_text
     marked = S.words_of(db, block)
     takes = S.takes_of(db, block)
@@ -91,7 +91,7 @@ def block_view(db: Session, version: StoryVersion, block: VoiceBlock) -> dict:
                       for w in tokenize(text)],
             "takes": [{"take_no": t.take_no, "source": t.source, "active": t.active, "duration_s": t.duration_s, "cost_eur": round(t.cost_eur, 5),
                        "text": t.text_sent, "aliases": json.loads(t.aliases_json or "[]"), "created_at": t.created_at.isoformat(), "voice": take_voice(version, t),
-                       "audio_url": f"/api/documentary/versions/{version.id}/block-review/blocks/{block.block_id}/takes/{t.take_no}/audio"}
+                       "audio_url": f"/api/documentary/versions/{version.id}/{route}/blocks/{block.block_id}/takes/{t.take_no}/audio"}
                       for t in takes]}
 
 

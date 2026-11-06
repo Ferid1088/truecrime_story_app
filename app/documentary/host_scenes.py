@@ -257,6 +257,36 @@ def sped_up(audio: bytes, tempo: float, alignment: dict) -> tuple[bytes, dict]:
     return fast, {**alignment, "starts": [t / tempo for t in alignment["starts"]], "ends": [t / tempo for t in alignment["ends"]]}
 
 
+def store_voice(scene: HostScene, take: dict, settings: dict, tempo: float, dictionaries: list, reviewed: bool = False) -> None:
+    """The take as the scene's voice: the audio at the language's post speed with its timing, saved with a sidecar, and the scene's voice fields. A new voice
+    invalidates everything the provider made from the old one. `reviewed`: a take a person ticked in the host voice review, which a later run keeps."""
+    d = scene_dir(scene)
+    audio, al = sped_up(Path(take["raw_path"]).read_bytes(), tempo, take["alignment"])
+    name = f"voice_{scene.text_sha256[:12]}_{scene.voice_id[:8]}{'_' + take['cache_key'][:8] if reviewed else ''}.mp3"
+    _write_atomic(d / name, audio)
+    seconds = round(max(al["ends"]), 3) if al.get("ends") else None
+    meta = {"text_sha256": scene.text_sha256, "voice_id": scene.voice_id,
+            "model_id": ai_config.voice.languages[scene.language].model_id, "settings": settings, "post_speed": tempo, "dictionaries": dictionaries,
+            **({"reviewed": True} if reviewed else {}),
+            "request_id": take.get("request_id"), "character_cost": take.get("character_cost"),
+            "audio_format": ai_config.voice.elevenlabs.output_format, "seconds": seconds,
+            "created_at": utc_now().isoformat()}
+    _write_atomic(d / (name + ".json"), json.dumps(
+        {**meta, "text": scene.text, "tts_text": take["text"],
+         "alignment": {"characters": al["characters"], "starts": al["starts"],
+                       "ends": al["ends"]}}, ensure_ascii=False).encode("utf-8"))
+    scene.voice_path = storage.rel(d / name)
+    scene.voice_sha256 = _sha(audio)
+    scene.voice_seconds = seconds
+    scene.voice_meta_json = json.dumps(meta)
+    scene.provider_asset_id = None
+    scene.provider_job_id = None
+    scene.avatar_video_path = None
+    scene.avatar_video_sha256 = None
+    if ORDER.index(scene.status) > ORDER.index("voice_ready"):
+        scene.status = "voice_ready"
+
+
 async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None, reviewer=None) -> dict | None:
     """ElevenLabs audio of exactly the frozen text, in the host's own style, through the same
     checks as the story's blocks: Whisper on the plain text, the pronunciation key and listening
@@ -283,7 +313,7 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None,
     p = storage.resolve(scene.voice_path) if scene.voice_path else None
     if (p is not None and p.exists() and meta.get("text_sha256") == scene.text_sha256
             and meta.get("voice_id") == scene.voice_id and meta.get("model_id") == vcfg.model_id
-            and meta.get("settings") == settings and meta.get("post_speed", 1.0) == tempo and meta.get("dictionaries", []) == dictionaries
+            and meta.get("settings") == settings and meta.get("post_speed", 1.0) == tempo and (meta.get("dictionaries", []) == dictionaries or meta.get("reviewed"))
             and _sha(p.read_bytes()) == scene.voice_sha256
             and "flags" in _loads(scene.voice_checks_json, {})):
         return {"skipped": "saved audio matches the text, voice, settings and dictionary"}
@@ -309,19 +339,7 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None,
     if SR.required(scene.language):          # the listening review of the host voice: nothing goes to the avatar before it has passed
         result = await _review_host_voice(db, scene, renderer, block, result, (vcfg, settings, d / "takes"), reviewer)
     take = result["take"]
-    audio, al = sped_up(Path(take["raw_path"]).read_bytes(), tempo, take["alignment"])
-    name = f"voice_{scene.text_sha256[:12]}_{scene.voice_id[:8]}.mp3"
-    _write_atomic(d / name, audio)
-    seconds = round(max(al["ends"]), 3) if al.get("ends") else None
-    meta = {"text_sha256": scene.text_sha256, "voice_id": scene.voice_id,
-            "model_id": vcfg.model_id, "settings": settings, "post_speed": tempo, "dictionaries": dictionaries,
-            "request_id": take.get("request_id"), "character_cost": take.get("character_cost"),
-            "audio_format": ai_config.voice.elevenlabs.output_format, "seconds": seconds,
-            "created_at": utc_now().isoformat()}
-    _write_atomic(d / (name + ".json"), json.dumps(
-        {**meta, "text": scene.text, "tts_text": take["text"],
-         "alignment": {"characters": al["characters"], "starts": al["starts"],
-                       "ends": al["ends"]}}, ensure_ascii=False).encode("utf-8"))
+    store_voice(scene, take, settings, tempo, dictionaries)
     checks = _loads(scene.voice_checks_json, {})
     checks.update({
         "tts_text": take["text"] if take["text"] != block["text"] else None,
@@ -335,17 +353,6 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None,
         "flags": voice_flags(take, bool(keyed) and renderer._listener is None,
                              renderer.asr is None)})
     scene.voice_checks_json = json.dumps(checks, ensure_ascii=False)
-    scene.voice_path = storage.rel(d / name)
-    scene.voice_sha256 = _sha(audio)
-    scene.voice_seconds = seconds
-    scene.voice_meta_json = json.dumps(meta)
-    # a new voice invalidates everything the provider made from the old one
-    scene.provider_asset_id = None
-    scene.provider_job_id = None
-    scene.avatar_video_path = None
-    scene.avatar_video_sha256 = None
-    if ORDER.index(scene.status) > ORDER.index("voice_ready"):
-        scene.status = "voice_ready"
     return None
 
 
@@ -602,14 +609,16 @@ async def _voice_within_plan(db: Session, scene: HostScene, renderer, retimer,
     voiced again when the voice misses the planned seconds by more than host.duration_tolerance
     or still says a word wrong after the vowel-mark ladder: the host's own words cannot be
     swapped for a synonym, so the writer says the same thing in other words. A voice still over
-    the appearance's hard cap after that fails the scene."""
+    the appearance's hard cap after that fails the scene. A voice a person chose in the host voice review (`reviewed`) is the exception: the person's ear
+    decides, so its words are not rewritten and it is not voiced again to fit the planned seconds (the hard cap still holds)."""
     extra = {"reviewer": reviewer} if reviewer is not None else {}
     r = await _step_voice(db, scene, renderer=renderer, editor=editor, **extra)
     attempts = 0
     tolerance = ai_config.host.duration_tolerance
     while ((deviation(scene.voice_seconds, scene.planned_duration) > tolerance
             or unresolved_words(scene))
-           and retimer is not None and attempts < ai_config.host.max_retime_attempts):
+           and retimer is not None and attempts < ai_config.host.max_retime_attempts
+           and not _loads(scene.voice_meta_json, {}).get("reviewed")):          # a voice a person ticked in the host voice review is never rewritten to fit the time
         attempts += 1
         avoid = unresolved_words(scene)
         _log(scene, "voice", "retime", {"seconds": scene.voice_seconds,

@@ -19,13 +19,13 @@ def test_real_seconds_within_caps_pass_with_a_share_warning_in_a_pilot():
 
 
 def test_over_cap_appearances_and_total_are_errors():
-    r = HS.real_time_report([_s(1, "opening", 80), _s(2, "mid", 130), _s(3, "final", 60)], 3000)
+    r = HS.real_time_report([_s(1, "opening", 140), _s(2, "mid", 150), _s(3, "final", 140)], 3000)
     codes = [e["code"] for e in r["errors"]]
     assert codes.count("appearance_over_cap") == 3 and "host_time_over_cap" in codes
 
 
 def test_share_is_an_error_only_for_a_film_of_600_seconds_or_more():
-    long_film = HS.real_time_report([_s(1, "opening", 70)], 800)
+    long_film = HS.real_time_report([_s(1, "opening", 100)], 800)
     assert [e["code"] for e in long_film["errors"]] == ["host_share_too_high"]
 
 
@@ -56,7 +56,7 @@ def test_deviation_is_a_share_of_the_planned_seconds():
 def _scene(voice, planned, position="mid"):
     return SimpleNamespace(position=position, voice_seconds=voice, planned_duration=planned,
                            text="x " * 100, history_json="[]", attempts_json="{}",
-                           updated_at=None, voice_checks_json="{}")
+                           updated_at=None, voice_checks_json="{}", voice_meta_json="{}")
 
 
 def _patch_voice(monkeypatch, durations):
