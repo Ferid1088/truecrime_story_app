@@ -245,3 +245,21 @@ def test_a_block_is_voiced_only_with_the_required_speed_stability_and_post_speed
     monkeypatch.setattr(ai_config.voice, "post_speed", {"fa": 1.1})
     take = asyncio.run(S.send_block(db, review, "FA_B01_g01_01", provider=voice, again=True))
     assert take.take_no == 2 and (voice.requests[-1].settings["speed"], voice.requests[-1].settings["stability"]) == (1.2, 0.2)
+
+
+def test_a_changed_pause_or_cut_in_the_config_makes_the_assembled_narration_out_of_date_and_approving_assembles_again(narration, monkeypatch):
+    db, _, version, voice = narration
+    review = S.open_review(db, version)
+    asyncio.run(S.assemble(db, review))
+    stamp = review.assembled_at
+    assert S.assembled_is_current(db, review)
+    joins = ai_config.voice.joins["fa"]
+    monkeypatch.setattr(joins, "silence_ms", {**joins.silence_ms, "paragraph": joins.silence_ms["paragraph"] + 100})          # the blocks of this narration are different beats
+    assert not S.assembled_is_current(db, review), "the silence of the joins changed: the assembled narration is of the old one"
+    asyncio.run(S.approve(db, review))
+    assert review.assembled_at > stamp and S.assembled_is_current(db, review), "approving made it again with the new silence"
+    new_gap = [b["pause_after_ms"] for b in json.loads((S.narration_folder(version) / "manifest.json").read_text(encoding="utf-8"))["timeline"]["blocks"]][0]
+    edge = ai_config.voice.edges["fa"]
+    assert new_gap == joins.silence_ms["paragraph"] - edge.tail_keep_ms - edge.lead_keep_ms == 630
+    monkeypatch.setattr(ai_config.voice.edges["fa"], "fade_out_ms", 45)
+    assert not S.assembled_is_current(db, review), "the cut changed too"

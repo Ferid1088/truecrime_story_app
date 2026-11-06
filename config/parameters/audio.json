@@ -156,7 +156,7 @@
       "fa": {"floor_db": -50, "lead_keep_ms": 60, "tail_keep_ms": 60, "fade_in_ms": 12, "fade_out_ms": 30}
     },
     "joins": {
-      "fa": {"silence_ms": {"same_beat": 330, "paragraph": 650, "breath": 800}, "min_lead_ms": 30, "min_tail_ms": 20, "max_silence_ms": 1000}
+      "fa": {"silence_ms": {"same_beat": 396, "paragraph": 650, "breath": 800}, "min_lead_ms": 30, "min_tail_ms": 20, "max_silence_ms": 1000}
     },
     "breath_gap_scale": {
       "fa": 0.6

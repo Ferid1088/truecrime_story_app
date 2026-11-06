@@ -21,6 +21,7 @@ from app.documentary.voice_render import VoiceRenderer
 from app.providers.voice.base import VoiceRequest
 from app.utils import utc_now
 
+SETTINGS_KEY = "__settings__"                 # in the record of an assembly: the fingerprint of the settings it was made under
 REQUEST_FIELDS = ("text", "previous_text", "next_text", "voice_id", "model_id", "settings", "seed", "language_code", "language", "pronunciation_dictionaries")
 
 
@@ -273,6 +274,17 @@ def sha256_of(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def assembly_settings(language: str) -> str:
+    """A fingerprint of everything besides the takes that decides how the narration sounds when it is assembled: the cut of the blocks, the silence of the
+    joins, the pauses, the post speed and the loudness. An assembly made under other settings is not current."""
+    voice = ai_config.voice
+    parts = {"edges": voice.edges.get(language), "joins": voice.joins.get(language), "post_speed": voice.post_speed.get(language), "lead_pad_ms": voice.lead_pad_ms,
+             "tail_pad_ms": voice.tail_pad_ms, "between_blocks_ms": voice.between_blocks_ms, "between_sections_ms": voice.between_sections_ms,
+             "breath_gap_scale": voice.breath_gap_scale.get(language), "loudness": ai_config.loudness.model_dump(mode="json")}
+    text = json.dumps(parts, default=lambda o: o.model_dump(mode="json") if hasattr(o, "model_dump") else str(o), sort_keys=True)
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
 def active_takes(db: Session, review: VoiceReview) -> dict[str, int]:
     return {b.block_id: active_take(db, b).take_no for b in blocks_of(db, review)}
 
@@ -286,7 +298,7 @@ async def assemble(db: Session, review: VoiceReview) -> dict:
     renderer = VoiceRenderer(provider=NoVoice(), db=db, budget_case_id=review.case_id, budget_stage=f"tts:{review.language}", use_asr=False, use_listener=False)
     manifest = await renderer.render(plan, case_id=review.case_id, story_version_id=version.id, fixed_requests=fixed, output_dir=reviewed_folder(version))
     review.assembled_sha256 = sha256_of(reviewed_folder(version) / "narration.mp3")
-    review.assembled_takes_json = json.dumps(active_takes(db, review))
+    review.assembled_takes_json = json.dumps({**active_takes(db, review), SETTINGS_KEY: assembly_settings(review.language)})
     review.assembled_at = utc_now()
     review.status = "assembled"
     db.commit()
@@ -294,7 +306,8 @@ async def assemble(db: Session, review: VoiceReview) -> dict:
 
 
 def assembled_is_current(db: Session, review: VoiceReview) -> bool:
-    return review.status in ("assembled", "approved") and json.loads(review.assembled_takes_json or "{}") == active_takes(db, review)
+    """True when the assembled narration is of exactly the ticked takes and of the present settings of the cut and the pauses."""
+    return review.status in ("assembled", "approved") and json.loads(review.assembled_takes_json or "{}") == {**active_takes(db, review), SETTINGS_KEY: assembly_settings(review.language)}
 
 
 async def approve(db: Session, review: VoiceReview, note: str | None = None) -> dict:
