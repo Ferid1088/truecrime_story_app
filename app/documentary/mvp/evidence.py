@@ -54,6 +54,11 @@ async def localize_graphics(db: Session, case: Case, plan_row: VisualPlan, langu
                     pending[ref] = name
                     refs[ref] = (zoom["names"], n)
                 zoom["names_language"] = language
+            if zoom and zoom.get("label_language") != language:       # the name on the marker card of the map
+                ref = f"g{len(pending)}"
+                pending[ref] = zoom["place"]
+                refs[ref] = (zoom, "place_label")
+                zoom["label_language"] = language
             spec = shot.get("graphic")
             if not spec or spec.get("language") == language:
                 continue

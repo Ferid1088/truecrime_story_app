@@ -329,3 +329,33 @@ def test_a_card_the_planner_already_placed_is_not_placed_again_and_a_placed_card
               "speed": 1.0, "transition_in": "CROSSFADE"}]
     D.place_detective_graphics(shots, spans, "en", resolved)
     assert all("command" in sh for sh in shots) and any(sh.get("detective_action_key") == "a1" for sh in shots)
+
+
+def test_a_card_a_builder_makes_from_the_claims_is_in_the_source_language_and_a_made_card_in_its_own():
+    from types import SimpleNamespace
+
+    from app.documentary.detective import dispatch as D
+
+    def action(payload):
+        return SimpleNamespace(payload_json=json.dumps(payload))
+
+    assert D.data_language_of(action({"claim_keys": ["c1"]})) == "en", "built from the English claims: to be localized"
+    assert D.data_language_of(action({"data": {"facts": []}, "language": "fa"})) == "fa"
+    assert D.data_language_of(action({"data": {"facts": []}})) is None, "stored before the language was kept: the film's own"
+
+
+def test_a_placed_card_says_the_language_its_text_is_in_so_the_english_one_is_localized_into_the_film():
+    spans = [{"beat_id": "B01", "start": 0.0, "end": 40.0}]
+    data = {"facts": [{"text": "He called 911.", "fact_id": "c1"}]}
+
+    def placed(**record):
+        shots = [{"kind": "image", "command": "NEW_IMAGE", "beat_id": "B01", "start": 0.0, "end": 40.0, "motion": "NONE",
+                  "speed": 1.0, "transition_in": "CROSSFADE"}]
+        resolved = [{"action_key": "a1", "tool_id": "fact_card", "beat_id": "B01", "data": data, "purpose": "state",
+                     "reuse_reason": None, **record}]
+        D.place_detective_graphics(shots, spans, "fa", resolved)
+        return next(sh for sh in shots if sh.get("detective_action_key") == "a1")["graphic"]["language"]
+
+    assert placed(data_language="en") == "en", "English claims in a Persian film: the localizer must translate them"
+    assert placed(data_language="fa") == "fa"
+    assert placed(data_language=None) == "fa", "a card stored before the language was kept is the film's own"

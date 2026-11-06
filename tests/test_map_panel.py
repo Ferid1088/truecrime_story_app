@@ -87,3 +87,48 @@ def test_the_names_drawn_in_the_map_tiles_are_white_with_a_thick_black_border():
     style = ai_config.zoom().style
     assert style["label_color"] == "#ffffff" and style["label_halo"] == "#000000"
     assert style["label_halo_width"] >= 2.5 and style["label_scale"] >= 1.9
+
+
+def test_a_persian_panel_has_persian_digits_and_each_credit_on_its_own_line_in_its_own_direction(monkeypatch):
+    from app.documentary.graphics import mappanel as MP
+    from app.documentary.graphics.page import Page
+
+    assert MP.scale_text(14.0, 39.9, "fa").startswith("۱:") and MP.scale_text(14.0, 39.9).startswith("1:")
+    drawn = []
+    real = Page.text
+
+    def spy(self, left, top, width, text, role, px, fill, **kw):
+        drawn.append((text, kw.get("language")))
+        return real(self, left, top, width, text, role, px, fill, **kw)
+
+    monkeypatch.setattr(Page, "text", spy)
+    credits = ["© OpenStreetMap contributors", "Imagery: U.S. Geological Survey"]
+    panel = MP.MapPanel("fa", {"names": ["ایالات متحده", "تیپ سیتی"], "step_times": [0.0, 1.0]}, "تیپ سیتی", credits)
+    panel.step(1)
+    assert ("© OpenStreetMap contributors", "en") in drawn and ("Imagery: U.S. Geological Survey", "en") in drawn
+    assert ("مرحله ۱", None) in drawn or any(t == "مرحله ۱" for t, _ in drawn)
+    assert ("نقشه: داده‌های باز", "fa") in drawn
+
+
+def test_the_marker_card_of_a_map_gets_the_place_in_the_films_language(monkeypatch):
+    import asyncio
+    import json
+    from types import SimpleNamespace
+
+    from app.documentary.mvp import evidence as EV
+    from app.documentary.visuals import generated
+
+    async def translate(db, case_id, items, language, narration_excerpt=""):
+        return {k: f"fa:{v}" for k, v in items.items()}
+
+    monkeypatch.setattr(generated, "localize_texts", translate)
+    zoom = {"place": "Cunningham Court home", "names": ["United States", "Tipp City"], "names_language": "fa"}
+    plan_row = SimpleNamespace(plan_json=json.dumps({"beats": [{"shots": [{"map_zoom": zoom}]}]}))
+    db = SimpleNamespace(commit=lambda: None)
+    asyncio.run(EV.localize_graphics(db, SimpleNamespace(id=1), plan_row, "fa"))
+    saved = json.loads(plan_row.plan_json)["beats"][0]["shots"][0]["map_zoom"]
+    assert saved["place_label"] == "fa:Cunningham Court home" and saved["place"] == "Cunningham Court home", \
+        "the label is shown, the English place stays the geocoder's key"
+    assert saved["names"] == ["United States", "Tipp City"], "the panel names were already localized: not done twice"
+    asyncio.run(EV.localize_graphics(db, SimpleNamespace(id=1), plan_row, "fa"))
+    assert json.loads(plan_row.plan_json)["beats"][0]["shots"][0]["map_zoom"]["place_label"] == "fa:Cunningham Court home"

@@ -39,7 +39,7 @@ def build_timeline_cards(db: Session, graph_id: int, units: list[NarrationUnit],
             .filter(DetectiveScene.graph_id == graph_id, DetectiveToolAction.tool_id == "timeline").first()):
         return 0
     cfg = ai_config.detective_toolkit
-    events = [e for e in CD.timeline_events(db, graph_id) if e["beat"] in {u.beat_id for u in units}]
+    events = [e for e in CD.timeline_events(db, graph_id, language) if e["beat"] in {u.beat_id for u in units}]
     groups = [g for g in groups_of(events, cfg.timeline_events) if len({date_key(e["date"]) for e in g}) >= 2]
     chosen = [groups[i] for i in sorted(CD.spread_order(len(groups))[:cfg.timeline_cards])]
     order = list(dict.fromkeys(u.beat_id for u in units))

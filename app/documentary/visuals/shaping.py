@@ -5,7 +5,7 @@ text is reshaped (joined letter forms) and put in visual order by pure-Python li
 from __future__ import annotations
 
 import arabic_reshaper
-from bidi import get_display
+from bidi.algorithm import get_display
 from PIL import ImageFont, features
 
 RTL = {"fa", "ar"}
@@ -14,7 +14,9 @@ _reshaper = arabic_reshaper.ArabicReshaper(configuration={"delete_harakat": Fals
 
 
 def display(text: str, language: str) -> str:
-    """What the font is asked to draw for a logical line."""
+    """What the font is asked to draw for a logical line. The visual order comes from the algorithm of `bidi.algorithm`,
+    which also mirrors the paired marks (« » and brackets) that sit in right-to-left runs; the top-level `bidi.get_display`
+    does not, and would draw every Persian quotation reversed."""
     if language in RTL and not RAQM:
         return get_display(_reshaper.reshape(text))
     return text

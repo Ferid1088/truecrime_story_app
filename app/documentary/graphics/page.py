@@ -184,63 +184,67 @@ class Page:
 
     # -- text ----------------------------------------------------------
     def lines(self, text: str, role: str, px: int, width: int, lines_max: int | None = None,
-              min_px: int | None = None) -> tuple[list[str], int]:
-        """Wrap `text` into `width`, shrinking from `px` toward `min_px` until it fits `lines_max` lines."""
+              min_px: int | None = None, language: str | None = None) -> tuple[list[str], int]:
+        """Wrap `text` into `width`, shrinking from `px` toward `min_px` until it fits `lines_max` lines. `language` is the
+        language of the text itself when it is not the page's (an English credit on a Persian page)."""
+        language = language or self.language
         px = self._px(role, px)
         min_px = self._px(role, min_px) if min_px else min_px
         text = " ".join(text.split())
         floor = min_px or px
         for p in range(px, floor - 1, -2):
-            f = T.font(self.language, role, p)
-            wrapped = shaping.wrap(text, f, self.language, width)
-            fits = all(shaping.width(line, f, self.language) <= width for line in wrapped)
+            f = T.font(language, role, p)
+            wrapped = shaping.wrap(text, f, language, width)
+            fits = all(shaping.width(line, f, language) <= width for line in wrapped)
             if fits and (lines_max is None or len(wrapped) <= lines_max):
                 return wrapped, p
         raise DoesNotFit(f"'{text[:40]}…' needs more than {lines_max} lines at {floor}px")
 
     def text(self, left: float, top: float, width: int, text: str, role: str, px: int, fill: Color,
              align: str = "start", lines_max: int | None = None, min_px: int | None = None,
-             spacing: float = 1.18, upper: bool = False, alpha: int = 255) -> int:
-        """Draw wrapped text in the box (left, top, width) and return the y below it."""
+             spacing: float = 1.18, upper: bool = False, alpha: int = 255, language: str | None = None) -> int:
+        """Draw wrapped text in the box (left, top, width) and return the y below it. `language`: the language of the text
+        when it is not the page's: it is shaped and ordered in its own direction and stays at the page's start edge."""
+        language = language or self.language
         px = self._px(role, px)
         if upper and not self.rtl:
             text = text.upper()
-        lines, used = self.lines(text, role, px, width, lines_max, min_px)
-        f = T.font(self.language, role, used)
+        lines, used = self.lines(text, role, px, width, lines_max, min_px, language)
+        f = T.font(language, role, used)
         step = int(used * spacing * (1.22 if self.rtl else 1.0))
         box = self.x(left, width)
         y = top
         layer = self.img if alpha >= 255 else Image.new("RGBA", self.img.size, (0, 0, 0, 0))
         draw = self.d if alpha >= 255 else ImageDraw.Draw(layer)
-        kw = shaping.kwargs(self.language)
+        kw = shaping.kwargs(language)
         hidden = _HIDDEN.get()
         for line in lines:
-            w = shaping.width(line, f, self.language)
+            w = shaping.width(line, f, language)
             if align == "center":
                 px_ = box + (width - w) / 2
             elif (align == "start" and self.rtl) or (align == "end" and not self.rtl):
                 px_ = box + width - w
             else:
                 px_ = box
-            self._record(line, px_, y, w, step, f)
+            self._record(line, px_, y, w, step, f, language)
             if not hidden:
-                draw.text((px_, y), shaping.display(line, self.language), font=f, fill=(*fill, alpha), **kw)
+                draw.text((px_, y), shaping.display(line, language), font=f, fill=(*fill, alpha), **kw)
             y += step
         if alpha < 255:
             self.img.alpha_composite(layer)
             self.d = ImageDraw.Draw(self.img)
         return y
 
-    def _record(self, line: str, left: float, top: float, width: float, step: int, font) -> None:
+    def _record(self, line: str, left: float, top: float, width: float, step: int, font, language: str) -> None:
         """Note each word of a drawn line with the box it covers (its right end is measured from the logical start of
         the line, so right-to-left lines work the same way)."""
         words = line.split(" ")
         for j, word in enumerate(words):
             if not word:
                 continue
-            end = shaping.width(" ".join(words[:j + 1]), font, self.language)
-            own = shaping.width(word, font, self.language)
-            x1 = left + width - (end - own) if self.rtl else left + end
+            end = shaping.width(" ".join(words[:j + 1]), font, language)
+            own = shaping.width(word, font, language)
+            x1 = left + width - (end - own) if language in shaping.RTL else left + end
             x0 = x1 - own
             self.words.append(Word(word, (int(x0) - WORD_PAD, int(top), math.ceil(x1) + WORD_PAD, int(top + step))))
 

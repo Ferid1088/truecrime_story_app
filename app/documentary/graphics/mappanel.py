@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw
 
 from app.core.ai_config import ai_config
 from app.documentary.graphics import theme as T
+from app.documentary.graphics.dates import numerals
 from app.documentary.graphics.page import Page
 from app.documentary.visuals import shaping
 
@@ -51,14 +52,15 @@ def level_keys(count: int) -> list[str]:
     return [LEVELS[round(i * (len(LEVELS) - 1) / (count - 1))] for i in range(count)]
 
 
-def scale_text(zoom: float, lat: float) -> str:
+def scale_text(zoom: float, lat: float, language: str = "en") -> str:
     """'1:2,000' for a MapLibre zoom (512 px world) at a latitude, on a 96 dpi screen, rounded to 1, 2 or 5 times a
-    power of ten (a scale label, not a measurement)."""
+    power of ten (a scale label, not a measurement); in Persian with its own digits and thousands mark."""
     metres_per_px = 78271.517 * math.cos(math.radians(lat)) / 2 ** zoom
     denominator = metres_per_px / 0.00026458
     power = 10 ** math.floor(math.log10(max(denominator, 1.0)))
     nearest = min((s * power for s in (*SCALE_STEPS, 10)), key=lambda v: abs(math.log(v / denominator)))
-    return f"1:{int(nearest):,}"
+    text = f"1:{int(nearest):,}"
+    return numerals(text, language).replace(",", "٬") if language == "fa" else text
 
 
 def project(lon: float, lat: float, camera: dict, width: int, height: int) -> tuple[float, float]:
@@ -110,16 +112,27 @@ class MapPanel:
             lit, passed = n == current, n < current
             page.disc(line_x, cy, 14 if lit else 12, T.rgb("amber") if lit else (T.rgb("grey") if passed else T.rgb("rule")),
                       halo=30 if lit else 0, halo_alpha=90)
-            head = T.label(self.language, "now_showing") if lit and n == rows - 1 else f"{T.label(self.language, 'step')} {n + 1}"
+            head = (T.label(self.language, "now_showing") if lit and n == rows - 1
+                    else f"{T.label(self.language, 'step')} {numerals(n + 1, self.language)}")
             page.tracked(line_x + 46, cy - 24, head, "mono", 22, T.rgb("amber") if lit else T.rgb("grey"), 3)
             page.text(line_x + 46, cy + 4, inner - 60, name, "body_bold" if lit else "body", 40,
                       T.rgb("ink") if lit or passed else T.rgb("grey"), lines_max=1, min_px=24)
-        footer = " · ".join([T.label(self.language, "map_source"), *self.attribution])
-        lines_max = int(ai_config.zoom().panel["footer_lines_max"])
-        lines, used = page.lines(footer, "mono", 20, inner, lines_max, 14)
-        page.text(pad, canvas["height"] - 44 - len(lines) * int(used * 1.18 * (1.22 if page.rtl else 1.0)), inner, footer,
-                  "mono", 20, T.rgb("grey"), lines_max=lines_max, min_px=14)
+        self._footer(page, pad, inner, canvas["height"])
         return page.done()
+
+    def _footer(self, page: Page, left: int, width: int, height: int) -> None:
+        """The map credit at the foot of the panel: the source label in the film's language, then each credit (the names of
+        its providers, in their own language) on a line of its own, so that no line mixes two directions."""
+        rows = [(T.label(self.language, "map_source"), self.language), *[(credit, "en") for credit in self.attribution]]
+        lines_max = int(ai_config.zoom().panel["footer_lines_max"])
+        for size in range(20, 13, -2):
+            wrapped = [page.lines(text, "mono", size, width, None, size, lang)[0] for text, lang in rows]
+            if sum(len(w) for w in wrapped) <= lines_max:
+                break
+        step = int(size * 1.18 * (1.22 if page.rtl else 1.0))
+        y = height - 44 - sum(len(w) for w in wrapped) * step
+        for (text, lang), _ in zip(rows, wrapped, strict=True):
+            y = page.text(left, y, width, text, "mono", size, T.rgb("grey"), language=lang)
 
     # -- on the map -------------------------------------------------------------
     def _annotate(self, map_frame: np.ndarray, since: float, step: int) -> np.ndarray:
@@ -133,7 +146,7 @@ class MapPanel:
         draw = ImageDraw.Draw(layer)
         rtl = T.is_rtl(self.language)
         level = T.label(self.language, level_keys(len(self.names))[min(step, len(self.names) - 1)])
-        label = f"{level} · {scale_text(camera['zoom'], self.target[0])}"
+        label = f"{level} · {scale_text(camera['zoom'], self.target[0], self.language)}"
         font = T.font(self.language, "mono", 28)
         w = shaping.width(label, font, self.language)
         x = width - 56 - w if rtl else 56

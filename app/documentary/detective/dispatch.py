@@ -478,6 +478,17 @@ def _map_place_of(db: Session, action: DetectiveToolAction) -> str | None:
     return None
 
 
+SOURCE_LANGUAGE = "en"      # the language of the claims, relations and graph labels a builder makes a card from
+
+
+def data_language_of(action: DetectiveToolAction) -> str | None:
+    """The language the card's data is written in: what the card maker stored with it (None for a card stored before that
+    was kept: the film's own language), the source language for a card a builder makes from the stored claims. A card
+    whose data is not in the film's language is put into it by the localizer, never shown as it is."""
+    payload = payload_of(action)
+    return payload.get("language") if payload.get("data") else SOURCE_LANGUAGE
+
+
 def resolve_dispatchable_actions(db: Session, graph_id: int) -> list[dict]:
     """DB-dependent half: for each tool action this pass can dispatch, resolve its beat and real
     renderer data. Plain-dict output (no DB handle) so the pure `compose()` can place it without
@@ -508,6 +519,7 @@ def resolve_dispatchable_actions(db: Session, graph_id: int) -> list[dict]:
                 record["skip"] = "insufficient_data"
             else:
                 record["beat_id"], record["data"] = beat_id, data
+                record["data_language"] = data_language_of(action)
                 record["min_release_fraction"] = _min_release_fraction(db, action) or json.loads(
                     action.payload_json or "{}").get("release_fraction")
         resolved.append(record)
@@ -605,7 +617,7 @@ def place_detective_graphics(shots: list[dict], spans: list[dict], language: str
                "detective_reuse_reason": record["reuse_reason"]}
         if fraction:
             record["release_fraction_applied"] = round(fraction, 4)
-        shot["graphic"]["language"] = language
+        shot["graphic"]["language"] = record.get("data_language") or language
         _carve(shots, shot)
         record["result"] = "placed"
         records.append(record)

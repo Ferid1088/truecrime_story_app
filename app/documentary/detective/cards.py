@@ -4,7 +4,7 @@ An analyser agent cuts the narration into parts and says which kinds of card sui
 agent makes the card from the words of that part only; an inspector agent checks the card against those words and sends the
 problems back, the maker fixes, the inspector looks again (a configured number of rounds, then the card is dropped). A memory
 of the cards made so far refuses a card that repeats an earlier one. The map is chosen from a stored place, the timeline from
-the case's dated events (no model call); the detective board is the board plan's. Every card is stored with its metadata:
+the case's dated events with the chapter writer's labels (no model call); the detective board is the board plan's. Every card is stored with its metadata:
 the part of the text it belongs to, its kind and the moment of the beat after which it may be shown.
 
 The cards (with the board and the map) are made until they fill the configured minimum share of the film, in at most the
@@ -21,9 +21,11 @@ from sqlalchemy.orm import Session
 
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
-from app.db.models import DetectiveScene, DetectiveToolAction, NarrationUnit, RevealNode
+from app.db.models import DetectiveScene, DetectiveToolAction, NarrationUnit, RevealGraph, RevealNode
 from app.documentary.detective import buildable as BD
+from app.documentary.chapters import cards_for, latest_chapter_plan
 from app.documentary.detective import dispatch as D
+from app.documentary.detective.dispatch import SOURCE_LANGUAGE
 from app.documentary.detective.reading import reading_need
 from app.documentary.graphics.base import GraphicUnavailable
 from app.providers.generation import get_generation_provider
@@ -301,20 +303,26 @@ def store_card(db: Session, graph_id: int, part: Part, kind: str, data: dict, un
     action = DetectiveToolAction(
         scene_id=scene.id, action_key=f"{scene.scene_key}-a1", order_index=0, tool_id=kind,
         purpose=part.summary or kind, continuity_refs_json="[]", content_bindings_json=json.dumps(part.unit_keys),
-        payload_json=json.dumps({"data": data, "part": part.id, "seconds": seconds, "release_fraction": shown_at,
+        payload_json=json.dumps({"data": data, "language": language, "part": part.id, "seconds": seconds, "release_fraction": shown_at,
                                  **({"beat": next_beat} if next_beat else {})}, ensure_ascii=False))
     db.add(action)
     db.flush()
     return action
 
 
-def timeline_events(db: Session, graph_id: int) -> list[dict]:
-    """The case's dated events (the graph's timeline nodes) in story order, with their dates and beats."""
+def timeline_events(db: Session, graph_id: int, language: str) -> list[dict]:
+    """The case's dated events (the graph's timeline nodes) in story order, with their dates, beats and a short label in the
+    film's language: the label the chapter writer wrote for the event. A film in another language than the graph's
+    never shows the graph's own label, so an event the writer left without a label of this language is left out."""
+    graph = db.get(RevealGraph, graph_id)
+    plan = latest_chapter_plan(db, graph.blueprint_id) if graph else None
+    written = {e["id"]: e["label"] for e in cards_for(plan, language).get("events", []) if e.get("label")}
     events = []
     for node in db.query(RevealNode).filter_by(graph_id=graph_id, category="timeline").order_by(RevealNode.first_revealed_order):
         date = D._event_date(((json.loads(node.metadata_json or "{}").get("evidence") or {}).get("event_date")))
-        if date and node.label:
-            events.append({"key": node.node_key, "label": " ".join(node.label.split()), "date": date,
+        label = written.get(node.node_key) or (" ".join((node.label or "").split()) if language == SOURCE_LANGUAGE else "")
+        if date and label:
+            events.append({"key": node.node_key, "label": label, "date": date,
                            "beat": node.first_revealed_beat_id, "order": node.first_revealed_order})
     return events
 

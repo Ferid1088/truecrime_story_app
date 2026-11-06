@@ -267,3 +267,36 @@ def test_the_timeline_cards_are_runs_of_dates_made_once_and_shown_after_their_la
     beat = json.loads(action.scene.covered_unit_keys_json)[0].split("-")[0]
     assert beat >= "B05", "after the beat that tells the last event"
     assert TC.build_timeline_cards(db_session, graph.id, units, "en") == 0, "made once"
+
+
+def _chapter_plan(db_session, graph, labels: dict[str, str]):
+    from app.db.models import ChapterPlan
+
+    events = [{"id": key, "date": date, "claim": "x", "first_beat": beat, "label": {"fa": text} if text else {}}
+              for (key, date, beat), text in zip((("T001", "2026-02-15", "B01"), ("T002", "2026-02-15", "B02"),
+                                                  ("T003", "2026-06", "B05")), (labels.get(k) for k in ("T001", "T002", "T003")),
+                                                 strict=True)]
+    db_session.add(ChapterPlan(case_id=graph.case_id, blueprint_id=graph.blueprint_id, languages_json='["fa"]',
+                               plan_json=json.dumps({"languages": ["fa"], "events": events}, ensure_ascii=False)))
+    db_session.commit()
+
+
+def test_a_persian_timeline_shows_the_chapter_writers_labels_and_never_the_graphs_english_ones(db_session):
+    graph, units = film(db_session)
+    _chapter_plan(db_session, graph, {"T001": "تماس با ۹۱۱", "T002": "پوکه‌ها پیدا شد", "T003": ""})
+    events = CD.timeline_events(db_session, graph.id, "fa")
+    assert {e["key"]: e["label"] for e in events} == {"T001": "تماس با ۹۱۱", "T002": "پوکه‌ها پیدا شد"}, \
+        "the event the writer left without a Persian label is left out, not shown in English"
+    english = {e["key"]: e["label"] for e in CD.timeline_events(db_session, graph.id, "en")}
+    assert english["T003"] == "A letter arrived" and len(english) == 3
+
+
+def test_a_persian_timeline_card_has_only_persian_labels(db_session):
+    graph, units = film(db_session)
+    _chapter_plan(db_session, graph, {"T001": "تماس با ۹۱۱", "T002": "پوکه‌ها پیدا شد", "T003": "رسیدن نامه"})
+    assert TC.build_timeline_cards(db_session, graph.id, units, "fa") >= 1
+    action = (db_session.query(DetectiveToolAction).join(DetectiveScene, DetectiveScene.id == DetectiveToolAction.scene_id)
+              .filter(DetectiveScene.graph_id == graph.id, DetectiveToolAction.tool_id == "timeline").first())
+    payload = json.loads(action.payload_json)
+    labels = [label for p in payload["data"]["points"] for label in p["labels"]]
+    assert labels == ["تماس با ۹۱۱", "پوکه‌ها پیدا شد", "رسیدن نامه"] and payload["language"] == "fa"

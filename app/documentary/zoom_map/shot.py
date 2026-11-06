@@ -172,7 +172,7 @@ def zoom_shot(plan_shot: dict, assets: dict[str, VisualAsset], language: str) ->
                 "kind": "map", "zoom_video": True, "path": a.local_path, "clip_start": 0.0,
                 "clip_end": spec["seconds"], "asset_id": a.asset_code, "type": "map",
                 "motion": "NONE", "marker": spec.get("marker"), "attribution": spec["attribution"],
-                "map_variant": spec["variant"]}
+                "map_variant": spec["variant"], "place_name": info.get("place_label") or info["place"]}
             if reached:
                 fields["panel"] = {"names": [n for n, _ in reached], "step_times": [t for _, t in reached],
                                    "camera": spec.get("camera") or [], "target": [spec["lat"], spec["lon"]]}
