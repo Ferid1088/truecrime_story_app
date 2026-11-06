@@ -1,0 +1,1 @@
+- Deutsch: keine Schachtelsätze, keine Nominalketten ("die Durchführung der Durchsuchung" wird "die Polizei durchsuchte"); Alltagswörter statt Amtsdeutsch; Behauptungen bleiben im Konjunktiv I oder mit "soll".

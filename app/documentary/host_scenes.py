@@ -36,6 +36,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import HostScene, HostSegments, StoryVersion
 from app.documentary import audio as A
+from app.documentary import host_voice_text as HVT
 from app.documentary import semantic_review as SR
 from app.documentary import stage_direction as SD
 from app.documentary import storage
@@ -229,6 +230,33 @@ async def _pronunciation_key(db: Session, scene: HostScene, sentences: list[str]
     return keyed
 
 
+def required_voice(language: str, settings: dict) -> float:
+    """The host speaks with the story voice's own values (config voice.review_required): the same stability, the same speed where the language fixes it, and
+    the language's post speed. Refuses (nothing is voiced, nothing is paid) when the host style differs. Returns the post speed."""
+    want, tempo = ai_config.voice.review_required.get(language), ai_config.voice.post_speed.get(language, 1.0)
+    if want is not None:
+        wrong = {k: (settings.get(k), v) for k, v in (("stability", want.stability), ("speed", want.speed)) if v is not None and settings.get(k) != v}
+        if wrong or tempo != want.post_speed:
+            raise ST.StudioError("the host is not voiced: its settings are not the story voice's (" + ", ".join(
+                f"{k} {a} instead of {b}" for k, (a, b) in wrong.items()) + (f", post speed {tempo} instead of {want.post_speed}" if tempo != want.post_speed else "") + ")")
+    return tempo
+
+
+def sped_up(audio: bytes, tempo: float, alignment: dict) -> tuple[bytes, dict]:
+    """The host's audio at the language's post speed (pitch kept), and its timing: every time of the take is a time of the sped-up audio."""
+    if tempo == 1.0:
+        return audio, alignment
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        src, wav, mp3 = Path(tmp) / "raw.mp3", Path(tmp) / "fast.wav", Path(tmp) / "fast.mp3"
+        src.write_bytes(audio)
+        A.to_wav(src, wav, ai_config.loudness.sample_rate, tempo=tempo)
+        A.encode_mp3(wav, mp3)
+        fast = mp3.read_bytes()
+    return fast, {**alignment, "starts": [t / tempo for t in alignment["starts"]], "ends": [t / tempo for t in alignment["ends"]]}
+
+
 async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None, reviewer=None) -> dict | None:
     """ElevenLabs audio of exactly the frozen text, in the host's own style, through the same
     checks as the story's blocks: Whisper on the plain text, the pronunciation key and listening
@@ -242,6 +270,7 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None,
     meta = _loads(scene.voice_meta_json, {})
     # the host speaks in its own style (host.voice_style), not the narration's
     settings = ai_config.voice.settings_for(ai_config.host.voice_style, scene.language)
+    tempo = required_voice(scene.language, settings)          # before anything is created or paid
     prepared = scene.language in ai_config.voice.prepared_languages and not ai_config.ppie.fresh(scene.language)
     listened = ai_config.listens_after_voice(scene.language)
     dictionaries = []
@@ -254,7 +283,7 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None,
     p = storage.resolve(scene.voice_path) if scene.voice_path else None
     if (p is not None and p.exists() and meta.get("text_sha256") == scene.text_sha256
             and meta.get("voice_id") == scene.voice_id and meta.get("model_id") == vcfg.model_id
-            and meta.get("settings") == settings and meta.get("dictionaries", []) == dictionaries
+            and meta.get("settings") == settings and meta.get("post_speed", 1.0) == tempo and meta.get("dictionaries", []) == dictionaries
             and _sha(p.read_bytes()) == scene.voice_sha256
             and "flags" in _loads(scene.voice_checks_json, {})):
         return {"skipped": "saved audio matches the text, voice, settings and dictionary"}
@@ -265,12 +294,13 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None,
                                          use_asr=listened, use_listener=listened,        # a prepared or semantically reviewed language is not listened to afterwards
                                          arbiter=PronunciationEditor() if listened else None)
     renderer.dictionaries = dictionaries
+    prepared_text = await HVT.prepare(db, scene, renderer)          # the punctuation and the reading of the language: only what the voice is given changes
     sentences = _sentences(scene.text)
     pron = ai_config.pronunciation
     keyed = (await _pronunciation_key(db, scene, sentences, editor)
              if pron.enabled and scene.language in pron.languages and listened else {})
     d = scene_dir(scene)
-    block = {"block_id": f"host{scene.id}", "text": " ".join(sentences), "beats": [],
+    block = {"block_id": f"host{scene.id}", "text": " ".join(sentences), "beats": [], **({"tts_text": prepared_text} if prepared_text is not None else {}),
              "sentences": [{"speech": t, "display": t, "tts": t, "level": None,
                             "risky": keyed.get(i, [])} for i, t in enumerate(sentences)]}
     result = await renderer.speak_block(block, scene.language, vcfg, settings,
@@ -279,13 +309,12 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None,
     if SR.required(scene.language):          # the listening review of the host voice: nothing goes to the avatar before it has passed
         result = await _review_host_voice(db, scene, renderer, block, result, (vcfg, settings, d / "takes"), reviewer)
     take = result["take"]
-    audio = Path(take["raw_path"]).read_bytes()
+    audio, al = sped_up(Path(take["raw_path"]).read_bytes(), tempo, take["alignment"])
     name = f"voice_{scene.text_sha256[:12]}_{scene.voice_id[:8]}.mp3"
     _write_atomic(d / name, audio)
-    al = take["alignment"]
     seconds = round(max(al["ends"]), 3) if al.get("ends") else None
     meta = {"text_sha256": scene.text_sha256, "voice_id": scene.voice_id,
-            "model_id": vcfg.model_id, "settings": settings, "dictionaries": dictionaries,
+            "model_id": vcfg.model_id, "settings": settings, "post_speed": tempo, "dictionaries": dictionaries,
             "request_id": take.get("request_id"), "character_cost": take.get("character_cost"),
             "audio_format": ai_config.voice.elevenlabs.output_format, "seconds": seconds,
             "created_at": utc_now().isoformat()}

@@ -1,0 +1,42 @@
+"""The host's words prepared for the voice, the way the narration's blocks are (config host.text_preparation): the punctuation layer of the language and,
+where the language has one, its reading text (Persian's PPIE reading, Arabic's Tashkeel). German and English have the punctuation layer only. The host
+keeps its persona and its words: the text the avatar and the screen show (`scene.text`) is never changed; only what the voice is given is."""
+
+from __future__ import annotations
+
+from sqlalchemy.orm import Session
+
+from app.core.ai_config import ai_config
+from app.db.models import Case, HostScene, StoryVersion
+from app.documentary.punctuation import stage as PS
+from app.documentary.reading import stage as RS
+from app.documentary.reading.block import BlockInput
+
+
+def block_id(scene: HostScene) -> str:
+    return f"host{scene.id}"
+
+
+async def prepare(db: Session, scene: HostScene, renderer, punctuation: PS.PunctuationStage | None = None, reader=None) -> str | None:
+    """The text the voice is given for the host's appearance (None when the language is not prepared). The reading of the language, if it has one, is put
+    on the renderer (`voicing`, and Persian's `planner`), which gives each word to the voice as the reading says. `punctuation` and `reader` are the
+    stages to use (default: the language's own)."""
+    language = scene.language
+    renderer.voicing = renderer.planner = None
+    if language not in ai_config.host.text_preparation:
+        return None
+    bid, text, marked = block_id(scene), scene.text, None
+    if ai_config.semantic_punctuation.covers(language):
+        marked = await (punctuation or PS.PunctuationStage(db, scene.case_id, language=language)).block({"block_id": bid, "text": text})
+        text = marked.layer.text
+    if RS.required(language):
+        item = BlockInput(bid, "host", text)
+        version, case = db.get(StoryVersion, scene.story_version_id), db.get(Case, scene.case_id)
+        read = await (reader or RS.read_items)(db, case, version, language, [item])
+        renderer.voicing = await RS.voicing_of(db, language, read, [item], PS.boundaries_of({bid: marked}) if marked else None)
+        if ai_config.pronunciation_risk.enabled and RS.engine(language) == "persian":
+            from app.documentary.pronunciation_planner import Planner
+
+            voice = ai_config.voice.for_language(language)
+            renderer.planner = Planner(db, language, voice.voice_id, voice.model_id)
+    return text

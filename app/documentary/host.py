@@ -38,6 +38,7 @@ from app.db.models import (
 from app.documentary.blueprint import version_sections
 from app.documentary.host_story import HostStory
 from app.documentary.identity_line import with_identity
+from app.documentary.spoken import digits_left, numbers_rule
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -250,6 +251,14 @@ def register_of(language: str, cfg: HostConfig | None = None) -> str:
     return f"\n  The register of {LANG_NAMES.get(language, language)} (the critic judges by the same note): {note}" if note else ""
 
 
+def craft_of(language: str) -> str:
+    """The storyteller's craft of the spoken version, for the host's writer: the ear's order, the sentence length, the pauses, the language's own habits, and
+    for a language whose numbers are written out in words, how (the persona and the register stay the host's own)."""
+    return prompt("documentary/host/writer_craft").format(
+        limit=ai_config.spoken.max_sentence_words.get(language, 24), language_craft=prompt(f"documentary/host/craft_{language}") + "\n",
+        numbers_rule=numbers_rule(language).rstrip("\n") + "\n" if numbers_rule(language) else "")
+
+
 def writer_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
     cfg = cfg or ai_config.host
     name = LANG_NAMES.get(language, language)
@@ -257,7 +266,7 @@ def writer_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
     brand = (prompt("documentary/host/writer_system_prompt_2")
              .format(name_2=channel.name, name=name)) if channel else ""
     return prompt("documentary/host/writer_system_prompt").format(
-        persona_prompt=persona_prompt(cfg), name=name, brand=brand, register=register_of(language, cfg),
+        persona_prompt=persona_prompt(cfg), name=name, brand=brand, register=register_of(language, cfg), craft=craft_of(language),
         opening_first_sentence=cfg.opening_max_first_sentence_words,
         dimensions=", ".join(DIMENSIONS))
 
@@ -405,6 +414,8 @@ def dialogue_issues(seg: dict, dialogue: str, language: str, recent: list[dict],
             issues.append({"type": "first_sentence_too_long", "words": first,
                            "max": cfg.opening_max_first_sentence_words})
     issues += spoken_issues(sentences, cfg)
+    if digits := digits_left(text, language):
+        issues.append({"type": "numbers_as_digits", "quote": ", ".join(digits[:4])})
     if _META.search(text):
         issues.append({"type": "not_plain_speech"})
     if _EPISODE_META.search(text):

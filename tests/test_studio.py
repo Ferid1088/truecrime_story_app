@@ -557,20 +557,18 @@ class RecordingVoice(FakeVoice):
         return await super().synthesize(req)
 
 
-def test_the_host_speaks_in_its_own_style_not_the_narrations(db_session, tmp_path, monkeypatch):
-    """The persona asks for an audible switch from narration to conversation: the host's voice
-    uses host.voice_style, which is faster and less stable than the narration's default style."""
+def test_the_host_speaks_with_the_story_voices_stability_and_pace_in_every_language(db_session, tmp_path, monkeypatch):
+    """The avatar sounds like the story: per language the host style has the narration's stability, and the pace the language fixes."""
     from app.documentary.host_scenes import plan_host_scenes, run_scene
 
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
-    scene = plan_host_scenes(db_session, _segments(db_session, "de"))[0]
-    voice = RecordingVoice()
-    asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))
-    host = ai_config.voice.styles[ai_config.host.voice_style].model_dump()
-    narration = ai_config.voice.styles[ai_config.voice.default_style].model_dump()
-    assert voice.settings == [host] and ai_config.host.voice_style == "host_conversational"
-    assert host["speed"] > narration["speed"] and host["stability"] < narration["stability"]
-    assert json.loads(scene.voice_meta_json)["settings"] == host
+    for language, speed in (("de", 0.9), ("fa", 1.2)):
+        scene = plan_host_scenes(db_session, _segments(db_session, language))[0]
+        voice = RecordingVoice()
+        asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))
+        assert (voice.settings[0]["stability"], voice.settings[0]["speed"]) == (0.2, speed) and ai_config.host.voice_style == "host_conversational"
+        narration = ai_config.voice.settings_for(ai_config.voice.default_style, language)
+        assert (voice.settings[0]["stability"], voice.settings[0]["speed"]) == (narration["stability"], narration["speed"])
 
 
 def test_a_changed_host_style_makes_the_voice_again_and_the_same_style_does_not(db_session, tmp_path,
@@ -585,7 +583,7 @@ def test_a_changed_host_style_makes_the_voice_again_and_the_same_style_does_not(
     assert voice.calls == 1                                  # same text, voice and settings: kept
     monkeypatch.setattr(ai_config.host, "voice_style", "factual")
     asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))
-    assert voice.calls == 2 and voice.settings[-1] == ai_config.voice.styles["factual"].model_dump()
+    assert voice.calls == 2 and voice.settings[-1] == ai_config.voice.settings_for("factual", "en")
 
 
 def test_a_host_voice_style_that_is_not_a_voice_style_is_a_config_error():

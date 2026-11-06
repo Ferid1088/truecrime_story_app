@@ -1,0 +1,1 @@
+- Persian: put the verb early and do not stack more than two nouns on an ezafe («رئیسِ پلیسِ شهرِ میامی» is too long to say in one breath: split it); write names with one fixed spelling; no «مذکور»، «نامبرده»، «توسط»، «صورت گرفت» (the register note above gives the spoken forms).

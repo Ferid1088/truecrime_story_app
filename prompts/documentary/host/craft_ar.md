@@ -1,0 +1,1 @@
+- Arabic: start with the verb as a storyteller does, no «تمّ + مصدر», no «قام بـ», no «من قِبَل»; do not chain more than two idafa nouns in one phrase and do not join a long run of sentences with و: end the sentence and begin a new one.

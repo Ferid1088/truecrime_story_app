@@ -1,0 +1,1 @@
+- English: contractions where you would say them (wasn't, didn't, they'd), active voice with people as subjects, no news phrases ("it is understood that", "according to reports").
