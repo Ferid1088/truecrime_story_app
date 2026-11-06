@@ -66,5 +66,5 @@ def test_no_film_goes_on_before_the_person_approves_the_narration_and_a_new_asse
     asyncio.run(S.assemble(db, review))
     with pytest.raises(AwaitingVoiceReview):
         VRV.guard(version, "fa")                                  # assembled is not approved: the film still waits
-    S.approve(db, review)
+    asyncio.run(S.approve(db, review))
     VRV.guard(version, "fa")                                      # approved: the film may go on

@@ -297,12 +297,16 @@ def assembled_is_current(db: Session, review: VoiceReview) -> bool:
     return review.status in ("assembled", "approved") and json.loads(review.assembled_takes_json or "{}") == active_takes(db, review)
 
 
-def approve(db: Session, review: VoiceReview, note: str | None = None) -> dict:
-    """The person has listened to the assembled narration: it becomes the film's narration (the earlier one is kept next to it) and is approved, so the
-    film may go on. Refused while the ticked takes differ from the assembled ones."""
-    version = db.get(StoryVersion, review.story_version_id)
+async def approve(db: Session, review: VoiceReview, note: str | None = None) -> dict:
+    """The one way to the film's narration: the narration is assembled from the ticked takes (when the assembled one is not exactly of them), becomes the
+    film's narration (the earlier one is kept next to it) and is approved, so the film may go on. Refused while a corrected block has not been voiced:
+    its correction would be missing."""
+    waiting = [b.block_id for b in blocks_of(db, review) if needs_sending(db, b)]
+    if waiting:
+        raise ReviewError(f"{len(waiting)} corrected block(s) are not voiced yet ({', '.join(waiting[:4])}{'…' if len(waiting) > 4 else ''}): send them first")
     if not assembled_is_current(db, review):
-        raise ReviewError("assemble the narration again: the ticked takes changed since it was assembled")
+        await assemble(db, review)
+    version = db.get(StoryVersion, review.story_version_id)
     main, source = narration_folder(version), reviewed_folder(version)
     keep = main / f"before_review_{utc_now().strftime('%Y%m%dT%H%M%S')}"
     keep.mkdir()

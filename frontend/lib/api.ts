@@ -621,7 +621,8 @@ export const api = {
   assembleBlockReview: (versionId: number) =>
     request<BlockReviewOverview>(`/api/documentary/versions/${versionId}/block-review/assemble`, { method: "POST", body: "{}", timeoutMs: 2_400_000 }),
   approveBlockReview: (versionId: number, note?: string) =>
-    post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/block-review/approve`, { note: note ?? null }),
+    request<BlockReviewOverview>(`/api/documentary/versions/${versionId}/block-review/approve`,
+      { method: "POST", body: JSON.stringify({ note: note ?? null }), timeoutMs: 2_400_000 }),
   blockReviewStatus: (caseId: number, language = "fa") =>
     request<BlockReviewStatus>(`/api/cases/${caseId}/voice-review-status?language=${encodeURIComponent(language)}`),
   phoneticSamples: (language: string, status?: string, category?: string, source?: string) =>

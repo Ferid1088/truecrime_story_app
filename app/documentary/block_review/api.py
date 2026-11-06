@@ -209,10 +209,14 @@ def assembled_audio(version_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/documentary/versions/{version_id}/block-review/approve")
-def approve(version_id: int, body: NoteIn, db: Session = Depends(get_db)):
+async def approve(version_id: int, body: NoteIn, db: Session = Depends(get_db)):
+    """The one way to the film's narration: assembles it from the ticked takes when needed, makes it the film's and approves it (minutes, no new voice)."""
     version = _version(db, version_id)
     review = _review(db, version)
-    _guard(lambda: S.approve(db, review, body.note))
+    try:
+        await S.approve(db, review, body.note)
+    except S.ReviewError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return overview(db, version, review)
 
 

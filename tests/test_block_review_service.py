@@ -123,22 +123,37 @@ def test_a_person_ticks_any_take_and_the_assembly_uses_what_is_ticked_without_pa
         S.activate(db, review, "FA_B02_g01_01", 9)
 
 
-def test_approving_makes_the_assembled_narration_the_films_and_keeps_the_old_one_and_needs_a_current_assembly(narration):
+def test_approving_is_the_one_way_it_assembles_by_itself_makes_the_result_the_films_and_keeps_the_old_one(narration):
     db, _, version, voice = narration
     review = S.open_review(db, version)
     S.save_edit(db, review, "FA_B03_g01_01", "بعد رفت و آمد.", [])
+    with pytest.raises(S.ReviewError, match="1 corrected block.*not voiced yet.*send them first"):
+        asyncio.run(S.approve(db, review))                       # a correction that was not voiced would be missing
     asyncio.run(S.send_block(db, review, "FA_B03_g01_01", provider=voice))
-    with pytest.raises(S.ReviewError, match="assemble the narration again"):
-        S.approve(db, review)
-    asyncio.run(S.assemble(db, review))
+    paid = len(voice.requests)
     main = S.narration_folder(version)
     old_sha = S.sha256_of(main / "narration.mp3")
-    state = S.approve(db, review)
-    assert review.status == "approved" and state["approved"] is True and state["narration_sha256"] == S.sha256_of(main / "narration.mp3") != old_sha
+    assert review.status == "open" and not S.assembled_is_current(db, review), "nothing was assembled by hand"
+    state = asyncio.run(S.approve(db, review))                   # one call: assemble, make it the film's, approve
+    assert review.status == "approved" and state["approved"] is True and S.assembled_is_current(db, review) and len(voice.requests) == paid, "nothing is paid"
+    assert state["narration_sha256"] == S.sha256_of(main / "narration.mp3") != old_sha
     kept = list(main.glob("before_review_*/narration.mp3"))
     assert len(kept) == 1 and S.sha256_of(kept[0]) == old_sha
     manifest = json.loads((main / "manifest.json").read_text(encoding="utf-8"))
-    assert "/reviewed/" not in json.dumps(manifest["files"])
+    assert "/reviewed/" not in json.dumps(manifest["files"]) and manifest["joins"]["checked"] == 2, "the joins of the narration were checked"
+
+
+def test_an_assembly_made_by_hand_is_used_when_it_is_current_and_made_again_when_the_ticks_changed(narration):
+    db, _, version, voice = narration
+    review = S.open_review(db, version)
+    first = asyncio.run(S.assemble(db, review))
+    stamp = review.assembled_at
+    asyncio.run(S.approve(db, review))
+    assert review.assembled_at == stamp, "a current assembly is not made again"
+    asyncio.run(S.send_block(db, review, "FA_B02_g01_01", provider=voice, again=True))
+    assert not S.assembled_is_current(db, review)
+    asyncio.run(S.approve(db, review))                            # the ticks changed: assembled again, approved again
+    assert review.assembled_at > stamp and S.assembled_is_current(db, review) and first["blocks"] == 3
 
 
 def test_any_block_can_be_voiced_again_as_often_as_wanted_with_a_new_seed_and_every_take_stays(narration):

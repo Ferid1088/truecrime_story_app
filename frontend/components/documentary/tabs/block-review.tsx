@@ -123,16 +123,18 @@ export function BlockReview({ versionId }: { versionId: number }) {
             onClick={() => act("send", async () => { const r = await api.sendAllBlocks(versionId); if (r.failed.length) setError(`${r.failed.length} block(s) failed: ${r.failed.map((f) => f.block_id).join(", ")}`); return r; }, (r) => `${r.sent.length} corrected block(s) voiced.`)}>
             {busy === "send" ? "Voicing…" : `Send ${review.to_send} corrected block${review.to_send === 1 ? "" : "s"} to ElevenLabs`}
           </Button>
-          <Button size="sm" variant="secondary" disabled={busy !== null || review.to_send > 0}
-            onClick={() => act("assemble", () => api.assembleBlockReview(versionId), (r) => `Assembled from the ticked takes${r.assembled_at ? "" : ""}. Listen to it, then approve.`)}>
-            {busy === "assemble" ? "Assembling…" : "Check and assemble the narration"}
-          </Button>
-          <Button size="sm" disabled={busy !== null || !review.assembled_current || review.approved}
+          <Button size="sm" disabled={busy !== null || review.to_send > 0 || (review.approved && review.assembled_current)}
+            title={review.to_send > 0 ? "Send the corrected blocks to ElevenLabs first" : undefined}
             onClick={() => {
-              if (!window.confirm("Approve this narration? It becomes the film's narration and the film may go on. The earlier narration is kept.")) return;
-              void act("approve", () => api.approveBlockReview(versionId), () => "Approved. The film may go on.");
+              if (!window.confirm("Approve this narration? The app assembles it from the ticked takes now (about 10 to 15 minutes, nothing is voiced or paid), makes it the film's narration and approves it, so the film may go on. The earlier narration is kept.")) return;
+              void act("approve", () => api.approveBlockReview(versionId), () => "Assembled from the ticked takes, made the film's narration and approved. The film may go on.");
             }}>
-            Approve this narration
+            {busy === "approve" ? "Assembling and approving… (about 10 to 15 minutes)" : "Approve this narration"}
+          </Button>
+          <Button size="sm" variant="secondary" disabled={busy !== null || review.to_send > 0}
+            title="Only to listen first: it does not change the film's narration"
+            onClick={() => act("assemble", () => api.assembleBlockReview(versionId), () => "Assembled from the ticked takes. Listen to it below; the film's narration is not changed until you approve.")}>
+            {busy === "assemble" ? "Assembling…" : "Preview the assembled narration (optional)"}
           </Button>
         </div>
         {review.assembled_audio_url && (

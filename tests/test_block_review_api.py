@@ -52,11 +52,12 @@ def test_the_whole_review_through_the_routes(client, narration, monkeypatch):  #
     everything = client.post(f"{base}/send-all").json()
     assert everything["sent"] == ["FA_B03_g01_01"] and everything["failed"] == [] and everything["to_send"] == 0
 
-    assert client.post(f"{base}/approve", json={}).status_code == 409, "nothing is assembled yet"
-    assembled = client.post(f"{base}/assemble").json()
-    assert assembled["assembled_current"] and assembled["blocks"][1]["takes"][1]["active"]
-    assert client.get(assembled["assembled_audio_url"]).status_code == 200
-    approved = client.post(f"{base}/approve", json={"note": "listened"}).json()
-    assert approved["status"] == "approved" and approved["approved"] is True
+    client.put(f"{base}/blocks/FA_B03_g01_01", json={"text": "یک جمله دیگر."})
+    refused = client.post(f"{base}/approve", json={})
+    assert refused.status_code == 409 and "not voiced yet" in refused.json()["detail"], "a correction that was not voiced is not left out silently"
+    client.post(f"{base}/blocks/FA_B03_g01_01/send")
+    approved = client.post(f"{base}/approve", json={"note": "listened"}).json()           # one call: assembles, makes it the film's, approves
+    assert approved["status"] == "approved" and approved["approved"] is True and approved["assembled_current"] and approved["blocks"][1]["takes"][1]["active"]
+    assert client.get(approved["assembled_audio_url"]).status_code == 200
     final = client.get(f"/api/cases/{case.id}/voice-review-status").json()
     assert final["approved"] is True and final["blink"] is False
