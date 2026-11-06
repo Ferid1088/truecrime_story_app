@@ -33,3 +33,14 @@ def test_a_cut_with_fades_starts_and_ends_in_silence_and_a_cut_without_them_star
     assert abs(h[0]) > 0.2, "a hard cut inside a sound begins with sound (a click)"
     assert abs(s[:3]).max() < 0.02 and abs(s[-3:]).max() < 0.02, "a faded cut begins and ends in silence"
     assert abs(len(h) - len(s)) <= 2 and abs(s[int(0.1 * SR)]) > 0.1, "the sound in the middle is untouched"
+
+
+def test_a_file_whose_sound_begins_at_its_first_sample_gets_silence_in_front_and_behind_and_a_soft_start(tmp_path):
+    src = tone(tmp_path / "a.wav", lead=0.0, sound=0.5, tail=0.0)
+    out = tmp_path / "out.wav"
+    A.to_wav(src, out, SR, start=0.0, end=0.5, fade_in=0.012, fade_out=0.03, lead_silence=0.06, tail_silence=0.06)
+    x = A.decode_f32(out, SR)
+    assert abs(len(x) / SR - 0.62) < 0.01, "0.06 s silence + 0.5 s sound + 0.06 s silence"
+    assert abs(x[: int(0.055 * SR)]).max() < 1e-4 and abs(x[-int(0.055 * SR):]).max() < 1e-4, "true silence in front and behind"
+    start, end = A.audible_span(out, floor_db=-50)
+    assert 0.05 < start < 0.09 and 0.53 < end < 0.58, "the sound sits between them"

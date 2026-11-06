@@ -46,26 +46,32 @@ def probe_duration(path: str | Path) -> float:
 def to_wav(
     src: str | Path, dst: str | Path, sample_rate: int,
     start: float | None = None, end: float | None = None, tempo: float = 1.0,
-    fade_in: float = 0.0, fade_out: float = 0.0,
+    fade_in: float = 0.0, fade_out: float = 0.0, lead_silence: float = 0.0, tail_silence: float = 0.0,
 ) -> Path:
     """Decode (and optionally speed up, pitch kept, and trim) to mono 16-bit PCM WAV. Trimming is
     sample-accurate because -ss/-to come after -i; with a tempo, start and end are seconds of the sped-up audio.
-    `fade_in` / `fade_out`: seconds of a fade at the cut start and the cut end (a cut that begins or ends inside a sound has no click)."""
+    `fade_in` / `fade_out`: seconds of a fade at the start and the end of the sound (a cut that begins or ends inside a sound has no click).
+    `lead_silence` / `tail_silence`: seconds of silence put before the start and after the end (a file whose sound begins at its very first sample)."""
     args = ["ffmpeg", "-y", "-v", "error", "-i", str(src)]
     filters = []
     if tempo != 1.0:
         filters.append(f"atempo={tempo:.4f}")
     lo = max(start or 0.0, 0.0)
+    if lead_silence > 0:                  # the sound now begins `lead_silence` later; the cut is taken after the silence is in
+        filters.append(f"adelay={round(lead_silence * 1000)}:all=1")
     if fade_in > 0:
-        filters.append(f"afade=t=in:st={lo:.3f}:d={fade_in:.3f}")
-    if fade_out > 0 and end is not None:
-        filters.append(f"afade=t=out:st={max(end - fade_out, lo):.3f}:d={fade_out:.3f}")
+        filters.append(f"afade=t=in:st={lo + lead_silence:.3f}:d={fade_in:.3f}")
+    stop = None if end is None else end + lead_silence
+    if fade_out > 0 and stop is not None:
+        filters.append(f"afade=t=out:st={max(stop - fade_out, lo):.3f}:d={fade_out:.3f}")
+    if tail_silence > 0:
+        filters.append(f"apad=pad_dur={tail_silence:.3f}")
     if filters:
         args += ["-filter:a", ",".join(filters)]
     if start is not None:
         args += ["-ss", f"{max(start, 0.0):.3f}"]
-    if end is not None:
-        args += ["-to", f"{end:.3f}"]
+    if stop is not None:
+        args += ["-to", f"{stop + tail_silence:.3f}"]
     args += ["-ac", "1", "-ar", str(sample_rate), "-c:a", "pcm_s16le", str(dst)]
     _run(args)
     return Path(dst)

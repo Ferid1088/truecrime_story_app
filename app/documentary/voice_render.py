@@ -344,14 +344,15 @@ class VoiceRenderer:
         t0 = max(0.0, speech_start - self.cfg.lead_pad_ms / 1000)
         t1 = min(raw_duration, speech_end + self.cfg.tail_pad_ms / 1000)
         edge = self.cfg.edges.get(language) if self.narration else None
-        fades, ends = (0.0, 0.0), None
+        fades, ends = (0.0, 0.0, 0.0, 0.0), None
         if edge is not None:               # a language cut by its sound: where the voice really begins and ends, with a fade at each cut
             on, off = await asyncio.to_thread(A.audible_span, raw, edge.floor_db)
             on, off = on / tempo, off / tempo
             if off > on:
-                t0, t1 = max(0.0, on - edge.lead_keep_ms / 1000), min(raw_duration, off + edge.tail_keep_ms / 1000)
-                fades = (edge.fade_in_ms / 1000, edge.fade_out_ms / 1000)
-                ends = {"lead_ms": round((on - t0) * 1000), "tail_ms": round((t1 - off) * 1000)}
+                lead, tail = edge.lead_keep_ms / 1000, edge.tail_keep_ms / 1000
+                t0, t1 = max(0.0, on - lead), min(raw_duration, off + tail)
+                fades = (edge.fade_in_ms / 1000, edge.fade_out_ms / 1000, lead - (on - t0), tail - (t1 - off))     # silence is put in where the file has none around its sound
+                ends = {"lead_ms": round(lead * 1000), "tail_ms": round(tail * 1000), "raw_lead_ms": round((on - t0) * 1000), "raw_tail_ms": round((t1 - off) * 1000)}
         await asyncio.to_thread(A.to_wav, raw, wav, self.loud.sample_rate, t0, t1, tempo, *fades)
         duration = await asyncio.to_thread(A.probe_duration, wav)
         local_words = [
@@ -539,6 +540,7 @@ class VoiceRenderer:
         if join is None or not self.cfg.edges.get(language):
             return {"checked": 0, "flagged": [], "silence_ms": {}}
         silences, flagged = [], []
+        padded = sum(1 for r in results if (r["take"].get("edges") or {}).get("raw_lead_ms", 10**6) < join.min_lead_ms)           # files that began with their sound: silence was put in front
         for i in range(len(results) - 1):
             a, b = results[i]["take"].get("edges"), results[i + 1]["take"].get("edges")
             if not a or not b:
@@ -556,7 +558,7 @@ class VoiceRenderer:
             if flags:
                 flagged.append({"after": results[i]["block"]["block_id"], "silence_ms": silence, "flags": flags})
         ordered = sorted(silences)
-        return {"checked": len(silences), "flagged": flagged,
+        return {"checked": len(silences), "flagged": flagged, "files_given_a_lead_in": padded,
                 "silence_ms": {"median": ordered[len(ordered) // 2], "max": ordered[-1], "min": ordered[0]} if ordered else {}}
 
     def join_gap_ms(self, language: str, block: dict, following: dict, planned_ms: int) -> int:

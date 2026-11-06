@@ -619,7 +619,7 @@ export const api = {
   activateTake: (versionId: number, blockId: string, takeNo: number) =>
     post<BlockReviewBlock>(`/api/documentary/versions/${versionId}/block-review/blocks/${encodeURIComponent(blockId)}/takes/${takeNo}/activate`),
   assembleBlockReview: (versionId: number) =>
-    request<BlockReviewOverview>(`/api/documentary/versions/${versionId}/block-review/assemble`, { method: "POST", body: "{}", timeoutMs: 900_000 }),
+    request<BlockReviewOverview>(`/api/documentary/versions/${versionId}/block-review/assemble`, { method: "POST", body: "{}", timeoutMs: 2_400_000 }),
   approveBlockReview: (versionId: number, note?: string) =>
     post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/block-review/approve`, { note: note ?? null }),
   blockReviewStatus: (caseId: number, language = "fa") =>
