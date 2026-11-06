@@ -207,9 +207,9 @@ def test_every_persian_style_is_voiced_at_speed_1_2_and_stability_0_2_and_played
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
     tempos, made = [], A.to_wav
 
-    def spy(raw, wav, rate, t0, t1, tempo=1.0):
+    def spy(raw, wav, rate, t0, t1, tempo=1.0, *fades):
         tempos.append(tempo)
-        return made(raw, wav, rate, t0, t1, tempo)
+        return made(raw, wav, rate, t0, t1, tempo, *fades)
 
     monkeypatch.setattr(A, "to_wav", spy)
     tts = FakeTTS()
