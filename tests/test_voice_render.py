@@ -284,11 +284,10 @@ def test_persian_has_its_own_voice_styles_and_every_other_language_keeps_the_com
     voice = ai_config.voice
     for style in (ai_config.host.voice_style, voice.default_style):
         assert voice.settings_for(style, "fa")["speed"] == 1.2
-        for language in ("en", "ar"):                    # (German has its own settings: test_voice_stability_by_language)
-            narration = voice.settings_for(voice.default_style, language)
-            assert voice.settings_for(style, language) == {**voice.styles[style].model_dump(), "stability": 0.2, **({"speed": narration["speed"]} if style == ai_config.host.voice_style else {})}
+        for language in ("de", "en", "ar"):              # (their stability 0.7 and speed 0.9: test_voice_stability_by_language)
+            assert voice.settings_for(style, language) == {**voice.styles[style].model_dump(), "stability": 0.7, "speed": 0.9}
     assert voice.settings_for(voice.default_style, "fa")["stability"] == 0.2 and voice.settings_for(ai_config.host.voice_style, "fa")["stability"] == 0.2
-    assert voice.styles[voice.default_style].speed < 1.0, "the other languages are as they were before the Persian changes"
+    assert voice.styles[voice.default_style].speed < 1.0, "the common styles are slower than the language-less pace"
 
 
 def test_neighbour_text_and_style_reach_the_provider(workdir):
@@ -298,7 +297,7 @@ def test_neighbour_text_and_style_reach_the_provider(workdir):
     _render(VoiceRenderer(provider=tts, asr=FakeASR()), [b], style="controlled_tension")
     req = tts.requests[0]
     assert (req.previous_text, req.next_text) == ("Before.", "After.")
-    assert req.settings["speed"] == ai_config.voice.styles["controlled_tension"].speed
+    assert req.settings == ai_config.voice.settings_for("controlled_tension", "en")
     assert req.voice_id == ai_config.voice.for_language("en").voice_id
 
 

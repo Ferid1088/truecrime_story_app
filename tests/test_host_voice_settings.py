@@ -22,7 +22,7 @@ from app.documentary.studio import StudioError
 def test_the_host_style_has_the_story_voices_stability_and_the_language_pace(language):
     host = ai_config.voice.settings_for(ai_config.host.voice_style, language)
     story = ai_config.voice.settings_for(ai_config.voice.default_style, language)
-    assert host["stability"] == story["stability"] == (0.7 if language == "de" else 0.2) and host["speed"] == story["speed"]
+    assert host["stability"] == story["stability"] == (0.2 if language == "fa" else 0.7) and host["speed"] == story["speed"]
     assert HS.required_voice(language, host) == ai_config.voice.post_speed.get(language, 1.0)
     assert (HS.required_voice("fa", ai_config.voice.settings_for(ai_config.host.voice_style, "fa")), host["speed"] == 1.2) == (1.1, language == "fa")
 

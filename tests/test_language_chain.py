@@ -118,6 +118,6 @@ def test_arabic_gets_its_vowel_marks_in_the_reading_stage_after_the_punctuation(
 @pytest.mark.parametrize("language", ["en", "de", "ar"])
 def test_every_request_has_stability_02_its_own_speed_and_no_persian_post_speed(language, workdir):  # noqa: F811
     r = chain(language)
-    assert r["stability"] == (0.7 if language == "de" else 0.2) and r["language_code"] == language
+    assert r["stability"] == 0.7 and r["language_code"] == language
     assert r["speed"] == ai_config.voice.settings_for(ai_config.voice.default_style, language)["speed"] and r["speed"] != 1.2
     assert r["post_speed"] == 1.0
