@@ -161,7 +161,7 @@
     "review_required": {
       "fa": {"speed": 1.2, "stability": 0.2, "post_speed": 1.1},
       "ar": {"stability": 0.2, "post_speed": 1.0},
-      "de": {"stability": 0.2, "post_speed": 1.0},
+      "de": {"speed": 0.9, "stability": 0.7, "post_speed": 1.0},
       "en": {"stability": 0.2, "post_speed": 1.0}
     },
     "edges": {
@@ -320,70 +320,70 @@
       },
       "de": {
         "host_conversational": {
-          "stability": 0.2,
+          "stability": 0.7,
           "similarity_boost": 0.75,
           "style": 0.0,
           "use_speaker_boost": true,
           "speed": 0.9
         },
         "neutral_documentary": {
-          "stability": 0.2,
+          "stability": 0.7,
           "similarity_boost": 0.75,
           "style": 0.05,
           "use_speaker_boost": true,
           "speed": 0.9
         },
         "factual": {
-          "stability": 0.2,
+          "stability": 0.7,
           "similarity_boost": 0.75,
           "style": 0.05,
           "use_speaker_boost": true,
-          "speed": 0.92
+          "speed": 0.9
         },
         "controlled_tension": {
-          "stability": 0.2,
+          "stability": 0.7,
           "similarity_boost": 0.75,
           "style": 0.1,
           "use_speaker_boost": true,
-          "speed": 0.88
+          "speed": 0.9
         },
         "reveal": {
-          "stability": 0.2,
+          "stability": 0.7,
           "similarity_boost": 0.75,
           "style": 0.1,
           "use_speaker_boost": true,
-          "speed": 0.86
+          "speed": 0.9
         },
         "reflective": {
-          "stability": 0.2,
+          "stability": 0.7,
           "similarity_boost": 0.75,
           "style": 0.1,
           "use_speaker_boost": true,
-          "speed": 0.87
+          "speed": 0.9
         },
         "v3_neutral": {
-          "stability": 0.2,
+          "stability": 0.7,
           "similarity_boost": 0.75,
           "style": 0.0,
           "use_speaker_boost": true,
-          "speed": 0.94
+          "speed": 0.9
         },
         "v3_unease": {
-          "stability": 0.2,
+          "stability": 0.7,
           "similarity_boost": 0.75,
           "style": 0.0,
           "use_speaker_boost": true,
-          "speed": 0.92
+          "speed": 0.9
         },
         "v3_tension": {
-          "stability": 0.2,
+          "stability": 0.7,
           "similarity_boost": 0.75,
           "style": 0.0,
           "use_speaker_boost": true,
           "speed": 0.9
         },
         "v3_climax": {
-          "stability": 0.2,
+          "stability": 0.7,
           "similarity_boost": 0.75,
           "style": 0.0,
           "use_speaker_boost": true,

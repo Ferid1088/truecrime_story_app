@@ -284,7 +284,7 @@ def test_persian_has_its_own_voice_styles_and_every_other_language_keeps_the_com
     voice = ai_config.voice
     for style in (ai_config.host.voice_style, voice.default_style):
         assert voice.settings_for(style, "fa")["speed"] == 1.2
-        for language in ("en", "de", "ar"):
+        for language in ("en", "ar"):                    # (German has its own settings: test_voice_stability_by_language)
             narration = voice.settings_for(voice.default_style, language)
             assert voice.settings_for(style, language) == {**voice.styles[style].model_dump(), "stability": 0.2, **({"speed": narration["speed"]} if style == ai_config.host.voice_style else {})}
     assert voice.settings_for(voice.default_style, "fa")["stability"] == 0.2 and voice.settings_for(ai_config.host.voice_style, "fa")["stability"] == 0.2

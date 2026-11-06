@@ -562,11 +562,11 @@ def test_the_host_speaks_with_the_story_voices_stability_and_pace_in_every_langu
     from app.documentary.host_scenes import plan_host_scenes, run_scene
 
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
-    for language, speed in (("de", 0.9), ("fa", 1.2)):
+    for language, stability, speed in (("de", 0.7, 0.9), ("fa", 0.2, 1.2)):
         scene = plan_host_scenes(db_session, _segments(db_session, language))[0]
         voice = RecordingVoice()
         asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))
-        assert (voice.settings[0]["stability"], voice.settings[0]["speed"]) == (0.2, speed) and ai_config.host.voice_style == "host_conversational"
+        assert (voice.settings[0]["stability"], voice.settings[0]["speed"]) == (stability, speed) and ai_config.host.voice_style == "host_conversational"
         narration = ai_config.voice.settings_for(ai_config.voice.default_style, language)
         assert (voice.settings[0]["stability"], voice.settings[0]["speed"]) == (narration["stability"], narration["speed"])
 
