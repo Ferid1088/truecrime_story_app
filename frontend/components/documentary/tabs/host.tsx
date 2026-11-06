@@ -3,7 +3,7 @@
 import { CoveragePanel } from "./visual-library";
 import { HostPlanPanel } from "./host-plan";
 import { HostMemoryPanel } from "./host-memory";
-import { SceneOutfit } from "./host-outfit";
+import { SceneOutfit, SectionOutfits } from "./host-outfit";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Clapperboard, Mic } from "lucide-react";
 import { api, apiFileUrl } from "@/lib/api";
@@ -59,6 +59,7 @@ export function HostTab({ caseId, settings, refreshKey, language, onLanguageChan
           {avatarOn ? "avatar generation on" : "avatar generation off (config avatar.enabled)"}
         </p>
       </div>
+      <SectionOutfits caseId={caseId} language={language} />
       <HostMemoryPanel caseId={caseId} />
       <HostPlanPanel caseId={caseId} scenes={data ?? []} />
       <CoveragePanel caseId={caseId} languages={[language]} refreshKey={refreshKey} />

@@ -224,3 +224,72 @@ export function SceneOutfit({ scene, onChanged }: { scene: HostScene; onChanged:
     </section>
   );
 }
+
+/** The outfit of each section (S1 ... S4) of one language: chosen with the case, before any text or host scene exists. */
+export function SectionOutfits({ caseId, language }: { caseId: number; language: string }) {
+  const { data, refetch } = useApi(() => api.hostSectionOutfits(caseId, language), [caseId, language]);
+  const [section, setSection] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const save = async (optionKey: string, itemId: number) => {
+    const done = await api.chooseSectionOutfit(caseId, { language, section: section!, option_key: optionKey, item_id: itemId });
+    const wears = done.sections.find((s) => s.section === section)?.outfit?.name ?? "";
+    const text = `Saved: ${section} wears ${wears}.`;
+    setMessage(text);
+    refetch();
+    return text;
+  };
+
+  const back = async (name: string) => {
+    setBusy(true);
+    try {
+      await api.chooseSectionOutfit(caseId, { language, section: name, option_key: null });
+      setMessage(`${name} wears the video's outfit again.`);
+      refetch();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="space-y-2 rounded border border-border bg-muted/30 p-3 text-xs"
+             aria-label="Outfit for each section" data-testid={`section-outfits-${language}`}>
+      <div className="flex items-center gap-2">
+        <Shirt className="size-4" />
+        <span className="text-sm font-medium">Outfit for each section</span>
+        <span className="text-muted-foreground">
+          {data?.video_outfit ? `Sections without a choice wear ${data.video_outfit.name}.` : "No outfit is chosen for this video yet."}
+        </span>
+      </div>
+      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {(data?.sections ?? []).map((s) => (
+          <li key={s.section} className="flex flex-wrap items-center gap-2 rounded border border-border p-2"
+              data-testid={`section-outfit-${s.section}`}>
+            <span className="font-medium">{s.section}</span>
+            {s.outfit ? <Badge variant={s.chosen ? "info" : "default"}>{s.outfit.name}</Badge>
+              : <Badge variant="warning">no outfit yet</Badge>}
+            <Button size="sm" variant="secondary" disabled={!data || busy} onClick={() => { setMessage(null); setSection(s.section); }}>
+              Choose
+            </Button>
+            {s.chosen && <Button size="sm" variant="ghost" disabled={busy} onClick={() => back(s.section)}>Remove</Button>}
+          </li>
+        ))}
+      </ul>
+      {message && <p role="status" className="text-emerald-700">{message}</p>}
+      {section && data && (
+        <OutfitChooser
+          subject={`section ${section}`}
+          options={data.options}
+          avatarEnabled={false}
+          videos={0}
+          videoNoun="host video"
+          onSave={(key, item) => save(key, item)}
+          onClose={() => setSection(null)}
+        />
+      )}
+    </section>
+  );
+}

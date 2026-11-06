@@ -474,6 +474,39 @@ def list_outfits(case_id: int, language: str | None = None, db: Session = Depend
     return [_outfit_view(db, o) for o in q.order_by(HostOutfit.id)]
 
 
+@router.get("/api/cases/{case_id}/host-section-outfits")
+def host_section_outfits(case_id: int, language: str, db: Session = Depends(get_db)):
+    """The outfit of each section (S1 ... S4) of the host in one language, and the outfits that can be chosen. Needs no text
+    and no host scene: it is there as soon as the case is."""
+    from app.documentary import outfits as OF
+
+    return {**OF.section_view(db, case_id, language), **OF.choice_options(db, case_id, language)}
+
+
+class SectionOutfitChoice(BaseModel):
+    language: str
+    section: str
+    option_key: str | None = None            # None: back to the video's outfit of the language
+    item_id: int | None = None
+
+
+@router.post("/api/cases/{case_id}/host-section-outfits")
+def choose_section_outfit(case_id: int, payload: SectionOutfitChoice, db: Session = Depends(get_db)):
+    """The owner's outfit (an outfit of the library and one of its photos) for one section of one language, or back to the
+    video's outfit. Nothing is generated: the scenes of that section wear it when they are made."""
+    from app.documentary import outfits as OF
+
+    outfit = None
+    if payload.option_key is not None:
+        if payload.item_id is None:
+            raise HTTPException(status_code=422, detail="Choose one photo of the outfit.")
+        outfit = _outfit_call(lambda: OF.apply_choice(
+            db, case_id, payload.language, payload.option_key, [payload.item_id], "owner_host_sections",
+            select=False))["outfit"]
+    _outfit_call(lambda: OF.set_section_outfit(db, case_id, payload.language, payload.section, outfit))
+    return OF.section_view(db, case_id, payload.language)
+
+
 @router.get("/api/outfit-registry")
 def outfit_registry():
     """The app's outfits an outfit of a video can be made from."""

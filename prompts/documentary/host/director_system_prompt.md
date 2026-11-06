@@ -28,17 +28,17 @@ ROLES (the kinds of appearance; the allowed seconds are computed, shown here for
 - "outro": after the last act, short. Exactly one.
 
 HOW MANY, WHERE
-- The number follows the structure and the film's length, not a fixed pattern: between
-  {min_appearances} and {max_appearances} appearances in total, the opening and the outro
-  included. A short film or an even, fast story needs fewer; a long film with several turning
-  points more.
+- Every film has the same number of appearances: {min_appearances} to {max_appearances} in total
+  (the configured count), the opening and the outro included. With four, that is the opening (S1),
+  two mid appearances (S2, S3) and the outro (S4). Where they stand follows the structure of the
+  film, not a fixed pattern.
 - A mid appearance ("transition", "reflection", "viewer_question") stands AFTER an act
   ("after_act": an act id), at an act boundary or natural tension point, never in the middle of
   a scene. Never after the hook act, never right before a payoff act, never after the last act
   (that is the outro).
 - At least {min_acts_between} act between two appearances and at least {min_gap_seconds} seconds
   of story between them. Vary the roles; do not stack the same role twice in a row.
-- All appearances together stay under {max_total_seconds} seconds and under {max_total_share}. Fewer is better than forced.
+- All appearances together stay under {max_total_seconds} seconds and under {max_total_share}. Keep each appearance short enough to stay inside them.
 
 Return JSON only:
 {{"notes": "one or two sentences on why this structure fits this film",
@@ -47,7 +47,9 @@ Return JSON only:
       "reason": "why the host stands here (structure only: tension, turn, pacing)"}},
     {{"id": "S2", "position": "mid", "role": "transition", "after_act": "act2",
       "reason": "..."}},
-    {{"id": "S3", "position": "final", "role": "outro", "after_act": null, "reason": "..."}}]}}
+    {{"id": "S3", "position": "mid", "role": "reflection", "after_act": "act5",
+      "reason": "..."}},
+    {{"id": "S4", "position": "final", "role": "outro", "after_act": null, "reason": "..."}}]}}
 "position" is "opening", "mid" or "final" and must match the role's position.
 
 # ADDED: planning rules

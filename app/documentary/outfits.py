@@ -15,7 +15,14 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.db.models import HostLook, HostOutfit, OutfitDefault, OutfitItem
+from app.db.models import (
+    HostLook,
+    HostOutfit,
+    HostScene,
+    HostSectionOutfit,
+    OutfitDefault,
+    OutfitItem,
+)
 from app.documentary import storage
 from app.documentary import studio as ST
 from app.outfits.registry import OutfitRegistry
@@ -99,7 +106,62 @@ def scene_outfit(db: Session, scene) -> HostOutfit | None:
     if chosen is not None and chosen.case_id == scene.case_id and chosen.language == scene.language \
             and chosen.status != "retired":
         return chosen
-    return selected_outfit(db, scene.case_id, scene.language)
+    return section_outfit(db, scene.case_id, scene.language, scene.host_segment_id) \
+        or selected_outfit(db, scene.case_id, scene.language)
+
+
+def section_ids() -> list[str]:
+    """S1 ... Sn: the host's sections of every film (their number is the configured count of appearances)."""
+    return [f"S{n}" for n in range(1, ai_config.host.max_appearances + 1)]
+
+
+def section_outfit(db: Session, case_id: int, language: str, section: str) -> HostOutfit | None:
+    """The outfit chosen for this section of this language, or None when none was chosen (the video's outfit then applies)."""
+    row = (db.query(HostSectionOutfit)
+           .filter(HostSectionOutfit.case_id == case_id, HostSectionOutfit.language == language,
+                   HostSectionOutfit.section == section).first())
+    outfit = db.get(HostOutfit, row.outfit_id) if row is not None else None
+    return outfit if outfit is not None and outfit.status != "retired" else None
+
+
+def set_section_outfit(db: Session, case_id: int, language: str, section: str,
+                       outfit: HostOutfit | None) -> None:
+    """Choose the outfit of one section, or (None) take the choice back. A scene of that section that has no video yet and no
+    outfit of its own forgets its look, so its look is chosen again from the new outfit."""
+    if section not in section_ids():
+        raise OutfitError(f"{section!r} is not a section of the host ({', '.join(section_ids())})")
+    if outfit is not None and (outfit.case_id != case_id or outfit.language != language or outfit.status == "retired"):
+        raise OutfitError(f"That outfit is not available for {language}.")
+    row = (db.query(HostSectionOutfit)
+           .filter(HostSectionOutfit.case_id == case_id, HostSectionOutfit.language == language,
+                   HostSectionOutfit.section == section).first())
+    if outfit is None:
+        if row is not None:
+            db.delete(row)
+    elif row is None:
+        db.add(HostSectionOutfit(case_id=case_id, language=language, section=section, outfit_id=outfit.id))
+    else:
+        row.outfit_id = outfit.id
+    for scene in db.query(HostScene).filter(HostScene.case_id == case_id, HostScene.language == language,
+                                           HostScene.host_segment_id == section,
+                                           HostScene.chosen_outfit_id.is_(None)):
+        if not scene.avatar_video_path:
+            scene.look_id = scene.avatar_id = scene.direction_json = scene.direction_sha256 = None
+            scene.look_choice_json = "{}"
+    db.commit()
+
+
+def section_view(db: Session, case_id: int, language: str) -> dict:
+    """What the Host tab shows for one language: for every section the outfit it wears (its own choice, else the video's)."""
+    default = selected_outfit(db, case_id, language)
+    sections = []
+    for section in section_ids():
+        own = section_outfit(db, case_id, language, section)
+        wearing = own or default
+        sections.append({"section": section, "chosen": own is not None,
+                         "outfit": None if wearing is None else {"id": wearing.id, "name": wearing.name}})
+    return {"language": language, "sections": sections,
+            "video_outfit": None if default is None else {"id": default.id, "name": default.name}}
 
 
 def selected_outfit(db: Session, case_id: int, language: str) -> HostOutfit | None:

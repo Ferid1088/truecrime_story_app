@@ -2857,6 +2857,21 @@ class HostOutfit(Base):
     selected_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
 
+class HostSectionOutfit(Base):
+    """The outfit the owner chose for ONE section (S1, S2 ...) of the host in one language of a case. It exists before any
+    text or host scene does; a scene of that section wears it unless the owner chose another one for that scene alone."""
+
+    __tablename__ = "host_section_outfits"
+    __table_args__ = (UniqueConstraint("case_id", "language", "section", name="uq_host_section_outfit"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(10))
+    section: Mapped[str] = mapped_column(String(20))
+    outfit_id: Mapped[int] = mapped_column(ForeignKey("host_outfits.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
 class HostLook(Base):
     """One look of the host in a channel's studio (Part 7b): a picture of
     him inside the locked studio master (camera, framing, outfit, pose) made
@@ -3490,6 +3505,7 @@ class VoiceReview(Base):
     case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
     story_version_id: Mapped[int] = mapped_column(ForeignKey("story_versions.id"), index=True)
     language: Mapped[str] = mapped_column(String(20))
+    kind: Mapped[str] = mapped_column(String(12), default="narration")          # narration | host
     status: Mapped[str] = mapped_column(String(20), default="open")             # open | assembled | approved
     assembled_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     assembled_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -3505,7 +3521,6 @@ class VoiceBlock(Base):
     __table_args__ = (UniqueConstraint("review_id", "block_id", name="uq_voice_block"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    kind: Mapped[str] = mapped_column(String(12), default="narration")          # narration | host
     review_id: Mapped[int] = mapped_column(ForeignKey("voice_reviews.id"), index=True)
     block_id: Mapped[str] = mapped_column(String(80))
     position: Mapped[int] = mapped_column(Integer)

@@ -3028,6 +3028,14 @@ export interface HostSceneOutfit {
   avatar_enabled: boolean;
 }
 
+/** The outfit each section (S1 ... S4) of the host wears in one language, and the outfits to choose from. */
+export interface HostSectionOutfits {
+  language: string;
+  sections: { section: string; chosen: boolean; outfit: { id: number; name: string } | null }[];
+  video_outfit: { id: number; name: string } | null;
+  options: HostOutfitOption[];
+}
+
 export interface HostScene {
   direction: Record<string, unknown> | null;
   direction_sha256: string | null;
@@ -3952,6 +3960,7 @@ export interface BlockReviewMissing {
 
 export interface BlockReviewOverview {
   exists: true;
+  kind?: "host";
   version_id: number;
   language: string;
   status: "open" | "assembled" | "approved";
@@ -3960,7 +3969,6 @@ export interface BlockReviewOverview {
   approved: boolean;
   corrected_blocks: number;
   to_send: number;
-  kind?: "host";
   assembled_audio_url: string | null;
   blocks: BlockReviewBlock[];
 }
