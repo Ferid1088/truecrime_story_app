@@ -268,6 +268,7 @@
       "min_length_variation": 0.3
     },
     "max_writer_repairs": 5,
+    "text_preparation": ["fa", "ar", "en", "de"],
     "required_for_film": true
   },
   "studio": {
@@ -565,19 +566,47 @@
     "suffix_readings": {"ها": ["hā", "ā"], "های": ["hāye", "āye", "hāy", "āy", "hā", "ā"], "هایی": ["hāyi", "āyi"], "هاش": ["hāsh", "āsh"], "هاشون": ["hāshun", "āshun"], "ش": ["esh", "ash", "sh"], "اش": ["esh", "ash", "sh"], "شون": ["eshun", "ashun", "shun"], "مون": ["emun", "amun", "mun"], "تون": ["etun", "atun", "tun"], "ای": ["yi", "i"], "ی": ["i", "ye"]}
   },
   "ppie": {
-    "languages": ["fa"],
+    "languages": ["fa", "ar"],
+    "asr_languages": ["ar"],
     "folder_suffix": "_ppie",
     "run_file": "ppie_run.json"
   },
   "semantic_punctuation": {
-    "use_agents": false,
+    "use_agents": true,
     "max_rounds": 2,
-    "marks": ["،", "؛", ":", ".", "؟", "!"],
-    "normalize": {",": "،", ";": "؛", "?": "؟"},
-    "punctuation_chars": "،,؛;:.!?؟…«»\"'()-–—",
-    "phrase_end_marks": "،,؛;:.!?؟…«»\"()—–",
-    "vowel_letters": ["ا", "و", "ی"],
-    "run_file": "punctuation.json"
+    "run_file": "punctuation.json",
+    "languages": {
+      "fa": {
+        "marks": ["،", "؛", ":", ".", "؟", "!"],
+        "normalize": {",": "،", ";": "؛", "?": "؟"},
+        "punctuation_chars": "،,؛;:.!?؟…«»\"'()-–—",
+        "phrase_end_marks": "،,؛;:.!?؟…«»\"()—–",
+        "ezafe": true,
+        "vowel_letters": ["ا", "و", "ی"],
+        "agents": "documentary.punctuation"
+      },
+      "ar": {
+        "marks": ["،", "؛", ":", ".", "؟", "!"],
+        "normalize": {",": "،", ";": "؛", "?": "؟"},
+        "punctuation_chars": "،,؛;:.!?؟…«»\"'()-–—",
+        "phrase_end_marks": "،,؛;:.!?؟…«»\"()—–",
+        "agents": "documentary.punctuation.ar"
+      },
+      "de": {
+        "marks": [",", ";", ":", ".", "?", "!", "—"],
+        "normalize": {},
+        "punctuation_chars": ",;:.!?…„“”‚‘’»«\"'()-–—",
+        "phrase_end_marks": ",;:.!?…„“”»«\"()—–",
+        "agents": "documentary.punctuation.de"
+      },
+      "en": {
+        "marks": [",", ";", ":", ".", "?", "!", "—"],
+        "normalize": {},
+        "punctuation_chars": ",;:.!?…“”‘’\"'()-–—",
+        "phrase_end_marks": ",;:.!?…“”\"()—–",
+        "agents": "documentary.punctuation.en"
+      }
+    }
   },
   "english_reference": {
     "embedding_model": "BAAI/bge-m3",
@@ -686,8 +715,14 @@
   },
   "reading": {
     "languages": [
-      "fa"
+      "fa",
+      "ar"
     ],
+    "engines": {
+      "fa": "persian",
+      "ar": "tashkeel"
+    },
+    "tashkeel_vocalize": "all",
     "chunk_blocks": 40,
     "max_rounds": 3,
     "max_writer_retries": 3,

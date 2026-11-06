@@ -150,6 +150,23 @@ CONNECTORS = {
 }
 
 
+DIGIT_TOKEN = re.compile(r"\S*[0-9٠-٩۰-۹]\S*")
+EDGE = ".,;:!?؟،؛«»„“”‚‘’\"'()[]…-–—"
+
+
+def digits_left(text: str, language: str) -> list[str]:
+    """The numbers still written as digits in a language whose numbers are written out in words (config spoken.numbers_as_words): none for another."""
+    if language not in ai_config.spoken.numbers_as_words:
+        return []
+    spoken = re.sub(r"\[[^\[\]]*\]", " ", text or "")          # a tag ([calm], a marker) is not spoken: its characters are not numbers
+    return list(dict.fromkeys(m.group().strip(EDGE) for m in DIGIT_TOKEN.finditer(spoken)))
+
+
+def numbers_rule(language: str) -> str:
+    """The writer's rule for numbers in a language whose numbers are written out in words ("" for another)."""
+    return prompt(f"documentary/spoken/numbers_{language}") + "\n\n" if language in ai_config.spoken.numbers_as_words else ""
+
+
 def _examples_block(language: str) -> str:
     pairs = STYLE_EXAMPLES.get(language) or STYLE_EXAMPLES["en"]
     return "\n".join(f"  READ:  {a}\n  TOLD:  {b}\n" for a, b in pairs)
@@ -173,6 +190,7 @@ def read_aloud_metrics(text: str, language: str) -> dict:
         "long_sentences": long,
         "long_sentence_share": round(len(long) / len(sentences), 3) if sentences else 0.0,
         "stiff_phrases": sorted(set(stiff)),
+        "digits": digits_left(text, language),
     }
 
 
@@ -197,7 +215,7 @@ def writer_system_prompt(language: str) -> str:
     style = STYLE_GUIDES.get(language, STYLE_GUIDES["en"])
     connectors = CONNECTORS.get(language, CONNECTORS["en"])
 
-    return prompt("documentary/spoken/writer_system_prompt").format(name=name, limit=limit, connectors=connectors, style=style, examples_block=_examples_block(language), _MARKER_INSTRUCTION=_MARKER_INSTRUCTION)
+    return prompt("documentary/spoken/writer_system_prompt").format(name=name, limit=limit, connectors=connectors, style=style, examples_block=_examples_block(language), numbers_rule=numbers_rule(language), _MARKER_INSTRUCTION=_MARKER_INSTRUCTION)
 
 
 MEANING_SYSTEM = prompt("documentary/spoken/meaning_system")

@@ -259,7 +259,7 @@ def test_the_films_dictionary_is_made_once_for_its_rules_and_reused(db_session, 
 # ---------------------------------------------------------------------------
 
 
-def test_the_request_carries_the_context_and_the_dictionary_for_a_prepared_language_and_english_is_unchanged(monkeypatch):
+def test_the_request_carries_the_context_and_the_dictionary_for_a_prepared_language_and_a_language_without_context_is_unchanged(monkeypatch):
     from app.providers.voice.elevenlabs import ElevenLabsVoiceProvider
 
     provider = ElevenLabsVoiceProvider.__new__(ElevenLabsVoiceProvider)
@@ -268,9 +268,13 @@ def test_the_request_carries_the_context_and_the_dictionary_for_a_prepared_langu
     fa = provider._body(VoiceRequest(text="x", voice_id="V", model_id="eleven_v4", settings={}, previous_text="قبل", next_text="بعد", language="fa",
                                      language_code="fa", pronunciation_dictionaries=locators))
     assert fa["previous_text"] == "قبل" and fa["next_text"] == "بعد" and fa["pronunciation_dictionary_locators"] == locators
-    en = provider._body(VoiceRequest(text="x", voice_id="V", model_id="eleven_v4", settings={}, previous_text="before", next_text="after", language="en",
-                                     language_code="en"))
-    assert "previous_text" not in en and "next_text" not in en and "pronunciation_dictionary_locators" not in en
+    for language in ("ar", "de", "en"):
+        body = provider._body(VoiceRequest(text="x", voice_id="V", model_id="eleven_v4", settings={}, previous_text="before", next_text="after", language=language,
+                                           language_code=language))
+        assert body["previous_text"] == "before" and body["next_text"] == "after" and "pronunciation_dictionary_locators" not in body
+    es = provider._body(VoiceRequest(text="x", voice_id="V", model_id="eleven_v4", settings={}, previous_text="antes", next_text="después", language="es",
+                                     language_code="es"))
+    assert "previous_text" not in es and "next_text" not in es and "pronunciation_dictionary_locators" not in es
 
 
 def test_the_dictionary_is_created_with_the_rules_and_a_refusal_is_an_error(monkeypatch):

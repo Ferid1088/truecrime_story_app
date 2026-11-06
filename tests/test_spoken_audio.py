@@ -176,7 +176,7 @@ def _told(text: str, extra: str = "") -> str:
     out = []
     for para in [p for p in text.split("\n\n") if p.strip()]:
         n = len(para.split())
-        tag = para.split()[0]
+        tag = "".join(c for c in para.split()[0] if not c.isdigit()) or "Then"      # a told text has its numbers in words
         sents = [f"{tag} walked to the old house." for _ in range(max(n // 6, 1))]
         out.append(" ".join(sents))
     if extra:

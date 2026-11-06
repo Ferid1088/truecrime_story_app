@@ -1567,9 +1567,10 @@ class JoinConfig(BaseModel):
 
 
 class ReviewRequiredVoice(BaseModel):
-    """The settings a block voiced again in the voice review must have (config voice.review_required)."""
+    """The settings a block voiced again in the voice review must have (config voice.review_required); a value left out is not checked (the
+    other languages keep each style's own speed: only their stability and post speed are fixed)."""
 
-    speed: float
+    speed: float | None = None
     stability: float
     post_speed: float
 
@@ -1853,6 +1854,9 @@ class SpokenConfig(BaseModel):
     # "long" for the listener, and the share of long sentences allowed.
     max_sentence_words: dict[str, int] = {"en": 24, "de": 20, "fa": 24, "ar": 22}
     max_long_sentence_share: float = Field(default=0.12, ge=0.0, le=1.0)
+    # The languages whose numbers are written out in words in the spoken version (the writer's prompt says how, a check sends a beat with a digit
+    # back for repair, and a digit left after the repairs fails the version). Persian numbers are read by code later (reading/numbers.py).
+    numbers_as_words: list[str] = []
 
 
 class ChannelConfig(BaseModel):
@@ -2071,6 +2075,9 @@ class HostConfig(BaseModel):
     spoiler_name_case_languages: list[str] = Field(default_factory=lambda: ["en"])
     # Languages whose host words go through the fact (meaning) check before the voice.
     meaning_check_languages: list[str] = Field(default_factory=list)
+    # Languages whose host words are prepared for the voice like the narration's blocks (documentary/host_voice_text.py): the punctuation layer, and the
+    # reading text where the language has one (Persian's PPIE reading, Arabic's Tashkeel). The words the avatar shows never change.
+    text_preparation: list[str] = Field(default_factory=list)
     # "Spoken, not written": a text of at least min_sentences sentences needs sentences of
     # varied length (coefficient of variation) and some very short ones.
     spoken: HostSpokenRules
@@ -2456,6 +2463,12 @@ class ReadingConfig(BaseModel):
 
     # The languages that get the reading text and the reading loop (the others keep their own checks).
     languages: list[str] = []
+    # How a language's reading text is made: "persian" (a Latin reading per word, ezafe, the film table) or "tashkeel" (Arabic: every word written with its
+    # vowel marks, read in the sentence's context, ambiguous words and names checked blind).
+    engines: dict[str, Literal["persian", "tashkeel"]] = {}
+    # What the voice is given of an Arabic reading: "all" every word with its vowel marks, "flagged" only the words the editor marked ambiguous, a name, or
+    # not sure of.
+    tashkeel_vocalize: Literal["all", "flagged"] = "all"
     # How many blocks the reader takes in one call when it builds the film table (the table of the chunks is merged afterwards).
     chunk_blocks: int = Field(default=40, ge=1)
     # Words (plain form) written with ه whose respelling may still write ح for a consonant h at the end, each with the evidence for that word (heard, with the
@@ -2591,6 +2604,8 @@ class PPIEConfig(BaseModel):
     Their narration goes to a folder of its own (the version's earlier narrations stay as they are)."""
 
     languages: list[str] = []
+    # The PPIE languages whose blocks still get the speech-to-text check after the voice (a failed check is voiced again with another seed).
+    asr_languages: list[str] = []
     folder_suffix: str = "_ppie"
     # The record of a run next to its narration (every risky, changed or escalated word as the voice was given it): read by the owner, never by a run.
     run_file: str = "ppie_run.json"
@@ -2599,22 +2614,39 @@ class PPIEConfig(BaseModel):
         return language in self.languages
 
 
+class PunctuationProfile(BaseModel):
+    """The punctuation of one language: `marks` the layer may insert; `normalize` the Latin punctuation the text writes and its form in that language;
+    `punctuation_chars` what counts as punctuation in a gap (the layer changes nothing else); `phrase_end_marks` what ends a phrase; `ezafe` whether
+    the language has an ezafe to keep (Persian: a mark never cuts one); `vowel_letters` the final letters after which an ezafe is said -ye; `agents`
+    the prefix of the language's syntax, punctuation and checker agents (config/agents.json: `<prefix>.syntax|punctuate|check`)."""
+
+    marks: list[str]
+    normalize: dict[str, str] = {}
+    punctuation_chars: str
+    phrase_end_marks: str
+    ezafe: bool = False
+    vowel_letters: list[str] = []
+    agents: str
+
+
 class SemanticPunctuationConfig(BaseModel):
-    """The punctuation layer of a Persian narration (documentary/punctuation): punctuation added to the text the voice is given, never to the story.
-    `use_agents`: the syntax, punctuation and checker agents run (billable); without them only the deterministic rules apply and every boundary
-    they cannot settle is reported as context-dependent. `max_rounds`: how often a REVISE goes back to the punctuation agent before the safest
-    version is kept. `marks`: the punctuation the layer may insert; `normalize`: Latin punctuation written in Persian text and its Persian form."""
+    """The punctuation layer of a narration (documentary/punctuation): punctuation added to the text the voice is given, never to the story. A
+    language has a layer when it has a profile in `languages`. `use_agents`: the syntax, punctuation and checker agents run (billable); without them
+    only the deterministic rules apply. `max_rounds`: how often a REVISE goes back to the punctuation agent before the safest version is kept."""
 
     use_agents: bool = False
     max_rounds: int = Field(default=2, ge=1, le=4)
-    marks: list[str]
-    normalize: dict[str, str] = {}
-    # What counts as punctuation in a gap (the layer changes nothing else), what ends a phrase (no ezafe crosses it), and the final letters after
-    # which an ezafe is said -ye.
-    punctuation_chars: str
-    phrase_end_marks: str
-    vowel_letters: list[str]
+    languages: dict[str, PunctuationProfile]
     run_file: str = "punctuation.json"
+
+    def covers(self, language: str) -> bool:
+        return language in self.languages
+
+    def profile(self, language: str) -> PunctuationProfile:
+        try:
+            return self.languages[language]
+        except KeyError:
+            raise ValueError(f"no punctuation profile for language {language!r} (config semantic_punctuation.languages)") from None
 
 
 class EnglishAlignmentConfig(BaseModel):
@@ -4886,6 +4918,11 @@ class AIConfig(BaseModel):
         model that listens to the audio itself, and a PPIE language is never corrected by them: none is listened to by the older checks."""
         return (language not in self.voice.prepared_languages and language not in self.semantic_review.languages
                 and not self.ppie.fresh(language))
+
+    def asr_after_voice(self, language: str) -> bool:
+        """Whether a voiced block of this language is checked by speech-to-text afterwards: every language that is listened to, and the PPIE languages
+        that keep this check (config ppie.asr_languages)."""
+        return self.listens_after_voice(language) or language in self.ppie.asr_languages
 
     def model_for(self, role: str) -> str:
         """The concrete model ID assigned to a logical role, resolved

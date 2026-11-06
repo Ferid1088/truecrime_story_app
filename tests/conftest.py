@@ -366,6 +366,24 @@ def _visual_research_without_brave_by_default(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _hand_review_of_the_narration_for_persian_only_by_default(monkeypatch):
+    """The film waits for the owner's approval of a narration in the languages of voice.review_languages; the older pipeline tests make films in English
+    and the review has its own tests that turn the other languages on."""
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.voice, "review_languages", ["fa"])
+
+
+@pytest.fixture(autouse=True)
+def _host_text_preparation_off_by_default(monkeypatch):
+    """The host's words are prepared for the voice by model calls (punctuation, reading); the older host tests run without them, and the preparation has its
+    own tests that turn it on with fake agents."""
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.host, "text_preparation", [])
+
+
+@pytest.fixture(autouse=True)
 def _story_plan_gate_off_by_default(monkeypatch):
     """Older pipeline tests write masters without a plan; the plan gate and the
     one-button automatic plan have their own tests that turn them on."""

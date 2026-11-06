@@ -232,7 +232,7 @@ class SpokenNarrator:
         ear = entry.get("ear") or {}
         return (not entry["meaning_ok"]) or bool((entry.get("length") or {}).get("too_long")) or (
             entry["verdict"] in ("mixed", "newsreader") and entry["problems"]
-        ) or bool(ear.get("long_sentences") or ear.get("stiff_phrases"))
+        ) or bool(ear.get("long_sentences") or ear.get("stiff_phrases") or ear.get("digits"))
 
     async def _repair(self, db, case_id, language, source, spoken, checks,
                       uncertain) -> list[dict]:
@@ -266,6 +266,8 @@ class SpokenNarrator:
                      "long_sentences", []),
                  "stiff_phrases": (checks[s["id"]].get("ear") or {}).get(
                      "stiff_phrases", []),
+                 "numbers_left_as_digits": (checks[s["id"]].get("ear") or {}).get(
+                     "digits", []),
                  "too_long_for_the_length": (
                      checks[s["id"]]["length"] if checks[s["id"]]["length"]["too_long"] else None)}
                 for s in targets
@@ -352,6 +354,8 @@ class SpokenNarrator:
         lq = language_quality(text, language, ai_config.language_quality_for(language))
         if not lq["pass"]:
             failures.append("language_quality")
+        if ear["digits"]:
+            failures.append("digits_left")
         if re.search(r"https?://|www\.", text) or has_meta_text(text):
             failures.append("output_purity")
         ratio = _words_minutes(text, language) / max(

@@ -1,5 +1,5 @@
-"""The approved sources of a review, verified and never guessed: the Persian narration's spoken version (never a voice-prepare rewrite), the approved
-Persian final story it was made from, and the approved English final story the app's English film tells. A missing or unapproved source stops the
+"""The approved sources of a review, verified and never guessed: the narration's spoken version (never a voice-prepare rewrite), the approved final
+story of its language it was made from, and the approved English final story the app's English film tells. A missing or unapproved source stops the
 review; nothing is substituted."""
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ class SourceError(RuntimeError):
 @dataclass(frozen=True)
 class Sources:
     narration: StoryVersion          # the spoken version the narration speaks (its blocks come from it)
-    persian_final: StoryVersion      # the approved Persian final story it was made from
+    final: StoryVersion              # the approved final story of the narration's language it was made from
     english: StoryVersion            # the approved English final story
     notes: list[str] = field(default_factory=list)
 
@@ -30,7 +30,7 @@ class Sources:
             return {"id": v.id, "kind": v.kind, "language": v.language, "status": v.status, "is_best": v.is_best,
                     "approved_at": v.approved_at.isoformat() if v.approved_at else None, "sha256": sha(v.story_text or "")}
 
-        return {"narration": one(self.narration), "persian_final": one(self.persian_final), "english": one(self.english), "notes": self.notes}
+        return {"narration": one(self.narration), "final": one(self.final), "english": one(self.english), "notes": self.notes}
 
 
 def sha(text: str) -> str:
@@ -38,13 +38,13 @@ def sha(text: str) -> str:
 
 
 def approved_sources(db: Session, narration: StoryVersion) -> Sources:
-    if narration.language != "fa" or narration.kind != "spoken":
-        raise SourceError(f"version {narration.id} is not a Persian spoken version ({narration.language}, {narration.kind})")
+    if narration.kind != "spoken":
+        raise SourceError(f"version {narration.id} is not a spoken version ({narration.language}, {narration.kind})")
     if (json.loads(narration.narrative_structure or "{}")).get("prepared"):
         raise SourceError(f"version {narration.id} is a voice-prepare rewrite, not the approved text")
     final = db.get(StoryVersion, narration.master_version_id) if narration.master_version_id else None
-    if final is None or final.language != "fa" or final.kind != "final" or final.approved_at is None:
-        raise SourceError(f"the Persian final story of version {narration.id} is missing or not approved")
+    if final is None or final.language != narration.language or final.kind != "final" or final.approved_at is None:
+        raise SourceError(f"the {narration.language} final story of version {narration.id} is missing or not approved")
     english = english_final(db, narration.case_id)
     if english is None or english.language != "en" or english.approved_at is None:
         raise SourceError(f"case {narration.case_id} has no approved English final story")

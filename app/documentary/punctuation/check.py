@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.agents.runner import run_agent
+from app.core.ai_config import ai_config
 from app.documentary.reading.ask import ask
 
 DECISIONS = ("PASS", "REVISE", "UNCERTAIN", "REJECT")
@@ -34,9 +35,9 @@ def parse(raw: dict, proposed: int) -> Verdict:
 
 
 async def check(db, case_id: int, block_id: str, canonical: str, proposed_text: str, edits: list[dict], analysis: dict, english: str, previous: str,
-                following: str, runner=None) -> Verdict:
+                following: str, runner=None, language: str = "fa") -> Verdict:
     body = {"original": canonical, "proposed": proposed_text, "edits": [{"i": i, **e} for i, e in enumerate(edits)], "analysis": analysis,
             "english": english, "previous": previous, "next": following}
-    raw = await ask(db, case_id, f"Punctuation: check {block_id}", body, "punctuation_checker",
-                    runner or (lambda gen, b: run_agent("documentary.punctuation.check", gen, b)))
+    agent = f"{ai_config.semantic_punctuation.profile(language).agents}.check"
+    raw = await ask(db, case_id, f"Punctuation: check {block_id}", body, "punctuation_checker", runner or (lambda gen, b: run_agent(agent, gen, b)))
     return parse(raw, len(edits))

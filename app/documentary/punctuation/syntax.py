@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.agents.runner import run_agent
+from app.core.ai_config import ai_config
 from app.documentary.reading.ask import ask
 from app.documentary.reading.words import Word
 
@@ -31,16 +32,16 @@ def payload(words: list[Word], previous: str, following: str, english: str, alig
             "english": english if alignment_status in ("ALIGNED", "PARTIAL") else "", "alignment_status": alignment_status}
 
 
-def parse(raw: dict, words: list[Word]) -> Syntax:
-    """The agent's answer, kept to the block's real boundaries; a boundary with an unknown verdict is ambiguous."""
+def parse(raw: dict, words: list[Word], has_ezafe: bool = True) -> Syntax:
+    """The agent's answer, kept to the block's real boundaries; a boundary with an unknown verdict is ambiguous (only in a language with an ezafe)."""
     out, last = Syntax(), len(words) - 1
     for b in raw.get("boundaries") or []:
         if not isinstance(b, dict) or not str(b.get("n", "")).isdigit() or not 0 <= int(b["n"]) < last:
             continue
-        n, ezafe = int(b["n"]), str(b.get("ezafe") or "").lower()
-        out.boundaries[n] = {"ezafe": ezafe if ezafe in EZAFE else "context", "relation": str(b.get("relation") or ""),
+        n, said = int(b["n"]), str(b.get("ezafe") or "").lower()
+        out.boundaries[n] = {"ezafe": said if said in EZAFE else "context", "relation": str(b.get("relation") or ""),
                              "reason": str(b.get("reason") or ""), "comma_ok": bool(b.get("comma_ok"))}
-        if ezafe not in ("required", "forbidden"):
+        if has_ezafe and said not in ("required", "forbidden"):
             out.ambiguous.add(n)
     for a in raw.get("ambiguities") or []:
         if isinstance(a, dict) and str(a.get("n", "")).isdigit() and int(a["n"]) < last:
@@ -51,7 +52,9 @@ def parse(raw: dict, words: list[Word]) -> Syntax:
 
 
 async def analyze(db, case_id: int, block_id: str, words: list[Word], previous: str, following: str, english: str, alignment_status: str,
-                  runner=None) -> Syntax:
+                  runner=None, language: str = "fa") -> Syntax:
+    profile = ai_config.semantic_punctuation.profile(language)
+    agent = f"{profile.agents}.syntax"
     raw = await ask(db, case_id, f"Punctuation: syntax {block_id}", payload(words, previous, following, english, alignment_status), "punctuation_syntax",
-                    runner or (lambda gen, body: run_agent("documentary.punctuation.syntax", gen, body)))
-    return parse(raw, words)
+                    runner or (lambda gen, body: run_agent(agent, gen, body)))
+    return parse(raw, words, profile.ezafe)

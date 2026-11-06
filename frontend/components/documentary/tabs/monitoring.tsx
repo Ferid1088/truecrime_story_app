@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Pause, Play } from "lucide-react";
 import { api, monitoringApi } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, langLabel } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +41,7 @@ export function MonitoringTab({
   if (!data) return <Skeleton className="h-96 w-full" />;
 
   const status = STATE_TEXT[data.state];
+  const review = voiceReview.data;
   return (
     <div className="space-y-5" data-testid="monitoring-tab">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -52,19 +53,22 @@ export function MonitoringTab({
             {loading && " · refreshing…"}
           </span>
         </div>
-        {voiceReview.data?.ready && (
+        {review?.ready && (
           <Button
             size="sm"
-            variant={voiceReview.data.blink ? "default" : "secondary"}
-            className={voiceReview.data.blink ? "animate-pulse ring-2 ring-amber-400" : ""}
+            variant={review.blink ? "default" : "secondary"}
+            className={review.blink ? "animate-pulse ring-2 ring-amber-400" : ""}
             data-testid="voice-review-shortcut"
-            data-blinking={voiceReview.data.blink}
+            data-blinking={review.blink}
             onClick={() => {
-              try { window.sessionStorage.setItem("pronunciation-view", "voice"); } catch { /* the tab opens on its first view */ }
+              try {
+                window.sessionStorage.setItem("pronunciation-view", "voice");
+                window.sessionStorage.setItem("pronunciation-language", review.language);
+              } catch { /* the tab opens on its first view */ }
               onOpenTab("Pronunciation");
             }}
           >
-            {voiceReview.data.blink ? "Voice review is ready" : "Voice review"}
+            {review.blink ? `Voice review is ready (${langLabel(review.language)})` : `Voice review (${langLabel(review.language)})`}
           </Button>
         )}
         <Button variant="secondary" size="sm" onClick={() => setLive((v) => !v)}>

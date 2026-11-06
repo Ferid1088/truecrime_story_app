@@ -81,7 +81,7 @@ FACTS (non-negotiable)
   same speaking time as its script (it may breathe a little more, within
   about 15 percent).
 
-STRUCTURE
+{numbers_rule}STRUCTURE
 - {_MARKER_INSTRUCTION}
 - If "story_so_far_ends_with" is given, you are continuing a story
   already being told: pick up naturally from it, do not repeat it, do

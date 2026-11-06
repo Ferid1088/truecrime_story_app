@@ -20,6 +20,7 @@ from app.documentary.reading.ezafe import Opinion
 from app.documentary.reading.inspector import Inspector
 from app.documentary.reading.loop import ReadingLoop
 from app.documentary.reading.table import FilmTable
+from app.documentary.reading.tashkeel import TashkeelResult, TashkeelStage, TashkeelVoicing
 from app.documentary.reading.text import ReadingResult, ReadingStage
 from app.documentary.reading.voicing import Voicing, WordSignal
 from app.documentary.reading.words import key_of
@@ -29,17 +30,31 @@ def required(language: str) -> bool:
     return language in ai_config.reading.languages
 
 
-async def result(db: Session, case: Case, version: StoryVersion, language: str) -> tuple[list[BlockInput], ReadingResult]:
+def engine(language: str) -> str:
+    """How the language's reading text is made (config reading.engines): "persian" unless it says "tashkeel"."""
+    return ai_config.reading.engines.get(language, "persian")
+
+
+async def result(db: Session, case: Case, version: StoryVersion, language: str) -> tuple[list[BlockInput], ReadingResult | TashkeelResult]:
     """The reading text of the version (a rerun costs only the blocks whose input changed)."""
     plan = performance_for_version(db, version)
     items = block_inputs(plan["blocks"], VP.english_sources(db, version), ai_config.semantic_review.neighbour_chars)
-    return items, await ReadingStage(db, case.id, version, language, items).run()
+    return items, await read_items(db, case, version, language, items)
 
 
-async def voicing_of(db: Session, language: str, read: ReadingResult, items: list[BlockInput],
-                     boundaries: dict[str, dict[int, dict]] | None = None) -> Voicing:
+async def read_items(db: Session, case: Case, version: StoryVersion, language: str, items: list[BlockInput]) -> ReadingResult | TashkeelResult:
+    """The reading text of these blocks, made by the language's engine (the narration's blocks, or the words of one host appearance)."""
+    if engine(language) == "tashkeel":
+        return await TashkeelStage(db, case.id, items).run()
+    return await ReadingStage(db, case.id, version, language, items).run()
+
+
+async def voicing_of(db: Session, language: str, read: ReadingResult | TashkeelResult, items: list[BlockInput],
+                     boundaries: dict[str, dict[int, dict]] | None = None) -> Voicing | TashkeelVoicing:
     """What the voice is given for the readings of this run: the owner's approvals of the language on top, except for a PPIE language (read from
-    scratch: no approval of an earlier run applies)."""
+    scratch: no approval of an earlier run applies). An Arabic reading gives the voice the words with their vowel marks."""
+    if isinstance(read, TashkeelResult):
+        return TashkeelVoicing(read)
     fixed = {} if ai_config.ppie.fresh(language) else {
         key_of(a.surface): a.latin for a in db.query(ReadingApproval).filter(ReadingApproval.language == language).order_by(ReadingApproval.updated_at)}
     overridden = {block: {int(m.group(1)) for note in notes if (m := re.match(r"word (\d+)", note))} for block, notes in read.notes.items()}

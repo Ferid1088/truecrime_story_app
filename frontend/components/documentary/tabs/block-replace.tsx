@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { isRtl } from "@/lib/format";
 import type { BlockReviewOverview, BlockReviewReplaceMatch } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 /** Words to find and the words for their place, in every block at once: first a preview of the places, then a correction of each block that has them
  *  (the blocks turn yellow, the new words red; they are voiced with "Send corrected blocks"). */
-export function ReplaceInBlocks({ versionId, onApplied }: { versionId: number; onApplied: (review: BlockReviewOverview) => void }) {
+export function ReplaceInBlocks({ versionId, language, onApplied }: { versionId: number; language: string; onApplied: (review: BlockReviewOverview) => void }) {
   const [find, setFind] = useState("");
   const [replace, setReplace] = useState("");
   const [seen, setSeen] = useState<{ blocks_found: number; places_found: number; matches: BlockReviewReplaceMatch[] } | null>(null);
@@ -43,10 +44,10 @@ export function ReplaceInBlocks({ versionId, onApplied }: { versionId: number; o
       <div className="mt-3 space-y-3">
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="text-xs text-muted-foreground">Find (words, one after the other)
-            <Input lang="fa" dir="rtl" value={find} onChange={(e) => { setFind(e.target.value); setSeen(null); }} className="mt-1" aria-label="Words to find" />
+            <Input lang={language} dir={isRtl(language) ? "rtl" : "ltr"} value={find} onChange={(e) => { setFind(e.target.value); setSeen(null); }} className="mt-1" aria-label="Words to find" />
           </label>
           <label className="text-xs text-muted-foreground">Replace with
-            <Input lang="fa" dir="rtl" value={replace} onChange={(e) => { setReplace(e.target.value); setSeen(null); }} className="mt-1" aria-label="Words to put in their place" />
+            <Input lang={language} dir={isRtl(language) ? "rtl" : "ltr"} value={replace} onChange={(e) => { setReplace(e.target.value); setSeen(null); }} className="mt-1" aria-label="Words to put in their place" />
           </label>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -62,8 +63,8 @@ export function ReplaceInBlocks({ versionId, onApplied }: { versionId: number; o
             {seen.matches.map((m) => (
               <li key={m.block_id} className="rounded bg-muted/40 px-2 py-1">
                 <span className="text-xs text-muted-foreground" dir="ltr">{m.position + 1} · {m.block_id}{m.count > 1 ? ` · ${m.count} places` : ""}</span>
-                <span lang="fa" dir="rtl" className="block"><del className="text-red-600">{m.before}</del></span>
-                <span lang="fa" dir="rtl" className="block">{m.after}</span>
+                <span lang={language} dir={isRtl(language) ? "rtl" : "ltr"} className="block"><del className="text-red-600">{m.before}</del></span>
+                <span lang={language} dir={isRtl(language) ? "rtl" : "ltr"} className="block">{m.after}</span>
               </li>
             ))}
           </ul>

@@ -24,9 +24,9 @@ def clean(db_session):
     db_session.commit()
 
 
-def test_the_reading_loop_is_set_for_persian_only():
+def test_the_reading_loop_is_set_for_persian_and_arabic_only():
     cfg = ai_config.reading
-    assert cfg.languages == ["fa"] and cfg.max_rounds == 3 and cfg.pause_between_names and cfg.chunk_blocks >= 1
+    assert cfg.languages == ["fa", "ar"] and cfg.engines == {"fa": "persian", "ar": "tashkeel"} and cfg.max_rounds == 3 and cfg.pause_between_names and cfg.chunk_blocks >= 1
 
 
 def test_one_word_has_one_reading_per_kind_and_sense(db_session):

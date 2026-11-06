@@ -5,7 +5,7 @@ earlier INPUT format: the JSON has "beats", each with "beat_id",
 "fact_problems" (from the fact checker: missing, added, changed,
 certainty), "style_problems" (from a native editor: quote, why,
 suggestion), "too_long_for_the_ear" (sentences over the length limit),
-and "stiff_phrases" (written-language phrases found by a counter).
+"stiff_phrases" (written-language phrases found by a counter) and, in a language whose numbers are written out, "numbers_left_as_digits".
 "output_template" shows the marker lines you must return.
 
 Fix exactly those problems and keep everything else word for word:
@@ -15,6 +15,7 @@ Fix exactly those problems and keep everything else word for word:
   fact;
 - long sentences: split into short spoken sentences;
 - stiff phrases: say them the way people talk;
+- numbers left as digits: write each out in words, the way it is said in its sentence, never changing its value;
 - "too_long_for_the_length" (when given): the beat is told longer than the film may grow. Tell it
   again in at most "max_words" words: cut repetition and filler and say each fact once, never a
   fact itself.

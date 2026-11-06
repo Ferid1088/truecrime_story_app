@@ -220,9 +220,8 @@ async def approve(version_id: int, body: NoteIn, db: Session = Depends(get_db)):
     return overview(db, version, review)
 
 
-@router.get("/api/cases/{case_id}/voice-review-status")
-def voice_review_status(case_id: int, language: str = "fa", db: Session = Depends(get_db)):
-    """For the shortcut on the Monitoring tab: is a narration of this case ready for the hand review, and is it still waiting for the person's approval."""
+def narration_state(db: Session, case_id: int, language: str) -> dict:
+    """Is a narration of this case in this language ready for the hand review, and is it still waiting for the person's approval."""
     rows = (db.query(StoryVersion).filter(StoryVersion.case_id == case_id, StoryVersion.language == language, StoryVersion.kind == "spoken",
                                           StoryVersion.status != "archived").order_by(StoryVersion.id.desc()).all())
     for version in rows:
@@ -231,3 +230,13 @@ def voice_review_status(case_id: int, language: str = "fa", db: Session = Depend
             return {"ready": True, "version_id": version.id, "language": language, "approved": state["approved"], "blink": not state["approved"],
                     "review_open": S.get_review(db, version) is not None}
     return {"ready": False, "version_id": None, "language": language, "approved": False, "blink": False, "review_open": False}
+
+
+@router.get("/api/cases/{case_id}/voice-review-status")
+def voice_review_status(case_id: int, language: str | None = None, db: Session = Depends(get_db)):
+    """For the shortcut on the Monitoring tab: is a narration of this case ready for the hand review, and is it still waiting for the person's approval.
+    Without a language: the first review language whose narration waits for approval, else the first that has a narration."""
+    if language is not None:
+        return narration_state(db, case_id, language)
+    states = [narration_state(db, case_id, lang) for lang in ai_config.voice.review_languages]
+    return next((s for s in states if s["blink"]), next((s for s in states if s["ready"]), states[0]))

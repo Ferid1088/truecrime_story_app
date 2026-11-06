@@ -623,8 +623,8 @@ export const api = {
   approveBlockReview: (versionId: number, note?: string) =>
     request<BlockReviewOverview>(`/api/documentary/versions/${versionId}/block-review/approve`,
       { method: "POST", body: JSON.stringify({ note: note ?? null }), timeoutMs: 2_400_000 }),
-  blockReviewStatus: (caseId: number, language = "fa") =>
-    request<BlockReviewStatus>(`/api/cases/${caseId}/voice-review-status?language=${encodeURIComponent(language)}`),
+  blockReviewStatus: (caseId: number, language?: string) =>
+    request<BlockReviewStatus>(`/api/cases/${caseId}/voice-review-status${language ? `?language=${encodeURIComponent(language)}` : ""}`),
   phoneticSamples: (language: string, status?: string, category?: string, source?: string) =>
     request<PhoneticListing>(`/api/documentary/phonetic/samples${query({ language, status, category, source })}`),
   phoneticAudioUrl: (sampleId: number) => apiFileUrl(`/api/documentary/phonetic/samples/${sampleId}/audio`),

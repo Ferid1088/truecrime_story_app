@@ -18,6 +18,7 @@ from app.documentary.reading.ezafe import EzafeAnalyzer, base_key, written_ezafe
 from app.documentary.reading.words import TAG, Word
 
 REQUIRED, FORBIDDEN, CONTEXT, NONE = "EZAFE_REQUIRED", "EZAFE_FORBIDDEN", "EZAFE_CONTEXT_DEPENDENT", "NO_EZAFE_ANALYSIS_NEEDED"
+COHESIVE = "CONSTRUCTION_UNBROKEN"        # a language without an ezafe: the syntax agent says the two words are one construction, no mark may cut it
 
 
 @dataclass(frozen=True)
@@ -43,15 +44,22 @@ def spoken_form(word: Word) -> str:
     plain = word.plain.rstrip("ِ")
     if word.surface.endswith(("ۀ", "هٔ")) or plain.endswith("ه‌ی"):
         return "-ye"
-    if plain.endswith(tuple(ai_config.semantic_punctuation.vowel_letters)):
+    if plain.endswith(tuple(ai_config.semantic_punctuation.profile("fa").vowel_letters)):
         return "-ye"
     return "" if plain.endswith("ه") else "-e"
 
 
-def analyze(words: list[Word], gaps: list[str], syntax: dict[int, dict] | None = None, ambiguous: set[int] | None = None) -> list[BoundaryDecision]:
+def analyze(words: list[Word], gaps: list[str], syntax: dict[int, dict] | None = None, ambiguous: set[int] | None = None,
+            language: str = "fa") -> list[BoundaryDecision]:
     """One decision per word of the block (the last word's boundary is the end of the block). `gaps`: the text between the words (gaps[n + 1]
     follows word n; tags and all). `syntax`: the syntax agent's boundaries by word number ({"ezafe": "required|forbidden|context", "relation",
-    "reason", "comma_ok"}); `ambiguous`: the boundaries it could not settle."""
+    "reason", "comma_ok"}); `ambiguous`: the boundaries it could not settle. A language without an ezafe has nothing to decide: no boundary is
+    required, forbidden or open, the punctuation agent's own judgement (and the checker's) is all that applies."""
+    if not ai_config.semantic_punctuation.profile(language).ezafe:
+        syntax = syntax or {}
+        return [BoundaryDecision(w.n, COHESIVE, str(found.get("reason") or "one construction"), "syntax_agent", relation=str(found.get("relation") or ""))
+                if (found := syntax.get(w.n)) and found.get("comma_ok") is False and w.n + 1 < len(words)
+                else BoundaryDecision(w.n, NONE, "this language has no ezafe", "rule") for w in words]
     rules, syntax, ambiguous = EzafeAnalyzer(), syntax or {}, ambiguous or set()
     out = []
     for w in words:
@@ -63,7 +71,7 @@ def analyze(words: list[Word], gaps: list[str], syntax: dict[int, dict] | None =
             out.append(BoundaryDecision(w.n, NONE, "a number: read by code", "rule"))
             continue
         between = TAG.sub(" ", gaps[w.n + 1]).strip()
-        if any(ch in ai_config.semantic_punctuation.phrase_end_marks for ch in between):
+        if any(ch in ai_config.semantic_punctuation.profile(language).phrase_end_marks for ch in between):
             out.append(BoundaryDecision(w.n, FORBIDDEN, f"punctuation {between!r} between the words: an ezafe never crosses it", "rule"))
             continue
         if base_key(w) in rules.never_takes:

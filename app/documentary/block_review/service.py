@@ -41,7 +41,7 @@ def required_settings(language: str, settings: dict) -> dict:
     if want is None:
         return {"speed": settings.get("speed"), "stability": settings.get("stability"), "post_speed": ai_config.voice.post_speed.get(language, 1.0)}
     have = {"speed": settings.get("speed"), "stability": settings.get("stability"), "post_speed": ai_config.voice.post_speed.get(language, 1.0)}
-    wrong = {k: (have[k], getattr(want, k)) for k in have if have[k] != getattr(want, k)}
+    wrong = {k: (have[k], getattr(want, k)) for k in have if getattr(want, k) is not None and have[k] != getattr(want, k)}
     if wrong:
         raise ReviewError("the block is not voiced: its settings are not the required ones (" + ", ".join(f"{k} {a} instead of {b}" for k, (a, b) in wrong.items()) + ")")
     return have

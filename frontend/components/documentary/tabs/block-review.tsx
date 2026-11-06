@@ -147,11 +147,11 @@ export function BlockReview({ versionId }: { versionId: number }) {
         {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
         <p className="text-xs text-muted-foreground">No film is rendered before you approve the narration.</p>
       </div>
-      <ReplaceInBlocks versionId={versionId} onApplied={(r) => setReview(r)} />
+      <ReplaceInBlocks versionId={versionId} language={review.language} onApplied={(r) => setReview(r)} />
       <audio ref={audio} preload="none" onEnded={onEnded} onPause={() => setPaused(true)} onPlay={() => setPaused(false)} aria-label="Block player" className="hidden" />
       <ol className="space-y-2" aria-label="Blocks in story order">
         {blocks.map((b, i) => (
-          <BlockCard key={b.block_id} versionId={versionId} block={b} current={index === i} playingTake={takePlaying}
+          <BlockCard key={b.block_id} versionId={versionId} language={review.language} block={b} current={index === i} playingTake={takePlaying}
             onPlayBlock={() => play(i)} onPlayTake={(t) => playTake(t, b.block_id)} onChanged={replace} />
         ))}
       </ol>

@@ -12,9 +12,9 @@ from app.core.ai_config import ai_config
 from app.documentary.reading.words import TAG, Word, tokenize
 
 
-def punctuation() -> set[str]:
-    """What counts as punctuation in a gap (config semantic_punctuation.punctuation_chars)."""
-    return set(ai_config.semantic_punctuation.punctuation_chars)
+def punctuation(language: str = "fa") -> set[str]:
+    """What counts as punctuation in a gap of the language (config semantic_punctuation.languages.<language>.punctuation_chars)."""
+    return set(ai_config.semantic_punctuation.profile(language).punctuation_chars)
 
 
 @dataclass(frozen=True)
@@ -40,6 +40,7 @@ class Layer:
     base: str                    # the text the voice would be given without the layer
     edits: list[Edit] = field(default_factory=list)
     story_span: tuple[int, int] | None = None
+    language: str = "fa"
 
     @property
     def words(self) -> list[Word]:
@@ -58,7 +59,7 @@ class Layer:
     def text(self) -> str:
         words, gaps = self.words, self.gaps()
         for e in self.edits:
-            gaps[e.after + 1] = applied(gaps[e.after + 1], e)
+            gaps[e.after + 1] = applied(gaps[e.after + 1], e, self.language)
         return "".join(gaps[i] + self.base[w.start:w.end] for i, w in enumerate(words)) + gaps[len(words)]
 
     def word_map(self) -> list[dict]:
@@ -77,13 +78,14 @@ class Layer:
                           for e in self.edits]}
 
 
-def applied(gap: str, edit: Edit) -> str:
+def applied(gap: str, edit: Edit, language: str = "fa") -> str:
     """The gap with the edit: an insertion right after the word, a replacement or removal of the gap's first such mark (tags untouched)."""
-    allowed = set(ai_config.semantic_punctuation.marks) | set(ai_config.semantic_punctuation.normalize)
-    if edit.new and edit.new not in allowed or edit.old and edit.old not in punctuation():
+    profile = ai_config.semantic_punctuation.profile(language)
+    allowed = set(profile.marks) | set(profile.normalize)
+    if edit.new and edit.new not in allowed or edit.old and edit.old not in punctuation(language):
         raise LayerError(f"{edit.old!r} -> {edit.new!r} is not a punctuation change the layer may make")
     if not edit.old:
-        if any(ch in punctuation() for ch in TAG.sub("", gap).strip()[:1]):
+        if any(ch in punctuation(language) for ch in TAG.sub("", gap).strip()[:1]):
             raise LayerError(f"the gap after word {edit.after} already has punctuation: replace it instead")
         return edit.new + gap
     outside = TAG.sub(lambda m: "\0" * len(m.group()), gap)
@@ -104,7 +106,7 @@ def check(layer: Layer) -> list[str]:
         problems.append("the base's words are not the approved text's")
     if TAG.findall(layer.base) != TAG.findall(layer.text):
         problems.append("the tags differ from the base")
-    marks = punctuation()
+    marks = punctuation(layer.language)
     strip = lambda s: re.sub(r"\s", "", "".join(ch for ch in TAG.sub("", s) if ch not in marks))  # noqa: E731
     if strip(layer.base) != strip(layer.text):
         problems.append("something other than punctuation changed")

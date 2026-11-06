@@ -28,7 +28,10 @@
         "eleven_v4"
       ],
       "context_languages": [
-        "fa"
+        "fa",
+        "ar",
+        "de",
+        "en"
       ]
     },
     "languages": {
@@ -144,13 +147,19 @@
     "work_dir": "data/cases",
     "prepared_languages": [],
     "review_languages": [
-      "fa"
+      "fa",
+      "ar",
+      "de",
+      "en"
     ],
     "post_speed": {
       "fa": 1.1
     },
     "review_required": {
-      "fa": {"speed": 1.2, "stability": 0.2, "post_speed": 1.1}
+      "fa": {"speed": 1.2, "stability": 0.2, "post_speed": 1.1},
+      "ar": {"stability": 0.2, "post_speed": 1.0},
+      "de": {"stability": 0.2, "post_speed": 1.0},
+      "en": {"stability": 0.2, "post_speed": 1.0}
     },
     "edges": {
       "fa": {"floor_db": -50, "lead_keep_ms": 60, "tail_keep_ms": 60, "fade_in_ms": 12, "fade_out_ms": 30}
@@ -233,6 +242,222 @@
           "use_speaker_boost": true,
           "speed": 1.2
         }
+      },
+      "en": {
+        "host_conversational": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
+        "neutral_documentary": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.05,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
+        "factual": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.05,
+          "use_speaker_boost": true,
+          "speed": 0.92
+        },
+        "controlled_tension": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.1,
+          "use_speaker_boost": true,
+          "speed": 0.88
+        },
+        "reveal": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.1,
+          "use_speaker_boost": true,
+          "speed": 0.86
+        },
+        "reflective": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.1,
+          "use_speaker_boost": true,
+          "speed": 0.87
+        },
+        "v3_neutral": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.94
+        },
+        "v3_unease": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.92
+        },
+        "v3_tension": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
+        "v3_climax": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        }
+      },
+      "de": {
+        "host_conversational": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
+        "neutral_documentary": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.05,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
+        "factual": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.05,
+          "use_speaker_boost": true,
+          "speed": 0.92
+        },
+        "controlled_tension": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.1,
+          "use_speaker_boost": true,
+          "speed": 0.88
+        },
+        "reveal": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.1,
+          "use_speaker_boost": true,
+          "speed": 0.86
+        },
+        "reflective": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.1,
+          "use_speaker_boost": true,
+          "speed": 0.87
+        },
+        "v3_neutral": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.94
+        },
+        "v3_unease": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.92
+        },
+        "v3_tension": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
+        "v3_climax": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        }
+      },
+      "ar": {
+        "host_conversational": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
+        "neutral_documentary": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.05,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
+        "factual": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.05,
+          "use_speaker_boost": true,
+          "speed": 0.92
+        },
+        "controlled_tension": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.1,
+          "use_speaker_boost": true,
+          "speed": 0.88
+        },
+        "reveal": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.1,
+          "use_speaker_boost": true,
+          "speed": 0.86
+        },
+        "reflective": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.1,
+          "use_speaker_boost": true,
+          "speed": 0.87
+        },
+        "v3_neutral": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.94
+        },
+        "v3_unease": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.92
+        },
+        "v3_tension": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
+        "v3_climax": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        }
       }
     }
   },
@@ -255,6 +480,13 @@
         "mode": "strict"
       },
       "ar": {
+        "host_conversational": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
         "model": "large-v3-turbo",
         "max_word_error_rate": 0.2,
         "max_missing_run": 4,
@@ -262,9 +494,23 @@
         "mode": "strict"
       },
       "en": {
+        "host_conversational": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
         "mode": "warn"
       },
       "de": {
+        "host_conversational": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
         "mode": "warn"
       },
       "es": {
@@ -639,10 +885,24 @@
     "languages": {
       "en": {},
       "de": {
+        "host_conversational": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
         "threshold_offset_delta_db": 0.5,
         "deesser_threshold_offset_delta_db": 1.0
       },
       "ar": {
+        "host_conversational": {
+          "stability": 0.2,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": true,
+          "speed": 0.9
+        },
         "deesser_threshold_offset_delta_db": 0.5
       },
       "fa": {

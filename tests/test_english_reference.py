@@ -45,11 +45,11 @@ def scratch(db_session, monkeypatch):
 def test_the_approved_sources_are_found_and_a_voice_prepare_rewrite_or_an_unapproved_final_is_refused(db_session, scratch):
     case, english, final, spoken, rewrite = scratch
     found = SRC.approved_sources(db_session, spoken)
-    assert (found.narration.id, found.persian_final.id, found.english.id) == (spoken.id, final.id, english.id)
+    assert (found.narration.id, found.final.id, found.english.id) == (spoken.id, final.id, english.id)
     assert "no approval date of its own" in found.notes[0] and found.describe()["english"]["approved_at"]
     with pytest.raises(SRC.SourceError, match="voice-prepare rewrite"):
         SRC.approved_sources(db_session, rewrite)
-    with pytest.raises(SRC.SourceError, match="not a Persian spoken version"):
+    with pytest.raises(SRC.SourceError, match="not a spoken version"):
         SRC.approved_sources(db_session, english)
     final.approved_at = None
     db_session.commit()

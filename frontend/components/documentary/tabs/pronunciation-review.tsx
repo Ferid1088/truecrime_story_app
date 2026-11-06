@@ -330,6 +330,17 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
     }
   }
 
+  // The Monitoring shortcut names the language whose narration waits for the voice review (asked for once).
+  useEffect(() => {
+    try {
+      const wanted = window.sessionStorage.getItem("pronunciation-language");
+      if (wanted) {
+        window.sessionStorage.removeItem("pronunciation-language");
+        onLanguageChange(wanted);
+      }
+    } catch { /* the tab keeps its language */ }
+  }, [onLanguageChange]);
+
   // The tab opens on the language that has a narration to listen to.
   const fallback = versionId == null ? settings.languages.find((l) => overview.languages[l] != null) : undefined;
   useEffect(() => {
@@ -360,7 +371,7 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
             <Button size="sm" variant={view === "voice" ? "default" : "secondary"} onClick={() => setView("voice")}>Voice review</Button>
             <Button size="sm" variant={view === "preview" ? "default" : "secondary"} onClick={() => setView("preview")}>Narration preview</Button>
           </div>
-          {view === "voice" && (versionId != null ? <BlockReview versionId={versionId} /> : <EmptyState title="No narration yet" description="The voice review opens when this language has a narration." />)}
+          {view === "voice" && (versionId != null ? <BlockReview key={versionId} versionId={versionId} /> : <EmptyState title="No narration yet" description="The voice review opens when this language has a narration." />)}
           {view === "preview" && <NarrationPreviews />}
           {view === "plan" && <PronunciationPlanView versionId={versionId} language={language} />}
           {view === "punctuation" && <PunctuationView versionId={versionId} />}

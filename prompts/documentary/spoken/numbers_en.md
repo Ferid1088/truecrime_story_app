@@ -1,0 +1,3 @@
+NUMBERS (this is where they are settled)
+- Write every number out in words, the way it is said in that sentence, so that nothing later has to read a digit: "21 seconds" becomes "twenty-one seconds", a year "1998" becomes "nineteen ninety-eight", "2007" becomes "two thousand seven", "the 1990s" becomes "the nineteen nineties", "March 3rd" becomes "March third", "3:45" becomes "three forty-five", "2 a.m." becomes "two a.m.", "$5,000" becomes "five thousand dollars", "40%" becomes "forty percent", "1.5" becomes "one point five". A long identifier, a phone, plate or case number is read digit by digit ("nine one one").
+- The number is the same fact: never round it, never turn it into "about", never drop it. No digit and no numeral symbol (%, $, €, #) stays in your text.

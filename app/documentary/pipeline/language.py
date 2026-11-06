@@ -128,7 +128,7 @@ class LanguageChain:
                 plan["pronunciation_rules"] = VP.sent_rules(version)                  # the rules of that dictionary: each block's final text is checked against them
             renderer = VoiceRenderer(db=db, budget_case_id=case.id,
                                      budget_stage=f"tts:{lang}",
-                                     use_asr=ai_config.listens_after_voice(lang),       # a prepared or semantically reviewed language is not listened to afterwards
+                                     use_asr=ai_config.asr_after_voice(lang),       # a prepared, semantically reviewed or PPIE language is not listened to by the pronunciation checks (only ppie.asr_languages keep the speech-to-text check)
                                      use_listener=ai_config.listens_after_voice(lang),
                                      arbiter=PronunciationEditor() if ai_config.listens_after_voice(lang) else None,
                                      documentary_job_id=job.id,
@@ -136,15 +136,16 @@ class LanguageChain:
             from app.documentary.reading import stage as RS
 
             fresh = ai_config.ppie.fresh(lang)              # PPIE alone: this run's readings and decisions, nothing of an earlier run
-            if fresh:                       # the punctuation layer: the voice's text with meaning-based punctuation, the story untouched
+            punctuated = ai_config.semantic_punctuation.covers(lang)
+            if punctuated:                  # the punctuation layer: the voice's text with meaning-based punctuation, the story untouched
                 from app.documentary.punctuation import stage as PS
 
                 marked = holder.pop("punctuation", None) or await PS.for_version(db, case.id, version, plan)
                 plan = PS.applied(plan, marked[0])
             if RS.required(lang):           # the words the owner has fixed go to the voice as IPA
                 items, read = holder.pop("reading", None) or await RS.result(db, case, version, lang)
-                renderer.voicing = await RS.voicing_of(db, lang, read, items, PS.boundaries_of(marked[0]) if fresh else None)
-                if ai_config.pronunciation_risk.enabled:      # what each word is given follows its risk and the memory
+                renderer.voicing = await RS.voicing_of(db, lang, read, items, PS.boundaries_of(marked[0]) if punctuated else None)
+                if ai_config.pronunciation_risk.enabled and RS.engine(lang) == "persian":      # what each word is given follows its risk and the memory (Persian's risk engine)
                     from app.documentary.pronunciation_planner import Planner
 
                     voice = ai_config.voice.for_language(lang)
@@ -162,7 +163,7 @@ class LanguageChain:
                 from app.documentary import pronunciation_explain as PE
 
                 PE.save_run(db, version, lang, plan, renderer.planner, renderer.voicing, renderer.out_dir(case.id, lang, version.id))
-            if fresh:
+            if punctuated:
                 PS.save(renderer.out_dir(case.id, lang, version.id), *marked)
             if listened:
                 from app.documentary.production.audio import mix_narration
@@ -223,11 +224,12 @@ class LanguageChain:
             holder["reading"] = await RS.result(db, case, version, lang)          # the voice of this run is given these readings, not a stored copy
             return RS.summary(*holder["reading"], lang)
 
-        if not planning and RS.required(lang):           # the reading text is written and checked before anything is voiced; doubts wait for the owner
+        if not planning and (RS.required(lang) or ai_config.semantic_punctuation.covers(lang)):           # the text is prepared before anything is voiced; doubts wait for the owner
             try:
-                if ai_config.ppie.fresh(lang):          # the punctuation layer comes before PPIE's reading
+                if ai_config.semantic_punctuation.covers(lang):          # the punctuation layer comes before the reading
                     await pipe._stage(f"punctuation:{lang}", punctuation)
-                await pipe._stage(f"reading:{lang}", reading)
+                if RS.required(lang):
+                    await pipe._stage(f"reading:{lang}", reading)
             except BaseException:
                 pass_turn()                  # the next language's turn does not wait for a stage that stopped
                 raise

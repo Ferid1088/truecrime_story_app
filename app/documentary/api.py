@@ -766,7 +766,7 @@ def pronunciation_plan(version_id: int, language: str = "fa", scope: str = "risk
 
 
 def _punctuation(db: Session, version_id: int, language: str) -> dict:
-    """The punctuation of the version's narration: the record of its last PPIE run, else the free analysis (the rules only, no paid call)."""
+    """The punctuation of the version's narration: the record of its last run, else the free analysis (the rules only, no paid call)."""
     import asyncio
 
     from app.documentary.performance import performance_for_version
@@ -774,14 +774,14 @@ def _punctuation(db: Session, version_id: int, language: str) -> dict:
     from app.documentary.voice_render import VoiceRenderer
 
     version = _version_of(db, version_id)
-    if not ai_config.ppie.fresh(language):
+    if not ai_config.semantic_punctuation.covers(language):
         raise HTTPException(status_code=404, detail=f"{language} has no punctuation layer")
     path = VoiceRenderer.out_dir_for(version.case_id, language, version.id) / ai_config.semantic_punctuation.run_file
     try:
         return {"source": "the last narration run", **json.loads(path.read_text(encoding="utf-8"))}
     except (OSError, ValueError):
         results, stats = asyncio.run(PS.for_version(db, version.case_id, version, performance_for_version(db, version),
-                                                    PS.PunctuationStage(None, None, use_agents=False)))
+                                                    PS.PunctuationStage(None, None, use_agents=False, language=language)))
         return {"source": "free analysis: the rules only, no agent and no voice", "statistics": stats, "blocks": [r.describe() for r in results.values()]}
 
 

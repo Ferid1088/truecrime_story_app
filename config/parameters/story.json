@@ -349,7 +349,12 @@
       "fa": 24,
       "ar": 22
     },
-    "max_long_sentence_share": 0.12
+    "max_long_sentence_share": 0.12,
+    "numbers_as_words": [
+      "en",
+      "de",
+      "ar"
+    ]
   },
   "opening": {
     "strategies": {

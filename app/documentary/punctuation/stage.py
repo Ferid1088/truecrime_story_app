@@ -1,4 +1,5 @@
-"""The punctuation stage of a Persian narration run: for every block its layer, ezafe boundaries, syntax (when the agents run) and review.
+"""The punctuation stage of a narration run (Persian, Arabic, German, English: each its own profile and agents): for every block its layer, ezafe
+boundaries (Persian only), syntax (when the agents run) and review.
 
 Without the agents (config semantic_punctuation.use_agents false, the default: free) only the deterministic rules apply and every boundary they
 cannot settle stays EZAFE_CONTEXT_DEPENDENT; nothing is inserted on a guess. With them (billable, each call checked against the case's budget):
@@ -48,10 +49,10 @@ class BlockResult:
 
 class PunctuationStage:
     def __init__(self, db: Session | None, case_id: int | None, use_agents: bool | None = None, syntax_runner=None, punctuate_runner=None,
-                 check_runner=None, memo_path: Path | None = None):
+                 check_runner=None, memo_path: Path | None = None, language: str = "fa"):
         """memo_path: this run's own file for the finished blocks, so a run stopped by a provider error continues without paying again (a local
         file written and read by this code only; another run does not use it)."""
-        self.db, self.case_id = db, case_id
+        self.db, self.case_id, self.language = db, case_id, language
         self.memo_path = memo_path
         self.use_agents = ai_config.semantic_punctuation.use_agents if use_agents is None else use_agents
         self.runners = (syntax_runner, punctuate_runner, check_runner)
@@ -73,12 +74,12 @@ class PunctuationStage:
 
     async def block(self, b: dict, previous: str = "", following: str = "", english: str = "", alignment_status: str = "MISSING_REFERENCE") -> BlockResult:
         base = scrub_forbidden(b.get("tts_text") or b["text"])
-        key = hashlib.sha256(json.dumps([b["text"], base, previous, following, english, self.use_agents], ensure_ascii=False).encode()).hexdigest()
+        key = hashlib.sha256(json.dumps([self.language, b["text"], base, previous, following, english, self.use_agents], ensure_ascii=False).encode()).hexdigest()
         if key in self.memo:
             found = self.memo[key]
-            return BlockResult(Layer(b["block_id"], b["text"], base, list(found.layer.edits)), found.boundaries, found.syntax, found.review,
+            return BlockResult(Layer(b["block_id"], b["text"], base, list(found.layer.edits), language=self.language), found.boundaries, found.syntax, found.review,
                                found.rounds, found.refused, found.flags, found.checks)
-        layer = Layer(b["block_id"], b["text"], base)
+        layer = Layer(b["block_id"], b["text"], base, language=self.language)
         if check(layer):
             out = BlockResult(layer, [], flags=[f"source integrity: {p}" for p in check(layer)], review="REJECT")
             self.remember(key, out)
@@ -86,8 +87,8 @@ class PunctuationStage:
         syntax = None
         if self.use_agents:
             self.paid()
-            syntax = await SY.analyze(self.db, self.case_id, b["block_id"], layer.words, previous, following, english, alignment_status, self.runners[0])
-        boundaries = BD.analyze(layer.words, layer.gaps(), syntax.boundaries if syntax else None, syntax.ambiguous if syntax else None)
+            syntax = await SY.analyze(self.db, self.case_id, b["block_id"], layer.words, previous, following, english, alignment_status, self.runners[0], self.language)
+        boundaries = BD.analyze(layer.words, layer.gaps(), syntax.boundaries if syntax else None, syntax.ambiguous if syntax else None, self.language)
         rules = PU.normalized(layer)
         out = BlockResult(layer, boundaries, syntax)
         out.flags += [f"ambiguous boundary after word {q['n']}: {q['question']}" for q in (syntax.questions if syntax else [])]
@@ -107,24 +108,24 @@ class PunctuationStage:
             out.rounds = round_no
             if kept is None:
                 self.paid()
-                proposed = await PU.propose(self.db, self.case_id, Layer(layer.block_id, layer.canonical, layer.base, list(rules)), out.boundaries,
+                proposed = await PU.propose(self.db, self.case_id, Layer(layer.block_id, layer.canonical, layer.base, list(rules), language=self.language), out.boundaries,
                                             out.syntax.describe() if out.syntax else {}, english, feedback, self.runners[1])
                 kept = []
                 for e in proposed:
                     why = PU.safe(e, layer, out.boundaries)
                     (out.refused.append({**e.describe(), "why": why}) if why else kept.append(e))
-            trial = Layer(layer.block_id, layer.canonical, layer.base, rules + kept)
+            trial = Layer(layer.block_id, layer.canonical, layer.base, rules + kept, language=self.language)
             if check(trial):
                 out.refused += [{**e.describe(), "why": "the layer would change more than punctuation"} for e in kept]
                 kept = []
-                trial = Layer(layer.block_id, layer.canonical, layer.base, list(rules))
+                trial = Layer(layer.block_id, layer.canonical, layer.base, list(rules), language=self.language)
             if not kept:
                 out.review = "PASS" if not out.refused else "UNCERTAIN"
                 break
             self.paid()
             verdict = await CK.check(self.db, self.case_id, layer.block_id, layer.canonical, trial.text, [e.describe() for e in kept],
                                      {"boundaries": [b.describe(layer.words) for b in out.boundaries], "syntax": out.syntax.describe() if out.syntax else None},
-                                     english, previous, following, self.runners[2])
+                                     english, previous, following, self.runners[2], self.language)
             out.checks.append({"round": round_no, **verdict.describe()})
             if verdict.decision == "PASS":
                 layer.edits, out.review = rules + kept, "PASS"
@@ -155,7 +156,7 @@ def statistics(results: dict[str, BlockResult], seconds: float, agents: bool) ->
     edits = [e for r in results.values() for e in r.layer.edits]
     statuses = [b.status for r in results.values() for b in r.boundaries]
     return {"agents": agents, "blocks": len(results), "blocks_unchanged": sum(1 for r in results.values() if not r.layer.edits),
-            "commas_inserted": sum(1 for e in edits if not e.old and e.new == "،"), "marks_inserted": sum(1 for e in edits if not e.old),
+            "commas_inserted": sum(1 for e in edits if not e.old and e.new in ("،", ",")), "marks_inserted": sum(1 for e in edits if not e.old),
             "marks_replaced_or_removed": sum(1 for e in edits if e.old), "ezafe_required": statuses.count(BD.REQUIRED),
             "ezafe_forbidden": statuses.count(BD.FORBIDDEN), "context_dependent": statuses.count(BD.CONTEXT),
             "no_analysis_needed": statuses.count(BD.NONE), "unresolved_ambiguities": sum(len(r.syntax.ambiguous) for r in results.values() if r.syntax),
@@ -168,9 +169,9 @@ def statistics(results: dict[str, BlockResult], seconds: float, agents: bool) ->
 
 async def for_version(db: Session, case_id: int, version, plan: dict, stage: PunctuationStage | None = None) -> tuple[dict[str, BlockResult], dict]:
     """The punctuation of a version's narration blocks; the English passage of each block (local alignment, free) only when the agents run."""
-    stage = stage or PunctuationStage(db, case_id)
+    stage = stage or PunctuationStage(db, case_id, language=version.language or "fa")
     english = {}
-    if stage.use_agents:
+    if stage.use_agents and stage.language != "en":          # an English narration is its own meaning reference
         from app.documentary.english_reference import alignment as AL
         from app.documentary.english_reference import sources as SRC
         from app.documentary.english_reference.embeddings import get_encoder
@@ -198,4 +199,5 @@ def save(folder, results: dict[str, BlockResult], stats: dict) -> None:
     from app.documentary import storage
 
     storage.write_atomic(folder / ai_config.semantic_punctuation.run_file,
-                         json.dumps({"statistics": stats, "blocks": [r.describe() for r in results.values()]}, ensure_ascii=False, indent=1))
+                         json.dumps({"statistics": {k: v for k, v in stats.items() if k != "seconds"}, "blocks": [r.describe() for r in results.values()]},
+                                   ensure_ascii=False, indent=1))        # the run's own duration is not part of the record: the same input gives the same file

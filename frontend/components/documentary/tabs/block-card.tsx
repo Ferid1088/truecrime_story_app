@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Pause, Play } from "lucide-react";
 import { api } from "@/lib/api";
+import { isRtl, langLabel } from "@/lib/format";
 import type { BlockReviewBlock, BlockReviewTake } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,14 +11,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
+/** What the extra field of a word is called: it goes to the voice as an alias (ElevenLabs reads it instead of the word). */
+export function aliasLabel(language: string): string {
+  if (language === "fa") return "finglish";
+  if (language === "ar") return "vowelled word (tashkeel)";
+  return "spelled as spoken";
+}
+
+const dirOf = (language: string) => (isRtl(language) ? "rtl" : "ltr");
+
 const clock = (s: number | null) => (s == null ? "–" : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`);
 
 /** The words of a block: a corrected word stays red for good. */
-function Words({ block }: { block: BlockReviewBlock }) {
+function Words({ block, language }: { block: BlockReviewBlock; language: string }) {
   return (
-    <p lang="fa" dir="rtl" className="text-base leading-8" data-testid={`words-${block.block_id}`}>
+    <p lang={language} dir={dirOf(language)} className="text-base leading-8" data-testid={`words-${block.block_id}`}>
       {block.words.map((w) => (
-        <span key={w.n} data-corrected={w.corrected} title={w.corrected ? `was: ${w.was || "(new word)"}${w.finglish ? ` · finglish: ${w.finglish}` : ""}` : undefined}
+        <span key={w.n} data-corrected={w.corrected} title={w.corrected ? `was: ${w.was || "(new word)"}${w.finglish ? ` · ${aliasLabel(language)}: ${w.finglish}` : ""}` : undefined}
           className={w.corrected ? "rounded px-0.5 font-medium text-red-600 dark:text-red-400" : undefined}>
           {w.surface}{" "}
         </span>
@@ -26,8 +36,8 @@ function Words({ block }: { block: BlockReviewBlock }) {
   );
 }
 
-/** The correction of a block: the whole text, and every word with its Persian spelling and a finglish that goes to the voice as an alias. */
-function Editor({ versionId, block, onSaved, onCancel }: { versionId: number; block: BlockReviewBlock; onSaved: (b: BlockReviewBlock) => void; onCancel: () => void }) {
+/** The correction of a block: the whole text, and every word with its spelling and the alias that goes to the voice (finglish in Persian, the vowelled word in Arabic). */
+function Editor({ versionId, block, language, onSaved, onCancel }: { versionId: number; block: BlockReviewBlock; language: string; onSaved: (b: BlockReviewBlock) => void; onCancel: () => void }) {
   const [text, setText] = useState(block.text);
   const [rows, setRows] = useState(block.words.map((w) => ({ n: w.n, surface: w.surface, finglish: w.finglish })));
   const [busy, setBusy] = useState(false);
@@ -53,16 +63,16 @@ function Editor({ versionId, block, onSaved, onCancel }: { versionId: number; bl
     <div className="space-y-3 rounded-md border border-dashed p-3" data-testid={`editor-${block.block_id}`}>
       <label className="block text-xs text-muted-foreground">
         Text of the block (the words below are available while the text is unchanged)
-        <Textarea lang="fa" dir="rtl" rows={4} value={text} onChange={(e) => setText(e.target.value)} className="mt-1 text-base" aria-label="Text of the block" />
+        <Textarea lang={language} dir={dirOf(language)} rows={4} value={text} onChange={(e) => setText(e.target.value)} className="mt-1 text-base" aria-label="Text of the block" />
       </label>
       {!wholeTextChanged && (
         <div className="grid max-h-72 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2" aria-label="Words of the block">
           {rows.map((r, i) => (
             <div key={r.n} className="flex items-center gap-2">
               <span className="w-7 shrink-0 text-xs text-muted-foreground" dir="ltr">{r.n}</span>
-              <Input lang="fa" dir="rtl" value={r.surface} aria-label={`Persian word ${r.n}`}
+              <Input lang={language} dir={dirOf(language)} value={r.surface} aria-label={`${langLabel(language)} word ${r.n}`}
                 onChange={(e) => setRows((all) => all.map((x, j) => (j === i ? { ...x, surface: e.target.value } : x)))} className="h-8 flex-1" />
-              <Input dir="ltr" placeholder="finglish" value={r.finglish} aria-label={`Finglish of word ${r.n}`}
+              <Input lang={language === "ar" ? "ar" : undefined} dir={language === "ar" ? "rtl" : "ltr"} placeholder={aliasLabel(language)} value={r.finglish} aria-label={`${aliasLabel(language)} of word ${r.n}`}
                 onChange={(e) => setRows((all) => all.map((x, j) => (j === i ? { ...x, finglish: e.target.value } : x)))} className="h-8 flex-1" />
             </div>
           ))}
@@ -99,8 +109,9 @@ function Takes({ block, playing, onPlay, onTick }: { block: BlockReviewBlock; pl
   );
 }
 
-export function BlockCard({ versionId, block, current, playingTake, onPlayBlock, onPlayTake, onChanged }: {
+export function BlockCard({ versionId, language, block, current, playingTake, onPlayBlock, onPlayTake, onChanged }: {
   versionId: number;
+  language: string;
   block: BlockReviewBlock;
   current: boolean;
   playingTake: string | null;
@@ -136,9 +147,9 @@ export function BlockCard({ versionId, block, current, playingTake, onPlayBlock,
         {block.needs_sending && <Badge variant="warning">not voiced yet</Badge>}
       </div>
       {block.draft_text !== null && block.needs_sending && <p className="mb-1 text-xs text-amber-700">Draft: this text is not voiced yet; the ticked take still has the earlier text.</p>}
-      <Words block={block} />
+      <Words block={block} language={language} />
       {editing ? (
-        <Editor versionId={versionId} block={block} onCancel={() => setEditing(false)} onSaved={(b) => { setEditing(false); onChanged(b); }} />
+        <Editor versionId={versionId} block={block} language={language} onCancel={() => setEditing(false)} onSaved={(b) => { setEditing(false); onChanged(b); }} />
       ) : (
         <div className="mt-2 flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={() => setEditing(true)} disabled={busy}>Correct</Button>
