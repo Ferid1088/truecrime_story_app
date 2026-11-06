@@ -30,7 +30,8 @@ def collect_texts(data: dict, kind: str) -> list[tuple[dict, str]]:
     if kind == "timeline":
         return [(point["labels"], n) for point in data.get("points") or [] for n in range(len(point.get("labels") or []))]
     for group, key in TEXT_FIELDS.get(kind, []):
-        for holder in ([data] if not group else (data[group] if isinstance(data.get(group), list) else [data[group]])):
+        found = data.get(group) if group else data
+        for holder in ([] if found is None else found if isinstance(found, list) else [found]):
             if holder.get(key):
                 out.append((holder, key))
     return out

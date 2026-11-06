@@ -50,7 +50,7 @@ def build_timeline_cards(db: Session, graph_id: int, units: list[NarrationUnit],
         for beat in order[last:last + 1 + LATER_BEATS]:
             keys = [u.unit_key for u in units if u.beat_id == beat]
             part = CD.Part(f"T{n}", keys, f"The dates of {len(data['points'])} events", ["timeline"])
-            action = CD.store_card(db, graph_id, part, "timeline", data, units, language, 0, release=0.5)
+            action = CD.store_card(db, graph_id, part, "timeline", data, units, language, CD.next_serial(db, graph_id), release=0.5)
             skipped = {s["action_key"] for s in BD.planned_timeline(db, graph_id, language, units).skipped}
             if BD.issue_of(db, action) is None and action.action_key not in skipped:
                 made += 1

@@ -478,6 +478,18 @@ def _map_place_of(db: Session, action: DetectiveToolAction) -> str | None:
     return None
 
 
+ISOLATED = "isolated"       # the tool id of a card taken out of the film: it is kept, nothing reads it any more
+
+
+def isolate(action: DetectiveToolAction, why: str) -> None:
+    """Take a card out of the film without deleting it: its tool id becomes `isolated` (every reader looks for the card kinds, so
+    none finds it) and the payload keeps the kind it was and why it was taken out."""
+    payload = payload_of(action)
+    payload["isolated"] = {"tool": action.tool_id, "why": why}
+    action.payload_json = json.dumps(payload, ensure_ascii=False)
+    action.tool_id = ISOLATED
+
+
 SOURCE_LANGUAGE = "en"      # the language of the claims, relations and graph labels a builder makes a card from
 
 
@@ -498,7 +510,9 @@ def resolve_dispatchable_actions(db: Session, graph_id: int) -> list[dict]:
         build = BUILDERS.get(action.tool_id)
         record = {"action_key": action.action_key, "tool_id": action.tool_id, "purpose": action.purpose,
                   "reuse_reason": action.reuse_reason}
-        if action.tool_id == "map":
+        if action.tool_id == ISOLATED:
+            record["skip"] = "isolated"
+        elif action.tool_id == "map":
             place, beat_id = _map_place_of(db, action), _beat_id_of(db, action)
             if place is None or beat_id is None:
                 record["skip"] = "no_stored_place" if place is None else "no_beat_span"

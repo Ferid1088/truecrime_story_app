@@ -35,3 +35,8 @@ def test_a_text_that_is_still_in_latin_letters_in_a_persian_film_is_reported_not
                            {"text": "Caleb Flynn contacted 911.", "fact_id": "b"}]}}}]}]}
     assert EV.left_in_another_script(plan, "fa") == [{"beat": "B07", "kind": "fact_card", "text": "Caleb Flynn contacted 911."}]
     assert EV.left_in_another_script(plan, "de") == [], "a Latin-script language cannot be told apart by script"
+
+
+def test_a_card_with_a_group_missing_is_read_without_error():
+    data = {"confirmed": [{"text": "تأیید شد", "fact_id": "a"}]}
+    assert [(h["text"], k) for h, k in EV.collect_texts(data, "recap")] == [("تأیید شد", "text")]

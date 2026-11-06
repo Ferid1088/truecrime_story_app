@@ -25,6 +25,7 @@ from app.db.models import DetectiveScene, DetectiveToolAction, NarrationUnit, Re
 from app.documentary.detective import buildable as BD
 from app.documentary.chapters import cards_for, latest_chapter_plan
 from app.documentary.detective import dispatch as D
+from app.documentary.detective import language_gate as LG
 from app.documentary.detective.dispatch import SOURCE_LANGUAGE
 from app.documentary.detective.reading import reading_need
 from app.documentary.graphics.base import GraphicUnavailable
@@ -92,7 +93,7 @@ class CardMemory:
         for action in (db.query(DetectiveToolAction).join(DetectiveScene, DetectiveScene.id == DetectiveToolAction.scene_id)
                        .filter(DetectiveScene.graph_id == graph_id)):
             data = D.payload_of(action).get("data")
-            if data:
+            if data and action.tool_id != D.ISOLATED:
                 memory.add(action.tool_id, data)
         return memory
 
@@ -210,7 +211,7 @@ def _problem_of(kind: str, data: object, language: str) -> str | None:
     if not isinstance(data, dict):
         return "the card is not an object"
     try:
-        problem = BD.render_problem(kind, data)
+        problem = BD.render_problem(kind, data) or LG.script_problem(kind, data, language)
         if problem is None:
             reading_need(kind, data, language)
         return problem
@@ -274,6 +275,11 @@ async def make_card(case_units: list[NarrationUnit], part: Part, kind: str, lang
                 return None, "; ".join(str(p.get("what")) for p in problems)[:300]
             repair = {"previous": data, "problems": problems}
     return None, "no card"
+
+
+def next_serial(db: Session, graph_id: int) -> int:
+    """A number that makes the scene key of a new card unique in the graph, whatever was isolated or removed before."""
+    return db.query(DetectiveScene).filter_by(graph_id=graph_id).count()
 
 
 def store_card(db: Session, graph_id: int, part: Part, kind: str, data: dict, units: list[NarrationUnit], language: str,
@@ -344,7 +350,7 @@ def ensure_map(db: Session, graph_id: int, units: list[NarrationUnit], language:
     beat = next(u.beat_id for u in units if u.unit_key == unit_key)
     keys = [u.unit_key for u in units if u.beat_id == beat]
     action = store_card(db, graph_id, Part("MAP", keys, f"Where it happened: {node.label}", ["map"]), "map",
-                        {"place": node.label}, units, language, 0)
+                        {"place": node.label}, units, language, next_serial(db, graph_id))
     action.payload_json = json.dumps({"place": node.label, "data": {"place": node.label}, "part": "MAP",
                                       "release_fraction": 0.3})
     db.flush()

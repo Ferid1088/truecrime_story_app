@@ -23,6 +23,7 @@ from app.core.ai_config import ai_config
 from app.db.models import DetectiveScene, EditorialBlueprint, NarrationUnit, RevealGraph
 from app.documentary.detective import buildable as BD
 from app.documentary.detective import cards as CD
+from app.documentary.detective import language_gate as LG
 from app.documentary.detective import timeline_cards as TC
 from app.documentary.detective.narration import ingest_narration
 from app.longform import service as LF
@@ -46,6 +47,7 @@ class ToolkitResult:
     kinds_used: list[str] = field(default_factory=list)
     missing_kinds: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    isolated: list[dict] = field(default_factory=list)      # the cards taken out of the film for not being in its language
 
 
 def missing_kinds(kinds: set[str]) -> list[str]:
@@ -63,18 +65,20 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
         return ToolkitResult(enabled=True, called=False, scene_count=0,
                              reason="the blueprint's text has no narration to plan from")
     language = units[0].language
+    isolated = LG.isolate_foreign_cards(db, graph.id, language)
     TC.build_timeline_cards(db, graph.id, units, language)
     report = await CD.build_cards(db, case, graph.id, units, language)
     final = BD.planned_timeline(db, graph.id, language, units)
     share, missing = final.alternative_share, missing_kinds(final.kinds)
     reason = (f"{sum(report.made.values())} card(s) made from {report.parts} part(s) in {report.attempts} attempt(s); "
               f"cards, board and map fill {share:.1%} of the film; {len(final.kinds)} card kinds"
-              + (f", missing {', '.join(missing)}" if missing else ""))
+              + (f", missing {', '.join(missing)}" if missing else "")
+              + (f"; {len(isolated)} card(s) not in the film's language isolated" if isolated else ""))
     return ToolkitResult(
         enabled=True, called=report.attempts > 0, units_registered=ingested.registered, parts=report.parts, made=report.made,
         dropped=report.dropped, repeats=report.repeats, attempts=report.attempts, stopped=report.stopped,
         alternative_share=share, target_met=share >= ai_config.detective_toolkit.min_alternative_share,
-        kinds_used=sorted(final.kinds), missing_kinds=missing, errors=report.errors,
+        kinds_used=sorted(final.kinds), missing_kinds=missing, errors=report.errors, isolated=isolated,
         scene_count=db.query(DetectiveScene).filter_by(graph_id=graph.id).count(), reason=reason)
 
 
