@@ -333,3 +333,55 @@ def test_no_card_decoration_is_drawn_in_the_corner_of_the_channel_logo(language)
         img = np.asarray(ground(1920, 1080, kind, language == "fa").convert("RGB")).astype(int)
         corner = img[30:185, 60:220] if language == "fa" else img[30:185, 1700:1860]
         assert np.ptp(corner, axis=(0, 1)).max() < 14, f"{kind}: something is drawn where the logo goes"
+
+
+# -- every card is written in its film's language and only in it ---------------------------------------------------------
+
+import re as _re
+
+import pytest as _pytest
+
+from app.documentary.graphics.registry import GRAPHICS as _GRAPHICS
+from tests import graphics_samples as _SAMPLES
+
+_QUOTE = {"text": "{fact}", "speaker": "{a}", "source": "NBC News", "fact_id": "F1", "url": "https://www.nbcnews.com/a"}
+
+
+def _drawn_beyond_the_data(kind: str, data: dict, language: str) -> set[str]:
+    """The words the card draws that its own data does not hold: the text the renderer adds (labels, marks, numbers)."""
+    def strings(x):
+        if isinstance(x, dict):
+            for v in x.values():
+                yield from strings(v)
+        elif isinstance(x, list):
+            for v in x:
+                yield from strings(v)
+        elif isinstance(x, (str, int)):
+            yield str(x)
+
+    own = {w for s in strings(data) for w in s.split()}
+    graphic = _GRAPHICS[kind]
+    words = graphic.draw_state(data, language, graphic.required_cues(data)).words
+    return {w.text for w in words if w.text not in own and w.text.strip("«»“”„.,:;()") not in own}
+
+
+@_pytest.mark.parametrize("language", ["fa", "ar"])
+def test_what_a_card_adds_to_the_text_it_is_given_is_never_in_latin_letters_in_a_native_script_language(language):
+    samples = {"conflict": _SAMPLES.conflict(language), "recap": _SAMPLES.recap(language),
+               "timeline": _SAMPLES.timeline(language),
+               "quote": {**_QUOTE, "text": _SAMPLES.TEXT[language]["fact"], "speaker": _SAMPLES.TEXT[language]["a"]},
+               "fact_card": {"facts": [{"text": _SAMPLES.TEXT[language]["fact"], "fact_id": "F1"}]}}
+    for kind, data in samples.items():
+        added = _drawn_beyond_the_data(kind, data, language)
+        assert not [w for w in added if _re.search(r"[A-Za-z]{2,}", w)], f"{kind} in {language} draws {sorted(added)}"
+
+
+def test_a_persian_conflict_card_numbers_itself_in_persian_digits():
+    added = _drawn_beyond_the_data("conflict", _SAMPLES.conflict("fa"), "fa")
+    assert "۰۳" in added and not [w for w in added if _re.search(r"[0-9]", w)]
+
+
+def test_the_quotation_marks_of_a_language_are_the_same_on_every_card():
+    from app.documentary.graphics import parts
+
+    assert [parts.quoted("x", language) for language in ("en", "de", "fa", "ar")] == ["“x”", "„x“", "«x»", "«x»"]

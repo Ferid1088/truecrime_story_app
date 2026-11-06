@@ -2921,6 +2921,8 @@ class DetectiveBoardConfig(BaseModel):
 
     enabled: bool = True
     title_max_words: int = Field(default=5, ge=2, le=10)
+    # How many times the writer is asked again for the titles that are too long or not in the language's own script.
+    title_repair_rounds: int = Field(default=1, ge=0, le=3)
     # The board is planned to the end of the case: at least one card lies in this last share of the
     # film's beats (never in its very last beat, which has no room left to show it).
     final_stretch_share: float = Field(default=0.25, gt=0.0, le=1.0)

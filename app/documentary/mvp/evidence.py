@@ -16,7 +16,6 @@ TEXT_FIELDS = {
                  ("sides", "source")],
     "conflict_board": [("cards", "title"), ("cards", "a"), ("cards", "b")],
     "recap": [("confirmed", "text"), ("disputed", "text"), ("unknown", "text")],
-    "timeline": [("events", "label")],
     "key_facts": [("facts", "caption")],
     "quote": [("", "text")],
     "fact_card": [("facts", "text")],
@@ -28,6 +27,8 @@ def collect_texts(data: dict, kind: str) -> list[tuple[dict, str]]:
     out = []
     if kind in GS.ENGINE_KINDS:
         return kit.texts_of(data)
+    if kind == "timeline":
+        return [(point["labels"], n) for point in data.get("points") or [] for n in range(len(point.get("labels") or []))]
     for group, key in TEXT_FIELDS.get(kind, []):
         for holder in ([data] if not group else (data[group] if isinstance(data.get(group), list) else [data[group]])):
             if holder.get(key):
@@ -72,4 +73,21 @@ async def localize_graphics(db: Session, case: Case, plan_row: VisualPlan, langu
         holder[key] = done[ref]
     plan_row.plan_json = json.dumps(plan, ensure_ascii=False)
     db.commit()
-    return {"localized": len(pending)}
+    return {"localized": len(pending), "left_in_another_script": left_in_another_script(plan, language)}
+
+
+def left_in_another_script(plan: dict, language: str) -> list[dict]:
+    """The texts of the placed graphics that a language written in its own script still holds in Latin letters (an untranslated
+    sentence or name): [{beat, kind, text}]. Empty for a Latin-script language, whose texts cannot be told apart by script."""
+    from app.documentary import names as NS
+
+    if not NS.uses_native_script(language):
+        return []
+    found = []
+    for beat in plan.get("beats") or []:
+        for shot in beat["shots"]:
+            spec = shot.get("graphic")
+            if spec and spec.get("language") == language:
+                found += [{"beat": beat["beat_id"], "kind": spec["type"], "text": holder[key]}
+                          for holder, key in collect_texts(spec["data"], spec["type"]) if NS.LATIN_WORD.search(str(holder[key]))]
+    return found

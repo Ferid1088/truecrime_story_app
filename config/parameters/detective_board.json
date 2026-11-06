@@ -2,6 +2,7 @@
  "detective_board": {
   "enabled": true,
   "title_max_words": 5,
+  "title_repair_rounds": 1,
   "min_cards": 4,
   "max_cards": 14,
   "min_beats_between_cards": 2,

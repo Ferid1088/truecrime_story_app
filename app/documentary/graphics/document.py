@@ -10,13 +10,10 @@ from PIL import Image, ImageDraw, ImageFilter
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic, ease
 from app.documentary.graphics.page import Page, mode_cache, rotated_words
+from app.documentary.graphics.parts import quoted
 from app.documentary.visuals.shaping import RTL
 
 PAPER_W, PAPER_H = 1000, 860
-QUOTE_MARKS = {"en": ("“", "”"), "de": ("„", "“"), "fa": ("«", "»"),
-               "ar": ("«", "»")}
-
-
 def normalized(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
@@ -119,15 +116,14 @@ class DocumentCard(Graphic):
         sheet.text(pad, 62, inner - 230, doc["type"], "mono_bold", 28, ink, lines_max=2, min_px=20, upper=True,
                    spacing=1.2)
         if doc.get("case_number"):
-            sheet.text(pad, 62, inner, f"NO. {doc['case_number']}", "mono", 24, ink, align="end", lines_max=1)
+            sheet.text(pad, 62, inner, f"{T.label(dlang, 'number')} {doc['case_number']}", "mono", 24, ink, align="end", lines_max=1)
         sheet.hline(pad, 134, inner, ink, 4)
         y = 178
         grey = (118, 110, 100)
         for line in data.get("context_before", [])[:3]:
             y = self._context(sheet, pad, y, inner, line, data.get("redactions", []), grey)
         y += 14
-        opening, closing = QUOTE_MARKS.get(dlang, QUOTE_MARKS["en"])
-        text = f"{opening}{normalized(quote['text'])}{closing}"
+        text = quoted(normalized(quote["text"]), dlang)
         lines, px = sheet.lines(text, "body_italic", 50, inner - 70, lines_max=4, min_px=32)
         height = int(len(lines) * px * 1.38) + 48
         band = (pad - 8, y - 8, inner + 16, height)

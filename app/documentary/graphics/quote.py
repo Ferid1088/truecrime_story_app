@@ -9,9 +9,9 @@ from PIL import Image
 
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic
-from app.documentary.graphics.document import QUOTE_MARKS
 from app.documentary.graphics.outlets import outlet_of
 from app.documentary.graphics.page import Page, mode_cache
+from app.documentary.graphics.parts import quoted
 
 
 class QuoteCard(Graphic):
@@ -43,9 +43,8 @@ def _quote(data_json: str, language: str, step: int) -> Image.Image:
     m = page.margin
     page.tracked(m, 160, T.label(language, "quote"), "mono", T.size("label"), T.rgb("amber"), 5)
     if step >= 1:
-        opening, closing = QUOTE_MARKS[language]
         page.rect(m, 300, 8, 480, fill=T.rgb("red"))
-        end = page.text(m + 56, 300, page.W - 2 * m - 56, f"{opening}{' '.join(data['text'].split())}{closing}",
+        end = page.text(m + 56, 300, page.W - 2 * m - 56, quoted(" ".join(data["text"].split()), language),
                         "body", 76, T.rgb("ink"), lines_max=6, min_px=44, spacing=1.25)
         credit = ", ".join(filter(None, (data.get("speaker"), data["source"])))
         page.text(m + 56, end + 36, page.W - 2 * m - 56, credit, "mono", 32, T.rgb("grey"), lines_max=2, min_px=22)

@@ -10,6 +10,7 @@ from PIL import Image
 from app.documentary.graphics import parts
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic
+from app.documentary.graphics.dates import numerals
 from app.documentary.graphics.page import Page, mode_cache
 
 STATUSES = ("open", "decided", "refuted")
@@ -58,8 +59,8 @@ def _conflict_page(data_json: str, language: str, step: int) -> Image.Image:
     conflict, sides = data["conflict"], data["sides"]
     page = Page(language)
     m = page.margin
-    number = f"{T.label(language, 'conflict')} {int(conflict.get('number', 0)):02d}" if conflict.get("number") \
-        else T.label(language, "conflict")
+    title = T.label(language, "conflict")
+    number = f"{title} {numerals(f'{int(conflict['number']):02d}', language)}" if conflict.get("number") else title
     card_top = max(300, parts.header(page, number, T.rgb("amber"), conflict["title"], 100) + 36)
     colors = (T.rgb("blue"), T.rgb("red"))
     left_edges = (m, page.W - m - CARD_W)
@@ -72,9 +73,7 @@ def _conflict_page(data_json: str, language: str, step: int) -> Image.Image:
         inner = CARD_W - 112
         page.tracked(x, card_top + 52, side["who"].upper() if not page.rtl else side["who"], "mono", 26,
                      colors[n], 4)
-        claim = f"“{' '.join(side['claim'].split())}”" if language in ("en",) else \
-            f"{'«' if language in ('fa', 'ar') else '„'}{' '.join(side['claim'].split())}" \
-            f"{'»' if language in ('fa', 'ar') else chr(0x201c)}"
+        claim = parts.quoted(" ".join(side["claim"].split()), language)
         page.text(x, card_top + 118, inner, claim, "body", 46, T.rgb("ink"), lines_max=5, min_px=32, spacing=1.42)
         parts.source_line(page, x, card_top + CARD_H - 62, inner,
                           f"{T.label(language, 'source')}: {side['source']}".upper() if not page.rtl

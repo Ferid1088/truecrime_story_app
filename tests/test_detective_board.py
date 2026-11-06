@@ -1,6 +1,7 @@
 """The detective board: deterministic card selection, layout, continuity
 and reading-hold timing (app/documentary/detective_board.py)."""
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -227,3 +228,57 @@ def test_a_board_that_already_reaches_the_end_is_left_as_it_is():
 
 def test_the_final_stretch_is_configured():
     assert ai_config.detective_board.final_stretch_share == 0.25
+
+
+# -- the titles are in the film's own language ------------------------------------------------------------------------
+
+
+def _writer(monkeypatch, db_session, answers):
+    """A BoardWriter whose agent answers `answers` (a list of {card id: title}, one per call); the calls it received."""
+    from app.agents import detective_board as AB
+    from tests.test_detective_section_d import _graph
+
+    graph, blueprint, case = _graph(db_session, beats=[{"id": "B01"}])
+    calls = []
+
+    async def agent(name, gen, user, **kw):
+        payload = json.loads(user)
+        calls.append(payload)
+        reply = answers.pop(0) if answers else {}
+        return {"titles": [{"id": k, "title": v} for k, v in reply.items() if k in {c["id"] for c in payload["cards"]}]}, None
+
+    monkeypatch.setattr(AB, "run_agent", agent)
+    cards = [{"id": "c1", "kind": "person", "claim": "Caleb Flynn led worship at a church", "source_fact": "T1",
+              "beat_id": "B01", "status": "stated", "links": []}]
+    monkeypatch.setattr(AB.BoardWriter, "context", lambda self, db, case, bp: {"cards": cards})
+    return AB.BoardWriter(gen=object()), case, blueprint, calls
+
+
+def _titles(row, language):
+    return [c["title"].get(language) for c in json.loads(row.plan_json)["cards"]]
+
+
+def test_a_persian_title_with_latin_words_is_written_again_and_the_writer_is_told_the_narrations_names(monkeypatch, db_session):
+    from app.db.models import EntityNameForm
+
+    writer, case, blueprint, calls = _writer(monkeypatch, db_session, [{"c1": "Caleb رهبر نیایش"}, {"c1": "کالب، رهبر نیایش"}])
+    db_session.add(EntityNameForm(case_id=case.id, language="fa", entity_key="caleb_flynn", text_hash="x",
+                                  forms_json=json.dumps({"full": ["کالب فلین"], "first": ["کالب"], "last": []},
+                                                        ensure_ascii=False)))
+    db_session.commit()
+    row = asyncio.run(writer.create(db_session, case, blueprint, None, ["fa"]))
+    assert _titles(row, "fa") == ["کالب، رهبر نیایش"] and row.status == "approved"
+    assert calls[0]["names"][0]["full"] == "کالب فلین", "the writer gets the spellings the narration uses"
+    assert "Latin words" in calls[1]["cards"][0]["previous_problem"], "the second call says what was wrong"
+
+
+def test_a_card_whose_title_never_gets_the_languages_script_is_left_out_not_shown_in_english(monkeypatch, db_session):
+    writer, case, blueprint, _ = _writer(monkeypatch, db_session, [{"c1": "Caleb led worship"}, {"c1": "Caleb led worship"}])
+    row = asyncio.run(writer.create(db_session, case, blueprint, None, ["ar"]))
+    assert _titles(row, "ar") == [None] and row.status == "no_texts"
+
+
+def test_a_german_card_with_no_title_is_left_out_but_an_english_one_falls_back_to_its_own_claim(monkeypatch, db_session):
+    writer, case, blueprint, _ = _writer(monkeypatch, db_session, [{}, {}, {}, {}])
+    row = asyncio.run(writer.create(db_session, case, blueprint, None, ["de", "en"]))
+    assert _titles(row, "de") == [None] and _titles(row, "en") == ["Caleb Flynn led worship at"]

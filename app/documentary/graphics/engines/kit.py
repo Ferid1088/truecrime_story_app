@@ -10,6 +10,7 @@ from abc import abstractmethod
 
 from PIL import Image
 
+from app.documentary.graphics import parts
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic
 from app.documentary.graphics.page import Color, DoesNotFit, Page
@@ -133,7 +134,7 @@ def statement(page: Page, left: int, top: int, width: int, item: dict, alpha: in
     y = basis_tag(page, left, top, item["basis"], alpha, tag, width) + 8 if show_tag else top
     text = " ".join(item["text"].split())
     if quoted:
-        text = f"“{text}”" if page.language in ("en", "de") else f"«{text}»"
+        text = parts.quoted(text, page.language)
     return page.text(left, y, width, text, "body", px, blend(T.rgb("ink"), alpha), lines_max=lines_max,
                      min_px=min_px, spacing=1.32)
 

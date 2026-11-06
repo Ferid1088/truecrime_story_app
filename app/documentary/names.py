@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 
 from sqlalchemy.orm import Session
 
@@ -25,6 +26,7 @@ from app.services.tracking import stamp_run, track_run
 
 log = logging.getLogger(__name__)
 PARTS = ("full", "first", "last")
+LATIN_WORD = re.compile(r"[A-Za-z]{2,}")      # what a text in a native-script language must not hold: a name or phrase left untranslated
 
 
 def uses_native_script(language: str) -> bool:

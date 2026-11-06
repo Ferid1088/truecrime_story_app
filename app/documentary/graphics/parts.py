@@ -5,6 +5,14 @@ from __future__ import annotations
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.page import Page
 
+QUOTE_MARKS = {"en": ("“", "”"), "de": ("„", "“"), "fa": ("«", "»"), "ar": ("«", "»")}
+
+
+def quoted(text: str, language: str) -> str:
+    """`text` in the quotation marks of the language (in a right-to-left line the pair is mirrored when it is drawn)."""
+    opening, closing = QUOTE_MARKS.get(language, QUOTE_MARKS["en"])
+    return f"{opening}{text}{closing}"
+
 
 def header(page: Page, label: str, label_color, title: str, title_px: int | None = None, lines_max: int = 2,
            top: int = 88, width: int | None = None) -> int:
