@@ -229,7 +229,7 @@ def test_every_persian_style_is_voiced_at_speed_1_2_and_stability_0_2_and_played
 def test_the_other_languages_keep_their_paths():
     assert ai_config.listens_after_voice("en") and not ai_config.listens_after_voice("fa")
     assert not ai_config.ppie.fresh("en") and not ai_config.ppie.fresh("de") and ai_config.ppie.fresh("ar"), "Arabic is read by PPIE (Tashkeel); German and English have no reading stage"
-    assert (ai_config.voice.settings_for("factual", "en")["speed"], ai_config.voice.settings_for("factual", "en")["stability"]) == (0.92, 0.2)
+    assert (ai_config.voice.settings_for("factual", "en")["speed"], ai_config.voice.settings_for("factual", "en")["stability"]) == (0.9, 0.7)      # English shares German's voice settings in every style (commit e31b769)
 
 
 def test_the_approved_story_stays_byte_for_byte_and_the_voice_gets_the_planner_text_only(db_session, versions, tmp_path, monkeypatch):

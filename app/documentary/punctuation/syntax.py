@@ -57,4 +57,4 @@ async def analyze(db, case_id: int, block_id: str, words: list[Word], previous: 
     agent = f"{profile.agents}.syntax"
     raw = await ask(db, case_id, f"Punctuation: syntax {block_id}", payload(words, previous, following, english, alignment_status), "punctuation_syntax",
                     runner or (lambda gen, body: run_agent(agent, gen, body)))
-    return parse(raw, words, profile.ezafe)
+    return parse(raw, words, ai_config.semantic_punctuation.has_ezafe(language))

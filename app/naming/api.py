@@ -18,7 +18,7 @@ from app.naming import agent as A
 from app.naming.corpus import get_corpus
 
 router = APIRouter(tags=["naming"])
-Lang = Literal["en", "de", "fa", "ar"]
+Lang = Literal["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"]
 
 
 def _gen():
@@ -68,7 +68,7 @@ def naming_state(db: Session, case: Case) -> dict:
     rows = (db.query(CaseTitleCandidate).filter(CaseTitleCandidate.case_id == case.id)
             .order_by(CaseTitleCandidate.id).all())
     langs = {}
-    for lang in A.ORDER:
+    for lang in ai_config.multilingual.producible_languages:
         mine = [r for r in rows if r.language == lang]
         live = sorted((r for r in mine if r.status != "rejected"),
                       key=lambda r: json.loads(r.critic_json or "{}").get("rank") or 99)

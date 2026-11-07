@@ -243,3 +243,25 @@ def test_api_flow(client, db_session, monkeypatch):
     assert len(fa) == 7 and fa[0]["recommended"] and fa[0]["collision_status"] == "clear"
     ok = client.post(f"/api/cases/{case.id}/naming/{fa[0]['id']}/approve").json()
     assert ok["youtube_title"].endswith("(حل‌نشده) | رد خاموش")
+
+
+def test_the_optional_languages_are_titled_only_when_asked_for_and_in_a_fixed_order():
+    assert A.title_languages(None) == ["en", "de", "fa", "ar"]
+    assert A.title_languages(["tr", "es", "en"]) == ["en", "es", "tr"]
+    assert A.title_languages(["xx"]) == []
+
+
+@pytest.mark.parametrize("title,language,blocked", [
+    ("El asesino de la carretera", "es", True), ("Lo que se sabe del caso Hale", "es", False),
+    ("L'assassino di Via Roma", "it", True), ("Il caso della villa sul lago", "it", False),
+    ("Le meurtrier de la rue Caron", "fr", True), ("Disparition à Lyon", "fr", False),
+    ("Quem matou Anna Berg", "pt", True), ("O desaparecimento de Lena Voss", "pt", False),
+    ("Katillerin Peşinde", "tr", True), ("Zeynep Kaya Dosyası", "tr", False)])
+def test_a_title_that_names_a_killer_is_refused_in_every_new_language(title, language, blocked):
+    assert bool(G.gate_epistemic(title, language, {})) is blocked
+
+
+def test_the_script_gate_asks_arabic_script_only_of_the_right_to_left_languages():
+    assert G.gate_script("El caso Hale", "es") is None and G.gate_script("Zeynep Kaya Dosyası", "tr") is None
+    assert "Arabic script" in G.gate_script("قضية هيل", "es")
+    assert G.gate_script("قضية هيل", "ar") is None and G.gate_script("Hale case", "ar")

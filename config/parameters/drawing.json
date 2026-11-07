@@ -4,6 +4,7 @@
     "min_speed": 0.5,
     "max_speed": 2.0,
     "gap_full_seconds": 8.0,
+    "portrait_lead_seconds": 20.0,
     "window_opacity": 0.6,
     "full_opacity": 1.0,
     "window": {

@@ -305,8 +305,8 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None,
     listened = ai_config.listens_after_voice(scene.language)
     dictionaries = []
     if prepared:         # the host says the same names as the narration: the film's pronunciation dictionary goes with its voice too
-        from app.documentary import voice_prepare as VP
         from app.db.models import StoryVersion
+        from app.documentary import voice_prepare as VP
 
         version = db.get(StoryVersion, scene.story_version_id)
         dictionaries = await VP.ensure_dictionary(db, version, scene.language) if version is not None else []
@@ -673,9 +673,9 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
         step = "avatar_upload"
         if not ai_config.avatar.enabled and avatar_provider is None:
             raise ST.StudioError("avatar generation is disabled (config avatar.enabled)")
-        from app.providers.avatar import get_avatar_provider
         from app.core.env import env_value
         from app.documentary import looks as LK
+        from app.providers.avatar import get_avatar_provider
 
         cp = ST.channel_profile(scene.language)
         prov = avatar_provider or get_avatar_provider(key_env=cp["heygen_key_env"])
@@ -750,6 +750,24 @@ def redo_video(db: Session, scene: HostScene, reason: str) -> HostScene:
     scene.provider_job_id = scene.provider_job_voice_sha = None
     scene.avatar_video_path = scene.avatar_video_sha256 = None
     scene.status = "voice_ready"
+    db.commit()
+    return scene
+
+
+def redo_voice(db: Session, scene: HostScene, reason: str) -> HostScene:
+    """A new voice, and so a new direction and a new avatar video, for a scene whose text stays (the spelling the voice is given changed). The old voice,
+    direction and video stay in the scene's history and on disk; the next run speaks the scene again."""
+    _log(scene, "redo_voice", "requested", {
+        "reason": reason, "old_voice_path": scene.voice_path, "old_voice_sha256": scene.voice_sha256,
+        "old_avatar_video_path": scene.avatar_video_path, "old_avatar_video_sha256": scene.avatar_video_sha256})
+    scene.voice_path = scene.voice_sha256 = scene.voice_seconds = None
+    scene.voice_meta_json = "{}"
+    scene.provider_asset_id = scene.provider_asset_voice_sha = None
+    scene.provider_job_id = scene.provider_job_voice_sha = None
+    scene.provider_generation = (scene.provider_generation or 0) + 1
+    scene.avatar_video_path = scene.avatar_video_sha256 = None
+    scene.direction_json = scene.direction_sha256 = None
+    scene.status = "planned"
     db.commit()
     return scene
 

@@ -392,6 +392,20 @@ def redo_host_scene(scene_id: int, payload: SceneRedo, db: Session = Depends(get
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
+@router.post("/api/host-scenes/{scene_id}/redo-voice")
+def redo_host_scene_voice(scene_id: int, payload: SceneRedo, db: Session = Depends(get_db)):
+    """A new voice and a new avatar video for a scene (its words stay; the old files stay in its history). Run the scene afterwards."""
+    from app.documentary.host_scenes import redo_voice
+
+    s = db.get(HostScene, scene_id)
+    if s is None:
+        raise HTTPException(status_code=404, detail="Host scene not found")
+    task = _tasks.get(scene_id)
+    if task is not None and not task.done():
+        raise HTTPException(status_code=409, detail="This scene is running.")
+    return scene_dict(redo_voice(db, s, payload.reason))
+
+
 @router.get("/api/host-scenes/{scene_id}/voice")
 def host_scene_voice(scene_id: int, db: Session = Depends(get_db)):
     s = db.get(HostScene, scene_id)

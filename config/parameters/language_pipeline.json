@@ -10,7 +10,12 @@
       "en": 150,
       "de": 140,
       "fa": 135,
-      "ar": 130
+      "ar": 130,
+      "es": 154,
+      "it": 147,
+      "fr": 160,
+      "pt": 155,
+      "tr": 110
     },
     "max_inspector_items": 40,
     "originality_min_words": 200,
@@ -84,7 +89,19 @@
           "le",
           "du",
           "del",
-          "and"
+          "and",
+          "da",
+          "dos",
+          "das",
+          "di",
+          "dei",
+          "della",
+          "degli",
+          "y",
+          "des",
+          "el",
+          "los",
+          "las"
         ]
       },
       "space_free_names": [
@@ -97,7 +114,12 @@
         "en": 1.18,
         "de": 1.47,
         "fa": 1.71,
-        "ar": 1.8
+        "ar": 1.8,
+        "es": 1.6,
+        "it": 1.7,
+        "fr": 1.7,
+        "pt": 1.7,
+        "tr": 2.4
       },
       "plan_tokens": 3500,
       "critique_tokens": 5100,
@@ -191,6 +213,41 @@
         "inspect": "language.inspect.en",
         "final": "language.final.en",
         "length_correction": "language.length_correction"
+      },
+      "es": {
+        "rewrite": "language.rewrite.es",
+        "inspect": "language.inspect.es",
+        "final": "language.final.es",
+        "length_correction": "language.length_correction",
+        "fidelity": "language.fidelity"
+      },
+      "it": {
+        "rewrite": "language.rewrite.it",
+        "inspect": "language.inspect.it",
+        "final": "language.final.it",
+        "length_correction": "language.length_correction",
+        "fidelity": "language.fidelity"
+      },
+      "fr": {
+        "rewrite": "language.rewrite.fr",
+        "inspect": "language.inspect.fr",
+        "final": "language.final.fr",
+        "length_correction": "language.length_correction",
+        "fidelity": "language.fidelity"
+      },
+      "pt": {
+        "rewrite": "language.rewrite.pt",
+        "inspect": "language.inspect.pt",
+        "final": "language.final.pt",
+        "length_correction": "language.length_correction",
+        "fidelity": "language.fidelity"
+      },
+      "tr": {
+        "rewrite": "language.rewrite.tr",
+        "inspect": "language.inspect.tr",
+        "final": "language.final.tr",
+        "length_correction": "language.length_correction",
+        "fidelity": "language.fidelity"
       }
     },
     "language_stages": {
@@ -238,6 +295,61 @@
         "act_target_cap_ratio": 2.0,
         "source": "draft",
         "check": "evidence_audit"
+      },
+      "es": {
+        "blocking_gates": [
+          "markers",
+          "length"
+        ],
+        "automatic_approval": true,
+        "report_names": "missing",
+        "act_target_cap_ratio": 2.0,
+        "source": "english_final",
+        "check": "fidelity"
+      },
+      "it": {
+        "blocking_gates": [
+          "markers",
+          "length"
+        ],
+        "automatic_approval": true,
+        "report_names": "missing",
+        "act_target_cap_ratio": 2.0,
+        "source": "english_final",
+        "check": "fidelity"
+      },
+      "fr": {
+        "blocking_gates": [
+          "markers",
+          "length"
+        ],
+        "automatic_approval": true,
+        "report_names": "missing",
+        "act_target_cap_ratio": 2.0,
+        "source": "english_final",
+        "check": "fidelity"
+      },
+      "pt": {
+        "blocking_gates": [
+          "markers",
+          "length"
+        ],
+        "automatic_approval": true,
+        "report_names": "missing",
+        "act_target_cap_ratio": 2.0,
+        "source": "english_final",
+        "check": "fidelity"
+      },
+      "tr": {
+        "blocking_gates": [
+          "markers",
+          "length"
+        ],
+        "automatic_approval": true,
+        "report_names": "missing",
+        "act_target_cap_ratio": 2.0,
+        "source": "english_final",
+        "check": "fidelity"
       }
     },
     "post_master_fact_report": {

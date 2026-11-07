@@ -1071,6 +1071,7 @@ export interface SettingsStatus {
   multilingual?: {
     research_languages: string[];
     production_languages: string[];
+    optional_production_languages: string[];
     research_only_languages: string[];
     available_languages: Record<string, string>;
   };
@@ -3106,7 +3107,7 @@ export interface HostScene {
 
 // --- Case naming + episode identity -----------------------------------------
 
-export type NamingLanguage = "en" | "de" | "fa" | "ar";
+export type NamingLanguage = "en" | "de" | "fa" | "ar" | "es" | "it" | "fr" | "pt" | "tr";
 
 export interface TitleCandidate {
   id: number;
@@ -3489,6 +3490,8 @@ export interface LanguagePipelineState {
   /** Rows of the retired fact-check loop: history, never the source of a stage. */
   retired_method: { id: number; kind: string; status: string; cost_eur: number | null; round: number | null; retired: { reason: string; at: string; was: string } | null; created_at: string }[];
   languages: PipelineLanguage[];
+  /** Languages the pipeline can produce when asked for by name and this case has not started yet. */
+  optional_languages: string[];
   ledger: LedgerRow[];
   cost_total_eur: number;
   calls_total?: number;

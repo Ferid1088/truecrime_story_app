@@ -152,12 +152,18 @@ class TashkeelStage:
 
     async def check(self, item: BlockInput, written: dict[int, VocalWord], asked: set[int]) -> tuple[dict[int, VocalWord], set[int]]:
         """(the vowelisations after the checker and the arbiter, the words nobody could settle)."""
-        payload = {**context(item), "words": [{"n": n, "text": item.words[n].plain} for n in sorted(asked)]}
-        raw = await ask(self.db, self.case_id, f"Tashkeel: check {item.block_id}", payload, "reading_checker", self.check_runner)
-        try:
-            second = parse(raw, item.words, asked)
-        except ShapeError as e:
-            raise ReadingFailed(f"the independent vowelisation of {item.block_id} is wrong: {'; '.join(e.problems[:4])}") from e
+        problems: list[str] = []
+        second: dict[int, VocalWord] = {}
+        for _attempt in range(ai_config.reading.max_writer_retries + 1):          # the checker is asked again with the problems, like the editor
+            payload = {**context(item), "words": [{"n": n, "text": item.words[n].plain} for n in sorted(asked)], **({"problems": problems} if problems else {})}
+            raw = await ask(self.db, self.case_id, f"Tashkeel: check {item.block_id}", payload, "reading_checker", self.check_runner)
+            try:
+                second = parse(raw, item.words, asked)
+                break
+            except ShapeError as e:
+                problems = e.problems
+        else:
+            raise ReadingFailed(f"the independent vowelisation of {item.block_id} stays wrong after {ai_config.reading.max_writer_retries} retries: {'; '.join(problems[:4])}")
         self.stats["checked_words"] += len(asked)
         differ = [n for n in sorted(asked) if canonical(second[n].text) != canonical(written[n].text)]
         self.stats["disagreements"] += len(differ)

@@ -87,7 +87,7 @@ def test_a_photo_approved_for_a_place_but_showing_a_person_waits_until_that_pers
     db_session.commit()
     sentences = MANIFEST["timeline"]["sentences"] + [{"start": 500.0, "end": 510.0, "display": "Caleb Flynn was questioned."}]
     pool = DRP.portrait_pool(db_session, case.id, sentences, {"ashley_flynn", "caleb_flynn"})
-    assert pool[0].earned_from == 500.0, "every person it shows must have been named first (the later of the two)"
+    assert pool[0].earned_from == 480.0, "every person it shows must be within the lead of being named (the later of the two)"
 
 
 def _fast(monkeypatch, wait=0.3):
@@ -161,3 +161,10 @@ def test_when_every_chosen_photo_is_made_and_still_not_enough_the_run_asks_for_m
     monkeypatch.setattr(S, "check", lambda db, case_id: {"checked": True, "enough": False, "made": 1, "ordered": [], "exhausted": True})
     with pytest.raises(AwaitingPortrait, match="Awaiting portrait choice: every photo you chose is made"):
         asyncio.run(PL.stage_portraits_ready(db_session, case, plan, MANIFEST, "en", wait=True))
+
+
+def test_a_portrait_may_be_shown_twenty_seconds_before_the_name_is_spoken_never_before_the_start_and_a_never_named_person_stays_never(db_session):
+    case, _ = _film(db_session, [], [("VIS_A", 1, "ashley_flynn"), ("VIS_B", 2, "alleigha_botner"), ("VIS_C", 3, "never_named")])
+    sentences = MANIFEST["timeline"]["sentences"] + [{"start": 12.63, "end": 20.0, "display": "Alleigha Botner called."}]
+    pool = {p.code: p.earned_from for p in DRP.portrait_pool(db_session, case.id, sentences, {"ashley_flynn", "alleigha_botner", "never_named"})}
+    assert pool == {"VIS_A": 280.0, "VIS_B": 0.0, "VIS_C": float("inf")}

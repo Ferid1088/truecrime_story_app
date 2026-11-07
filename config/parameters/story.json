@@ -180,6 +180,26 @@
           "{t}"
         ],
         "video_query_stem": "{title} documentario indagine"
+      },
+      "pt": {
+        "name": "Brazilian Portuguese",
+        "brave_search_lang": "pt-br",
+        "video_search_stems": [
+          "{t} documentário caso",
+          "{t} crime",
+          "{t}"
+        ],
+        "video_query_stem": "{title} documentário investigação"
+      },
+      "tr": {
+        "name": "Turkish",
+        "brave_search_lang": "tr",
+        "video_search_stems": [
+          "{t} belgesel dava",
+          "{t} cinayet",
+          "{t}"
+        ],
+        "video_query_stem": "{title} belgesel soruşturma"
       }
     },
     "production_languages": [
@@ -187,6 +207,13 @@
       "en",
       "de",
       "ar"
+    ],
+    "optional_production_languages": [
+      "es",
+      "it",
+      "fr",
+      "pt",
+      "tr"
     ]
   },
   "language_quality": {
@@ -348,7 +375,12 @@
       "en": 24,
       "de": 20,
       "fa": 24,
-      "ar": 22
+      "ar": 22,
+      "es": 24,
+      "it": 22,
+      "fr": 26,
+      "pt": 22,
+      "tr": 16
     },
     "max_long_sentence_share": 0.12,
     "numbers_as_words": [

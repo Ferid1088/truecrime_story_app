@@ -226,6 +226,24 @@ MONTHS = {
            "سپتامبر", "اکتبر", "نوامبر", "دسامبر"],
     "ar": ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس",
            "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"],
+    "es": ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+           "septiembre", "octubre", "noviembre", "diciembre"],
+    "it": ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto",
+           "settembre", "ottobre", "novembre", "dicembre"],
+    "fr": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
+           "septembre", "octobre", "novembre", "décembre"],
+    "pt": ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
+           "setembro", "outubro", "novembro", "dezembro"],
+    "tr": ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos",
+           "Eylül", "Ekim", "Kasım", "Aralık"],
+}
+# The month on a card's big date, in capitals (Turkish capitals are not str.upper(): i is İ, ı is I).
+MONTH_ABBREVIATIONS = {
+    "es": ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"],
+    "it": ["GEN", "FEB", "MAR", "APR", "MAG", "GIU", "LUG", "AGO", "SET", "OTT", "NOV", "DIC"],
+    "fr": ["JANV", "FÉVR", "MARS", "AVR", "MAI", "JUIN", "JUIL", "AOÛT", "SEPT", "OCT", "NOV", "DÉC"],
+    "pt": ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"],
+    "tr": ["OCA", "ŞUB", "MAR", "NİS", "MAY", "HAZ", "TEM", "AĞU", "EYL", "EKİ", "KAS", "ARA"],
 }
 _FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 
@@ -253,6 +271,12 @@ def format_date(text: str, language: str) -> str | None:
     if language == "de":
         out = " ".join(filter(None, [f"{day}." if day else None,
                                      m[month] if month is not None else None, year]))
+    elif language in ("es", "pt"):          # "13 de noviembre de 2007", "noviembre de 2007"
+        out = " de ".join(filter(None, [str(day) if day else None,
+                                        m[month] if month is not None else None, year]))
+    elif language == "fr":                  # "1er novembre 2007", "13 novembre 2007"
+        out = " ".join(filter(None, [("1er" if day == 1 else str(day)) if day else None,
+                                     m[month] if month is not None else None, year]))
     elif language in ("fa", "ar"):
         out = " ".join(filter(None, [str(day) if day else None,
                                      m[month] if month is not None else None, year]))
@@ -266,8 +290,11 @@ def format_date(text: str, language: str) -> str | None:
 
 LABELS = {
     "illustration": {"en": "Illustrative image", "de": "Symbolbild",
-                     "fa": "تصویر نمادین", "ar": "صورة تعبيرية"},
-    "translated_quote": {"en": "", "de": "Übersetzung", "fa": "ترجمه", "ar": "ترجمة"},
+                     "fa": "تصویر نمادین", "ar": "صورة تعبيرية", "es": "Imagen ilustrativa",
+                     "it": "Immagine illustrativa", "fr": "Image d'illustration",
+                     "pt": "Imagem ilustrativa", "tr": "Temsili görsel"},
+    "translated_quote": {"en": "", "de": "Übersetzung", "fa": "ترجمه", "ar": "ترجمة", "es": "Traducción",
+                         "it": "Traduzione", "fr": "Traduction", "pt": "Tradução", "tr": "Çeviri"},
 }
 
 LOCALIZER_SYSTEM = prompt("documentary/visuals/generated/localizer_system")

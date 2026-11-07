@@ -1,0 +1,45 @@
+LANGUAGE GUIDE: FRENCH TRUE-CRIME STORYTELLING (fr)
+
+VOIX ET REGISTRE
+Français standard de France, contemporain, pour un documentaire sonore de qualité : clair, proche de l'auditeur, précis, vivant. Le narrateur s'intéresse aux personnes et aux événements ; il ne parle ni comme un communiqué de préfecture ni comme une bande-annonce. Pas d'argot, pas de belgicismes, helvétismes ni québécismes (« septante », « nonante », « souper » pour le dîner, « char »). Le narrateur ne s'adresse pas à l'auditeur : ni « tu », ni « vous », ni « imaginez ». Pas d'écriture inclusive (point médian, doublets) : à l'oreille elle est illisible.
+
+CONSTRUIRE EN FRANÇAIS
+Pense et écris en français ; reprends le sens, pas l'ordre de la phrase anglaise. Préfère le verbe précis au style nominal (« la mise en place d'une surveillance » devient « ils placèrent la maison sous surveillance »), « après » à « suite à », et la voix active ou « on » au passif calqué : « Le corps fut retrouvé par un pêcheur » devient « Un pêcheur trouva le corps ». Évite les empilements de « qui », « que » et « dont », les chaînes de participes présents et de gérondifs, et les « ce dernier », « ladite », « ledit ». Varie les sujets : une suite de « Il… Il… Il… » fatigue, mais ne remplace pas un nom par un synonyme pour varier.
+
+Faux amis et calques à surveiller : « actuellement » veut dire « en ce moment », jamais « actually » (« en fait », « en réalité ») ; « éventuellement » veut dire « peut-être », jamais « eventually » (« finalement », « au bout du compte ») ; « réaliser » n'est pas « to realize » (« se rendre compte », « comprendre ») ; « supporter » n'est pas « to support » (« soutenir ») ; « évidence » n'est pas « evidence » (« preuve », « indice », « élément ») ; « assumer », « opportunité » (« occasion »), « sensible », « définitivement » (« pour de bon »), « attaquer » pour une agression (« agresser »), « crime » pour toute infraction (« meurtre », « faits », « affaire »). Un événement « two days earlier » se dit « deux jours plus tôt », pas « il y a deux jours » ; « later » se dit « plus tard » ou « quelque temps après ».
+
+TEMPS ET ATTRIBUTION
+Raconte au passé simple (actions successives) et à l'imparfait (arrière-plan, durée, habitude), avec le plus-que-parfait pour l'antérieur. Garde ce seul système du début à la fin ; ne bascule pas au passé composé ni au présent de narration pour créer du suspense. Le passé composé et le présent restent pour les paroles rapportées et pour ce qui vaut encore aujourd'hui. Les citations traduites gardent leur sens et leurs repères de temps.
+
+Marque qui dit quoi : « elle déclara », « selon lui », « d'après la police », « affirma-t-il ». Le conditionnel journalistique (« il aurait quitté la maison vers vingt heures ») sert à une affirmation non établie que le texte attribue déjà à quelqu'un ou présente comme non confirmée ; ne l'emploie ni en série ni pour ce qui est établi, et ne transforme jamais une déclaration contestée en constat du narrateur.
+
+NOMS, RÉFÉRENCES, GENRE
+Utilise les formes de noms convenues, sans traduire les prénoms ni les noms de famille. Après la première mention, une forme courte non ambiguë suffit. Avec plusieurs membres d'une même famille, les prénoms sont plus clairs. Répète le nom quand « il », « elle », « son », « sa » ou « ses » pourraient désigner deux personnes. Élision avec un nom : « l'État », « d'Ellen », « de Martin » ; devant un nom anglais dont le h se prononce, pas d'élision (« de Hale », pas « d'Hale »).
+
+Le genre se fixe d'après le texte source (pronoms, « sa femme », « her husband »). Féminise le titre d'une femme quand le texte donne son genre (« la procureure »). Si le texte ne donne ni le genre ni le côté de la famille, ne devine pas d'après un prénom : « cousin » se dit « un proche », « un parent » ou le nom ; « friend » reste « une connaissance » ou le nom ; garde « oncle » ou « tante » seulement si le sexe est donné, sans préciser le côté de la famille. Pour un groupe mixte ou indéterminé, le masculin générique (« les enquêteurs », « les voisins »).
+
+Majuscules : le titre en minuscules (« le shérif Collins », « le procureur Reyes », « le président »), les mois et les jours en minuscules, l'adjectif de nationalité en minuscules (« une famille américaine »), le nom de peuple en majuscule (« un Américain »).
+
+TERMES JURIDIQUES
+Rends le statut exact donné par le texte, sans équivalence entre systèmes. Pour une affaire américaine ou britannique : « arrêté », « interrogé », « inculpé de meurtre », « mis en accusation par un grand jury », « jugé », « condamné à », « acquitté », « plaida coupable », « libéré sous caution », « procureur », « jury », « shérif », « adjoint du shérif », « enquêteur ». N'utilise « mis en examen », « garde à vue », « juge d'instruction », « cour d'assises », « prévenu », « témoin assisté » que si la procédure du texte est française. Un « accusé » est celui qu'on juge ; un suspect reste « suspect » ou « soupçonné ». Ne traite jamais une personne soupçonnée ou jugée comme coupable tant que le texte ne l'établit pas : pas de « le meurtrier » ni « l'assassin » avant une condamnation ; « l'auteur des faits » seulement si le texte parle d'un auteur inconnu. N'ajoute pas de formule « présumé innocent » que le texte source ne contient pas, et ne la répète pas après chaque mention. Une institution étrangère n'est expliquée que si la compréhension en dépend.
+
+CHIFFRES, DATES, HEURES, SIGNES (le texte sera lu par une voix de synthèse)
+Date : « le 7 janvier 2020 », et « le 1er janvier » pour le premier jour seulement ; pas de « 7/1 ». Année en chiffres. Siècle et décennie en toutes lettres : « le dix-neuvième siècle », « les années quatre-vingt ». Heure en toutes lettres avec « heures », jamais « 17 h 40 » : « dix-sept heures quarante », « à midi », « à minuit », « vers huit heures du matin ». Décimale à la virgule : « 2,5 ». Les petits nombres et les montants ronds s'écrivent en lettres (« onze ans », « deux mille dollars ») ; les grands nombres et les valeurs précises en chiffres avec une espace insécable normale (U+00A0) entre les milliers : « 300 000 dollars », « 1 250,50 euros ». Monnaie toujours en toutes lettres après le nombre (« dollars », « euros », « livres sterling »), jamais « $ » ni « € ». Pourcentage : « 40 pour cent ». Soixante-dix, quatre-vingts (avec s quand rien ne suit : « quatre-vingt-trois »), quatre-vingt-dix ; « et un » pour 21, 31, 41, 51, 61, 71 (« soixante et onze »). Ordinaux : « premier », « deuxième » (« second » seulement quand il n'y a que deux), « troisième ». Garde la valeur, l'unité et la précision du texte source : ne convertis pas les miles, pieds, livres ni degrés Fahrenheit, écris-les en toutes lettres ; « environ » ne doit pas affaiblir une valeur exacte.
+
+Guillemets français « … » avec une espace insécable (U+00A0) après le guillemet ouvrant et avant le guillemet fermant ; guillemets internes “…”. Espace insécable (U+00A0) avant « ; », « : », « ! » et « ? », pas avant la virgule ni le point. Pas de tiret de dialogue ni de didascalie en ponctuation. Écris en toutes lettres « monsieur », « madame », « docteur », « maître », « sergent » et les unités ; point médian, symboles et chiffres romains sont proscrits. Sigles lus par lettres (FBI, ADN) tels quels ; un sigle inconnu de l'auditeur est remplacé par sa forme développée. Évite les parenthèses, les tirets d'incise en série et les points-virgules enchaînés : une voix ne les rend pas.
+
+Noms de lieux : l'usage français pour les noms qui en ont un (Londres, la Californie, la Caroline du Nord, la Floride, la Géorgie, les États-Unis, le Royaume-Uni, la Nouvelle-Orléans) ; les petites villes, rues, comtés et établissements gardent leur nom anglais tel quel. Prépositions avec les États : « en Floride », « en Géorgie », « en Caroline du Nord », « au Texas », « dans l'État de New York », « à New York » pour la ville. Un nom d'institution reste en anglais ou reçoit un descriptif court, sans équivalence de système (le « county sheriff » est « le shérif du comté »).
+
+Orthographe actuelle et traditionnelle, constante d'un bout à l'autre ; l'orthographe rectifiée de 1990 n'est pas exigée. Le style de nombres et de prononciation convenu a priorité. Les marqueurs de production et les identifiants techniques restent inchangés.
+
+HÖRFLUSS : RYTHME ET CLÔTURE
+Donne de l'espace aux détails concrets déjà présents. Les transitions montrent le changement de temps, de lieu, de point de vue ou de sens. Ne répète pas une réserve nécessaire après chaque indice. Le dernier paragraphe peut s'arrêter sur une conséquence, une personne ou un point précis resté ouvert ; pas de seconde conclusion, pas de question obligatoire.
+
+EXEMPLES D'ÉQUIVALENCE (inventés, uniquement pour la langue)
+Lourd : La police procéda à une perquisition du domicile.
+Direct : La police perquisitionna la maison.
+
+Calque : Il y a deux jours, il avait appelé sa sœur.
+Naturel : Deux jours plus tôt, il avait appelé sa sœur.
+
+Ces exemples ne sont pas des informations de cas : ne les emploie ni comme scènes ni comme phrases types.

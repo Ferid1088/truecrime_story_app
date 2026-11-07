@@ -46,7 +46,7 @@ from app.db.models import (
     StoryVersion,
 )
 
-LANG_NAMES = {"en": "English", "de": "German", "fa": "Persian (Farsi)", "ar": "Arabic"}
+LANG_NAMES = {"en": "English", "de": "German", "fa": "Persian (Farsi)", "ar": "Arabic", "es": "Mexican Spanish", "it": "Italian", "fr": "French", "pt": "Brazilian Portuguese", "tr": "Turkish"}
 
 # House style per language, written for (and partly in) that language.
 STYLE_GUIDES = {
@@ -54,6 +54,11 @@ STYLE_GUIDES = {
     "de": prompt("documentary/spoken/style_guides_de"),
     "fa": prompt("documentary/spoken/style_guides_fa"),
     "ar": prompt("documentary/spoken/style_guides_ar"),
+    "es": prompt("documentary/spoken/style_guides_es"),
+    "it": prompt("documentary/spoken/style_guides_it"),
+    "fr": prompt("documentary/spoken/style_guides_fr"),
+    "pt": prompt("documentary/spoken/style_guides_pt"),
+    "tr": prompt("documentary/spoken/style_guides_tr"),
 }
 
 
@@ -121,6 +126,46 @@ STYLE_EXAMPLES = {
          "ثم وصلت معلومة. أحدهم قال إنه رأى الرجل قرب المحطة. في المساء "
          "نفسه."),
     ],
+    "es": [
+        ("Tras una extensa investigación, las autoridades determinaron que el vehículo había sido abandonado en la madrugada, sin que se lograra establecer la identidad del conductor.",
+         "La policía investigó durante mucho tiempo. Y al final quedó una sola certeza: alguien dejó esa camioneta ahí, de madrugada. Pero ¿quién iba al volante? Eso nadie lo supo."),
+        ("Ella ejercía una influencia considerable sobre los asuntos financieros del hogar.",
+         "Cuando se trataba del dinero de esa casa, ella tenía mucho que decir."),
+        ("Posteriormente se informó de que el hombre había sido visto en las inmediaciones de la estación la noche en cuestión.",
+         "Más tarde llegó un aviso. Alguien dijo que había visto al hombre cerca de la estación. Esa misma noche."),
+    ],
+    "it": [
+        ("Nel corso delle approfondite indagini, da parte delle autorità è stato accertato che il veicolo era stato abbandonato nelle prime ore del mattino, mentre l'identità del conducente è rimasta non accertata.",
+         "La polizia indagò a lungo. E alla fine una cosa era certa: qualcuno aveva lasciato l'auto lì nelle prime ore del mattino. Ma chi era al volante? Quello rimase un mistero."),
+        ("La donna esercitava un'influenza considerevole sulla gestione delle questioni finanziarie del nucleo familiare.",
+         "Quando in quella casa si parlava di soldi, era lei a dire l'ultima parola."),
+        ("Successivamente è stato riferito che il suddetto uomo era stato notato nei pressi della stazione la sera in oggetto.",
+         "Più tardi arrivò una segnalazione. Qualcuno aveva visto l'uomo vicino alla stazione. Quella stessa sera."),
+    ],
+    "fr": [
+        ("À l'issue de longues investigations, les autorités établirent que le véhicule avait été abandonné aux premières heures du matin, tandis que l'identité du conducteur demeurait indéterminée.",
+         "La police enquêta longtemps. Et à la fin, une seule chose était sûre : quelqu'un avait laissé la voiture là, aux premières heures du matin. Mais qui était au volant ? Cela, personne ne put le dire."),
+        ("Elle exerçait une influence considérable sur les affaires financières du foyer.",
+         "Dans cette maison, quand il était question d'argent, c'était elle qui avait le dernier mot."),
+        ("Il fut par la suite rapporté que l'homme avait été aperçu à proximité de la gare le soir en question.",
+         "Plus tard, un témoignage arriva. Quelqu'un disait avoir vu l'homme près de la gare. Le même soir."),
+    ],
+    "pt": [
+        ("No decorrer das extensas investigações, foi apurado pelas autoridades que o veículo havia sido abandonado nas primeiras horas da manhã, permanecendo desconhecida a identidade do condutor.",
+         "A polícia investigou por um bom tempo. E no fim, uma coisa ficou clara: alguém tinha deixado o carro ali nas primeiras horas da manhã. Mas quem estava ao volante? Isso continuou sem resposta."),
+        ("Ela exercia considerável influência sobre os assuntos financeiros do domicílio.",
+         "Quando o assunto era dinheiro naquela casa, a opinião dela pesava muito."),
+        ("Posteriormente, foi noticiado que o homem teria sido avistado nas imediações da estação na noite em questão.",
+         "Mais tarde, chegou uma informação. Alguém disse ter visto o homem perto da estação. Naquela mesma noite."),
+    ],
+    "tr": [
+        ("Kapsamlı soruşturmanın ardından yetkili makamlarca, aracın sabahın erken saatlerinde terk edilmiş olduğu tespit edilmiş, ancak sürücünün kimliği belirlenememiştir.",
+         "Polis uzun süre araştırdı. Sonunda bir şey kesinleşti: Biri o arabayı sabahın erken saatlerinde oraya bırakmıştı. Peki direksiyonda kim vardı? Onu kimse söyleyemedi."),
+        ("Hane halkının mali işleri üzerinde önemli ölçüde nüfuz sahibiydi.",
+         "O evde iş paraya gelince, en çok onun sözü geçerdi."),
+        ("Daha sonra, söz konusu şahsın ilgili akşam istasyon civarında görüldüğü bildirilmiştir.",
+         "Sonra bir ihbar geldi. Biri, adamı istasyonun yakınında gördüğünü söyledi. Aynı akşam."),
+    ],
 }
 
 # Read-aloud markers a native editor would cut (hints for the repair
@@ -139,6 +184,11 @@ STIFF_PATTERNS = {
            r"صورت گرفت", r"علی‌رغم", r"معهذا", r"می‌باشد", r"گردید", r"متعاقباً"],
     "ar": [r"(?<!\S)و?تمّ?(?!\S)", r"(?<!\S)قام(?:ت)? بـ?", r"من قِبَل", r"من قبل",
            r"حيث إنّ?", r"الجهات المختصة", r"الجهات الأمنية", r"المذكور"],
+    "es": [r"\ben base a\b", r"\ba nivel de\b", r"\bllev(?:ó|o|aron) a cabo\b", r"\btuvo lugar\b", r"\bacto seguido\b", r"\bmencionad[oa]s?\b", r"\bdicho (?:vehículo|individuo|sujeto|inmueble)\b", r"\bdel cual\b|\bla cual\b|\blo cual\b", r"\bposteriormente\b", r"\bse procedió a\b", r"\bel referido\b", r"\bhabría(?:n)? sido\b", r"\bel individuo\b"],
+    "it": [r"\bsi è proceduto\b", r"\bsi procedette\b", r"\bin data\b", r"\bnella giornata di\b", r"\bil sopracitato\b", r"\bsuddett[oaie]\b", r"\bpresso l'abitazione\b", r"\beffettu(?:ò|ato|ata|ati|ate|are)\b", r"\bin merito a\b", r"\bsuccessivamente\b", r"\bil predetto\b", r"\bin ordine a\b"],
+    "fr": [r"\bsuite à\b", r"\bau niveau de\b", r"\bà l'issue de\b", r"\bl'intéressée?\b", r"\bce dernier\b", r"\bladite?\b|\bledit\b", r"\bpar le biais de\b", r"\bprocéd(?:a|èrent|er) à\b", r"\bdans le cadre de\b", r"\bà l'encontre de\b", r"\bles faits en question\b", r"\bsusmentionné"],
+    "pt": [r"\bsupra(?:citad|mencionad)[oa]s?\b", r"\bem quest[ãa]o\b", r"\bpor parte d[aeo]s?\b", r"\bno [âa]mbito d[aeo]s?\b", r"\bem face d[aeo]s?\b", r"\bsubsequentemente\b", r"\b(?:foi|foram) realizad[oa]s?\b", r"\bacerca d[aeo]s?\b", r"\bdilig[êe]ncias\b", r"\b(?:o|a|os|as) referid[oa]s?\b", r"\bindiv[íi]duo\b", r"\btranscurso\b"],
+    "tr": [r"\bgerçekleştir\w*", r"\bbulunmakta\w*", r"\bsöz konusu\b", r"\bmevcut\b", r"\bilgili şahıs\b", r"\bşahıs\w*", r"\btarafından\b", r"\bmüteak[ıi]\w*", r"\bakabinde\b", r"\w+(?:mekte|makta)(?:dır|dir|dur|dür)\b", r"\bbahse konu\b", r"\bzikredilen\b", r"\bnezdinde\b"],
 }
 
 
@@ -147,6 +197,11 @@ CONNECTORS = {
     "de": '"Also", "Aber", "Und dann", "Jetzt", "Und genau hier wird es seltsam"',
     "fa": "«خب»، «ولی»، «بعدش»، «حالا»، «نکته این‌جاست»",
     "ar": "«إذن»، «لكن»، «ثم»، «والآن»، «وهنا المفارقة»",
+    "es": '«Bueno», «Pero», «Y entonces», «Ahora», «Y aquí viene lo raro»',
+    "it": '"Allora", "Ma", "E poi", "Adesso", "Ed è qui che la storia si fa strana"',
+    "fr": "« Alors », « Mais », « Et puis », « Maintenant », « Et c'est là que ça devient étrange »",
+    "pt": '"Então", "Mas", "E então", "Agora", "E é justamente aqui que fica estranho"',
+    "tr": '"Yani", "Ama", "Sonra", "Şimdi", "Asıl tuhaf olan da burada"',
 }
 
 

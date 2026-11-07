@@ -3,8 +3,8 @@ boundaries (Persian only), syntax (when the agents run) and review.
 
 Without the agents (config semantic_punctuation.use_agents false, the default: free) only the deterministic rules apply and every boundary they
 cannot settle stays EZAFE_CONTEXT_DEPENDENT; nothing is inserted on a guess. With them (billable, each call checked against the case's budget):
-the syntax agent, then the punctuation agent's proposals filtered by code, then the independent checker in a bounded loop: PASS keeps the
-proposals; REVISE drops the edits it names and is checked again; UNCERTAIN, REJECT or no PASS within `max_rounds` keeps only the rule changes (the
+the syntax agent, then the punctuation agent's proposals filtered by code, then (Persian only, profile `reviewed`; other languages keep the code-filtered
+proposals as they are, review NOT_REVIEWED) the independent checker in a bounded loop: PASS keeps the proposals; REVISE drops the edits it names and is checked again; UNCERTAIN, REJECT or no PASS within `max_rounds` keeps only the rule changes (the
 safest version that keeps the meaning) and flags the block. A layer whose words or tags would differ from the approved text is never used.
 
 Identical blocks are analysed once per run; nothing is kept after it."""
@@ -122,6 +122,9 @@ class PunctuationStage:
             if not kept:
                 out.review = "PASS" if not out.refused else "UNCERTAIN"
                 break
+            if not ai_config.semantic_punctuation.profile(self.language).reviewed:        # no checker for this language: the code filter's edits stand
+                layer.edits, out.review = rules + kept, "NOT_REVIEWED"
+                return
             self.paid()
             verdict = await CK.check(self.db, self.case_id, layer.block_id, layer.canonical, trial.text, [e.describe() for e in kept],
                                      {"boundaries": [b.describe(layer.words) for b in out.boundaries], "syntax": out.syntax.describe() if out.syntax else None},

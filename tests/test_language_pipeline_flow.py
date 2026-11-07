@@ -129,7 +129,8 @@ def setup(db_session, monkeypatch):
         return row
 
     monkeypatch.setattr(story_plan_service.StoryPlanService, "ensure_approved", ensure)
-    monkeypatch.setattr(ai_config.language_pipeline, "words_per_minute", {"en": 10, "de": 10, "fa": 10, "ar": 10})
+    monkeypatch.setattr(ai_config.language_pipeline, "words_per_minute",
+                        {language: 10 for language in ai_config.multilingual.producible_languages})
     monkeypatch.setattr(ai_config.language_pipeline, "long_draft_minutes", 90)
     monkeypatch.setattr(ai_config.language_pipeline.gates, "max_unsupported_figures", 99)
     # the draft's editorial review is one more inspector call; its own tests turn it on (test_draft_review)

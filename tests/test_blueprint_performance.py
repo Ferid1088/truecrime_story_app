@@ -356,8 +356,8 @@ def test_render_uses_styles_pauses_and_reports_beat_times(workdir):
     m = asyncio.run(VoiceRenderer(provider=tts, asr=FakeASR()).render(
         script, case_id=9, story_version_id=1))
     speeds = {r.text.split()[0]: r.settings["speed"] for r in tts.requests}
-    styles = ai_config.voice.styles
-    assert speeds["Dan"] == styles[ai_config.performance.style_for_intent["reveal"]].speed
+    # English has its own styles (voice.language_styles.en): the style of the reveal intent as English voices it
+    assert speeds["Dan"] == ai_config.voice.settings_for(ai_config.performance.style_for_intent["reveal"], "en")["speed"]
     tl = m["timeline"]
     reveal_block = next(b for b in tl["blocks"] if b["pause_after_kind"] == "dramatic")
     nxt = tl["blocks"][tl["blocks"].index(reveal_block) + 1]

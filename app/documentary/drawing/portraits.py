@@ -7,9 +7,10 @@ import re
 
 from sqlalchemy.orm import Session
 
+from app.core.ai_config import ai_config
 from app.db.models import VisualAsset
-from app.documentary.mvp import describe as DS
 from app.documentary.drawing.plan import Portrait
+from app.documentary.mvp import describe as DS
 from app.documentary.production.picture_rules import NameForms, named_by
 from app.documentary.visuals.usage import asset_facts
 
@@ -30,12 +31,18 @@ def people_shown(asset: VisualAsset, person_keys: set[str]) -> list[str]:
     return [k for k in dict.fromkeys(keys) if k in person_keys]
 
 
+def earned_at(slug: str, sentences: list[dict], names: NameForms | None = None) -> float:
+    """The first moment a portrait of this person may be shown: `portrait_lead_seconds` before their name is first spoken (never before 0), or never."""
+    named = first_named(slug, sentences, names)
+    return named if named == NEVER else max(named - ai_config.drawing_settings().portrait_lead_seconds, 0.0)
+
+
 def portrait_pool(db: Session, case_id: int, sentences: list[dict], person_keys: set[str], names: NameForms | None = None) -> list[Portrait]:
-    """The owner's photos with a drawing priority, best first. A photo may start once every person it shows has been named."""
+    """The owner's photos with a drawing priority, best first. A photo may start once every person it shows is within `portrait_lead_seconds` of being named."""
     pool = []
     for asset in (db.query(VisualAsset).filter(VisualAsset.case_id == case_id, VisualAsset.draw_priority.isnot(None))
                   .order_by(VisualAsset.draw_priority).all()):
-        earned = max((first_named(e, sentences, names) for e in people_shown(asset, person_keys)), default=0.0)
+        earned = max((earned_at(e, sentences, names) for e in people_shown(asset, person_keys)), default=0.0)
         refused = None
         if asset.asset_type != "photo":
             refused = "only a photo can be drawn"

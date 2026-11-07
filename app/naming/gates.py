@@ -81,9 +81,11 @@ def gate_script(title: str, language: str) -> str | None:
     if not letters:
         return "no letters"
     arabic = sum(1 for c in letters if _ARABIC.match(c))
-    if language in ("fa", "ar") and arabic / len(letters) < 0.8:
+    entry = ai_config.multilingual.language_catalog.get(language)
+    arabic_script = language in ("fa", "ar") or (entry is not None and entry.direction == "rtl")
+    if arabic_script and arabic / len(letters) < 0.8:
         return f"{language} title must be written in Arabic script"
-    if language in ("en", "de") and arabic:
+    if not arabic_script and arabic:
         return f"{language} title contains Arabic script"
     return None
 

@@ -26,7 +26,7 @@ import { langLabel } from "@/lib/format";
 import { AuditPanel, EvidenceAudit } from "@/components/studio/evidence-audit";
 
 const MINUTES = [45, 50, 55, 60, 65, 70, 75, 80];
-const LANGUAGE_ORDER = ["en", "fa", "de", "ar"];
+const LANGUAGE_ORDER = ["en", "fa", "de", "ar", "es", "it", "fr", "pt", "tr"];
 const byLanguageOrder = (a: PipelineLanguage, b: PipelineLanguage) =>
   LANGUAGE_ORDER.indexOf(a.language) - LANGUAGE_ORDER.indexOf(b.language);
 const STAGE_LABEL: Record<string, string> = {
@@ -138,6 +138,23 @@ export function LanguagePipeline({ caseId }: { caseId: number }) {
               </span>
             )}
           </div>
+          {state.optional_languages.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>Not part of “Run all languages”; start one when you want it:</span>
+              {state.optional_languages.map((code) => (
+                <Button
+                  key={code}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => run([code])}
+                  loading={starting === code}
+                  disabled={running || !state.draft}
+                >
+                  <Play className="size-3.5" /> Add {langLabel(code)}
+                </Button>
+              ))}
+            </div>
+          )}
           {startError && <p className="text-sm text-destructive">{startError}</p>}
           {job && (
             <div className="rounded-md border border-border p-2 text-xs">

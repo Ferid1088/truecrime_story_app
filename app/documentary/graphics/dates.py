@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.documentary.visuals.generated import _FA_DIGITS, MONTHS
+from app.documentary.visuals.generated import _FA_DIGITS, MONTH_ABBREVIATIONS, MONTHS
 
 
 def numerals(value: int | str, language: str) -> str:
@@ -17,7 +17,9 @@ def display(date: dict, language: str) -> tuple[str, str]:
     if not month:
         return year, ""
     name = MONTHS[language][int(month) - 1]
-    if language in ("en", "de"):
+    if language in MONTH_ABBREVIATIONS:
+        name = MONTH_ABBREVIATIONS[language][int(month) - 1]
+    elif language in ("en", "de"):
         name = name[:3].upper() if language == "en" else name[:3].upper() + ("" if name[:3] == "Mai" else "")
     day = date.get("day")
     if not day:

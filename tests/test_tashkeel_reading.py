@@ -94,6 +94,18 @@ def test_flagged_words_are_vowelised_again_blind_and_agreement_needs_no_arbiter(
     assert result.readings["AR_01"][0].text == "كَتَبَ" and stage.stats["disagreements"] == 0
 
 
+def test_a_checker_answer_that_drops_a_letter_is_refused_and_asked_again_with_the_problem():
+    checker = agent({"words": [{"n": 0, "text": "كَبَ"}]}, {"words": [{"n": 0, "text": "كَتَبَ"}]})
+    result, stage = run_stage(item(), writer=agent(written(flagged={0})), checker=checker)
+    assert "does not have the letters" in " ".join(checker.seen[1]["problems"]) and "problems" not in checker.seen[0]
+    assert result.readings["AR_01"][0].text == "كَتَبَ" and stage.stats["disagreements"] == 0
+
+
+def test_a_checker_that_stays_wrong_stops_the_stage():
+    with pytest.raises(ReadingFailed, match="independent vowelisation .* stays wrong"):
+        run_stage(item(), writer=agent(written(flagged={0})), checker=agent({"words": [{"n": 0, "text": "كَبَ"}]}))
+
+
 def test_a_difference_goes_to_the_arbiter_who_may_choose_the_independent_reading():
     checker = agent({"words": [{"n": 0, "text": "كُتِبَ"}]})
     arbiter = agent({"words": [{"n": 0, "choice": "b", "text": "", "why": "the letter was written"}]})

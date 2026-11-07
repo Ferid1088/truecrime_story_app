@@ -137,11 +137,12 @@ def test_every_defined_agent_is_run_by_a_class_or_a_stage():
     used = set()
     for path in (ROOT / "app").rglob("*.py"):
         used |= set(re.findall(r'run_agent\(\s*"([\w.]+)"', _read(path)))
-    for name in ("language.draft", "english.evidence_audit",
-                 "language.rewrite.fa", "language.inspect.fa", "language.final.fa",
-                 "language.rewrite.de", "language.inspect.de", "language.final.de",
-                 "language.rewrite.ar", "language.inspect.ar", "language.final.ar",
-                 "language.rewrite.en", "language.inspect.en", "language.final.en"):
+    # the film agents of a language are run by the name its entry in language_agents gives (config), not by a literal
+    used |= {agent for entry in ai_config.language_pipeline.language_agents.values()
+             for agent in (entry.rewrite, entry.inspect, entry.final)}
+    film_agents = [f"language.{kind}.{language}" for language in ai_config.multilingual.producible_languages
+                   for kind in ("rewrite", "inspect", "final")]
+    for name in ("language.draft", "english.evidence_audit", *film_agents):
         assert name in ai_config.agents and name in used, name
     assert not registry.CLASSES.keys() & set(REMOVED_AGENTS)
 

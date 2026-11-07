@@ -4,6 +4,8 @@ keeps its persona and its words: the text the avatar and the screen show (`scene
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
@@ -17,6 +19,13 @@ def block_id(scene: HostScene) -> str:
     return f"host{scene.id}"
 
 
+def respelled(text: str, language: str) -> str:
+    """The text with the words the language's voice reads wrongly spelled the way it reads them right (config host.voice_respellings)."""
+    for word, spelling in ai_config.host.voice_respellings.get(language, {}).items():
+        text = re.sub(rf"(?<!\w){re.escape(word)}(?!\w)", spelling, text)
+    return text
+
+
 async def prepare(db: Session, scene: HostScene, renderer, punctuation: PS.PunctuationStage | None = None, reader=None) -> str | None:
     """The text the voice is given for the host's appearance (None when the language is not prepared). The reading of the language, if it has one, is put
     on the renderer (`voicing`, and Persian's `planner`), which gives each word to the voice as the reading says. `punctuation` and `reader` are the
@@ -24,7 +33,8 @@ async def prepare(db: Session, scene: HostScene, renderer, punctuation: PS.Punct
     language = scene.language
     renderer.voicing = renderer.planner = None
     if language not in ai_config.host.text_preparation:
-        return None
+        spoken = respelled(scene.text, language)
+        return spoken if spoken != scene.text else None
     bid, text, marked = block_id(scene), scene.text, None
     if ai_config.semantic_punctuation.covers(language):
         marked = await (punctuation or PS.PunctuationStage(db, scene.case_id, language=language)).block({"block_id": bid, "text": text})
@@ -39,4 +49,4 @@ async def prepare(db: Session, scene: HostScene, renderer, punctuation: PS.Punct
 
             voice = ai_config.voice.for_language(language)
             renderer.planner = Planner(db, language, voice.voice_id, voice.model_id)
-    return text
+    return respelled(text, language)

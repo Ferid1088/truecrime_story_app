@@ -344,7 +344,7 @@ def test_a_card_a_builder_makes_from_the_claims_is_in_the_source_language_and_a_
     assert D.data_language_of(action({"data": {"facts": []}})) is None, "stored before the language was kept: the film's own"
 
 
-def test_a_placed_card_says_the_language_its_text_is_in_so_the_english_one_is_localized_into_the_film():
+def test_a_placed_card_says_the_language_its_text_is_in_so_the_english_one_is_translated_into_the_film():
     spans = [{"beat_id": "B01", "start": 0.0, "end": 40.0}]
     data = {"facts": [{"text": "He called 911.", "fact_id": "c1"}]}
 

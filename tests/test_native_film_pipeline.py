@@ -21,6 +21,11 @@ PERSIAN = "آنها خانه را ترک کردند و هیچ‌کس ندید."
 ARABIC = "غادروا البيت، ولم يرَ أحدٌ «شيئًا» غريبًا؛ فهل كانوا وحدهم؟"
 ENGLISH = "They left the house, and nobody saw them go - not the neighbors, not the maid."
 GERMAN = "Sie verließen das Haus, und niemand sah sie „gehen“ – schön, über Größe und Ärger."
+SPANISH = "Salieron de la casa y nadie los vio irse: ni los vecinos, ni la empleada. ¿Quién abrió la puerta?"
+ITALIAN = "Uscirono dalla casa e nessuno li vide andare via: né i vicini, né l'ultima cameriera, né lo sceriffo."
+FRENCH = "Ils quittèrent la maison, et personne ne les vit partir : ni les voisins, ni la bonne, ni l'adjoint du shérif."
+PORTUGUESE = "Eles saíram da casa e ninguém os viu partir: nem os vizinhos, nem a empregada, nem o delegado."
+TURKISH = "Evden çıktılar ve kimse gitmelerini görmedi: ne komşular, ne hizmetçi, ne de Ellen'in kardeşi."
 LANGUAGES = {
     "en": {
         "sample": ENGLISH, "names": "added_and_missing", "rewrite_marker": "EDITORIAL AUTHORITY",
@@ -46,6 +51,36 @@ LANGUAGES = {
         "inspector": "You are a native Arabic documentary editor",
         "final": "You are the final Arabic story editor",
         "guide": "LANGUAGE GUIDE: ARABIC TRUE-CRIME STORYTELLING"},
+    "es": {
+        "rewrite_marker": "NATIVE RE-TELLING, NOT TRANSLATION", "sample": SPANISH, "names": "missing",
+        "writer": "You are an experienced Mexican true-crime documentary writer",
+        "inspector": "You are a native Mexican documentary editor",
+        "final": "You are the final Mexican Spanish story editor",
+        "guide": "GUÍA DE IDIOMA: NARRACIÓN DE TRUE CRIME EN ESPAÑOL DE MÉXICO"},
+    "it": {
+        "rewrite_marker": "NATIVE RE-TELLING, NOT TRANSLATION", "sample": ITALIAN, "names": "missing",
+        "writer": "You are an experienced Italian true-crime documentary writer",
+        "inspector": "You are a native Italian documentary editor",
+        "final": "You are the final Italian story editor",
+        "guide": "LANGUAGE GUIDE: ITALIAN TRUE-CRIME STORYTELLING"},
+    "fr": {
+        "rewrite_marker": "NATIVE RE-TELLING, NOT TRANSLATION", "sample": FRENCH, "names": "missing",
+        "writer": "You are an experienced French true-crime documentary writer",
+        "inspector": "You are a native French documentary editor",
+        "final": "You are the final French story editor",
+        "guide": "LANGUAGE GUIDE: FRENCH TRUE-CRIME STORYTELLING"},
+    "pt": {
+        "rewrite_marker": "NATIVE RE-TELLING, NOT TRANSLATION", "sample": PORTUGUESE, "names": "missing",
+        "writer": "You are an experienced Brazilian Portuguese true-crime documentary writer",
+        "inspector": "You are a native Brazilian Portuguese documentary editor",
+        "final": "You are the final Brazilian Portuguese story editor",
+        "guide": "GUIA DE IDIOMA: NARRATIVA DE TRUE CRIME EM PORTUGUÊS DO BRASIL"},
+    "tr": {
+        "rewrite_marker": "NATIVE RE-TELLING, NOT TRANSLATION", "sample": TURKISH, "names": "missing",
+        "writer": "You are an experienced Turkish true-crime documentary writer",
+        "inspector": "You are a native Turkish documentary editor",
+        "final": "You are the final Turkish story editor",
+        "guide": "LANGUAGE GUIDE: TURKISH TRUE-CRIME STORYTELLING"},
 }
 
 
@@ -505,7 +540,7 @@ def test_a_production_language_without_its_own_agents_or_stage_config_is_a_confi
     for table in ("language_agents", "language_stages"):
         raw = copy.deepcopy(load_raw_config())
         del raw["language_pipeline"][table]["ar"]
-        with _pytest.raises(ValueError, match="exactly one entry per production language"):
+        with _pytest.raises(ValueError, match="exactly one entry per producible language"):
             AIConfig.model_validate(raw)
     with _pytest.raises(KeyError, match="no entry for 'xx'"):
         ai_config.language_pipeline.agents_for("xx")

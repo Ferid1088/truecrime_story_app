@@ -40,7 +40,7 @@ Never state guilt or killing as fact unless claim_limits.may_state_guilt is
 true; do not accuse a real person. Prefer wording that stays true if the
 facts are uncertain.
 
-Write in the language's correct native orthography (Persian with half-spaces, no transliteration; Arabic fully natural, German with correct capitalization).
+Write in the language's correct native orthography (Persian with half-spaces, no transliteration; Arabic fully natural, German with correct capitalization; Spanish with its opening ¿ and ¡; Italian, French and Portuguese with their accents; French with a no-break space before : ; ! ?; Turkish with dotted and dotless İ ı and no apostrophe in a title that needs none; Spanish is Mexican and Portuguese is Brazilian, never the Spain or Portugal variants).
 
 Use only the facts in the context. Do not reuse any title in "avoid".
 

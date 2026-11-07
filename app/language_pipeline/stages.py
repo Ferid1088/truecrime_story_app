@@ -211,32 +211,16 @@ class LanguageStages:
         except KeyError:
             raise StageFailed(agent, f"no stage code runs the agent {agent!r}") from None
 
-    @property
-    def _rewriters(self) -> dict:
-        return {"language.rewrite.en": self._rewrite_en,
-                "language.rewrite.fa": self._rewrite_fa, "language.rewrite.de": self._rewrite_de,
-                "language.rewrite.ar": self._rewrite_ar}
-
-    @property
-    def _inspectors(self) -> dict:
-        return {"language.inspect.en": self._inspect_en,
-                "language.inspect.fa": self._inspect_fa, "language.inspect.de": self._inspect_de,
-                "language.inspect.ar": self._inspect_ar}
-
-    @property
-    def _finalizers(self) -> dict:
-        return {"language.final.en": self._final_en,
-                "language.final.fa": self._final_fa, "language.final.de": self._final_de,
-                "language.final.ar": self._final_ar}
-
     # -- stage 2 -------------------------------------------------------------
     async def rewrite(self, db: Session, case: Case, material: SharedMaterial, source_text: str,
                       language: str, span: LengthRange, review: list[dict] | None = None) -> StageOutput:
         """The film text of one language from the approved English master (`source_text`). `review` is
         the editorial review of the draft (its items), handed only to the language told from the draft."""
         agent = ai_config.language_pipeline.agents_for(language).rewrite
-        return await self._runner(self._rewriters, agent)(
-            db, case, material, source_text, language, span, review)
+        task, system = self._native_rewrite_request(agent, material, source_text, language, span, review)
+        return await self._native_rewrite(
+            db, case, material, language, span, lambda: run_agent(
+                agent, self.gen, task, system=system, cache_key=material.cache_key()), agent)
 
     @classmethod
     def word_counts(cls, text: str, material: SharedMaterial) -> dict[str, int]:
@@ -275,38 +259,6 @@ class LanguageStages:
         return self._output(REWRITE_STAGE, language, res.text.strip(), material, res,
                             ai_config.prompt_of(agent))
 
-    async def _rewrite_en(self, db, case, material, source_text, language, span, review=None):
-        task, system = self._native_rewrite_request("language.rewrite.en", material, source_text, language,
-                                                    span, review)
-        return await self._native_rewrite(
-            db, case, material, language, span, lambda: run_agent(
-                "language.rewrite.en", self.gen, task, system=system, cache_key=material.cache_key()),
-            "language.rewrite.en")
-
-    async def _rewrite_fa(self, db, case, material, source_text, language, span, review=None):
-        task, system = self._native_rewrite_request("language.rewrite.fa", material, source_text, language,
-                                                    span, review)
-        return await self._native_rewrite(
-            db, case, material, language, span, lambda: run_agent(
-                "language.rewrite.fa", self.gen, task, system=system, cache_key=material.cache_key()),
-            "language.rewrite.fa")
-
-    async def _rewrite_de(self, db, case, material, source_text, language, span, review=None):
-        task, system = self._native_rewrite_request("language.rewrite.de", material, source_text, language,
-                                                    span, review)
-        return await self._native_rewrite(
-            db, case, material, language, span, lambda: run_agent(
-                "language.rewrite.de", self.gen, task, system=system, cache_key=material.cache_key()),
-            "language.rewrite.de")
-
-    async def _rewrite_ar(self, db, case, material, source_text, language, span, review=None):
-        task, system = self._native_rewrite_request("language.rewrite.ar", material, source_text, language,
-                                                    span, review)
-        return await self._native_rewrite(
-            db, case, material, language, span, lambda: run_agent(
-                "language.rewrite.ar", self.gen, task, system=system, cache_key=material.cache_key()),
-            "language.rewrite.ar")
-
     # -- stage 3 -------------------------------------------------------------
     async def inspect(self, db: Session, case: Case, material: SharedMaterial, text: str,
                       language: str, span: LengthRange, stage: str = INSPECT_STAGE,
@@ -314,8 +266,11 @@ class LanguageStages:
         """The language's inspector on a text. `stage` names the ledger line: the inspection of the
         rewrite (language_inspect) or the review of the delivered text (language_review)."""
         agent = ai_config.language_pipeline.agents_for(language).inspect
-        return await self._runner(self._inspectors, agent)(
-            db, case, material, text, language, span, stage, safety_mode)
+        task, system = self._native_inspect_request(agent, material, text, language, span, safety_mode)
+        return await self._native_inspect(
+            db, case, material, text, language, lambda: run_agent(
+                agent, self.gen, task, system=system, role=self._inspector_role(safety_mode),
+                cache_key=material.cache_key()), agent, stage, safety_mode)
 
     @staticmethod
     def _inspector_role(safety_mode: bool) -> str | None:
@@ -350,42 +305,6 @@ class LanguageStages:
                                       f"after {ai_config.limits_settings().language_pipeline.inspector_attempts} attempts: {e}") from e
         return self._output(stage, language, text, material, res, ai_config.prompt_of(agent),
                             data=self.film_critique(inspection))
-
-    async def _inspect_en(self, db, case, material, text, language, span, stage, safety_mode=False):
-        task, system = self._native_inspect_request("language.inspect.en", material, text, language, span,
-                                                    safety_mode)
-        return await self._native_inspect(
-            db, case, material, text, language, lambda: run_agent(
-            "language.inspect.en", self.gen, task, system=system, role=self._inspector_role(safety_mode),
-            cache_key=material.cache_key()),
-            "language.inspect.en", stage, safety_mode)
-
-    async def _inspect_fa(self, db, case, material, text, language, span, stage, safety_mode=False):
-        task, system = self._native_inspect_request("language.inspect.fa", material, text, language, span,
-                                                    safety_mode)
-        return await self._native_inspect(
-            db, case, material, text, language, lambda: run_agent(
-            "language.inspect.fa", self.gen, task, system=system, role=self._inspector_role(safety_mode),
-            cache_key=material.cache_key()),
-            "language.inspect.fa", stage, safety_mode)
-
-    async def _inspect_de(self, db, case, material, text, language, span, stage, safety_mode=False):
-        task, system = self._native_inspect_request("language.inspect.de", material, text, language, span,
-                                                    safety_mode)
-        return await self._native_inspect(
-            db, case, material, text, language, lambda: run_agent(
-            "language.inspect.de", self.gen, task, system=system, role=self._inspector_role(safety_mode),
-            cache_key=material.cache_key()),
-            "language.inspect.de", stage, safety_mode)
-
-    async def _inspect_ar(self, db, case, material, text, language, span, stage, safety_mode=False):
-        task, system = self._native_inspect_request("language.inspect.ar", material, text, language, span,
-                                                    safety_mode)
-        return await self._native_inspect(
-            db, case, material, text, language, lambda: run_agent(
-            "language.inspect.ar", self.gen, task, system=system, role=self._inspector_role(safety_mode),
-            cache_key=material.cache_key()),
-            "language.inspect.ar", stage, safety_mode)
 
     @staticmethod
     def film_critique(inspection: FilmInspection) -> dict:
@@ -442,8 +361,11 @@ class LanguageStages:
                        source_text: str) -> StageOutput:
         """Stage 4: the last version and the critique, the English master as a read-only reference."""
         agent = ai_config.language_pipeline.agents_for(language).final
-        return await self._runner(self._finalizers, agent)(
-            db, case, material, language, span, last_version, critique, source_text)
+        task, system = self._native_final_request(agent, material, last_version, critique, language, span,
+                                                  source_text)
+        return await self._native_final(
+            db, case, material, language, lambda: run_agent(
+                agent, self.gen, task, system=system, cache_key=material.cache_key()), agent)
 
     def _native_final_request(self, agent: str, material, last_version, critique, language, span,
                               source_text) -> tuple[str, str]:
@@ -465,42 +387,6 @@ class LanguageStages:
                               FINAL_STAGE, language, f"{language} final")
         return self._output(FINAL_STAGE, language, res.text.strip(), material, res,
                             ai_config.prompt_of(agent))
-
-    async def _final_en(self, db, case, material, language, span, last_version, critique,
-                        source_text):
-        task, system = self._native_final_request("language.final.en", material, last_version, critique,
-                                                  language, span, source_text)
-        return await self._native_final(
-            db, case, material, language, lambda: run_agent(
-                "language.final.en", self.gen, task, system=system, cache_key=material.cache_key()),
-            "language.final.en")
-
-    async def _final_fa(self, db, case, material, language, span, last_version, critique,
-                        source_text):
-        task, system = self._native_final_request("language.final.fa", material, last_version, critique,
-                                                  language, span, source_text)
-        return await self._native_final(
-            db, case, material, language, lambda: run_agent(
-                "language.final.fa", self.gen, task, system=system, cache_key=material.cache_key()),
-            "language.final.fa")
-
-    async def _final_de(self, db, case, material, language, span, last_version, critique,
-                        source_text):
-        task, system = self._native_final_request("language.final.de", material, last_version, critique,
-                                                  language, span, source_text)
-        return await self._native_final(
-            db, case, material, language, lambda: run_agent(
-                "language.final.de", self.gen, task, system=system, cache_key=material.cache_key()),
-            "language.final.de")
-
-    async def _final_ar(self, db, case, material, language, span, last_version, critique,
-                        source_text):
-        task, system = self._native_final_request("language.final.ar", material, last_version, critique,
-                                                  language, span, source_text)
-        return await self._native_final(
-            db, case, material, language, lambda: run_agent(
-                "language.final.ar", self.gen, task, system=system, cache_key=material.cache_key()),
-            "language.final.ar")
 
     # -- stage 5: the bounded length correction (at most once per chain) ---------------------
     @property

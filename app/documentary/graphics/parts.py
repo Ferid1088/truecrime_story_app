@@ -5,7 +5,8 @@ from __future__ import annotations
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.page import Page
 
-QUOTE_MARKS = {"en": ("“", "”"), "de": ("„", "“"), "fa": ("«", "»"), "ar": ("«", "»")}
+QUOTE_MARKS = {"en": ("“", "”"), "de": ("„", "“"), "fa": ("«", "»"), "ar": ("«", "»"), "es": ("“", "”"),
+               "it": ("«", "»"), "fr": ("«\u00a0", "\u00a0»"), "pt": ("“", "”"), "tr": ("“", "”")}
 
 
 def quoted(text: str, language: str) -> str:

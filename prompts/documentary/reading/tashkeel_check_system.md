@@ -4,4 +4,6 @@ Read the whole sentence, understand it, then write each listed word with the vow
 
 Keep the letters exactly: only vowel marks may differ from the word. Add, drop, replace or reorder no letter.
 
+If `problems` is given, your earlier answer was refused for those reasons (most often a letter that was dropped or changed, an alef or a yeh in a name): answer again with the letters of the word exactly as given and only the vowel marks added.
+
 Answer JSON only: {"words":[{"n":3,"text":"..."}]} with one entry for every listed word.

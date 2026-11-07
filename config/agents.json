@@ -392,6 +392,111 @@
       "description": "English film version (60-70 minutes) re-told from the approved master.",
       "used_by": "app/language_pipeline/stages.py"
     },
+    "language.rewrite.es": {
+      "role": "language_rewrite_writer",
+      "prompt": "language_pipeline/es/rewrite_writer",
+      "output": "text",
+      "description": "Mexican Spanish film version (60-70 minutes) re-told natively from the English master.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.inspect.es": {
+      "role": "language_inspector",
+      "prompt": "language_pipeline/es/inspector",
+      "output": "json",
+      "description": "Listening-quality review of the Mexican Spanish film version.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.final.es": {
+      "role": "language_final_writer",
+      "prompt": "language_pipeline/es/final_writer",
+      "output": "text",
+      "description": "Final Mexican Spanish film text from the last version and the critique.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.rewrite.it": {
+      "role": "language_rewrite_writer",
+      "prompt": "language_pipeline/it/rewrite_writer",
+      "output": "text",
+      "description": "Italian film version (60-70 minutes) re-told natively from the English master.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.inspect.it": {
+      "role": "language_inspector",
+      "prompt": "language_pipeline/it/inspector",
+      "output": "json",
+      "description": "Listening-quality review of the Italian film version.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.final.it": {
+      "role": "language_final_writer",
+      "prompt": "language_pipeline/it/final_writer",
+      "output": "text",
+      "description": "Final Italian film text from the last version and the critique.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.rewrite.fr": {
+      "role": "language_rewrite_writer",
+      "prompt": "language_pipeline/fr/rewrite_writer",
+      "output": "text",
+      "description": "French film version (60-70 minutes) re-told natively from the English master.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.inspect.fr": {
+      "role": "language_inspector",
+      "prompt": "language_pipeline/fr/inspector",
+      "output": "json",
+      "description": "Listening-quality review of the French film version.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.final.fr": {
+      "role": "language_final_writer",
+      "prompt": "language_pipeline/fr/final_writer",
+      "output": "text",
+      "description": "Final French film text from the last version and the critique.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.rewrite.pt": {
+      "role": "language_rewrite_writer",
+      "prompt": "language_pipeline/pt/rewrite_writer",
+      "output": "text",
+      "description": "Brazilian Portuguese film version (60-70 minutes) re-told natively from the English master.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.inspect.pt": {
+      "role": "language_inspector",
+      "prompt": "language_pipeline/pt/inspector",
+      "output": "json",
+      "description": "Listening-quality review of the Brazilian Portuguese film version.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.final.pt": {
+      "role": "language_final_writer",
+      "prompt": "language_pipeline/pt/final_writer",
+      "output": "text",
+      "description": "Final Brazilian Portuguese film text from the last version and the critique.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.rewrite.tr": {
+      "role": "language_rewrite_writer",
+      "prompt": "language_pipeline/tr/rewrite_writer",
+      "output": "text",
+      "description": "Turkish film version (60-70 minutes) re-told natively from the English master.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.inspect.tr": {
+      "role": "language_inspector",
+      "prompt": "language_pipeline/tr/inspector",
+      "output": "json",
+      "description": "Listening-quality review of the Turkish film version.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.final.tr": {
+      "role": "language_final_writer",
+      "prompt": "language_pipeline/tr/final_writer",
+      "output": "text",
+      "description": "Final Turkish film text from the last version and the critique.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
     "language.inspect.en": {
       "role": "language_inspector",
       "prompt": "language_pipeline/en/inspector",

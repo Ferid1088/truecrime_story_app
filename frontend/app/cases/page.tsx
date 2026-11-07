@@ -310,6 +310,11 @@ function CreateCaseForm({ onCancel, onCreated }: { onCancel: () => void; onCreat
             <option value="de">German</option>
             <option value="fa">Persian</option>
             <option value="ar">Arabic</option>
+            <option value="es">Spanish</option>
+            <option value="it">Italian</option>
+            <option value="fr">French</option>
+            <option value="pt">Portuguese (Brazil)</option>
+            <option value="tr">Turkish</option>
           </Select>
         </div>
       </div>

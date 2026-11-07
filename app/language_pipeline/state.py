@@ -176,6 +176,7 @@ def case_state(db: Session, case_id: int, with_text: bool = False) -> dict:
     retired = retired_method(db, case_id)
     if not drafts:
         return {"draft": None, "retired_method": retired,
+                "optional_languages": list(ai_config.multilingual.optional_production_languages),
                 "languages": [{"language": lg, "stages": {},
                               "waiting_reason": "Waiting for the shared English draft to be written."}
                              for lg in languages],
@@ -188,7 +189,9 @@ def case_state(db: Session, case_id: int, with_text: bool = False) -> dict:
     english_final = next((r for r in reversed(rows) if r.kind == FINAL and r.language == english
                           and r.approved_at is not None and r.status == "ready"), None)
     blocks = []
-    for language in languages:
+    started = {r.language for r in rows}
+    for language in [*languages, *(lg for lg in ai_config.multilingual.optional_production_languages
+                                   if lg in started)]:
         mine = [r for r in rows if r.language == language]
         final = _latest(mine, FINAL, language)
         links = pipeline_of(final) if final is not None else {}
@@ -235,6 +238,8 @@ def case_state(db: Session, case_id: int, with_text: bool = False) -> dict:
                       "draft_checks": notes.get("draft_checks"), "approval": notes.get("approval"),
                       "plan_note": _plan_note(db, case_id, draft)},
             "retired_method": retired, "languages": blocks, "ledger": ledger,
+            "optional_languages": [lg for lg in ai_config.multilingual.optional_production_languages
+                                   if lg not in started],
             "cost_total_eur": round(sum(r["eur"] for r in ledger), 4),
             "calls_total": sum(r["calls"] for r in ledger)}
 

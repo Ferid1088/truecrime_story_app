@@ -106,6 +106,13 @@ def test_german_comma_before_the_subordinate_clause_and_a_dash_for_one_held_beat
     assert not check(result.layer)
 
 
+def test_an_ellipsis_written_as_three_dots_can_be_replaced_by_a_comma_and_a_word_is_never_a_mark():
+    layer = Layer("b", "Er kam... und ging", "Er kam... und ging", [Edit(1, "...", ",", "a held beat, not a trailing off")], language="de")
+    assert layer.text == "Er kam, und ging" and check(layer) == []
+    with pytest.raises(LayerError):
+        _ = Layer("b", "Er kam und ging", "Er kam und ging", [Edit(0, "und", ",", "x")], language="de").text
+
+
 def test_german_text_has_no_persian_marks_and_no_normalisation():
     assert ai_config.semantic_punctuation.profile("de").normalize == {}
     with pytest.raises(LayerError):
@@ -122,9 +129,9 @@ def test_german_quotation_marks_are_punctuation_not_part_of_a_word():
 def test_english_needs_no_reference_text_and_keeps_its_own_commas():
     syntax = agent({"boundaries": []})
     stage = PS.PunctuationStage(None, None, use_agents=True, syntax_runner=syntax, punctuate_runner=agent({"edits": [
-        {"after": 3, "new": ",", "reason": "after the introductory phrase"}]}), check_runner=agent({"decision": "PASS"}), language="en")
+        {"after": 3, "new": ",", "reason": "after the introductory phrase"}]}), language="en")
     result = asyncio.run(stage.block({"block_id": "b", "text": "In the early hours he left the house"}))
-    assert result.layer.text == "In the early hours, he left the house" and result.review == "PASS"
+    assert result.layer.text == "In the early hours, he left the house" and result.review == "NOT_REVIEWED"
     assert json.loads(syntax.seen[0])["english"] == "", "an English narration is its own meaning reference"
 
 
@@ -152,3 +159,31 @@ def test_a_sentence_mark_before_a_lowercase_word_is_refused_the_layer_never_chan
 def test_arabic_has_no_capitals_so_a_period_is_never_refused_for_that():
     result, _ = staged("ar", "جاء الرجل ثم رحل", {"boundaries": []}, [[{"after": 1, "new": ".", "reason": "two sentences"}]])
     assert result.layer.text == "جاء الرجل. ثم رحل"
+
+
+def test_only_persian_and_its_locale_variants_have_an_ezafe_every_other_language_has_none():
+    cfg = ai_config.semantic_punctuation
+    assert [cfg.has_ezafe(code) for code in ("fa", "fa-IR", "fa_AF", "FA")] == [True] * 4
+    assert [cfg.has_ezafe(code) for code in ("ar", "ar-SA", "de", "de-AT", "en", "en-GB", "tr", "", None)] == [False] * 9
+    assert cfg.profile("fa-IR") is cfg.profile("fa")
+
+
+@pytest.mark.parametrize("language,text,edit", [("de", "Er kam und ging", {"after": 1, "new": ",", "reason": "clause"}),
+                                                ("ar", "جاء الرجل ثم رحل", {"after": 1, "new": "،", "reason": "clause"}),
+                                                ("en", "He came and left", {"after": 1, "new": ",", "reason": "clause"})])
+def test_a_non_persian_proposal_goes_from_the_punctuate_agent_through_the_code_filter_without_the_checker(language, text, edit):
+    checker = agent({"decision": "REJECT"})
+    stage = PS.PunctuationStage(None, None, use_agents=True, syntax_runner=agent({"boundaries": []}), punctuate_runner=agent({"edits": [edit]}),
+                                check_runner=checker, language=language)
+    result = asyncio.run(stage.block({"block_id": "b", "text": text}))
+    assert checker.seen == [] and result.checks == [] and result.review == "NOT_REVIEWED" and result.layer.edits, "the checker is Persian only"
+    assert not check(result.layer)
+
+
+@pytest.mark.parametrize("language", ["fa", "fa-IR", "fa_AF"])
+def test_persian_and_its_locale_variants_still_pass_through_the_checker(language):
+    checker = agent({"decision": "PASS"})
+    stage = PS.PunctuationStage(None, None, use_agents=True, syntax_runner=agent({"boundaries": []}),
+                                punctuate_runner=agent({"edits": [{"after": 1, "new": "،", "reason": "clause"}]}), check_runner=checker, language=language)
+    result = asyncio.run(stage.block({"block_id": "b", "text": "مرد آمد و رفت"}))
+    assert len(checker.seen) == 1 and result.review == "PASS" and result.checks

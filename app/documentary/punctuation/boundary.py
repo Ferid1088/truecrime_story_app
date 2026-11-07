@@ -55,7 +55,7 @@ def analyze(words: list[Word], gaps: list[str], syntax: dict[int, dict] | None =
     follows word n; tags and all). `syntax`: the syntax agent's boundaries by word number ({"ezafe": "required|forbidden|context", "relation",
     "reason", "comma_ok"}); `ambiguous`: the boundaries it could not settle. A language without an ezafe has nothing to decide: no boundary is
     required, forbidden or open, the punctuation agent's own judgement (and the checker's) is all that applies."""
-    if not ai_config.semantic_punctuation.profile(language).ezafe:
+    if not ai_config.semantic_punctuation.has_ezafe(language):
         syntax = syntax or {}
         return [BoundaryDecision(w.n, COHESIVE, str(found.get("reason") or "one construction"), "syntax_agent", relation=str(found.get("relation") or ""))
                 if (found := syntax.get(w.n)) and found.get("comma_ok") is False and w.n + 1 < len(words)

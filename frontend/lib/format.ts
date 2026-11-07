@@ -8,6 +8,8 @@ export const LANGUAGES: Record<string, string> = {
   fr: "French",
   es: "Spanish",
   it: "Italian",
+  pt: "Portuguese (Brazil)",
+  tr: "Turkish",
   unknown: "Unknown",
 };
 

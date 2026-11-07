@@ -56,7 +56,14 @@ _DEFAULT_QUOTE_PAIRS = [("«", "»"), ("“", "”")]
 # tokens followed by "." are always treated as abbreviations/initials.
 _ABBREVIATIONS: dict[str, set[str]] = {
     "ar": {"هـ"},  # Hijri year marker (ha + tatweel)
+    # Portuguese and Turkish have no pysbd rules: the English ones run and cut after these titles and street words.
+    "pt": {"Sr", "Sra", "Srta", "Dr", "Dra", "Prof", "Profa", "Av", "Cel", "Gen", "Cap", "Sgt", "Ten", "Dep",
+           "Min", "Pres", "Exmo", "Exma", "Ltda", "art", "pág", "tel"},
+    "tr": {"Dr", "Prof", "Doç", "Uzm", "Yrd", "Av", "Alb", "Gen", "Sn", "Cad", "Sok", "Mah", "Apt", "No",
+           "Tel", "vb", "vs", "yy"},
 }
+# A written ordinal ends in a period ("7. Ağır Ceza Mahkemesi"): a number before a period never ends a sentence.
+_ORDINAL_PERIOD_LANGUAGES = {"tr"}
 _PYSBD_LANGUAGES = {
     "am", "ar", "bg", "da", "de", "el", "en", "es", "fa", "fr", "hi", "hy",
     "it", "ja", "kk", "mr", "my", "nl", "pl", "ru", "sk", "ur", "zh",
@@ -101,6 +108,8 @@ def _ends_with_abbreviation(text: str, language: str) -> bool:
     if not tokens:
         return False
     last = tokens[-1].lstrip("(«„“\"'")
+    if language in _ORDINAL_PERIOD_LANGUAGES and last.isdigit():
+        return True
     return len(last) == 1 or last in _ABBREVIATIONS.get(language, set())
 
 

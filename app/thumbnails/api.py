@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.core.ai_config import ai_config
 from app.core.files import serve as serve_file
 from app.db.base import get_db
 from app.db.models import AppSetting, Case, PolicyEvent, Thumbnail
@@ -19,7 +20,14 @@ from app.thumbnails import service as SV
 from app.utils import utc_now
 
 router = APIRouter(tags=["thumbnails"])
-Lang = Literal["en", "de", "fa", "ar"]
+Lang = Literal["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"]
+
+
+def _channel_language(language: str) -> str:
+    """A thumbnail carries the channel's name and logo: a language without a channel (config channels) has none to make."""
+    if language not in ai_config.channels:
+        raise HTTPException(status_code=409, detail=f"No channel is configured for {language}: its name and logo are missing (config channels).")
+    return language
 
 
 def _gen():
@@ -73,6 +81,7 @@ def list_thumbnails(case_id: int, language: Lang | None = None, db: Session = De
 def thumbnail_options(case_id: int, language: Lang, db: Session = Depends(get_db)):
     """What can go on the thumbnail: usable real pictures (ranked), the
     rejected ones with the reason, and the approved host poses."""
+    _channel_language(language)
     case = _case(db, case_id)
     ok, bad = S.rank_assets(db, case)
     from app.identity.titles import get_identity
@@ -98,6 +107,7 @@ def thumbnail_options(case_id: int, language: Lang, db: Session = Depends(get_db
 
 @router.patch("/api/cases/{case_id}/thumbnails/outfit")
 def set_thumbnail_outfit(case_id: int, req: OutfitRequest, db: Session = Depends(get_db)):
+    _channel_language(req.language)
     case = _case(db, case_id)
     try:
         outfit = H.OutfitRegistry(H.OUTFIT_ROOT).resolve(req.outfit_id)
@@ -124,6 +134,7 @@ def set_thumbnail_outfit(case_id: int, req: OutfitRequest, db: Session = Depends
 
 @router.post("/api/cases/{case_id}/thumbnails")
 async def compose(case_id: int, req: ComposeRequest, db: Session = Depends(get_db)):
+    _channel_language(req.language)
     case = _case(db, case_id)
     try:
         t = await SV.create_thumbnail(

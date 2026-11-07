@@ -17,7 +17,6 @@ from app.documentary import host_voice_text as HVT
 from app.documentary.punctuation import stage as PS
 from app.documentary.reading import ask as ASK
 from app.documentary.reading import tashkeel as TK
-from app.documentary.reading.block import BlockInput
 
 LANGUAGES = ["fa", "ar", "en", "de"]
 
@@ -169,3 +168,14 @@ def test_the_voice_step_speaks_the_prepared_text_while_the_scene_keeps_its_own(d
     asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(Voice())))
     assert spoken == ["Das ist, was die Stimme bekommt."] and scene.text == original
     assert json.loads(scene.voice_checks_json)["tts_text"] == "Das ist, was die Stimme bekommt."
+
+
+def test_the_german_voice_is_given_the_hosts_name_spelled_for_it_and_the_avatar_shows_it_unchanged():
+    text = "Ich bin Fereidoun, und hier erzähle ich dir wahre Kriminalfälle."
+    renderer, scene = Renderer(), Scene("de", text)
+    spoken = asyncio.run(HVT.prepare(None, scene, renderer, stage("de", [])))
+    assert spoken == "Ich bin Fereydun, und hier erzähle ich dir wahre Kriminalfälle."
+    assert scene.text == text, "what the avatar shows never changes"
+    assert HVT.respelled("Fereidouns Fall", "de") == "Fereidouns Fall", "only the whole word is respelled"
+    assert HVT.respelled("I'm Fereidoun, and here I tell you.", "en") == "I'm Fereydun, and here I tell you."
+    assert HVT.respelled("من فریدونم", "fa") == "من فریدونم", "Persian keeps its own"

@@ -609,16 +609,30 @@ class MultilingualConfig(BaseModel):
     # Languages a film is produced in. Each one is finished independently from the
     # shared draft, the shared plan and the shared evidence; none is the reference.
     production_languages: list[str] = ["fa", "en", "de", "ar"]
+    # Languages the pipeline can produce when a run asks for them by name, and that no run produces
+    # unasked: the default run, the readiness of a case and the documentary's default language stay
+    # the production_languages'. Each one has the same agents and stage config as a production language.
+    optional_production_languages: list[str] = []
 
     @model_validator(mode="after")
     def _validate(self):
-        used = {*self.research_languages, self.evidence_language, *self.production_languages}
+        used = {*self.research_languages, self.evidence_language, *self.production_languages,
+                *self.optional_production_languages}
         missing = sorted(used - set(self.language_catalog))
         if missing:
             raise ValueError(f"languages missing from language_catalog: {missing}")
         if len(set(self.production_languages)) != len(self.production_languages):
             raise ValueError("production_languages must not repeat a language")
+        both = sorted(set(self.production_languages) & set(self.optional_production_languages))
+        if both or len(set(self.optional_production_languages)) != len(self.optional_production_languages):
+            raise ValueError(f"optional_production_languages must not repeat a language or one of the "
+                             f"production_languages: {both}")
         return self
+
+    @property
+    def producible_languages(self) -> list[str]:
+        """Every language a run may be asked to produce: the production languages, then the optional ones."""
+        return [*self.production_languages, *self.optional_production_languages]
 
     @property
     def research_only_languages(self) -> list[str]:
@@ -2085,6 +2099,9 @@ class HostConfig(BaseModel):
     # Languages whose host words are prepared for the voice like the narration's blocks (documentary/host_voice_text.py): the punctuation layer, and the
     # reading text where the language has one (Persian's PPIE reading, Arabic's Tashkeel). The words the avatar shows never change.
     text_preparation: list[str] = Field(default_factory=list)
+    # How a word is spelled for the voice of one language, where that language's voice reads it wrongly (the host's name: "Fereydun").
+    # Only what the voice is given changes; the words the avatar and the screen show stay.
+    voice_respellings: dict[str, dict[str, str]] = Field(default_factory=dict)
     # The angle of an appearance (documentary/host_angle.py) is decided and checked before it is written: how often the editor is asked again with the problems,
     # and how many words a quote of the narration has at least (a moment, not a word).
     angle_repairs: int = Field(default=2, ge=0, le=5)
@@ -2634,7 +2651,8 @@ class PPIEConfig(BaseModel):
 class PunctuationProfile(BaseModel):
     """The punctuation of one language: `marks` the layer may insert; `normalize` the Latin punctuation the text writes and its form in that language;
     `punctuation_chars` what counts as punctuation in a gap (the layer changes nothing else); `phrase_end_marks` what ends a phrase; `ezafe` whether
-    the language has an ezafe to keep (Persian: a mark never cuts one); `vowel_letters` the final letters after which an ezafe is said -ye; `agents`
+    the language has an ezafe to keep (Persian: a mark never cuts one); `reviewed` whether the independent checker audits the proposals (Persian only; elsewhere the
+    proposals go from the punctuation agent through the code filter alone); `vowel_letters` the final letters after which an ezafe is said -ye; `agents`
     the prefix of the language's syntax, punctuation and checker agents (config/agents.json: `<prefix>.syntax|punctuate|check`)."""
 
     marks: list[str]
@@ -2642,6 +2660,7 @@ class PunctuationProfile(BaseModel):
     punctuation_chars: str
     phrase_end_marks: str
     ezafe: bool = False
+    reviewed: bool = False
     vowel_letters: list[str] = []
     agents: str
 
@@ -2656,14 +2675,23 @@ class SemanticPunctuationConfig(BaseModel):
     languages: dict[str, PunctuationProfile]
     run_file: str = "punctuation.json"
 
+    @staticmethod
+    def _key(language: str) -> str:
+        """The profile key of a language tag: its primary subtag, lowercase ("fa-IR" and "fa_AF" are "fa")."""
+        return (language or "").replace("_", "-").split("-")[0].lower()
+
     def covers(self, language: str) -> bool:
-        return language in self.languages
+        return self._key(language) in self.languages
 
     def profile(self, language: str) -> PunctuationProfile:
         try:
-            return self.languages[language]
+            return self.languages[self._key(language)]
         except KeyError:
             raise ValueError(f"no punctuation profile for language {language!r} (config semantic_punctuation.languages)") from None
+
+    def has_ezafe(self, language: str) -> bool:
+        """Only a language whose profile says so (Persian) has an ezafe to keep; any other or unknown language is treated as having none."""
+        return self.covers(language) and self.profile(language).ezafe
 
 
 class EnglishAlignmentConfig(BaseModel):
@@ -3568,6 +3596,9 @@ class DrawingConfig(BaseModel):
     min_speed: float = Field(gt=0.0)
     max_speed: float = Field(gt=0.0)
     gap_full_seconds: float = Field(gt=0.0)
+    # A person's portrait may be shown this many seconds before their name is first spoken (never before the film starts): the one spoiler rule of the
+    # drawing that is relaxed; a photo that gives the story away in other ways (injury, a later part of the story) stays refused.
+    portrait_lead_seconds: float = Field(ge=0.0)
     # A picture between two gaps is held at least this long (the time is taken from the two gaps), so the window does not shrink and grow
     # again around a flash of a picture; the gaps are then judged by the general rules again.
     picture_between_gaps_seconds: float = Field(gt=0.0)
@@ -3776,8 +3807,8 @@ class GraphicsConfig(BaseModel):
 
     @model_validator(mode="after")
     def _validate(self):
-        if set(self.labels) != {"en", "de", "fa", "ar"}:
-            raise ValueError("graphics.labels needs exactly en, de, fa and ar")
+        if not {"en", "de", "fa", "ar"} <= set(self.labels):
+            raise ValueError("graphics.labels needs en, de, fa and ar (and may have the optional production languages)")
         keys = set(self.labels["en"])
         for language, table in self.labels.items():
             if set(table) != keys:
@@ -4786,12 +4817,12 @@ class AIConfig(BaseModel):
         unknown = named - set(self.agents)
         if unknown:
             raise ValueError(f"language_pipeline names agents that are not defined: {sorted(unknown)}")
-        languages = set(self.multilingual.production_languages)
+        languages = set(self.multilingual.producible_languages)
         for table in ("language_agents", "language_stages"):
             entries = set(getattr(lp, table))
             if entries != languages:
                 raise ValueError(
-                    f"language_pipeline.{table} must have exactly one entry per production language "
+                    f"language_pipeline.{table} must have exactly one entry per producible language "
                     f"{sorted(languages)}; missing {sorted(languages - entries)}, "
                     f"unknown {sorted(entries - languages)}")
         for language, stage in lp.language_stages.items():

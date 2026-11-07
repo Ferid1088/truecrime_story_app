@@ -44,7 +44,8 @@ from app.db.models import (
 
 log = logging.getLogger(__name__)
 
-LABELS = {"en": "Chapter {n}", "de": "Kapitel {n}", "fa": "فصل {n}", "ar": "الفصل {n}"}
+LABELS = {"en": "Chapter {n}", "de": "Kapitel {n}", "fa": "فصل {n}", "ar": "الفصل {n}",
+          "es": "Capítulo {n}", "it": "Capitolo {n}", "fr": "Chapitre {n}", "pt": "Capítulo {n}", "tr": "Bölüm {n}"}
 _FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 EVENT_IDS = ("reveals", "relies_on", "viewer_knows")
 

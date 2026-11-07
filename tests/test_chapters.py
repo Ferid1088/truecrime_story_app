@@ -100,6 +100,9 @@ def test_acts_events_and_dates():
     # a later beat returning to a date already told
     assert per_beat["B05"]["id"] in ("T001", "T002")
     assert CH.chapter_label(2, "de") == "Kapitel 2" and CH.chapter_label(2, "fa") == "فصل ۲"
+    for language, label in {"es": "Capítulo 2", "it": "Capitolo 2", "fr": "Chapitre 2", "pt": "Capítulo 2",
+                            "tr": "Bölüm 2"}.items():
+        assert CH.chapter_label(2, language) == label
 
 
 # ---------------------------------------------------------------------------

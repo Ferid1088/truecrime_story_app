@@ -31,7 +31,14 @@ from app.naming.corpus import get_corpus
 from app.naming.gates import brevity_score, run_gates
 from app.naming.normalize import norm_title
 
+# The languages a title run covers when it names none; the optional production languages only when asked for.
 ORDER = ("en", "de", "fa", "ar")
+
+
+def title_languages(requested: list[str] | None = None) -> list[str]:
+    """The languages of a title run, in the order of the default languages followed by the optional ones."""
+    known = [*ORDER, *ai_config.multilingual.optional_production_languages]
+    return [lang for lang in known if lang in (requested or ORDER)]
 
 
 
@@ -292,7 +299,7 @@ async def generate_case_titles(db: Session, case: Case, gen, embedder=None,
     """Exactly 7 eligible titles per language (or the honest shortfall)."""
     ctx = build_context(db, case)
     out = {}
-    for lang in [l for l in ORDER if l in (languages or ORDER)]:
+    for lang in title_languages(languages):
         out[lang] = await fill_language(db, case, lang, ctx, gen, embedder)
     fam, concept = _family(db, case)
     return {"case_id": case.id, "title_family_id": fam, "editorial_concept": concept,

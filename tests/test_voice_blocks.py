@@ -57,6 +57,23 @@ def test_german_dates_and_abbreviations_are_not_sentence_ends():
     ]
 
 
+def test_portuguese_titles_and_street_words_are_not_sentence_ends():
+    text = ("O Sr. Silva e a Dra. Costa chegaram à Av. Paulista às 7h15 de 8 de janeiro. "
+            "O delegado anotou: nenhum sinal de crime.")
+    assert split_sentences(text, "pt") == [
+        "O Sr. Silva e a Dra. Costa chegaram à Av. Paulista às 7h15 de 8 de janeiro.",
+        "O delegado anotou: nenhum sinal de crime."]
+
+
+def test_turkish_ordinals_and_titles_are_not_sentence_ends():
+    text = ("Dr. Ayşe Kaya davayı aldı. Hâkim kararı 12. Ağır Ceza Mahkemesi'nde açıkladı. "
+            "Dosya No. 45 olarak kayıtlıydı.")
+    assert split_sentences(text, "tr") == [
+        "Dr. Ayşe Kaya davayı aldı.",
+        "Hâkim kararı 12. Ağır Ceza Mahkemesi'nde açıkladı.",
+        "Dosya No. 45 olarak kayıtlıydı."]
+
+
 def test_german_quote_spanning_two_sentences_stays_whole():
     text = "Er sagte: „Ich ging nach Hause. Dann war sie weg.“ Danach schwieg er."
     assert split_sentences(text, "de") == [

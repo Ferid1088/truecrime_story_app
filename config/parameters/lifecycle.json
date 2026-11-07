@@ -265,6 +265,21 @@
       },
       "ar": {
         "follow_up": "قضية {name} — ماذا حدث بعد حلقتنا الأولى"
+      },
+      "es": {
+        "follow_up": "El caso {name}: lo que pasó después de nuestro primer video"
+      },
+      "it": {
+        "follow_up": "Il caso {name} – cosa accadde dopo il nostro primo video"
+      },
+      "fr": {
+        "follow_up": "L'affaire {name} : ce qui s'est passé après notre première vidéo"
+      },
+      "pt": {
+        "follow_up": "O caso {name} — o que aconteceu depois do nosso primeiro vídeo"
+      },
+      "tr": {
+        "follow_up": "{name} Dosyası – İlk Videomuzdan Sonra Ne Oldu"
       }
     },
     "status_labels": {
@@ -283,6 +298,26 @@
       "ar": {
         "UNSOLVED": "قضية لم تُحل",
         "follow_up": "القضية حُلّت"
+      },
+      "es": {
+        "UNSOLVED": "CASO SIN RESOLVER",
+        "follow_up": "CASO YA RESUELTO"
+      },
+      "it": {
+        "UNSOLVED": "CASO IRRISOLTO",
+        "follow_up": "CASO ORA RISOLTO"
+      },
+      "fr": {
+        "UNSOLVED": "AFFAIRE NON RÉSOLUE",
+        "follow_up": "AFFAIRE DÉSORMAIS RÉSOLUE"
+      },
+      "pt": {
+        "UNSOLVED": "CASO NÃO RESOLVIDO",
+        "follow_up": "CASO AGORA RESOLVIDO"
+      },
+      "tr": {
+        "UNSOLVED": "ÇÖZÜLMEMİŞ DOSYA",
+        "follow_up": "DOSYA ÇÖZÜLDÜ"
       }
     },
     "status_card_seconds": [

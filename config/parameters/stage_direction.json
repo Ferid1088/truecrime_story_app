@@ -68,6 +68,69 @@
         "حزن",
         "جنازة",
         "توفي"
+      ],
+      "es": [
+        "víctima",
+        "asesin",
+        "mató",
+        "cuerpo",
+        "niñ",
+        "abus",
+        "duelo",
+        "funeral",
+        "murió",
+        "muert"
+      ],
+      "it": [
+        "vittim",
+        "omicid",
+        "uccis",
+        "corpo",
+        "bambin",
+        "abus",
+        "lutto",
+        "funera",
+        "mort",
+        "morì"
+      ],
+      "fr": [
+        "victime",
+        "meurtr",
+        "décè",
+        "tué",
+        "corps",
+        "enfant",
+        "abus",
+        "deuil",
+        "décé",
+        "mort"
+      ],
+      "pt": [
+        "vítima",
+        "assassin",
+        "matou",
+        "mataram",
+        "mort",
+        "morr",
+        "corpo",
+        "crianç",
+        "abus",
+        " luto",
+        "funeral"
+      ],
+      "tr": [
+        "kurban",
+        "cinayet",
+        "ci̇nayet",
+        "öldür",
+        "öldü",
+        "ölüm",
+        "ceset",
+        "çocuk",
+        "istismar",
+        "i̇sti̇smar",
+        "cenaze",
+        "yas tut"
       ]
     },
     "outfit_allow_list": {},
@@ -107,6 +170,21 @@
         "G09_POINT_AT_VIEWER"
       ],
       "de": [
+        "G09_POINT_AT_VIEWER"
+      ],
+      "es": [
+        "G09_POINT_AT_VIEWER"
+      ],
+      "it": [
+        "G09_POINT_AT_VIEWER"
+      ],
+      "fr": [
+        "G09_POINT_AT_VIEWER"
+      ],
+      "pt": [
+        "G09_POINT_AT_VIEWER"
+      ],
+      "tr": [
         "G09_POINT_AT_VIEWER"
       ],
       "fa": [

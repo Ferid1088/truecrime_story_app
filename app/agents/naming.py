@@ -5,7 +5,8 @@ from __future__ import annotations
 
 from app.agents.base import Agent
 
-LANG_NAMES = {"en": "English", "de": "German", "fa": "Persian (Farsi)", "ar": "Arabic"}
+LANG_NAMES = {"en": "English", "de": "German", "fa": "Persian (Farsi)", "ar": "Arabic", "es": "Mexican Spanish",
+              "it": "Italian", "fr": "French", "pt": "Brazilian Portuguese", "tr": "Turkish"}
 
 
 class CaseNamingAgent(Agent):

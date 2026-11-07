@@ -60,9 +60,9 @@ class ApprovalRequest(BaseModel):
 
 
 def _languages(requested: list[str] | None) -> list[str]:
-    produced = ai_config.multilingual.production_languages
-    chosen = requested or produced
-    unknown = [lg for lg in chosen if lg not in produced]
+    multilingual = ai_config.multilingual
+    chosen = requested or multilingual.production_languages
+    unknown = [lg for lg in chosen if lg not in multilingual.producible_languages]
     if unknown:
         raise HTTPException(status_code=422, detail=f"not a production language: {unknown}")
     return chosen

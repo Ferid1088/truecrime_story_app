@@ -153,8 +153,8 @@ def _cfg(**over) -> HostConfig:
 
 def test_host_config_has_separate_speaking_rates_and_rules_for_every_language():
     cfg = ai_config.host
-    assert set(cfg.words_per_minute) == set(cfg.language_rules) == {"en", "de", "fa", "ar"}
-    assert len(set(cfg.words_per_minute.values())) == 4
+    assert set(cfg.words_per_minute) == set(cfg.language_rules) == set(ai_config.multilingual.producible_languages)
+    assert len(set(cfg.words_per_minute.values())) == len(cfg.words_per_minute)
     for lang, wpm in cfg.words_per_minute.items():
         # the host talks faster than the narrator of the same language
         assert wpm > ai_config.language_pipeline.words_per_minute[lang]
@@ -575,7 +575,7 @@ class HostGen:
         if role == "host_director":
             return (self.plans.pop(0) if len(self.plans) > 1 else self.plans[0]), res
         if role == "host_angle":
-            heard = data["story_so_far"][-1]["narration"].split() if data["story_so_far"] else []
+            heard = next((a["narration"].split() for a in reversed(data["story_so_far"]) if a["narration"]), [])      # a pilot has no text for its last beats
             return {"moment": "a detail of the last beat", "quote": " ".join(heard[:6]), "feeling": "it unsettles me", "thought": "I think it matters more than it looks",
                     "turn": "but I could be wrong about that", "move": "highlight a detail worth attention",
                     "question": "Would you have noticed it?", "dimension": "curiosity"}, res
@@ -991,7 +991,8 @@ def test_each_language_is_written_by_its_own_writer_agent_and_checked_by_an_inde
 
     cfg = ai_config.host
     assert cfg.writer_agents == {"en": "host_writer", "de": "host_writer",
-                                 "fa": "host_writer_fa_ar", "ar": "host_writer_fa_ar"}
+                                 "fa": "host_writer_fa_ar", "ar": "host_writer_fa_ar",
+                                 **{language: "host_writer" for language in ("es", "it", "fr", "pt", "tr")}}
     routing = ai_config.generation_providers["apimaster"].routing
     aliases = ai_config.generation_providers["apimaster"].models
     model_of = {role: aliases[routing[role]] for role in
@@ -1347,3 +1348,19 @@ def test_a_plan_copied_from_the_english_film_does_not_fail_on_where_another_blue
     assert kept["status"] == "valid" and kept["errors"] == [] and kept["inherited_findings"][0]["code"] == "interrupts_before_payoff"
     real = inherit({"status": "invalid", "warnings": [], "errors": [{"code": "unknown_act", "segment": "S2"}, {"code": "interrupts_hook"}]})
     assert real["status"] == "invalid" and [e["code"] for e in real["errors"]] == ["unknown_act"]
+
+
+def test_a_pilots_spoken_version_with_only_its_first_beats_still_gives_the_host_their_text(db_session):
+    from test_blueprint_performance import _story
+
+    from app.db.models import StoryVersion
+    from app.documentary.host import beat_texts
+
+    case, master = _story(db_session)
+    first = {beat["id"]: f"Narration of {beat['id']}." for beat in BP["beats"][:-1]}
+    spoken = StoryVersion(
+        case_id=case.id, version=2, kind="spoken", language="en", narrative_angle="{}",
+        master_version_id=master.id, status="ready", engagement_score=0.0,
+        story_text="\n\n".join(first.values()),
+        narrative_structure=json.dumps({"sections": [{"id": k, "text": v} for k, v in first.items()]}))
+    assert beat_texts(spoken, BP) == first          # the beats a pilot did not voice have no text; the others keep theirs

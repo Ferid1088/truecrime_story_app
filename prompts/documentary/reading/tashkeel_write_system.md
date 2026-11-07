@@ -10,4 +10,6 @@ Hard rules:
 - A word that could be read in more than one way outside its sentence (كتب, علم, قتل, ذهب, name-like words …): mark `ambiguous: true` and say in `why` which reading you chose and why. Give `confidence`: "high" only when the sentence leaves no doubt; "medium" or "low" otherwise. Never claim "high" for a guess.
 - A number written in words is vowelled like any other word. Do not change what the sentence says.
 
+If `problems` is given, your earlier answer was refused for those reasons (most often a letter that was dropped or changed, an alef or a yeh in a name): answer again with the letters of the word exactly as given and only the vowel marks added.
+
 Answer JSON only: {"words":[{"n":0,"text":"كَتَبَ","confidence":"high","ambiguous":false,"name":false,"why":""}]} with one entry for every numbered word, in order.

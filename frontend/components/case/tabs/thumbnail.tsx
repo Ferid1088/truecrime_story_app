@@ -20,6 +20,8 @@ const LANGS: { code: NamingLanguage; name: string }[] = [
   { code: "de", name: "German · Fallspur" },
   { code: "fa", name: "Persian · رد خاموش" },
   { code: "ar", name: "Arabic · أثر خفي" },
+  { code: "es", name: "Spanish · Tras la Pista" },
+  { code: "tr", name: "Turkish · Gizli İzler" },
 ];
 
 const FIELDS: [keyof ThumbnailRecord["critic"]["scorecard"], string, boolean][] = [

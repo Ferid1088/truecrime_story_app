@@ -18,6 +18,11 @@ const LANGS: { code: NamingLanguage; name: string; rtl: boolean }[] = [
   { code: "de", name: "German", rtl: false },
   { code: "fa", name: "Persian", rtl: true },
   { code: "ar", name: "Arabic", rtl: true },
+  { code: "es", name: "Spanish (Mexico)", rtl: false },
+  { code: "it", name: "Italian", rtl: false },
+  { code: "fr", name: "French", rtl: false },
+  { code: "pt", name: "Portuguese (Brazil)", rtl: false },
+  { code: "tr", name: "Turkish", rtl: false },
 ];
 
 const score = (v: number | null) => (v == null ? "—" : v.toFixed(2));

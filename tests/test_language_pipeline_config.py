@@ -40,7 +40,20 @@ def test_each_role_is_one_agent_with_its_own_prompt():
     assert {d.role for d in agents.values()} == {
         "language_draft_writer", *STAGE_ROLES, "language_rewrite_writer_fa_ar", "language_final_writer_fa_ar",
         "english_evidence_auditor"}                                              # the fidelity check uses the audit role
-    assert len({d.prompt for d in agents.values()}) == len(agents) == 15
+    # the draft, the fidelity check and the length correction are shared; every language has its own three
+    # stage agents (rewrite, inspect, final), the English one included
+    shared = 3
+    assert len({d.prompt for d in agents.values()}) == len(agents) == shared + 3 * len(
+        ai_config.multilingual.producible_languages)
+
+
+def test_every_producible_language_names_its_own_three_stage_agents_and_the_prompts_exist():
+    from app.core.prompts import prompt
+    for language in ai_config.multilingual.producible_languages:
+        entry = ai_config.language_pipeline.agents_for(language)
+        for kind, agent in (("rewrite", entry.rewrite), ("inspect", entry.inspect), ("final", entry.final)):
+            assert agent == f"language.{kind}.{language}"
+            assert prompt(ai_config.agents[agent].prompt)
 
 
 def _raw_with_same_model_group(**group):
@@ -143,6 +156,21 @@ def test_the_safety_retry_of_the_review_uses_its_own_model_route_and_the_neutral
     stages = ST.LanguageStages(gen=object())
     for safety in (False, True):
         seen.clear()
-        asyncio.run(stages._inspect_en(None, None, material, "A text.", "en", span, "language_review", safety))
+        asyncio.run(stages.inspect(None, None, material, "A text.", "en", span, "language_review", safety))
         assert seen["role"] == ("language_safety_inspector" if safety else None)
         assert seen["system"].startswith(prompt("language_pipeline/safety_preamble").strip()[:40]) is safety
+
+
+def test_a_run_may_name_an_optional_language_but_the_default_run_produces_only_the_production_languages():
+    import pytest
+    from fastapi import HTTPException
+
+    from app.api.language_pipeline import _languages
+
+    multilingual = ai_config.multilingual
+    assert _languages(None) == multilingual.production_languages
+    assert set(multilingual.optional_production_languages) == {"es", "it", "fr", "pt", "tr"}
+    assert _languages(["es", "tr"]) == ["es", "tr"]
+    with pytest.raises(HTTPException) as caught:
+        _languages(["xx"])
+    assert caught.value.status_code == 422

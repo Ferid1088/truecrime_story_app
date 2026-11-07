@@ -43,7 +43,7 @@ from app.documentary.spoken import digits_left, numbers_rule
 
 ROOT = Path(__file__).resolve().parents[2]
 
-LANG_NAMES = {"en": "English", "de": "German", "fa": "Persian (Farsi)", "ar": "Arabic"}
+LANG_NAMES = {"en": "English", "de": "German", "fa": "Persian (Farsi)", "ar": "Arabic", "es": "Mexican Spanish", "it": "Italian", "fr": "French", "pt": "Brazilian Portuguese", "tr": "Turkish"}
 MEMORY_KINDS = ("opinion", "reaction", "correction", "open_question", "theme")
 DIMENSIONS = (
     "intellectual_humility", "empathy", "curiosity", "patience",
@@ -173,7 +173,7 @@ def beat_texts(version: StoryVersion, blueprint: dict) -> dict[str, str]:
 
     secs = stored_sections(version) or []
     ids = [b["id"] for b in blueprint.get("beats") or []]
-    if secs and [s["id"] for s in secs] == ids:
+    if secs and all(s["id"] in ids for s in secs):         # a pilot voices only the first beats: the others have no text yet
         return {s["id"]: s["text"] for s in secs}
     try:
         return {s["id"]: s["text"] for s in beat_sections(version_sections(version), blueprint)}

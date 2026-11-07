@@ -114,7 +114,12 @@
       "en": 162,
       "de": 151,
       "fa": 146,
-      "ar": 140
+      "ar": 140,
+      "es": 166,
+      "it": 159,
+      "fr": 173,
+      "pt": 167,
+      "tr": 119
     },
     "word_tolerance": 0.2,
     "duration_tolerance": 0.1,
@@ -243,6 +248,204 @@
           "في هذا الفيديو"
         ],
         "register_note": "Write in an easy spoken Arabic that every Arabic speaker understands, addressing one person with the singular «أنت» (تخيّل، فكّر، هل تعرف). Short sentences, spoken rhythm, no ceremonial or newsreader phrases and no plural address of an announcer. Prefer simple, common words and the active voice; keep it correct but warm, as a friend would say it across a table. Names stay as the narration writes them. Rhythm: in every appearance put one or two very short sentences of at most six words between the longer ones (a reaction, a doubt, a pause: «لا أعرف.» «غريب.» «انتظر.»), and make the other sentences clearly different in length."
+      },
+      "es": {
+        "address_patterns": [
+          "\\b(?:tú|ti|te|contigo|tu|tus|sabes|imagina|fíjate|mira|oye|piensa|ves|crees|quieres|puedes|tienes|entiendes|recuerdas|dime|cuéntame|date cuenta|pregúntate|supón)\\b"
+        ],
+        "formal_patterns": [
+          "(?i:\\busted(?:es)?\\b)",
+          "(?i:\\b(?:imagine|fíjese|dígame|permítame|no se preocupe|ya verá|vosotros|vuestr[oa]s?)\\b)"
+        ],
+        "greeting_patterns": [
+          "^\\s*[¡¿]?\\s*(?:hola|buen(?:as|os)\\s+(?:tardes|noches|d[ií]as)|bienvenid[oa]s?|saludos|qu[eé] onda|qu[eé] tal\\s*[?,!]|queridos?|hey|ey)\\b"
+        ],
+        "handover_patterns": [
+          "\\b(?:vamos a (?:empezar|comenzar|la historia|el caso|meternos|entrar|ver (?:la historia|el caso|qu[eé] pas[oó]))|empecemos|comencemos|arranquemos|vamos all[aá]|pasemos a|adentr[eé]monos|la historia (?:empieza|comienza|arranca)|sin m[aá]s,? (?:vamos|empecemos|comencemos)|ahora s[ií],? (?:vamos|empecemos)|ah[ií] va la historia)\\b"
+        ],
+        "question_marks": [
+          "?"
+        ],
+        "stock_phrases": [
+          "\\bqu[eé] piensas\\b",
+          "\\bqu[eé] har[ií]as\\b",
+          "\\bme llam[oó] la atenci[oó]n\\b",
+          "\\bno te pierdas\\b",
+          "\\bqu[eé]date hasta el final\\b",
+          "\\ben este v[ií]deo\\b",
+          "\\bbienvenid[oa]s? de (?:nuevo|vuelta)\\b",
+          "\\bimpactante\\b",
+          "\\bescalofriante\\b",
+          "\\babróchate el cintur[oó]n\\b",
+          "\\bespectadores?\\b",
+          "\\bno vas a creer\\b",
+          "\\bsum[eé]rgete\\b",
+          "\\bsuscr[ií]bete\\b"
+        ],
+        "register_note": "Speak like a friend across a table, in everyday Mexican Spanish with «tú» (te, ti, tu/tus, contigo), never «usted» and never «vosotros». Spanish has no contractions, so the spoken feel comes from rhythm and small markers: «mira», «oye», «fíjate», «pues», «o sea», «no sé», «¿sabes qué?», «la verdad», «a ver». Drop subject pronouns as people do aloud («Eso no me cuadra.»), prefer the present and the simple past (pretérito) over literary tenses, avoid the subjunctive chains and gerund chains of written prose, no passive («se reveló que», «fue hallado»); say who did what. Short sentences, one breath each; start with a question or a plain statement («¿Sabes qué es lo que más me incomoda?», «Hay algo que no encaja.»), never with a literary opening like «En ocasiones, un expediente…» and never with a greeting. No slang that dates or divides regions (no «güey», «neta», «chido»), no Spain forms (vale, tío, vosotros, móvil). Write opening ¿ and ¡, numbers in words, the way the narration guide asks. Names stay as the narration writes them. Never a light or jokey word about a death or what the victim lived through: speak of it plainly and with weight. Rhythm: in every appearance put one or two very short sentences of at most six words between the longer ones (a reaction, a doubt, a pause: «No sé.» «Qué raro.» «Espera.»), and make the other sentences clearly different in length."
+      },
+      "it": {
+        "address_patterns": [
+          "(?<!\\w)(?:tu|ti|te|tuo|tua|tuoi|tue)(?!\\w)",
+          "(?<!\\w)t['’](?=\\w)",
+          "(?<!\\w)(?:hai|sai|vedi|credi|immagina|pensa|guarda|ascolta|dimmi|senti|ricordi che|fermati|aspetta)(?!\\w)"
+        ],
+        "formal_patterns": [
+          "(?<!\\w)voi(?!\\w)",
+          "(?<!\\w)vostr[oaie](?!\\w)",
+          "(?<=[a-zàèéìòù,;]\\s)Lei(?!\\w)",
+          "(?<=[a-zàèéìòù,;]\\s)Suo(?!\\w)",
+          "(?<=[a-zàèéìòù,;]\\s)Sua(?!\\w)",
+          "(?<=[a-zàèéìòù,;]\\s)Suoi(?!\\w)",
+          "(?<=[a-zàèéìòù,;]\\s)Sue(?!\\w)",
+          "(?<!\\w)(?:scusi|sappia|si immagini|si figuri|mi creda|mi segua|mi dica)(?!\\w)"
+        ],
+        "greeting_patterns": [
+          "^\\s*(?:ciao|salve|ehi|ehilà|ehila|buon(?:giorno|asera|a sera|a giornata|pomeriggio|a notte|notte)|benvenut\\w*|bentornat\\w*|cari|carissim\\w*|amici)(?!\\w)"
+        ],
+        "handover_patterns": [
+          "(?<!\\w)(?:andiamo (?:a (?:vedere|cominciare|iniziare|sentire|scoprire|raccontare)|alla|al|con|avanti|dritti)|cominciamo|iniziamo|partiamo|ecco la storia|la storia (?:comincia|inizia|parte)|(?:ora|adesso|allora|bene|dunque) (?:si )?(?:comincia|inizia|parte)|veniamo (?:al|alla)|passiamo (?:al|alla|a)|entriamo (?:nella|nel)|torniamo (?:alla|al) (?:storia|caso))(?!\\w)"
+        ],
+        "question_marks": [
+          "?"
+        ],
+        "stock_phrases": [
+          "(?<!\\w)che ne pensi(?!\\w)",
+          "(?<!\\w)(?:tu )?cosa faresti(?!\\w)",
+          "(?<!\\w)ho notato(?!\\w)",
+          "(?<!\\w)resta(?:te)? sintonizzat\\w+",
+          "(?<!\\w)(?:scioccante|sconvolgente|agghiacciante)(?!\\w)",
+          "(?<!\\w)cari (?:spettatori|amici)(?!\\w)",
+          "(?<!\\w)in (?:questo video|questa puntata|questo episodio)(?!\\w)",
+          "(?<!\\w)allacci?a(?:te)? le cinture(?!\\w)",
+          "(?<!\\w)ma non è finita qui(?!\\w)",
+          "(?<!\\w)la quiete prima della tempesta(?!\\w)",
+          "(?<!\\w)tragico epilogo(?!\\w)",
+          "(?<!\\w)(?:iscriviti|lascia un like)(?!\\w)"
+        ],
+        "register_note": "Speak like a friend across a table, to ONE person: «tu» (ti, te, tuo, tua), never «Lei» and never «voi». Use spoken Italian, not the written, newsreader one: elisions and short forms (c'è, cos'è, com'è, un po', quel che, mica, ti dico, senti, guarda, sai, dai), the passato prossimo for what the host says happened or thinks («ho letto», «mi è rimasto in testa») while the narrator keeps the remote past, the present for the host's own view; drop the subject pronoun, use «ci» and «ne» the way people do. Short sentences, one breath each; start with a question or a plain statement («Ti è mai capitato di…?», «Sai cosa mi colpisce?»), never with a greeting, a literary opening or «Allora, cari…». Avoid officialese and bookish words (qualora, ebbene, ciò, alquanto, dunque, poc'anzi, tale, il medesimo), long chains of subordinates, gerund chains and the passive; say who does what. Names stay as the narration writes them. Rhythm: in every appearance put one or two very short sentences of at most six words between the longer ones (a reaction, a doubt, a pause: «Non lo so.» «Strano.» «Aspetta.»), and make the other sentences clearly different in length. Numbers and symbols as in the narration guide (in words for the voice, no digits, no %). Speak of the dead and of the victims plainly and with weight, never lightly."
+      },
+      "fr": {
+        "address_patterns": [
+          "(?<!\\w)(?:tu|toi|ton|ta|tes|te|t['’]\\w+)(?!\\w)",
+          "(?<![\\w-])(?:imagine|regarde|écoute|dis-moi|sais-tu|tu sais|pense|figure-toi|attends|souviens-toi)(?![\\w-])"
+        ],
+        "formal_patterns": [
+          "(?i)(?<![\\w-])(?:vous|votre|vos|vôtres?)(?![\\w])",
+          "(?i)(?<![\\w-])(?:imaginez|regardez|écoutez|pensez|songez|sachez|dites|figurez-vous|souvenez-vous)(?![\\w])"
+        ],
+        "greeting_patterns": [
+          "^\\s*(?:salut|bonjour|bonsoir|coucou|hello|hey|bienvenue|chers?|chères?|mesdames|messieurs)(?!\\w)"
+        ],
+        "handover_patterns": [
+          "(?<!\\w)(?:allons[- ]y|c['’]est parti|on y va|commençons|plongeons|rentrons dans|(?:voici|voilà) (?:l['’]histoire|l['’]affaire|le cas)|l['’](?:histoire|affaire) (?:commence|débute)|(?:place|passons|revenons|retournons|direction) (?:à|au|à l['’])\\s?(?:l['’]histoire|l['’]affaire|au récit|le récit|l['’]enquête))(?!\\w)"
+        ],
+        "question_marks": [
+          "?"
+        ],
+        "stock_phrases": [
+          "(?<!\\w)dans cette (?:vidéo|épisode)(?!\\w)",
+          "(?<!\\w)bienvenue sur (?:la|cette) chaîne(?!\\w)",
+          "(?<!\\w)(?:abonne-toi|n['’]oublie pas (?:de|le) (?:t['’]abonner|like|pouce))",
+          "(?<!\\w)(?:laisse|mets) (?:un|ton) (?:like|pouce)",
+          "(?<!\\w)restez? (?:bien )?(?:connectés?|branchés?)(?!\\w)",
+          "(?<!\\w)chers? (?:spectateurs?|téléspectateurs?)(?!\\w)",
+          "(?<!\\w)attache (?:bien )?ta ceinture",
+          "(?<!\\w)tu (?:ne )?vas (?:pas )?(?:en )?croire",
+          "(?<!\\w)(?:que penses-tu|qu['’]en penses-tu|qu['’]aurais-tu fait|que ferais-tu)",
+          "(?<!\\w)j['’]ai remarqué(?!\\w)",
+          "(?<!\\w)(?:choquant|glaçant|sordide|terrifiant)(?!\\w)",
+          "(?<!\\w)(?:sombre secret|la suite (?:va|risque de) te (?:choquer|surprendre)|ce qui va suivre)",
+          "(?<!\\w)plongeons dans(?!\\w)"
+        ],
+        "register_note": "Speak like a friend across a table, to ONE person with «tu» (te, t', toi, ton, ta, tes), never «vous»: standard French of France, as spoken, not as written. Use spoken forms: «t'as», «t'imagines», «y a», «j'sais pas», «c'est», «ça», «on» for «nous», «ne» dropped in negations («je sais pas», «c'est pas clair», «y avait personne»), «un truc», «bizarre», «du coup», «en fait», «bref», «franchement», «attends». Short sentences, one breath each, no newsreader tone, no inversion («est-ce que» or intonation: «Tu t'attendais à ça ?»), no subjunctive flourishes, no passé simple (the host talks in present and passé composé; the narrator keeps the passé simple). Start with a question or a plain statement, never «Dans ce dossier…» or a literary opening. Names stay as the narration writes them. Voice rules of the narration guide apply: numbers, dates and currencies in words as there, no symbols, no parentheses, a non-breaking space before « ? », « ! », « : » and « ; ». Rhythm: in every appearance put one or two very short sentences of at most six words between the longer ones (a reaction, a doubt, a pause: «Je sais pas.» «Bizarre.» «Attends.»), and make the other sentences clearly different in length. Never make light of a death: speak plainly and with weight."
+      },
+      "pt": {
+        "address_patterns": [
+          "\\bvocê\\b",
+          "\\bcê\\b",
+          "\\bte\\b",
+          "\\bti\\b",
+          "\\bseus?\\b",
+          "\\bsuas?\\b",
+          "\\bcontigo\\b"
+        ],
+        "formal_patterns": [
+          "\\b[Oo]s? senhor(?:es)?\\b",
+          "\\b[Aa]s? senhora?s?\\b",
+          "\\b[Vv]ossa? (?:senhoria|excelência)\\b",
+          "\\b[Tt]u\\b",
+          "\\b(?:tens|és|estás|sabes|podes|queres|viste|fizeste|tinhas|disseste)\\b",
+          "(?i:\\bestar(?:ei)?\\b|\\best(?:ou|ás|á|ava|avas|avam|amos|ão)\\b)\\s+a\\s+\\w+(?:ar|er|ir)\\b",
+          "\\b(?:teu|tua|teus|tuas)\\b"
+        ],
+        "greeting_patterns": [
+          "^\\s*(?:olá|oi|e aí|fala,?\\s+(?:pessoal|galera|aí)|bem-vind[oa]s?|bom dia|boa tarde|boa noite|salve|pessoal|galera|gente)\\b"
+        ],
+        "handover_patterns": [
+          "\\b(?:vamos (?:lá|começar|entrar|mergulhar|direto|em frente|nessa|à|ao|ver)|bora|sem mais delongas|a história (?:começa|começou agora)|o caso começa|começamos|comecemos)\\b"
+        ],
+        "question_marks": [
+          "?"
+        ],
+        "stock_phrases": [
+          "\\bo que você acha\\b",
+          "\\bo que você faria\\b",
+          "\\beu percebi\\b",
+          "\\bme chamou a atenção\\b",
+          "\\bfique ligad[oa]\\b",
+          "\\bchocante\\b",
+          "\\bcase id\\b",
+          "\\bbem-vind[oa] de volta\\b",
+          "\\b(?:neste|nesse|no) vídeo\\b",
+          "\\bvídeo de hoje\\b",
+          "\\bvamos mergulhar\\b",
+          "\\baperte o cinto\\b",
+          "\\bprepare-se\\b",
+          "\\bvocê não vai acreditar\\b",
+          "\\bse inscreva\\b",
+          "\\bespectadores?\\b"
+        ],
+        "register_note": "Speak like a friend across a table, in Brazilian Portuguese: «você» (te, ti, seu, sua, «pra você»), never «o senhor/a senhora», never European «tu» with tu-verbs, never a plural «vocês» as the only address. Use spoken forms in moderation: «pra» for para, «a gente», «né?» and «tá» now and then, «tô» rarely; pronouns before the verb («me disse», «te conto»), the gerund for ongoing action («tava pensando», «estou lendo»), never «estar a + infinitive»; no mesoclisis, no «disse-me». Short sentences, no newsreader tone, no bureaucratic phrasing («o referido caso»). Start with a question or a plain statement, not a greeting: «Você já fechou uma porta e teve a sensação de que esqueceu algo?» «Eu não consigo parar de pensar nisso.» Rhythm: in every appearance put one or two very short sentences of at most six words between the longer ones (a reaction, a doubt, a pause: «Não sei.» «Estranho.» «Pois é.»), and make the other sentences clearly different in length."
+      },
+      "tr": {
+        "address_patterns": [
+          "\\b(?:sen|sana|seni|senin|sende|senden|seninle|sence|kendin|kendine|kendini)\\b",
+          "\\bm[ıiuü](?:sın|sin|sun|sün)\\b",
+          "\\b\\w+(?:yorsun|ırsın|irsin|ursun|ürsün|arsın|ersin|acaksın|eceksin|mışsın|mişsin|muşsun|müşsün)\\b"
+        ],
+        "formal_patterns": [
+          "\\b(?:[Ss]iz|SİZ|SIZ)\\b",
+          "\\b(?:[Ss]izin|[Ss]ize|[Ss]izi|[Ss]izde|[Ss]izden|[Ss]izle|[Ss]izinle|[Ss]izce|SİZİN|SİZE|SİZİ)\\b",
+          "\\b\\w+(?:siniz|sınız|sunuz|sünüz|SİNİZ|SINIZ|SUNUZ|SÜNÜZ)\\b",
+          "\\b\\w+(?:ınız|iniz|unuz|ünüz|INIZ|İNİZ|UNUZ|ÜNÜZ)\\b",
+          "\\b[Bb]uyur(?:un|unuz)\\b"
+        ],
+        "greeting_patterns": [
+          "^\\s*(?:merhaba\\w*|selam(?:lar)?|hey|alo|günaydın|iyi (?:akşamlar|günler|geceler)|hoş\\s?geldin\\w*|sevgili\\w*|değerli\\w*|arkadaşlar)\\b"
+        ],
+        "handover_patterns": [
+          "\\b(?:başlayalım|başlıyoruz|başlıyorum|girelim|dalalım|geçelim|gidelim|hadi (?:bakalım|başla\\w*|gel\\w*|geç\\w*|gir\\w*)|gelelim (?:hik[aâ]ye|olay|dosya|anlat)\\w*|hik[aâ]ye(?:miz|miz)? (?:başlıyor|başlar)|olay (?:başlıyor|başlar))\\b"
+        ],
+        "question_marks": [
+          "?"
+        ],
+        "stock_phrases": [
+          "\\bne düşünüyorsun\\b",
+          "\\bbu videoda\\b",
+          "\\bbu bölümde\\b",
+          "\\babone ol\\w*",
+          "\\bbildirim\\w* (?:zili|aç)\\w*",
+          "\\bkemer\\w* bağla\\w*",
+          "\\bşok edici\\b",
+          "\\bkan donduran\\b",
+          "\\bürpertici\\b",
+          "\\btahmin et ne oldu\\b",
+          "\\bişte tam o sırada\\b",
+          "\\bizleyici\\w*",
+          "\\byorumlara yaz\\w*"
+        ],
+        "register_note": "Speak like a friend across a table, to ONE viewer, with «sen» (sana, seni, senin, -sin/-sın verb endings, imperatives without -iniz), never «siz» or «buyurun». Plain spoken Istanbul Turkish in correct written spelling (no «geliyo», «yapıcam»), but with spoken rhythm: short sentences, the verb last, particles and tags like «ya», «işte», «bak», «değil mi?», «biliyor musun?», «hani». No newsreader tone and no bureaucratic forms («bulunmaktadır», «gerçekleştirmek», «söz konusu»). Start with a question or a plain statement, not a greeting: «Hiç kapını kilitlemeden uyudun mu?» «Bu hikâyeyi ilk duyduğumda uyuyamadım.» Rhythm: in every appearance put one or two very short sentences of at most six words between the longer ones (a reaction, a doubt, a pause: «Bilmiyorum.» «Garip.» «Düşün bir.»), and make the other sentences clearly different in length. Names stay as the narration writes them, with the apostrophe before the suffix (Martin'in). Numbers are said as words, never digits."
       }
     },
     "payoff_min_resolved_loops": 2,
@@ -251,10 +454,20 @@
       "en": "host_writer",
       "de": "host_writer",
       "fa": "host_writer_fa_ar",
-      "ar": "host_writer_fa_ar"
+      "ar": "host_writer_fa_ar",
+      "es": "host_writer",
+      "it": "host_writer",
+      "fr": "host_writer",
+      "pt": "host_writer",
+      "tr": "host_writer"
     },
     "spoiler_name_case_languages": [
-      "en"
+      "en",
+      "es",
+      "it",
+      "fr",
+      "pt",
+      "tr"
     ],
     "max_retime_attempts": 3,
     "meaning_check_languages": [
@@ -269,6 +482,7 @@
     },
     "max_writer_repairs": 5,
     "text_preparation": ["fa", "ar", "en", "de"],
+    "voice_respellings": {"de": {"Fereidoun": "Fereydun"}, "en": {"Fereidoun": "Fereydun"}},
     "angle_repairs": 2,
     "angle_min_quote_words": 4,
     "angle_turn_from_seconds": 30,
@@ -585,7 +799,7 @@
         "normalize": {",": "،", ";": "؛", "?": "؟"},
         "punctuation_chars": "،,؛;:.!?؟…«»\"'()-–—",
         "phrase_end_marks": "،,؛;:.!?؟…«»\"()—–",
-        "ezafe": true,
+        "ezafe": true, "reviewed": true,
         "vowel_letters": ["ا", "و", "ی"],
         "agents": "documentary.punctuation"
       },
@@ -727,8 +941,8 @@
       "ar": "tashkeel"
     },
     "tashkeel_vocalize": "all",
-    "chunk_blocks": 40,
     "tashkeel_number_max": 999999999999999,
+    "chunk_blocks": 40,
     "max_rounds": 3,
     "max_writer_retries": 3,
     "checker_mode": "blind",

@@ -17,6 +17,11 @@ def punctuation(language: str = "fa") -> set[str]:
     return set(ai_config.semantic_punctuation.profile(language).punctuation_chars)
 
 
+def is_punctuation(mark: str, language: str = "fa") -> bool:
+    """A mark of the language: one or more of its punctuation characters (an ellipsis written as three dots, "?!")."""
+    return bool(mark) and set(mark) <= punctuation(language)
+
+
 @dataclass(frozen=True)
 class Edit:
     after: int                  # the word the gap follows (its number in the block)
@@ -82,7 +87,7 @@ def applied(gap: str, edit: Edit, language: str = "fa") -> str:
     """The gap with the edit: an insertion right after the word, a replacement or removal of the gap's first such mark (tags untouched)."""
     profile = ai_config.semantic_punctuation.profile(language)
     allowed = set(profile.marks) | set(profile.normalize)
-    if edit.new and edit.new not in allowed or edit.old and edit.old not in punctuation(language):
+    if edit.new and edit.new not in allowed or edit.old and not is_punctuation(edit.old, language):
         raise LayerError(f"{edit.old!r} -> {edit.new!r} is not a punctuation change the layer may make")
     if not edit.old:
         if any(ch in punctuation(language) for ch in TAG.sub("", gap).strip()[:1]):

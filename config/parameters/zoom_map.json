@@ -201,6 +201,31 @@
           "name:ar",
           "name:en",
           "name"
+        ],
+        "es": [
+          "name:es",
+          "name:en",
+          "name"
+        ],
+        "it": [
+          "name:it",
+          "name:en",
+          "name"
+        ],
+        "fr": [
+          "name:fr",
+          "name:en",
+          "name"
+        ],
+        "pt": [
+          "name:pt",
+          "name:en",
+          "name"
+        ],
+        "tr": [
+          "name:tr",
+          "name:en",
+          "name"
         ]
       },
       "rtl_languages": [

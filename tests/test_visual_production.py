@@ -99,6 +99,14 @@ def test_dhash_finds_near_duplicates():
         ("fa", "16 July 2007", "۱۶ ژوئیه ۲۰۰۷"),
         ("ar", "May 2006", "مايو 2006"),
         ("de", "early June 2007", None),
+        ("es", "16 July 2007", "16 de julio de 2007"),
+        ("es", "May 2006", "mayo de 2006"),
+        ("pt", "16 July 2007", "16 de julho de 2007"),
+        ("it", "16 July 2007", "16 luglio 2007"),
+        ("fr", "1 November 2007", "1er novembre 2007"),
+        ("fr", "13 November 2007", "13 novembre 2007"),
+        ("tr", "16 July 2007", "16 Temmuz 2007"),
+        ("tr", "early June 2007", None),
     ],
 )
 def test_dates_are_formatted_per_language_deterministically(lang, text, out):
@@ -1078,9 +1086,10 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     from app.core.ai_config import ai_config
     from app.documentary import jobs as J
 
-    # the blueprint's four short beats cannot hold the real spacing rules of a film
+    # the blueprint's four short beats cannot hold the real spacing rules or the appearance count of a film
     monkeypatch.setattr(ai_config, "host", ai_config.host.model_copy(update={
-        "min_gap_seconds": 0, "min_acts_between": 0, "max_total_share": 0.5}))
+        "min_gap_seconds": 0, "min_acts_between": 0, "max_total_share": 0.5,
+        "min_appearances": 3, "max_appearances": 3, "short_film_min_appearances": 3}))
     documentary_env.host = HostGen(plans=[{"segments": [
         {"id": "S1", "position": "opening", "role": "opening", "after_act": None, "reason": "r"},
         {"id": "S2", "position": "mid", "role": "transition", "after_act": "B03", "reason": "r"},
@@ -1161,7 +1170,7 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     assert stages["performance:en"]["detail"]["incident_beat"] == "B02"
     assert stages["voice:en"]["detail"]["audio_tags"] is True
     # the on-screen host: one plan, dialogue per language
-    assert stages["host_plan"]["detail"]["segments"] == ["S1:opening", "S2:mid@B03", "S4:final"]
+    assert stages["host_plan"]["detail"]["segments"] == ["S1:opening", "S2:mid@B03", "S3:final"]    # the appearances are numbered S1, S2, ... in film order (the plan above skips S3)
     assert {stages[f"host:{language}"]["detail"]["status"] for language in ("en",)} == {
         "valid"
     }

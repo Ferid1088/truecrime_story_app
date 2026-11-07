@@ -165,7 +165,12 @@
       "fa",
       "ar",
       "de",
-      "en"
+      "en",
+      "es",
+      "it",
+      "fr",
+      "pt",
+      "tr"
     ],
     "host_review_languages": [
       "fa"
@@ -517,6 +522,15 @@
         "mode": "warn"
       },
       "tr": {
+        "mode": "warn"
+      },
+      "fr": {
+        "mode": "warn"
+      },
+      "it": {
+        "mode": "warn"
+      },
+      "pt": {
         "mode": "warn"
       }
     }
@@ -896,7 +910,10 @@
         "deesser_threshold_offset_delta_db": 0.5
       },
       "es": {},
-      "tr": {}
+      "tr": {},
+      "fr": {},
+      "it": {},
+      "pt": {}
     },
     "baseline_floor_db": -20.0,
     "threshold_ceiling_db": 10.0

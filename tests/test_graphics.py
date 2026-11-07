@@ -385,3 +385,31 @@ def test_the_quotation_marks_of_a_language_are_the_same_on_every_card():
     from app.documentary.graphics import parts
 
     assert [parts.quoted("x", language) for language in ("en", "de", "fa", "ar")] == ["“x”", "„x“", "«x»", "«x»"]
+
+
+NEW_LANGUAGES = ("es", "it", "fr", "pt", "tr")
+
+
+@pytest.mark.parametrize("language", NEW_LANGUAGES)
+@pytest.mark.parametrize("kind", KINDS)
+def test_every_card_kind_renders_in_the_new_languages_with_their_own_labels(kind, language):
+    data, duration, cues = sample(kind, "en")
+    image = graphic(kind).render(data, duration, cues, language).image_at(duration - 1.0)
+    assert image.size == (ai_config.graphics_settings().canvas["width"], ai_config.graphics_settings().canvas["height"])
+
+
+def test_a_card_date_shows_the_month_in_the_languages_own_capitals_and_the_day_before_it():
+    from app.documentary.graphics import dates
+
+    date = {"year": 2022, "month": 11, "day": 13}
+    assert dates.display(date, "es") == ("13 NOV", "2022") and dates.display({"year": 2023, "month": 1}, "tr") == ("OCA", "2023")
+    assert dates.display({"year": 2023, "month": 4, "day": 2}, "tr") == ("2 NİS", "2023")      # the dotted capital İ
+    assert dates.display({"year": 2023, "month": 8, "day": 5}, "fr") == ("5 AOÛT", "2023")
+    assert dates.display(date, "en") == ("NOV 13", "2022") and dates.display(date, "de") == ("13. NOV", "2022")
+
+
+def test_the_quotation_marks_of_the_new_languages_follow_their_guides():
+    from app.documentary.graphics import parts
+
+    assert [parts.quoted("x", language) for language in NEW_LANGUAGES] == [
+        "“x”", "«x»", "« x »", "“x”", "“x”"]

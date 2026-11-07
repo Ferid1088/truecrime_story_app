@@ -93,6 +93,9 @@ def test_agent_names_in_code_are_defined_and_every_agent_is_used():
     dynamic = {n for n, d in ai_config.agents.items() if d.prompt is None and n == d.role}
     # the punctuation agents of a language are named by its profile (config semantic_punctuation.languages.<language>.agents + syntax|punctuate|check)
     used |= {f"{p.agents}.{kind}" for p in ai_config.semantic_punctuation.languages.values() for kind in ("syntax", "punctuate", "check")}
+    # the film agents of a language are named by its entry (config language_pipeline.language_agents.<language>.rewrite|inspect|final)
+    used |= {agent for entry in ai_config.language_pipeline.language_agents.values()
+             for agent in (entry.rewrite, entry.inspect, entry.final)}
     assert used <= set(ai_config.agents), sorted(used - set(ai_config.agents))
     unused = set(ai_config.agents) - used - dynamic
     assert not unused, f"defined but never run: {sorted(unused)}"
