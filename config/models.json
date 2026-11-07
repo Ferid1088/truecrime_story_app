@@ -120,6 +120,7 @@
         "english_evidence_auditor": "sol",
         "host_meaning_checker": "writer",
         "mvp_needs_planner": "writer",
+        "mvp_crime_scene_finder": "writer",
         "detective_director": "writer",
         "detective_design_director": "premium",
         "detective_film_reviewer": "writer",
@@ -384,6 +385,10 @@
     "mvp_needs_planner": {
       "temperature": 0.3,
       "max_tokens": 32000
+    },
+    "mvp_crime_scene_finder": {
+      "temperature": 0.0,
+      "max_tokens": 4000
     },
     "detective_director": {
       "temperature": 0.4,

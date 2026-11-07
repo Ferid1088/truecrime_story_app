@@ -112,6 +112,8 @@ REQUIRED_ROLES = {
     # verification (vision) with an independent second verifier, video segment scouting
     # (vision) and shot direction. Rights and coverage are deterministic.
     "mvp_needs_planner",
+    # Names the crime scene(s) of a case, once, from the evidence (every film's maps show them and no other place).
+    "mvp_crime_scene_finder",
     # Detective toolkit (Section C): the investigative aim, scene direction and tool
     # choice behind every visual, map/direct/repair modes over app/documentary/memory.py.
     "detective_director",
@@ -3802,6 +3804,18 @@ class MonitoringConfig(BaseModel):
     stage_tabs: dict[str, str]
 
 
+class CrimeMapsConfig(BaseModel):
+    """Every film of every language shows a map of each crime scene of the case, and of no other place: at least `min_per_film`
+    maps, as many as the case has crime scenes. A scene the narration never names gets its map after the opening beats; a map
+    that has no bare stretch to stand in is cut out of a still picture that keeps at least `carve_min_remaining_seconds`."""
+
+    enabled: bool = True
+    min_per_film: int = Field(default=1, ge=1)
+    carve_min_remaining_seconds: float = Field(gt=0.0)
+    opening_beats: int = Field(default=1, ge=0)
+    evidence_facts: int = Field(default=120, ge=1)
+
+
 class ZoomMapConfig(BaseModel):
     """The cinematic zoom-in map (globe -> region -> street) built from open data, offline:
     a Protomaps/OpenStreetMap extract, open imagery and a MapLibre scene rendered frame by
@@ -3825,6 +3839,7 @@ class ZoomMapConfig(BaseModel):
     variant_rules: dict[str, str]
     marker: dict[str, float]
     limits: dict[str, float | int]
+    crime_maps: CrimeMapsConfig
     render: dict
 
     @model_validator(mode="after")

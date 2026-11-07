@@ -307,6 +307,11 @@ class LanguageChain:
             if report["gaps"]:
                 out["degraded"] = (f"{len(report['gaps'])} moment(s) without an approved visual "
                                    f"({report['gap_seconds']}s)")
+            crime = report.get("crime_maps")
+            if crime:
+                out["crime_maps"] = crime
+                if crime.get("degraded"):
+                    out["degraded"] = "; ".join(filter(None, [out.get("degraded"), crime["degraded"]]))
             return out
 
         direct = await pipe._stage(f"mvp_direct:{lang}", mvp_direct)

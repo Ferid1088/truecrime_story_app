@@ -266,6 +266,13 @@
       "place_label_after_seconds": 7.0,
       "max_stretch_seconds": 3.0
     },
+    "crime_maps": {
+      "enabled": true,
+      "min_per_film": 1,
+      "carve_min_remaining_seconds": 2.0,
+      "opening_beats": 1,
+      "evidence_facts": 120
+    },
     "render": {
       "chromium_args": [
         "--use-angle=swiftshader",

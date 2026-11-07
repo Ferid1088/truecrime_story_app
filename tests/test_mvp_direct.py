@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from app.core.ai_config import ai_config
 from app.db.models import (
+    CaseCrimeScene,
     Case,
     EditorialBlueprint,
     MvpCandidate,
@@ -238,29 +239,44 @@ def test_a_picture_that_is_not_about_the_words_never_fills_a_slot(db_session):
     assert all("asset_id" not in s for s in shots) and report["gap_seconds"] > 0
 
 
-def test_a_named_place_gets_a_map_once_in_the_film_where_no_picture_covers_it(db_session):
+def _scene(db, case, place, share=None):
+    db.add(CaseCrimeScene(case_id=case.id, place=place, kind="address", position=0, mention_share=share))
+    db.commit()
+
+
+def test_a_crime_scene_gets_a_map_once_in_the_film_where_no_picture_covers_it(db_session):
     case, plan = _plan(db_session, 0)
     plan.requirements_json = json.dumps({"entities": [{"key": "e", "type": "place", "name": "Flynn house"}],
                                          "beats": []})
     db_session.commit()
+    _scene(db_session, case, "Flynn house")
     run(D.direct_film(db_session, case, plan, _manifest([40.0, 40.0]), None, {"B01": 0, "B02": 1}, {}))
     beats = json.loads(plan.plan_json)["beats"]
     maps = [s for b in beats for s in b["shots"] if s["command"] == "SHOW_MAP"]
-    assert len(maps) == 1 and maps[0]["map_place"] == "Flynn house"
+    assert len(maps) == 1 and maps[0]["map_place"] == "Flynn house" and maps[0]["crime_scene"] == "Flynn house"
 
 
-def test_a_map_is_placed_only_where_the_place_is_spoken_and_geocoded_near_the_case(db_session):
+def test_a_named_place_that_is_no_crime_scene_gets_no_map(db_session):
     case, plan = _plan(db_session, 0)
     plan.requirements_json = json.dumps({"entities": [{"key": "e", "type": "place", "name": "Tipp City"}],
                                          "beats": []})
     db_session.commit()
+    _scene(db_session, case, "Flynn house")
     manifest = _manifest([60.0])
     manifest["timeline"]["sentences"][5]["speech"] = "They drove back to Tipp City that night."
-    run(D.direct_film(db_session, case, plan, manifest, None, {"B01": 0}, {}, region="Ohio, United States"))
+    report = run(D.direct_film(db_session, case, plan, manifest, None, {"B01": 0}, {}, region="Ohio, United States"))
+    maps = [s for s in json.loads(plan.plan_json)["beats"][0]["shots"] if s["command"] == "SHOW_MAP"]
+    assert [m["map_place"] for m in maps] == ["Flynn house, Ohio, United States"] and report["crime_maps"]["maps"] == 1
+
+
+def test_a_crime_scene_map_is_geocoded_near_the_case_and_stands_where_the_story_first_names_it(db_session):
+    case, plan = _plan(db_session, 0)
+    db_session.commit()
+    _scene(db_session, case, "Tipp City", share=0.5)
+    run(D.direct_film(db_session, case, plan, _manifest([60.0]), None, {"B01": 0}, {}, region="Ohio, United States"))
     shots = json.loads(plan.plan_json)["beats"][0]["shots"]
     maps = [s for s in shots if s["command"] == "SHOW_MAP"]
     assert len(maps) == 1 and maps[0]["map_place"] == "Tipp City, Ohio, United States"
-    assert "Tipp City" in maps[0]["said"]
 
 
 def test_a_bare_stretch_next_to_a_picture_is_absorbed_before_it_is_left_black(db_session):

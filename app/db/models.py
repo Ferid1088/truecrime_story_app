@@ -2872,6 +2872,25 @@ class HostSectionOutfit(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class CaseCrimeScene(Base):
+    """A crime scene of a case, named once from the evidence and the same for every language: the films show a map of it and of no
+    other place. `place` is the string a map search understands (the street address when the evidence has one, else the town);
+    `mention_share` is how far into the story (0 to 1) it is first named, so a film of another language puts the map at the same
+    stretch of its own narration; None when the story never names it."""
+
+    __tablename__ = "case_crime_scenes"
+    __table_args__ = (UniqueConstraint("case_id", "place", name="uq_case_crime_scene"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    place: Mapped[str] = mapped_column(String(300))
+    kind: Mapped[str] = mapped_column(String(10))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    mention_share: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
 class HostLook(Base):
     """One look of the host in a channel's studio (Part 7b): a picture of
     him inside the locked studio master (camera, framing, outfit, pose) made

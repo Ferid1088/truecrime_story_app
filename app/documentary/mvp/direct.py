@@ -17,6 +17,8 @@ from sqlalchemy.orm import Session
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.db.models import Case, EditorialBlueprint, MvpCandidate, MvpRequirement, RevealNode, VisualAsset, VisualPlan
+from app.documentary.mvp import crime_maps as CM
+from app.documentary.mvp import crime_scenes as CS
 from app.documentary.mvp import describe as DS
 from app.documentary.mvp import moments as MC
 from app.documentary.mvp import neighbours as NC
@@ -790,7 +792,10 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
 
         timeline = film_timeline(windows, [], language)
     extras = {b["beat_id"]: b for b in json.loads(plan.requirements_json or "{}").get("beats") or []}
+    crime_cfg = ai_config.zoom().crime_maps
+    scenes = await CS.ensure(db, case) if crime_cfg.enabled else []       # the same crime scenes for every language
     fingerprint = hashlib.sha256(json.dumps({
+        "crime_scenes": [[s.place, s.mention_share] for s in scenes], "crime_maps": crime_cfg.model_dump(),
         "windows": [[w["beat_id"], round(w["start"], 2), round(w["end"], 2), len(w["sentences"]), card_tail(w)]
                     for w in windows],
         "items": {b: [[i.code, i.role, i.asset.sha256, i.asset.owner_note] for i in group] for b, group in items.items()},
@@ -903,6 +908,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
         out_beats.append({"beat_id": bid, "shots": shots})
         window_of[bid] = window
         candidates[bid] = sorted({i.code for i in pool + near})
+    crime = CM.enforce(out_beats, window_of, scenes, region, map_seconds(), gap_runs, crime_cfg) if crime_cfg.enabled else None
     cut_in = place_moment_clips(out_beats, window_of, moment_clips, tracker)
     topical_in = place_topical(out_beats, window_of, items, topical or {}, tracker,
                                lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
@@ -918,7 +924,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
                                    fits, _shot).run()
     gaps = bare_stretches(out_beats, window_of)
     report = {"fingerprint": fingerprint, "beat_cache": new_cache, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
-              "gaps": gaps, "neighbour_cover": covered, "requirements_placed": satisfied, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
+              "gaps": gaps, "crime_maps": crime, "neighbour_cover": covered, "requirements_placed": satisfied, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
               "agent_directed_beats": agent_used, "moment_clips_placed": cut_in, "topical_placed": topical_in, "alternatives": card_seconds_by_kind(timeline), "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
               "reuse": {c: tracker.appearances(c) for c in tracker.facts if tracker.appearances(c) > 1}}
     target.plan_json = json.dumps({"beats": out_beats, "candidates": candidates, "mvp": True},

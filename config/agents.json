@@ -448,6 +448,13 @@
       "description": "Main Visual Planner step 4: graph-aware visual needs per beat.",
       "used_by": "app/documentary/mvp/needs.py"
     },
+    "mvp.crime_scenes": {
+      "role": "mvp_crime_scene_finder",
+      "prompt": "documentary/mvp/crime_scenes_system",
+      "output": "json",
+      "description": "Names the crime scene(s) of a case from the evidence: a street address when the evidence has one, else the town.",
+      "used_by": "app/documentary/mvp/crime_scenes.py"
+    },
     "mvp.verify": {
       "role": "mvp_candidate_verifier",
       "prompt": "documentary/mvp/verify_system",
