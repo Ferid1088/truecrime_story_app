@@ -64,6 +64,21 @@
         "voice_id": "PghkGpDIcnh5M555fvw9",
         "model_id": "eleven_v4",
         "language_code": "tr"
+      },
+      "pt": {
+        "voice_id": "6ZTGklPa8U0kJDUEILeW",
+        "model_id": "eleven_v4",
+        "language_code": "pt"
+      },
+      "fr": {
+        "voice_id": "eZUebR2xvfa9ZVDUpL4j",
+        "model_id": "eleven_v4",
+        "language_code": "fr"
+      },
+      "it": {
+        "voice_id": "F2XgGFev6G3XPUewXB7g",
+        "model_id": "eleven_v4",
+        "language_code": "it"
       }
     },
     "default_style": "neutral_documentary",
