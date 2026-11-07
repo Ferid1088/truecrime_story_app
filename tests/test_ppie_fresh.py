@@ -69,6 +69,15 @@ def versions(db_session):
     db_session.commit()
 
 
+def test_a_spoken_stage_that_reports_no_version_leaves_the_languages_latest_spoken_version_in_use(db_session, versions):
+    """A stage-control rerun marks every stage outside its scope skipped with no result: the film of that language still has its spoken version."""
+    master, made = versions
+    skipped = {"skipped": True, "reason": "outside stage-control preview"}
+    assert J.spoken_version(db_session, master, "de", 1, skipped).id == made["de"][1].id
+    assert J.spoken_version(db_session, master, "de", 1, None).id == made["de"][1].id
+    assert J.spoken_version(db_session, master, "de", 1, {"version_id": made["de"][0].id}).id == made["de"][0].id, "a version the stage reports is the one used"
+
+
 def test_the_approved_spoken_version_is_the_source_and_a_voice_prepare_rewrite_never_is(db_session, versions):
     master, made = versions
     assert J.latest_spoken(db_session, master, "fa", 1).id == made["fa"][0].id, "Persian: the approved text, not the newer rewrite"

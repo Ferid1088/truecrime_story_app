@@ -120,6 +120,13 @@ def latest_spoken(db: Session, master: StoryVersion, language: str,
     return None
 
 
+def spoken_version(db: Session, master: StoryVersion, language: str, blueprint_id: int | None, detail: dict | None) -> StoryVersion | None:
+    """The spoken version of a language for this run: the one its stage reports, else the latest (a stage that did not run, outside a
+    stage-control rerun or kept from an earlier run, reports no version)."""
+    version_id = (detail or {}).get("version_id")
+    return db.get(StoryVersion, version_id) if version_id else latest_spoken(db, master, language, blueprint_id)
+
+
 def estimate_film_minutes(version: StoryVersion, audio_plan: dict | None = None) -> float:
     """Speech at the measured narration speed of the language plus the
     planned breaths and music moments."""
@@ -473,8 +480,7 @@ class DocumentaryPipeline(StageRunner):
                 self.lang_errors[lang] = f"spoken: {type(e).__name__}: {e}"[:400]
                 self._skip_language(lang, "spoken version failed")
                 return
-            spoken[lang] = db.get(StoryVersion, d["version_id"]) if d else latest_spoken(
-                db, master, lang, bp_row.id)
+            spoken[lang] = spoken_version(db, master, lang, bp_row.id, d)
 
         async def mvp_needs():
             from app.documentary.detective import toolkit as TK
