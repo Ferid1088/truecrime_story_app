@@ -276,6 +276,21 @@ def test_a_language_can_shorten_its_breath_pauses_and_its_tail_pad_while_music_m
     assert [round(g, 2) for g in gaps] == [0.5, 0.5, 1.0]
 
 
+def test_a_language_whose_gaps_follow_its_post_speed_plays_every_pause_as_much_faster_as_its_voice(workdir, monkeypatch):
+    monkeypatch.setattr(ai_config.voice, "post_speed", {"en": 1.25})
+    monkeypatch.setattr(ai_config.voice, "post_speed_gaps", ["en"])
+    blocks = [{**_block(f"EN_a_0{i}", "act1", TEXT_A), "pause_after_ms": 1000, "pause_after_kind": kind}
+              for i, kind in enumerate(("paragraph", "chapter_break"))] + [_block("EN_a_02", "act1", TEXT_B)]
+    m = _render(VoiceRenderer(provider=FakeTTS(), asr=FakeASR()), blocks)
+    gaps = [m["timeline"]["blocks"][i + 1]["start"] - m["timeline"]["blocks"][i]["end"] for i in range(2)]
+    assert [round(g, 2) for g in gaps] == [0.8, 0.8] and [b["pause_after_ms"] for b in m["timeline"]["blocks"][:2]] == [800, 800]
+
+
+def test_german_and_arabic_play_their_pauses_1_05_times_faster_and_the_other_languages_keep_theirs():
+    assert ai_config.voice.post_speed_gaps == ["ar", "de"]
+    assert [ai_config.voice.post_speed[lang] for lang in ai_config.voice.post_speed_gaps] == [1.05, 1.05]
+
+
 def test_only_persian_has_shorter_breath_pauses():
     assert ai_config.voice.breath_gap_scale == {"fa": 0.6}
 

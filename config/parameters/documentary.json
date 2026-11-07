@@ -728,6 +728,7 @@
     },
     "tashkeel_vocalize": "all",
     "chunk_blocks": 40,
+    "tashkeel_number_max": 999999999999999,
     "max_rounds": 3,
     "max_writer_retries": 3,
     "checker_mode": "blind",

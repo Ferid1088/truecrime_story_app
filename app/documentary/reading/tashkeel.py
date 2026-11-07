@@ -17,6 +17,7 @@ from pathlib import Path
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.core.prompts import prompt_sha256
+from app.documentary import arabic_numbers as AN
 from app.documentary.reading.ask import ReadingFailed, ask
 from app.documentary.reading.block import BlockInput
 from app.documentary.reading.words import EDGE_PUNCT, VOWEL_MARKS, Word, substitute, tokenize
@@ -207,8 +208,8 @@ class TashkeelStage:
 
 
 class TashkeelVoicing:
-    """What the voice is given of the block: its words with their vowel marks. A word nobody could settle, a number and a block whose words are not the
-    words of its reading stay as written."""
+    """What the voice is given of the block: its words with their vowel marks, and each number in the Arabic words of its value (arabic_numbers.py: the
+    voice reads digits one by one). A word nobody could settle and a block whose words are not the words of its reading stay as written."""
 
     def __init__(self, result: TashkeelResult, vocalize: str | None = None):
         self.result = result
@@ -220,8 +221,10 @@ class TashkeelVoicing:
             log.warning("tashkeel: %s has %d words and %d readings; left as written", block_id, len(words), len(readings or []))
             return {}
         doubted = self.result.doubts.get(block_id, set())
-        return {w.n: r.text for w, r in zip(words, readings, strict=True)
-                if not w.number and w.n not in doubted and bare(r.text) == w.plain and (self.vocalize == "all" or r.flagged())}
+        chosen = {w.n: r.text for w, r in zip(words, readings, strict=True)
+                  if not w.number and w.n not in doubted and bare(r.text) == w.plain and (self.vocalize == "all" or r.flagged())}
+        limit = ai_config.reading.tashkeel_number_max
+        return {**chosen, **{w.n: AN.read(w.surface, limit) for w in words if w.number}}      # a number is said as the words of its value, never digit by digit
 
     def text(self, block_id: str, text: str) -> str:
         return substitute(text, self.chosen(block_id, tokenize(text)))

@@ -140,11 +140,11 @@ def test_a_block_whose_words_are_not_the_words_of_its_reading_is_left_as_written
     assert TK.TashkeelVoicing(result).text("AR_01", "كلمة واحدة فقط") == "كلمة واحدة فقط"
 
 
-def test_a_number_still_in_the_text_is_not_vowelised_and_the_rest_is():
+def test_a_number_still_in_the_text_is_not_sent_to_the_editor_and_the_voice_is_given_its_words():
     text = "رحل بعد 21 ساعة"
     reading = {"words": [{"n": 0, "text": "رَحَلَ"}, {"n": 3, "text": "سَاعَةً"}, {"n": 1, "text": "بَعْدَ"}]}
     result, _ = run_stage(item(text), writer=agent(reading))
-    assert TK.TashkeelVoicing(result).text("AR_01", text) == "رَحَلَ بَعْدَ 21 سَاعَةً"
+    assert TK.TashkeelVoicing(result).text("AR_01", text) == "رَحَلَ بَعْدَ وَاحِد وَعِشْرُون سَاعَةً"
 
 
 def test_a_rerun_with_the_runs_own_cache_pays_nothing_again(tmp_path):

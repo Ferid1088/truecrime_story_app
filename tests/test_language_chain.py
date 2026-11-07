@@ -120,4 +120,4 @@ def test_every_request_has_stability_02_its_own_speed_and_no_persian_post_speed(
     r = chain(language)
     assert r["stability"] == 0.7 and r["language_code"] == language
     assert r["speed"] == ai_config.voice.settings_for(ai_config.voice.default_style, language)["speed"] and r["speed"] != 1.2
-    assert r["post_speed"] == 1.0
+    assert r["post_speed"] == (1.0 if language == "en" else 1.05)

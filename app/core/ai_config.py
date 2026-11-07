@@ -1594,6 +1594,8 @@ class VoiceConfig(BaseModel):
     host_review_languages: list[str] = []
     # The finished narration of a language is played this much faster (pitch kept) after the provider made it: the provider's own speed stops at 1.2.
     post_speed: dict[str, float] = {}
+    # Languages whose pauses between the blocks are played as much faster as their voice (the gap is its planned length divided by the post speed).
+    post_speed_gaps: list[str] = []
     # What every block voiced again from the voice review must carry, per language: the provider's speed and stability and the post speed after it. A block
     # whose settings differ is not sent (nothing is paid): the owner's values are not left to the settings an earlier take happened to have.
     review_required: dict[str, "ReviewRequiredVoice"] = {}
@@ -2482,6 +2484,8 @@ class ReadingConfig(BaseModel):
     # What the voice is given of an Arabic reading: "all" every word with its vowel marks, "flagged" only the words the editor marked ambiguous, a name, or
     # not sure of.
     tashkeel_vocalize: Literal["all", "flagged"] = "all"
+    # The largest number an Arabic reading says as a number (app/documentary/arabic_numbers.py); a larger one, or a code with a leading zero, is said digit by digit.
+    tashkeel_number_max: int = Field(default=10**15 - 1, ge=0)
     # How many blocks the reader takes in one call when it builds the film table (the table of the chunks is merged afterwards).
     chunk_blocks: int = Field(default=40, ge=1)
     # Words (plain form) written with ه whose respelling may still write ح for a consonant h at the end, each with the evidence for that word (heard, with the

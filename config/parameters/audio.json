@@ -156,12 +156,15 @@
       "fa"
     ],
     "post_speed": {
-      "fa": 1.1
+      "fa": 1.1,
+      "ar": 1.05,
+      "de": 1.05
     },
+    "post_speed_gaps": ["ar", "de"],
     "review_required": {
       "fa": {"speed": 1.2, "stability": 0.2, "post_speed": 1.1},
-      "ar": {"speed": 0.9, "stability": 0.7, "post_speed": 1.0},
-      "de": {"speed": 0.9, "stability": 0.7, "post_speed": 1.0},
+      "ar": {"speed": 0.9, "stability": 0.7, "post_speed": 1.05},
+      "de": {"speed": 0.9, "stability": 0.7, "post_speed": 1.05},
       "en": {"speed": 0.9, "stability": 0.7, "post_speed": 1.0}
     },
     "edges": {

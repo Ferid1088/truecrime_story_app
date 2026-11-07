@@ -28,6 +28,7 @@ from pathlib import Path
 
 from app.core.ai_config import ai_config
 from app.core.concurrency import slot
+from app.documentary import arabic_numbers as AN
 from app.documentary import audio as A
 from app.documentary import storage
 from app.documentary.asr import ASRUnavailable, compare_transcript, get_asr
@@ -369,6 +370,8 @@ class VoiceRenderer:
             # harakat added for pronunciation) with what Whisper heard.
             heard_text = await self._heard(wav, meta, meta_path, language)
             expected = block.get("display_text") or block["text"]
+            if ai_config.reading.engines.get(language) == "tashkeel":      # the voice says the words of a number: that is what the check expects
+                expected = AN.spell_digits(expected, ai_config.reading.tashkeel_number_max)
             asr = compare_transcript(expected, heard_text, language, self.asr_cfg)
             asr["heard_text"] = heard_text
         return {
@@ -669,6 +672,8 @@ class VoiceRenderer:
                               else self.cfg.between_sections_ms)
             if i + 1 < len(results) and self.cfg.joins.get(language) and self.cfg.edges.get(language):
                 gap_ms = self.join_gap_ms(language, b, results[i + 1]["block"], gap_ms)
+            if self.narration and language in self.cfg.post_speed_gaps:        # the pauses are played as much faster as the voice
+                gap_ms = round(gap_ms / self.cfg.post_speed.get(language, 1.0))
             timeline_blocks.append({
                 "block_id": b["block_id"], "section_id": b["section_id"],
                 "style": block_style(b),
