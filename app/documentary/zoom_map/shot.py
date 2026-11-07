@@ -154,30 +154,37 @@ def step_times(plan: CAM.ZoomPlan, info: dict, width: int, render) -> list[float
 
 def zoom_shot(plan_shot: dict, assets: dict[str, VisualAsset], language: str) -> dict | None:
     """The fields of a map shot played from its zoom video, or None when the plan's map beat has no
-    zoom video in this language (the old map takes its place and the stage reported why)."""
+    zoom video for this film (the old map takes its place and the stage reported why). The film's own
+    language comes first; every other language otherwise shows the English film's file (`zoom_asset`)."""
     info = plan_shot.get("map_zoom")
     if not info:
         return None
-    key = spec_key(language, info["place"], int(info.get("return") or 0), variant_for(info),
-                   float(info["lat"]), float(info["lon"]))
+    draft = ai_config.language_pipeline.draft_language
+    wanted = [spec_key(lang, info["place"], int(info.get("return") or 0), variant_for(info), float(info["lat"]), float(info["lon"]))
+              for lang in dict.fromkeys([language, draft])]
+    found = {}
     for a in assets.values():
         if a.asset_type != "map" or a.provider != "generated":
             continue
         spec = json.loads(a.spec_json or "{}")
-        if spec.get("key") == key and spec.get("kind") == "zoom":
-            names = info.get("names") or []
-            times = spec.get("step_times") or []
-            reached = [(n, t) for n, t in zip(names, times, strict=False) if t is not None]
-            fields = {
-                "kind": "map", "zoom_video": True, "path": a.local_path, "clip_start": 0.0,
-                "clip_end": spec["seconds"], "asset_id": a.asset_code, "type": "map",
-                "motion": "NONE", "marker": spec.get("marker"), "attribution": spec["attribution"],
-                "map_variant": spec["variant"], "place_name": info.get("place_label") or info["place"]}
-            if reached:
-                fields["panel"] = {"names": [n for n, _ in reached], "step_times": [t for _, t in reached],
-                                   "camera": spec.get("camera") or [], "target": [spec["lat"], spec["lon"]]}
-            return {"fields": fields}
-    return None
+        if spec.get("key") in wanted and spec.get("kind") == "zoom":
+            found.setdefault(spec["key"], (a, spec))
+    key = next((k for k in wanted if k in found), None)
+    if key is None:
+        return None
+    a, spec = found[key]
+    names = info.get("names") or []
+    times = spec.get("step_times") or []
+    reached = [(n, t) for n, t in zip(names, times, strict=False) if t is not None]
+    fields = {
+        "kind": "map", "zoom_video": True, "path": a.local_path, "clip_start": 0.0,
+        "clip_end": spec["seconds"], "asset_id": a.asset_code, "type": "map",
+        "motion": "NONE", "marker": spec.get("marker"), "attribution": spec["attribution"],
+        "map_variant": spec["variant"], "place_name": info.get("place_label") or info["place"]}
+    if reached:
+        fields["panel"] = {"names": [n for n, _ in reached], "step_times": [t for _, t in reached],
+                           "camera": spec.get("camera") or [], "target": [spec["lat"], spec["lon"]]}
+    return {"fields": fields}
 
 
 def fallback_chain(assets: dict[str, VisualAsset], place: str) -> list[VisualAsset]:

@@ -383,8 +383,15 @@ def test_the_plan_shot_finds_its_zoom_video_in_the_films_language():
     assets = {"VIS_000900": fake_asset("en"), "VIS_000901": fake_asset("de", code="VIS_000901")}
     got = SHOT.zoom_shot({"map_zoom": info}, assets, "de")["fields"]
     assert got["asset_id"] == "VIS_000901" and got["zoom_video"] and got["clip_end"] == 8.0
-    assert SHOT.zoom_shot({"map_zoom": info}, assets, "fa") is None          # not made for fa: the old map is used
+    assert SHOT.zoom_shot({"map_zoom": info}, assets, "fa")["fields"]["asset_id"] == "VIS_000900"     # not made for fa: the English film's file
     assert SHOT.zoom_shot({}, assets, "en") is None
+
+
+def test_a_language_without_its_own_zoom_video_shows_the_english_one_and_with_none_at_all_the_old_map():
+    info = {"place": "Fall River", "return": 0, "after": None, "lat": 41.7, "lon": -71.15}
+    got = SHOT.zoom_shot({"map_zoom": info}, {"v": fake_asset("en")}, "ar")["fields"]
+    assert got["asset_id"] == "VIS_000900" and got["zoom_video"]
+    assert SHOT.zoom_shot({"map_zoom": info}, {"v": fake_asset("de", code="VIS_000901")}, "ar") is None
 
 
 def test_the_shot_carries_its_attribution_to_the_screen_and_the_credits():
