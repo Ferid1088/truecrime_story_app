@@ -156,7 +156,7 @@ def test_a_number_still_in_the_text_is_not_sent_to_the_editor_and_the_voice_is_g
     text = "رحل بعد 21 ساعة"
     reading = {"words": [{"n": 0, "text": "رَحَلَ"}, {"n": 3, "text": "سَاعَةً"}, {"n": 1, "text": "بَعْدَ"}]}
     result, _ = run_stage(item(text), writer=agent(reading))
-    assert TK.TashkeelVoicing(result).text("AR_01", text) == "رَحَلَ بَعْدَ وَاحِد وَعِشْرُون سَاعَةً"
+    assert TK.TashkeelVoicing(result).text("AR_01", text) == "رَحَلَ بَعْدَ إِحْدَى وَعِشْرِين سَاعَةً"
 
 
 def test_a_rerun_with_the_runs_own_cache_pays_nothing_again(tmp_path):

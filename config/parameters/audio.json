@@ -178,9 +178,20 @@
     "post_speed": {
       "fa": 1.1,
       "ar": 1.05,
-      "de": 1.05
+      "de": 1.05,
+      "es": 0.9
     },
-    "post_speed_gaps": ["ar", "de"],
+    "post_speed_gaps": ["ar", "de", "es"],
+    "number_max": 999999999999999,
+    "number_words": {
+      "es": {"emergency_numbers": "digits_in_context", "dollar_sign_currency": "peso", "euro_cents": "centimos", "feminine_one_before_thousand": false, "feminine_hundreds_before_thousand": true, "first_of_month_ordinal": true, "marked_ordinals_up_to": 30, "ordinal_centuries_up_to_ten": true, "half_million_as_y_medio": true, "phone_digits_in_pairs": false, "decimal_word": "punto", "time_with_daypart": true},
+      "pt": {"emergency_numbers": "digits_in_context", "feminine_mil": true, "half_hour_as_meia": true, "decimal_cardinal_max_digits": 2, "ordinal_max": 99, "phone_ddd_as_number": true, "six_as_meia": false, "fraction_tens_as_ordinal": true, "bare_dollar_sign": "dollar"},
+      "tr": {"emergency_numbers": "digits_in_context", "phone_numbers": "groups", "decades": "full", "euro_name": "avro", "half_as_bucuk": true, "time_half_as_bucuk": true, "money_with_ve": false, "range_word": "ila", "code_digits_from": 11},
+      "fr": {"year_style": "hundreds_before_1700", "emergency_numbers": "number_always", "time_style": "digits", "three_decimals": "number", "dollar_singular": "dollar", "dollar_plural": "dollars", "mass_word": "kilo", "say_celsius": false, "second_in_fixed_phrases": true, "age_in_parentheses": false, "postal_codes": true},
+      "it": {"emergency_numbers": "digits_in_context", "emergency_context_chars": 40, "symbol_currencies": {"€": "euro", "$": "dollaro", "£": "sterlina", "L.": "lira", "Lit.": "lira"}, "kilogram_word": "chili", "elide_tens_before_anni": false, "space_thousands": true, "decimals_as_number_up_to": 2, "half_as_mezzo": true, "quarter_and_half": true},
+      "ar": {"emergency_numbers": "digits_in_context", "month_names": "gulf_egypt", "percent_word": "بالمئة", "pound_symbol": "sterling", "case_from_context": true, "day_parts": true, "ordinal_dates": true, "currency_subunits": true},
+      "de": {"emergency_numbers": "digits_in_context", "digit_two": "zwei", "dollar_name": "Dollar", "toll_free_as_number": true, "half_as_einhalb": true, "round_the_clock": "vierundzwanzig sieben", "paragraph_word": "Paragraf", "roman_numerals": true, "years_2000s": "cardinal", "cents_below_ten": "bare", "postcodes_digit_by_digit": true}
+    },
     "review_required": {
       "fa": {"speed": 1.2, "stability": 0.2, "post_speed": 1.1},
       "ar": {"speed": 0.9, "stability": 0.7, "post_speed": 1.05},

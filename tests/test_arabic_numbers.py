@@ -6,6 +6,7 @@ from app.core.ai_config import ai_config
 from app.documentary import arabic_numbers as AN
 from app.documentary.reading.tashkeel import TashkeelResult, TashkeelVoicing, VocalWord
 from app.documentary.reading.words import tokenize
+from app.documentary.spoken_numbers.ar import Numbers
 
 BIG = ai_config.reading.tashkeel_number_max
 
@@ -41,8 +42,25 @@ def test_a_code_with_a_leading_zero_and_a_number_above_the_limit_are_said_digit_
     assert AN.bare(AN.read("123", 99)) == "واحد اثنان ثلاثة"
 
 
-def test_the_speech_check_expects_the_words_where_the_story_shows_digits():
-    assert AN.spell_digits("في فبراير 2026، وصل اتصال إلى 911.", BIG) == "في فبراير ألفان وستة وعشرون، وصل اتصال إلى تسعمئة وأحد عشر."
+def test_the_speech_check_expects_the_plain_words_where_the_story_shows_digits():
+    check = Numbers({}, BIG, vowelled=False)
+    assert check.text("في فبراير 2026، وصل اتصال إلى 911.") == "في فبراير ألفين وستة وعشرين، وصل اتصال إلى تسعمئة وأحد عشر."
+
+
+def test_the_speech_check_does_not_strip_the_vowel_marks_of_the_story_words():
+    assert Numbers({}, BIG, vowelled=False).text("كَتَبَ 911") == "كَتَبَ تسعمئة وأحد عشر"
+
+
+@pytest.mark.parametrize("n, plain", [(102000, "مئة ألف وألفان"), (101000, "مئة ألف وألف"), (103000, "مئة وثلاثة آلاف"), (234000, "مئتان وأربعة وثلاثون ألف"),
+                                       (1234567, "مليون ومئتان وأربعة وثلاثون ألف وخمسمئة وسبعة وستون")])
+def test_a_count_of_a_hundred_or_more_before_a_scale_follows_its_last_two_digits(n, plain):
+    assert AN.bare(AN.to_words(n)) == plain
+
+
+@pytest.mark.parametrize("n, feminine, oblique, plain", [(15, True, False, "خمس عشرة"), (21, True, False, "إحدى وعشرون"), (2007, False, True, "ألفين وسبعة"),
+                                                           (12, False, True, "اثني عشر"), (12, True, False, "اثنتا عشرة"), (200, False, True, "مئتين")])
+def test_a_cardinal_takes_the_gender_and_the_case_it_is_given(n, feminine, oblique, plain):
+    assert AN.bare(AN.to_words(n, AN.Form(feminine=feminine, oblique=oblique))) == plain
 
 
 def _voicing(text):
@@ -52,10 +70,15 @@ def _voicing(text):
 
 
 def test_the_voice_is_given_the_words_of_a_number_and_the_rest_of_the_block_as_before():
-    text = "اتصل برقم الطوارئ 911 في فبراير 2026."
+    text = "وصل اتصال إلى 911 في فبراير 2026."
     voiced = _voicing(text).text("B1", text)
     assert "911" not in voiced and "2026" not in voiced
-    assert AN.bare(voiced) == "اتصل برقم الطوارئ تسعمئة وأحد عشر في فبراير ألفان وستة وعشرون."
+    assert AN.bare(voiced) == "وصل اتصال إلى تسعمئة وأحد عشر في فبراير ألفين وستة وعشرين."
+
+
+def test_an_emergency_number_named_as_one_is_given_to_the_voice_digit_by_digit():
+    text = "اتصل برقم الطوارئ 911."
+    assert AN.bare(_voicing(text).text("B1", text)) == "اتصل برقم الطوارئ تسعة واحد واحد."
 
 
 def test_the_story_text_keeps_its_digits():

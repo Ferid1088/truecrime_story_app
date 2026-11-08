@@ -1610,6 +1610,9 @@ class VoiceConfig(BaseModel):
     post_speed: dict[str, float] = {}
     # Languages whose pauses between the blocks are played as much faster as their voice (the gap is its planned length divided by the post speed).
     post_speed_gaps: list[str] = []
+    # Languages whose voice is given the words of every number (the voice reads digits one by one) and the largest number said as a number.
+    number_words: dict[str, dict] = {}
+    number_max: int = Field(default=10**15 - 1, ge=0)
     # What every block voiced again from the voice review must carry, per language: the provider's speed and stability and the post speed after it. A block
     # whose settings differ is not sent (nothing is paid): the owner's values are not left to the settings an earlier take happened to have.
     review_required: dict[str, "ReviewRequiredVoice"] = {}

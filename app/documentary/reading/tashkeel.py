@@ -17,10 +17,10 @@ from pathlib import Path
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.core.prompts import prompt_sha256
-from app.documentary import arabic_numbers as AN
 from app.documentary.reading.ask import ReadingFailed, ask
 from app.documentary.reading.block import BlockInput
 from app.documentary.reading.words import EDGE_PUNCT, VOWEL_MARKS, Word, substitute, tokenize
+from app.documentary.spoken_numbers.ar import Numbers
 
 log = logging.getLogger(__name__)
 
@@ -214,12 +214,14 @@ class TashkeelStage:
 
 
 class TashkeelVoicing:
-    """What the voice is given of the block: its words with their vowel marks, and each number in the Arabic words of its value (arabic_numbers.py: the
-    voice reads digits one by one). A word nobody could settle and a block whose words are not the words of its reading stay as written."""
+    """What the voice is given of the block: its words with their vowel marks, and then every number of that text in the Arabic words a narrator says for it
+    (spoken_numbers/ar.py reads each number in its context: the voice reads digits one by one). A word nobody could settle and a block whose words are not
+    the words of its reading stay as written."""
 
     def __init__(self, result: TashkeelResult, vocalize: str | None = None):
         self.result = result
         self.vocalize = vocalize or ai_config.reading.tashkeel_vocalize
+        self.numbers = Numbers(ai_config.voice.number_words["ar"], ai_config.reading.tashkeel_number_max)
 
     def chosen(self, block_id: str, words: list[Word]) -> dict[int, str]:
         readings = self.result.readings.get(block_id)
@@ -229,8 +231,7 @@ class TashkeelVoicing:
         doubted = self.result.doubts.get(block_id, set())
         chosen = {w.n: r.text for w, r in zip(words, readings, strict=True)
                   if not w.number and w.n not in doubted and bare(r.text) == w.plain and (self.vocalize == "all" or r.flagged())}
-        limit = ai_config.reading.tashkeel_number_max
-        return {**chosen, **{w.n: AN.read(w.surface, limit) for w in words if w.number}}      # a number is said as the words of its value, never digit by digit
+        return chosen
 
     def text(self, block_id: str, text: str) -> str:
-        return substitute(text, self.chosen(block_id, tokenize(text)))
+        return self.numbers.text(substitute(text, self.chosen(block_id, tokenize(text))))      # a number is said as words, never digit by digit

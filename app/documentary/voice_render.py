@@ -28,9 +28,10 @@ from pathlib import Path
 
 from app.core.ai_config import ai_config
 from app.core.concurrency import slot
-from app.documentary import arabic_numbers as AN
 from app.documentary import audio as A
 from app.documentary import storage
+from app.documentary.spoken_numbers import LanguageNumbers, reader_for
+from app.documentary.spoken_numbers.ar import Numbers as ArabicNumbers
 from app.documentary.asr import ASRUnavailable, compare_transcript, get_asr
 from app.documentary.pronunciation_trace import BlockDictionaries, Trace
 from app.documentary.reading.words import key_of
@@ -197,6 +198,7 @@ class VoiceRenderer:
         self.trace = Trace(None)                  # what every take was sent with
         self.reviewer = None                      # the semantic audio reviewer (semantic_review.Reviewer) of a reviewed language
         self.seed_bumps: dict[str, int] = {}      # block -> retakes already made by the reading loop (each is a new seed)
+        self.number_readers: dict[str, LanguageNumbers] = {}
         self.voicing = None                       # the reading loop's Voicing of a language it covers: the fixed words go to the voice as IPA
         self.planner = None                       # the risk engine and the intervention planner of that language: what each word is given, and why
         self.narration = False                    # set while the film's narration is rendered: only it gets the language's post speed
@@ -237,6 +239,21 @@ class VoiceRenderer:
         path = out / "pronunciation_plan.json"
         storage.write_atomic(path, json.dumps(self.planner.report(), ensure_ascii=False, indent=1))
         return str(path)
+
+    def says_numbers(self, language: str) -> bool:
+        """A language with a number reader of its own in config voice.number_words, except one whose reading engine voices its numbers (Arabic's tashkeel)."""
+        return language in self.cfg.number_words and ai_config.reading.engines.get(language) != "tashkeel"
+
+    def check_numbers(self, language: str) -> LanguageNumbers | None:
+        """The reader that puts numbers in words for the speech check (Arabic's without vowel marks, as the check compares bare words)."""
+        if ai_config.reading.engines.get(language) == "tashkeel":
+            return ArabicNumbers(self.cfg.number_words["ar"], ai_config.reading.tashkeel_number_max, vowelled=False)
+        return self.numbers(language) if language in self.cfg.number_words else None
+
+    def numbers(self, language: str) -> LanguageNumbers:
+        if language not in self.number_readers:
+            self.number_readers[language] = reader_for(language, self.cfg.number_words[language], self.cfg.number_max)
+        return self.number_readers[language]
 
     def prepared(self, language: str) -> bool:
         """Whether the language's requests carry the film's pronunciation dictionary (never for a PPIE language: only the planner prepares its text)."""
@@ -370,9 +387,10 @@ class VoiceRenderer:
             # harakat added for pronunciation) with what Whisper heard.
             heard_text = await self._heard(wav, meta, meta_path, language)
             expected = block.get("display_text") or block["text"]
-            if ai_config.reading.engines.get(language) == "tashkeel":      # the voice says the words of a number: that is what the check expects
-                expected = AN.spell_digits(expected, ai_config.reading.tashkeel_number_max)
-            asr = compare_transcript(expected, heard_text, language, self.asr_cfg)
+            heard_checked, reader = heard_text, self.check_numbers(language)
+            if reader is not None:      # the voice says the words of a number: that is what the check expects, and what Whisper heard is put in words the same way
+                expected, heard_checked = reader.text(expected), reader.text(heard_text)
+            asr = compare_transcript(expected, heard_checked, language, self.asr_cfg)
             asr["heard_text"] = heard_text
         return {
             "cache_key": key, "cache_hit": cache_hit, "seed": req.seed,
@@ -449,6 +467,8 @@ class VoiceRenderer:
         if occurrences and self.listener() is None:
             occurrences = []
         text = scrub_forbidden(b.get("tts_text") or b["text"])
+        if self.says_numbers(language):      # a voice reads digits one by one: it is given the words of the number
+            text = self.numbers(language).text(text)
         planned_rules: list[dict] = []
         if self.voicing is not None and self.planner is not None:
             plan = self.planner.plan(b["block_id"], text, self.voicing, allow_dictionary=prepared and bool(self.dictionaries),

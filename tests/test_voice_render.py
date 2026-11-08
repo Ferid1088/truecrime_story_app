@@ -286,9 +286,9 @@ def test_a_language_whose_gaps_follow_its_post_speed_plays_every_pause_as_much_f
     assert [round(g, 2) for g in gaps] == [0.8, 0.8] and [b["pause_after_ms"] for b in m["timeline"]["blocks"][:2]] == [800, 800]
 
 
-def test_german_and_arabic_play_their_pauses_1_05_times_faster_and_the_other_languages_keep_theirs():
-    assert ai_config.voice.post_speed_gaps == ["ar", "de"]
-    assert [ai_config.voice.post_speed[lang] for lang in ai_config.voice.post_speed_gaps] == [1.05, 1.05]
+def test_german_and_arabic_play_pauses_1_05_times_faster_and_spanish_0_9_times_slower():
+    assert ai_config.voice.post_speed_gaps == ["ar", "de", "es"]
+    assert {lang: ai_config.voice.post_speed[lang] for lang in ai_config.voice.post_speed_gaps} == {"ar": 1.05, "de": 1.05, "es": 0.9}
 
 
 def test_only_persian_has_shorter_breath_pauses():
@@ -505,3 +505,35 @@ def test_a_take_is_transcribed_once_and_its_check_is_redone_with_todays_rules(wo
     again = _render(VoiceRenderer(provider=FakeTTS(), asr=asr), blocks)
     assert asr.calls == 2                                          # same audio, language and model: not heard again
     assert all(b["asr"]["passed"] and b["asr"]["heard_text"] for b in again["blocks"])
+
+
+def test_a_language_with_a_number_layer_gives_the_voice_the_words_of_a_number_and_the_speech_check_expects_them(workdir):
+    text = "Ella revisó 911 casos el 13 de noviembre de 2007 desde la casa vacía."
+    said = "Ella revisó novecientos once casos el trece de noviembre de dos mil siete desde la casa vacía."
+    tts = FakeTTS()
+    renderer = VoiceRenderer(provider=tts, asr=FakeASR(), use_asr=True)
+    plan = {"language": "es", "blocks": [_block("ES_a_01", "act1", text)]}
+    m = asyncio.run(renderer.render(plan, case_id=7, story_version_id=3))
+    assert [r.text for r in tts.requests] == [said]
+    assert m["blocks"][0]["asr"]["passed"] and m["blocks"][0]["tts_text"] == said
+
+
+class DigitWritingASR(FakeASR):
+    """Whisper writes the numbers it hears as digits ("dieciséis" as "16"), however the script spelled them."""
+
+    def transcribe(self, audio_path: str, language: str) -> dict:
+        heard = super().transcribe(audio_path, language)
+        digits = {"novecientos once": "911", "trece": "13", "dos mil siete": "2007"}
+        text = heard["text"]
+        for words, number in digits.items():
+            text = text.replace(words, number)
+        return {**heard, "text": text}
+
+
+def test_a_number_whisper_writes_in_digits_is_checked_against_the_words_the_voice_said(workdir):
+    text = "Ella revisó 911 casos el 13 de noviembre de 2007 desde la casa vacía."
+    renderer = VoiceRenderer(provider=FakeTTS(), asr=DigitWritingASR(), use_asr=True)
+    plan = {"language": "es", "blocks": [_block("ES_a_01", "act1", text)]}
+    m = asyncio.run(renderer.render(plan, case_id=7, story_version_id=3))
+    asr = m["blocks"][0]["asr"]
+    assert "911" in asr["heard_text"] and asr["passed"] and asr["word_error_rate"] == 0
