@@ -383,15 +383,17 @@ def test_the_plan_shot_finds_its_zoom_video_in_the_films_language():
     assets = {"VIS_000900": fake_asset("en"), "VIS_000901": fake_asset("de", code="VIS_000901")}
     got = SHOT.zoom_shot({"map_zoom": info}, assets, "de")["fields"]
     assert got["asset_id"] == "VIS_000901" and got["zoom_video"] and got["clip_end"] == 8.0
-    assert SHOT.zoom_shot({"map_zoom": info}, assets, "fa")["fields"]["asset_id"] == "VIS_000900"     # not made for fa: the English film's file
+    assert SHOT.zoom_shot({"map_zoom": info}, assets, "fa") is None     # not made for fa: the old map, never another language's file
     assert SHOT.zoom_shot({}, assets, "en") is None
 
 
-def test_a_language_without_its_own_zoom_video_shows_the_english_one_and_with_none_at_all_the_old_map():
+@pytest.mark.parametrize("language", ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"])
+def test_every_language_plays_only_the_zoom_video_made_in_its_own_language(language):
     info = {"place": "Fall River", "return": 0, "after": None, "lat": 41.7, "lon": -71.15}
-    got = SHOT.zoom_shot({"map_zoom": info}, {"v": fake_asset("en")}, "ar")["fields"]
-    assert got["asset_id"] == "VIS_000900" and got["zoom_video"]
-    assert SHOT.zoom_shot({"map_zoom": info}, {"v": fake_asset("de", code="VIS_000901")}, "ar") is None
+    own = {"v": fake_asset(language, code="VIS_000950")}
+    other = "de" if language != "de" else "en"
+    assert SHOT.zoom_shot({"map_zoom": info}, own, language)["fields"]["asset_id"] == "VIS_000950"
+    assert SHOT.zoom_shot({"map_zoom": info}, {"v": fake_asset(other, code="VIS_000951")}, language) is None
 
 
 def test_the_shot_carries_its_attribution_to_the_screen_and_the_credits():
@@ -512,3 +514,28 @@ def test_a_place_name_that_is_not_a_place_of_its_own_falls_back_to_the_street_an
     found = asyncio.run(maps.geocode("Cunningham Court Residence, Ohio, United States"))
     assert found["lat"] == 39.9 and asked == ["Cunningham Court Residence, Ohio, United States",
                                               "Cunningham Court, Ohio, United States"]
+
+
+@pytest.mark.parametrize("language", ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"])
+def test_every_language_renders_its_own_map_with_labels_in_that_language(db_session, tmp_path, monkeypatch, language):
+    import asyncio
+    from uuid import uuid4
+
+    from app.db.models import Case
+    from app.documentary.zoom_map import labels as LAB
+
+    case = Case(canonical_title="Maps", slug=f"zm-{uuid4().hex[:8]}", language="en")
+    db_session.add(case)
+    db_session.commit()
+    seen = []
+
+    async def renderer(plan, case_id, extract, out, lang, *args, **kwargs):
+        seen.append(lang)
+        raise SHOT.RENDER.RenderError("stop here")
+
+    monkeypatch.setattr(SHOT.RUNTIME, "missing", lambda cfg: [])
+    monkeypatch.setattr(SHOT.DATA, "ensure_extract", lambda *a, **k: {"path": str(tmp_path)})
+    info = {"place": "Tipp City", "lat": 39.96, "lon": -84.19, "granularity": "city", "return": 0}
+    with pytest.raises(SHOT.ZoomMapUnavailable, match="stop here"):
+        asyncio.run(SHOT.zoom_asset(db_session, case, language, info, renderer=renderer))
+    assert seen == [language] and LAB.chain(language)[0] == f"name:{language}"

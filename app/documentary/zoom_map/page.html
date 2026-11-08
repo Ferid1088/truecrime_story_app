@@ -36,8 +36,8 @@ function labelled(layer, cfg) {
     layer.paint['text-halo-color'] = cfg.labelHalo;
     layer.paint['text-halo-width'] = cfg.labelHaloWidth;
     layer.paint['text-halo-blur'] = 0;
-    // bold letters (the fonts of Persian and Arabic have one weight)
-    if (['en', 'de'].includes(cfg.lang)) layer.layout['text-font'] = ['Noto Sans Medium'];
+    // bold letters (the fonts of the right-to-left scripts have one weight)
+    if (!cfg.rtl) layer.layout['text-font'] = ['Noto Sans Medium'];
     if (layer.layout['text-size'] !== undefined) layer.layout['text-size'] = scaled(layer.layout['text-size'], cfg.labelScale);
   }
   // over the photographs the roads are thin light lines (the photograph shows the road), not dark bands

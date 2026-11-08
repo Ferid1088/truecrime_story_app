@@ -49,7 +49,7 @@ def page_config(cfg: ZoomMapConfig, plan: CAM.ZoomPlan, language: str, entries: 
     best = max((e.zoom_max for e in entries), default=None)
     return {
         "lang": language, "flavor": style["flavor"], "background": style["background"],
-        "textField": LAB.text_field(language, cfg),
+        "textField": LAB.text_field(language, cfg), "rtl": LAB.is_rtl(language, cfg),
         "fadeLevels": cfg.imagery_fade_levels, "dim": cfg.imagery_dim,
         "imageryEnd": (best - 1) if best is not None else -1.0,
         "buildingOpacity": style["building_opacity"], "buildingColor": style["building_color"],

@@ -75,13 +75,7 @@ async def zoom_asset(db: Session, case: Case, language: str, info: dict,
     key = spec_key(language, place, returns, variant, float(info["lat"]), float(info["lon"]))
     existing = find(db, case.id, key)
     if existing is not None and Path(storage.ROOT / (existing.local_path or "")).exists():
-        return existing          # a map already made for this language (or the English film's own) is used
-    draft = ai_config.language_pipeline.draft_language
-    if language != draft:           # every other language shows the English film's map file: no new map is rendered for it
-        english = find(db, case.id, spec_key(draft, place, returns, variant, float(info["lat"]), float(info["lon"])))
-        if english is not None and Path(storage.ROOT / (english.local_path or "")).exists():
-            return english
-        raise ZoomMapUnavailable("the English film's map of this place is not made yet")
+        return existing          # the map already made for this language is used
     missing = RUNTIME.missing(cfg)
     if missing:
         raise ZoomMapUnavailable(f"map runtime missing: {', '.join(missing)}")
@@ -154,14 +148,11 @@ def step_times(plan: CAM.ZoomPlan, info: dict, width: int, render) -> list[float
 
 def zoom_shot(plan_shot: dict, assets: dict[str, VisualAsset], language: str) -> dict | None:
     """The fields of a map shot played from its zoom video, or None when the plan's map beat has no
-    zoom video for this film (the old map takes its place and the stage reported why). The film's own
-    language comes first; every other language otherwise shows the English film's file (`zoom_asset`)."""
+    zoom video of the film's own language (the old map takes its place and the stage reported why)."""
     info = plan_shot.get("map_zoom")
     if not info:
         return None
-    draft = ai_config.language_pipeline.draft_language
-    wanted = [spec_key(lang, info["place"], int(info.get("return") or 0), variant_for(info), float(info["lat"]), float(info["lon"]))
-              for lang in dict.fromkeys([language, draft])]
+    wanted = [spec_key(language, info["place"], int(info.get("return") or 0), variant_for(info), float(info["lat"]), float(info["lon"]))]
     found = {}
     for a in assets.values():
         if a.asset_type != "map" or a.provider != "generated":
