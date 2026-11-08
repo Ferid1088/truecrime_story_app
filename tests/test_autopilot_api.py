@@ -7,8 +7,7 @@ from app import worker as W
 from app.autopilot import service as SV
 from app.autopilot import state as S
 from app.autopilot.publish import PlannedRequest, store_requests
-from app.db.models import AutopilotRun, DiscoveryCandidate
-from app.services import research_jobs
+from app.db.models import AutopilotRun, Case
 from app.utils import utc_now
 
 LANGS = ["en", "de", "fa", "ar"]
@@ -17,71 +16,59 @@ LANGS = ["en", "de", "fa", "ar"]
 @pytest.fixture(autouse=True)
 def no_launch(monkeypatch):
     monkeypatch.setattr(SV, "launch", lambda run_id: None)
-    monkeypatch.setattr("app.autopilot.production.name_approved", lambda db, case: True)     # the name gate has its own tests
 
 
 @pytest.fixture
-def candidate(db_session):
-    job = research_jobs.create_job(db_session, job_type="discovery",
-                                   input_data={"count": 1, "languages": ["en"]})
-    row = DiscoveryCandidate(title="Autopilot api case", query="q", rationale="why",
-                             fingerprint="fp-autopilot-api", state="suggested",
-                             discovery_job_id=job.id, resolution_status="SOLVED")
+def case(db_session):
+    for stale in db_session.query(Case).filter_by(slug="autopilot-api-case").all():
+        _delete_case_tree(db_session, stale.id)
+    row = Case(canonical_title="Autopilot api case", slug="autopilot-api-case", language="en")
     db_session.add(row)
     db_session.commit()
-    candidate_id = row.id
-    yield candidate_id
+    yield row
     db_session.expire_all()
-    case_id = db_session.query(DiscoveryCandidate.case_id).filter_by(id=candidate_id).scalar()
-    if case_id:
-        _delete_case_tree(db_session, case_id)
-    db_session.query(DiscoveryCandidate).filter_by(id=candidate_id).delete()
-    db_session.commit()
+    _delete_case_tree(db_session, row.id)
 
 
-def test_the_estimate_endpoint_prints_cap_and_expected_cost(client, candidate):
-    body = client.get(f"/api/autopilot/estimate?candidate_id={candidate}").json()
-    assert body["languages"] == LANGS and body["estimated_eur"] > 0 and body["cap_eur"] > 0
+def make_run(db, case) -> AutopilotRun:
+    run = AutopilotRun(case_id=case.id, languages_json=json.dumps(LANGS), steps_json=json.dumps(S.initial_steps()))
+    db.add(run)
+    db.commit()
+    return run
 
 
-def test_start_returns_the_run_and_lists_it(client, candidate):
-    r = client.post("/api/autopilot/runs", json={"candidate_id": candidate, "languages": LANGS})
-    assert r.status_code == 201
-    run = r.json()
-    assert run["status"] == "running" and run["case"]["title"] == "Autopilot api case"
-    assert [s["name"] for s in run["steps"]][0] == "case"
-    assert client.get(f"/api/autopilot/runs/{run['id']}").json()["id"] == run["id"]
-    assert run["id"] in [x["id"] for x in client.get("/api/autopilot/runs").json()["runs"]]
-
-
-def test_a_refused_start_says_why_and_a_missing_candidate_is_404(client, candidate):
-    r = client.post("/api/autopilot/runs", json={"candidate_id": candidate, "languages": ["de"]})
-    assert r.status_code == 409 and "English" in r.json()["detail"]
-    assert client.post("/api/autopilot/runs",
-                       json={"candidate_id": 99999999, "languages": LANGS}).status_code == 409
+def test_a_run_is_shown_by_id_and_listed(client, db_session, case):
+    run = make_run(db_session, case)
+    body = client.get(f"/api/autopilot/runs/{run.id}").json()
+    assert body["status"] == "running" and body["case"]["title"] == "Autopilot api case"
+    assert [s["name"] for s in body["steps"]][0] == "case"
+    assert run.id in [x["id"] for x in client.get("/api/autopilot/runs").json()["runs"]]
     assert client.get("/api/autopilot/runs/99999999").status_code == 404
 
 
-def test_cancel_marks_the_run_cancelled(client, candidate):
-    run = client.post("/api/autopilot/runs",
-                      json={"candidate_id": candidate, "languages": LANGS}).json()
-    assert client.post(f"/api/autopilot/runs/{run['id']}/cancel").json()["status"] == "cancelled"
+def test_the_old_suggestion_start_routes_are_gone(client):
+    assert client.post("/api/autopilot/runs", json={"candidate_id": 1, "languages": LANGS}).status_code == 405
+    assert client.get("/api/autopilot/estimate?candidate_id=1").status_code == 404
+    assert client.get("/api/autopilot/outfit-options?candidate_id=1").status_code == 404
 
 
-def test_the_publish_requests_are_listed_with_their_schedule(client, db_session, candidate):
-    run = client.post("/api/autopilot/runs",
-                      json={"candidate_id": candidate, "languages": LANGS}).json()
-    case_id = run["case"]["id"]
-    store_requests(db_session, run["id"], case_id, [PlannedRequest(
+def test_cancel_marks_the_run_cancelled(client, db_session, case):
+    run = make_run(db_session, case)
+    assert client.post(f"/api/autopilot/runs/{run.id}/cancel").json()["status"] == "cancelled"
+
+
+def test_the_publish_requests_are_listed_with_their_schedule(client, db_session, case):
+    run = make_run(db_session, case)
+    store_requests(db_session, run.id, case.id, [PlannedRequest(
         "film", "en", "youtube", None, utc_now(), {"title": "T", "sent": False})])
-    body = client.get(f"/api/autopilot/runs/{run['id']}/publish-requests").json()
+    body = client.get(f"/api/autopilot/runs/{run.id}/publish-requests").json()
     assert body["sent"] == 0 and len(body["requests"]) == 1
     row = body["requests"][0]
     assert row["status"] == "dry_run" and row["request"]["title"] == "T" and row["scheduled_for"]
 
 
-def test_a_worker_tick_drives_every_active_run_once(db_session, candidate):
-    run = SV.start_run(db_session, candidate, LANGS)
+def test_a_worker_tick_drives_every_active_run_once(db_session, case):
+    run = make_run(db_session, case)
     seen = []
 
     async def fake(run_id):

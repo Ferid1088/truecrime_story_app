@@ -72,6 +72,7 @@ def view(db: Session, case: Case) -> dict:
         "required_language": ai_config.language_pipeline.draft_language,
         "languages": chosen, "saved": saved is not None,
         "outfits": [documentary_outfits.choice_options(db, case.id, lang) for lang in allowed_languages()],
+        "estimate": SV.estimate_for_case(db, case, saved) if saved else None,
         "blockers": blockers(db, case),
         "run": SV.run_view(db, run) if run is not None else None,
     }
@@ -104,7 +105,7 @@ def start(db: Session, case: Case) -> AutopilotRun:
         raise SV.StartError(" ".join(reasons))
     languages = saved_languages(db, case) or []
     run = AutopilotRun(case_id=case.id, candidate_id=None, languages_json=json.dumps(languages), status="running",
-                       steps_json=json.dumps(S.initial_steps()), estimate_json=json.dumps({}))
+                       steps_json=json.dumps(S.initial_steps()), estimate_json=json.dumps(SV.estimate_for_case(db, case, languages)))
     db.add(run)
     db.commit()
     db.refresh(run)

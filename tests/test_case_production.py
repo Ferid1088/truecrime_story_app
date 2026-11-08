@@ -124,25 +124,3 @@ def test_a_language_whose_library_has_no_usable_outfit_shows_no_choices_instead_
     rows = {row["language"]: row for row in PR.view(db_session, case)["outfits"]}
     assert rows["fr"]["options"] == [] and rows["en"]["options"]
 
-
-def test_the_suggestion_start_button_cannot_bypass_the_name_approval(db_session):
-    from app.db.models import DiscoveryCandidate
-    from app.services import research_jobs
-
-    job = research_jobs.create_job(db_session, job_type="discovery", input_data={"count": 1, "languages": ["en"]})
-    cand = DiscoveryCandidate(title="Gate case", query="q", rationale="why", fingerprint="fp-name-gate", state="suggested",
-                              discovery_job_id=job.id, resolution_status="SOLVED")
-    db_session.add(cand)
-    db_session.commit()
-    cand_id = cand.id
-    try:
-        with pytest.raises(SV.StartError, match="English name is not approved"):
-            SV.start_run(db_session, cand_id, ["en", "de"])
-        assert db_session.query(AutopilotRun).filter_by(candidate_id=cand_id).count() == 0
-    finally:
-        db_session.expire_all()
-        case_id = db_session.query(DiscoveryCandidate.case_id).filter_by(id=cand_id).scalar()
-        if case_id:
-            _delete_case_tree(db_session, case_id)
-        db_session.query(DiscoveryCandidate).filter_by(id=cand_id).delete()
-        db_session.commit()

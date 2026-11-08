@@ -13,26 +13,33 @@ from app.db.models import (
     AutopilotRun,
     Case,
     CaseTitleCandidate,
-    DiscoveryCandidate,
     DocumentaryJob,
-    HostOutfit,
     PublishRequest,
 )
 from app.documentary import jobs as documentary_jobs
 from app.documentary import outfits as documentary_outfits
-from app.lifecycle.candidates import open_case_from_candidate
-from app.lifecycle.identity import IdentityIndex, candidate_identity
 from app.services.budget import BudgetService
 from app.services.cost_model import documentary_estimate
 from app.utils import utc_now
 
-BLOCKED_STATES = ("archived", "deleted", "ignored", "duplicate", "filtered")
 ACTIVE_RUN = ("running", "waiting_owner")
 FILM_ACTIVE = ("queued", "running", "cancelling")
 
 
 class StartError(ValueError):
     """The Start button was refused; the message says why in plain words."""
+
+
+def estimate_for_case(db: Session, case: Case, languages: list[str]) -> dict:
+    """What the saved languages would cost, from the same model the documentary dry run uses."""
+    result = documentary_estimate(db, case, languages)
+    research = sum(line["eur"]["expected"] for line in result["lines"]
+                   if line["stage"] in ("visual_search", "visual_check", "visual_second_pass"))
+    return {"languages": languages, "cap_eur": float(ai_config.budget.total_cap_eur),
+            "estimated_eur": result["totals"]["expected"], "visual_research_eur": round(research, 2),
+            "range_eur": {"low": result["totals"]["low"], "high": result["totals"]["high"]},
+            "pricing_last_verified": result["pricing_last_verified"],
+            "price_warnings": result["price_warnings"]}
 
 
 def default_languages() -> list[str]:
@@ -51,42 +58,6 @@ def check_languages(languages: list[str]) -> list[str]:
     if unknown:
         raise StartError(f"Not a language of the autopilot: {', '.join(unknown)}.")
     return [lang for lang in cfg.languages if lang in chosen]
-
-
-def estimate_for_candidate(db: Session, cand: DiscoveryCandidate, languages: list[str]) -> dict:
-    """What a run would cost, from the same model the documentary dry run uses. A suggestion has
-    no case yet, so the estimate is made for an empty case: no row is created."""
-    langs = check_languages(languages)
-    case = Case(canonical_title=cand.title, slug="estimate", language="en")
-    result = documentary_estimate(db, case, langs)
-    research = sum(line["eur"]["expected"] for line in result["lines"]
-                   if line["stage"] in ("visual_search", "visual_check", "visual_second_pass"))
-    return {"languages": langs, "cap_eur": float(ai_config.budget.total_cap_eur),
-            "estimated_eur": result["totals"]["expected"], "visual_research_eur": round(research, 2),
-            "range_eur": {"low": result["totals"]["low"], "high": result["totals"]["high"]},
-            "pricing_last_verified": result["pricing_last_verified"],
-            "price_warnings": result["price_warnings"]}
-
-
-def _outfit_option_key(outfit: HostOutfit) -> str:
-    return f"existing:{outfit.id}"
-
-
-def outfit_options_for_candidate(db: Session, cand: DiscoveryCandidate,
-                                 languages: list[str]) -> dict:
-    """List the outfit choices shown before an Autopilot run starts.
-
-    A candidate may not have a case yet.  In that situation the choices come
-    from the shared, language-specific outfit registry and are materialised as
-    case outfits only when the user starts the run.
-    """
-    langs = check_languages(languages)
-    case = db.get(Case, cand.case_id) if cand.case_id else None
-    result = []
-    for lang in langs:
-        result.append(documentary_outfits.choice_options(db, case.id if case else None, lang))
-    return {"candidate_id": cand.id, "case_id": case.id if case else None,
-            "languages": result}
 
 
 def apply_outfit_choices(db: Session, case: Case, languages: list[str],
@@ -118,42 +89,6 @@ def apply_outfit_choices(db: Session, case: Case, languages: list[str],
             documentary_outfits.apply_choice(db, case.id, lang, key, item_ids, "autopilot_start")
         except documentary_outfits.OutfitError as exc:
             raise StartError(str(exc)) from exc
-
-
-def start_run(db: Session, candidate_id: int, languages: list[str],
-              outfits: dict[str, str] | None = None,
-              outfit_photos: dict[str, list[int]] | None = None) -> AutopilotRun:
-    cand = db.get(DiscoveryCandidate, candidate_id)
-    if cand is None:
-        raise StartError("That suggestion does not exist.")
-    langs = check_languages(languages)
-    if cand.state in BLOCKED_STATES:
-        raise StartError(f"This suggestion is {cand.state}; restore it first.")
-    estimate = estimate_for_candidate(db, cand, langs)
-    case = db.get(Case, cand.case_id) if cand.case_id else None
-    if case is not None and db.query(AutopilotRun).filter(
-            AutopilotRun.case_id == case.id, AutopilotRun.status.in_(ACTIVE_RUN)).first():
-        raise StartError("A run for this case is already going.")
-    if case is None:
-        index = IdentityIndex([i for i in IdentityIndex.from_db(db).items if i.kind == "case"])
-        if index.check(candidate_identity(cand)).duplicate:
-            raise StartError("This case already exists in the system.")
-        case = open_case_from_candidate(db, cand, "en")
-    from app.autopilot import production as PR
-
-    if not PR.name_approved(db, case):
-        raise StartError(f"The case is open (case {case.id}) but its English name is not approved: approve it in the Naming tab, "
-                         "then choose the languages and outfits and press Autopilot on the case page.")
-    if outfits is not None:
-        apply_outfit_choices(db, case, langs, outfits, outfit_photos)
-    run = AutopilotRun(case_id=case.id, candidate_id=cand.id, languages_json=json.dumps(langs),
-                       status="running", steps_json=json.dumps(S.initial_steps()),
-                       estimate_json=json.dumps(estimate))
-    db.add(run)
-    db.commit()
-    db.refresh(run)
-    launch(run.id)
-    return run
 
 
 def launch(run_id: int) -> None:

@@ -1233,12 +1233,6 @@ export interface AutopilotOutfitLanguage {
   options: AutopilotOutfitOption[];
 }
 
-export interface AutopilotOutfitOptions {
-  candidate_id: number;
-  case_id: number | null;
-  languages: AutopilotOutfitLanguage[];
-}
-
 export interface AutopilotNeed {
   key: string;
   kind: string;
@@ -1285,6 +1279,7 @@ export interface CaseProduction {
   languages: string[];
   saved: boolean;
   outfits: AutopilotOutfitLanguage[];
+  estimate: AutopilotEstimate | null;
   blockers: string[];
   run: AutopilotRunView | null;
 }
@@ -1308,13 +1303,6 @@ export interface ChannelSettingRow {
 }
 
 export const autopilotApi = {
-  estimate: (candidateId: number, languages: string[]) =>
-    request<AutopilotEstimate>(`/api/autopilot/estimate${query({ candidate_id: candidateId, languages: languages.join(",") })}`),
-  start: (candidateId: number, languages: string[], outfits?: Record<string, string>,
-         outfitPhotos?: Record<string, number[]>) =>
-    post<AutopilotRunView>("/api/autopilot/runs", {
-      candidate_id: candidateId, languages, outfits, outfit_photos: outfitPhotos,
-    }),
   /** Add a photo to an outfit of a language (a new outfit when the name is new). */
   addOutfitPhoto: (language: string, outfit: string, situation: string, photo: File) => {
     const form = new FormData();
@@ -1326,8 +1314,6 @@ export const autopilotApi = {
       { method: "POST", body: form, headers: {} },
     );
   },
-  outfitOptions: (candidateId: number, languages: string[]) =>
-    request<AutopilotOutfitOptions>(`/api/autopilot/outfit-options${query({ candidate_id: candidateId, languages: languages.join(",") })}`),
   /** The case page's production settings: languages, outfits, what blocks the Autopilot button, the latest run. */
   production: (caseId: number) => request<CaseProduction>(`/api/cases/${caseId}/production`),
   saveProduction: (caseId: number, languages: string[], outfits: Record<string, string>,

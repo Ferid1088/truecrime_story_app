@@ -67,53 +67,75 @@ const fulfil = (body: unknown, status = 200) => ({
 });
 
 test.describe("Autopilot", () => {
-  test("Start opens a dialog with all four languages and the printed estimate, then shows the run", async ({ page }) => {
-    await mockApi(page, { researchJob: () => job });
-    await page.route("**/api/autopilot/estimate**", (route) => route.fulfill(fulfil(ESTIMATE)));
-    let started: unknown = null;
-    await page.route("**/api/autopilot/runs", (route) => {
-      started = route.request().postDataJSON();
+  test("the case page saves languages and outfits, then the Autopilot button starts exactly those", async ({ page }) => {
+    await mockApi(page);
+    const outfit = (language: string) => ({
+      language, selected: "existing:1",
+      options: [{ key: "existing:1", name: "navy Suit", ref: `${language}/navySuit`, source: "case", status: "selected", selected: true, photos: [] }],
+    });
+    const production = (saved: boolean, languages: string[], run: unknown = null) => ({
+      case_id: 1, name: { approved: true, title: CANDIDATE.title },
+      allowed_languages: ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"], required_language: "en",
+      languages, saved, outfits: ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"].map(outfit),
+      estimate: saved ? ESTIMATE : null, blockers: saved ? [] : ["Save the languages to produce."], run,
+    });
+    let state = production(false, ["en", "de", "fa", "ar"]);
+    let savedBody: { languages: string[] } | null = null;
+    await page.route("**/api/cases/1/production", (route) => {
+      if (route.request().method() === "PUT") {
+        savedBody = route.request().postDataJSON();
+        state = production(true, savedBody!.languages);
+      }
+      return route.fulfill(fulfil(state));
+    });
+    await page.route("**/api/cases/1/production/autopilot", (route) => {
+      state = production(true, state.languages, { ...RUN, case: { id: 1, title: CANDIDATE.title } });
       return route.fulfill(fulfil(RUN, 201));
     });
-    await page.route("**/api/autopilot/runs/9", (route) => route.fulfill(fulfil(RUN)));
-    await page.route("**/api/autopilot/runs/9/publish-requests", (route) => route.fulfill(fulfil(PUBLISH)));
 
+    await page.goto("/cases/1");
+    const panel = page.getByTestId("production-panel");
+    await expect(panel).toBeVisible({ timeout: 30_000 });
+    for (const lang of ["en", "de", "fa", "ar"]) await expect(page.getByTestId(`production-language-${lang}`)).toBeChecked();
+    for (const lang of ["es", "it", "fr", "pt", "tr"]) await expect(page.getByTestId(`production-language-${lang}`)).not.toBeChecked();
+    await expect(page.getByTestId("production-language-en")).toBeDisabled();
+    await expect(page.getByTestId("production-autopilot")).toBeDisabled();      // nothing saved yet
+    await page.getByTestId("production-language-ar").uncheck();                 // skipped
+    await page.getByTestId("production-language-tr").check();
+    await expect(page.getByTestId("production-outfit-tr")).toBeVisible();
+    await expect(page.getByTestId("production-outfit-ar")).toHaveCount(0);
+    await page.getByTestId("production-save").click();
+    await expect(page.getByTestId("production-estimate")).toContainText("€38.59");
+    expect(savedBody).toMatchObject({ languages: ["en", "de", "fa", "tr"] });
+    await expect(page.getByTestId("production-autopilot")).toBeEnabled();
+    await page.getByTestId("production-autopilot").click();
+    await expect(page.getByTestId("production-run-status")).toHaveText("waiting owner");
+    await expect(page.getByTestId("production-needs")).toContainText("voice refused");
+    await expect(page.getByTestId("production-film-fa")).toContainText("not started");
+    await expect(page.getByTestId("production-language-de")).toBeDisabled();    // fixed while the run goes
+  });
+
+  test("the Autopilot button stays locked and says why until the English name is approved", async ({ page }) => {
+    await mockApi(page);
+    await page.route("**/api/cases/1/production", (route) => route.fulfill(fulfil({
+      case_id: 1, name: { approved: false, title: CANDIDATE.title },
+      allowed_languages: ["en", "de"], required_language: "en", languages: ["en", "de"], saved: true,
+      outfits: [], estimate: null, blockers: ["Approve the case's English name first (Naming tab): nothing is produced before the case is confirmed."],
+      run: null,
+    })));
+    await page.goto("/cases/1");
+    await expect(page.getByTestId("production-name-status")).toHaveText("Name not approved");
+    await expect(page.getByTestId("production-name-hint")).toContainText("Naming tab");
+    await expect(page.getByTestId("production-autopilot")).toBeDisabled();
+  });
+
+  test("a suggestion is opened as a case, not started: the production choices are made on the case page", async ({ page }) => {
+    await mockApi(page, { researchJob: () => job });
+    await page.route("**/api/discovery/501/investigate", (route) => route.fulfill(fulfil({ id: 1, canonical_title: "x", slug: "x" })));
     await page.goto("/discover");
     await page.getByRole("button", { name: /discover new cases/i }).click();
     await expect(page.getByText(CANDIDATE.title)).toBeVisible({ timeout: 30_000 });
-    await page.getByTestId("start-autopilot").click();
-
-    for (const lang of ["en", "de", "fa", "ar"])
-      await expect(page.getByTestId(`start-language-${lang}`)).toBeChecked();
-    await expect(page.getByTestId("start-language-en")).toBeDisabled();
-    await expect(page.getByTestId("start-estimate")).toContainText("€38.59");
-    await expect(page.getByTestId("start-estimate")).toContainText("€300.00");
-    await expect(page.getByTestId("start-research-estimate")).toContainText("€6.40");
-    await page.getByTestId("start-confirm").click();
-
-    await expect(page).toHaveURL(/\/autopilot\/9$/);
-    expect(started).toEqual({ candidate_id: 501, languages: ["en", "de", "fa", "ar"] });
-    await expect(page.getByTestId("run-status")).toHaveText("waiting owner");
-    await expect(page.getByTestId("needs-you")).toContainText("voice refused");
-    await expect(page.getByTestId("run-budget")).toContainText("€12.50 of the €300.00 cap");
-    await expect(page.getByTestId("step-films")).toContainText("1 of 2 films finished");
-    await expect(page.getByTestId("run-language-fa")).toContainText("چراغ خاموش شد");
-    await expect(page.getByTestId("publish-queue")).toContainText("Nothing is sent");
-    await page.getByRole("button", { name: "Request" }).click();
-    await expect(page.getByRole("dialog")).toContainText('"sent": false');
-  });
-
-  test("a refused start shows the reason and stays on the page", async ({ page }) => {
-    await mockApi(page, { researchJob: () => job });
-    await page.route("**/api/autopilot/estimate**", (route) => route.fulfill(fulfil(ESTIMATE)));
-    await page.route("**/api/autopilot/runs", (route) =>
-      route.fulfill(fulfil({ detail: "A run for this case is already going." }, 409)));
-    await page.goto("/discover");
-    await page.getByRole("button", { name: /discover new cases/i }).click();
-    await page.getByTestId("start-autopilot").click();
-    await page.getByTestId("start-confirm").click();
-    await expect(page.getByRole("dialog").getByRole("alert")).toContainText("already going");
-    await expect(page).toHaveURL(/\/discover$/);
+    await expect(page.getByTestId("start-autopilot")).toHaveCount(0);
   });
 
   test("Settings shows a not-connected placeholder per language and platform", async ({ page }) => {

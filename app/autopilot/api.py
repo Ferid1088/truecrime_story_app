@@ -13,7 +13,7 @@ from app.autopilot import channels
 from app.autopilot import production as PR
 from app.autopilot import service as SV
 from app.db.base import get_db
-from app.db.models import AutopilotRun, Case, DiscoveryCandidate, PublishRequest
+from app.db.models import AutopilotRun, Case, PublishRequest
 
 router = APIRouter()
 
@@ -22,20 +22,6 @@ class HandleRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     handle: str = Field(max_length=100)
-
-
-class StartRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    candidate_id: int
-    languages: list[str] = Field(min_length=1)
-    # ``existing:<id>`` selects an outfit already attached to the case;
-    # ``registry:<language>/<outfit>`` creates/selects the shared outfit for a
-    # newly opened case.  Kept optional for API backwards compatibility; the
-    # UI always sends it for a new run.
-    outfits: dict[str, str] | None = None
-    # Library item ids checked by the owner for each language's chosen outfit.
-    outfit_photos: dict[str, list[int]] | None = None
 
 
 class ProductionRequest(BaseModel):
@@ -95,42 +81,6 @@ def _run(db: Session, run_id: int) -> AutopilotRun:
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
     return run
-
-
-@router.get("/api/autopilot/estimate")
-def autopilot_estimate(candidate_id: int, languages: str | None = None,
-                       db: Session = Depends(get_db)):
-    cand = db.get(DiscoveryCandidate, candidate_id)
-    if cand is None:
-        raise HTTPException(status_code=404, detail="Suggestion not found")
-    chosen = languages.split(",") if languages else SV.default_languages()
-    try:
-        return SV.estimate_for_candidate(db, cand, chosen)
-    except SV.StartError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-@router.post("/api/autopilot/runs", status_code=201)
-def start_autopilot_run(payload: StartRequest, db: Session = Depends(get_db)):
-    try:
-        run = SV.start_run(db, payload.candidate_id, payload.languages, payload.outfits,
-                           payload.outfit_photos)
-    except SV.StartError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return SV.run_view(db, run)
-
-
-@router.get("/api/autopilot/outfit-options")
-def autopilot_outfit_options(candidate_id: int, languages: str | None = None,
-                             db: Session = Depends(get_db)):
-    cand = db.get(DiscoveryCandidate, candidate_id)
-    if cand is None:
-        raise HTTPException(status_code=404, detail="Suggestion not found")
-    chosen = languages.split(",") if languages else SV.default_languages()
-    try:
-        return SV.outfit_options_for_candidate(db, cand, chosen)
-    except SV.StartError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/api/autopilot/runs")

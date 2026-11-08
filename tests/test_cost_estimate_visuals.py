@@ -5,7 +5,7 @@ import json
 import uuid
 
 from app.core.ai_config import ai_config
-from app.db.models import Case, DiscoveryCandidate
+from app.db.models import Case
 from app.services import cost_model as CM
 
 
@@ -59,11 +59,10 @@ def test_the_search_line_says_the_image_price_is_assumed_and_the_checks_use_the_
 
 def test_the_autopilot_estimate_includes_the_larger_research_and_breaks_it_out(db_session):
     from app.autopilot import service as AS
+    from app.db.models import Case
 
-    cand = DiscoveryCandidate(title="Some case", query="q", rationale="x", fingerprint=uuid.uuid4().hex)
-    db_session.add(cand)
-    db_session.commit()
-    est = AS.estimate_for_candidate(db_session, cand, ["en"])
+    case = Case(canonical_title="Some case", slug=f"estimate-{uuid.uuid4().hex[:8]}", language="en")
+    est = AS.estimate_for_case(db_session, case, ["en"])
     assert est["visual_research_eur"] > 0
     assert est["visual_research_eur"] < est["estimated_eur"]
     lines = _lines(db_session, target_minutes=60)

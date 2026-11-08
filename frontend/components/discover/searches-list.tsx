@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Archive, ChevronDown, ChevronRight, Pencil, RotateCcw, Rocket, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Archive, ChevronDown, ChevronRight, Pencil, FolderOpen, RotateCcw, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type { DiscoveredCaseStatus, Search, SuggestionRecord } from "@/lib/types";
@@ -12,7 +13,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StartDialog } from "@/components/autopilot/start-dialog";
 
 const STATUS_LABEL: Record<DiscoveredCaseStatus, string> = {
   free: "Free",
@@ -172,16 +172,28 @@ function SearchRow({
   );
 }
 
-/** Start: the autopilot for one free suggestion, after the languages and the estimate are confirmed. */
-function StartButton({ candidate }: { candidate: SuggestionRecord }) {
-  const [open, setOpen] = useState(false);
+/** Open case: the suggestion becomes a case. Its name, languages, outfits and the Autopilot button are on the case page. */
+function OpenCaseButton({ candidate }: { candidate: SuggestionRecord }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function open() {
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await api.investigate(candidate.candidate_id, "en");
+      router.push(`/cases/${created.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  }
   return (
     <>
-      <Button size="sm" onClick={() => setOpen(true)} data-testid={`start-autopilot-${candidate.candidate_id}`}>
-        <Rocket className="size-3.5" /> Start
+      <Button size="sm" onClick={open} loading={busy} data-testid={`open-case-${candidate.candidate_id}`}>
+        <FolderOpen className="size-3.5" /> Open case
       </Button>
-      <StartDialog candidateId={candidate.candidate_id} title={candidate.title} open={open}
-                   onClose={() => setOpen(false)} />
+      {error && <span role="alert" className="text-xs text-rose-600">{error}</span>}
     </>
   );
 }
@@ -242,7 +254,7 @@ function SearchExpandedView({
             ))}
           </div>
           <div className="flex shrink-0 gap-1">
-            {c.case_status === "free" && c.state === "suggested" && <StartButton candidate={c} />}
+            {c.case_status === "free" && c.state === "suggested" && <OpenCaseButton candidate={c} />}
             {c.state === "archived" || c.state === "deleted" ? (
               <Button size="sm" variant="outline" onClick={() => restore(c)}>
                 <RotateCcw className="size-3.5" /> Restore

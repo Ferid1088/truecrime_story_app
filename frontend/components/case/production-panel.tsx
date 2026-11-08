@@ -135,6 +135,14 @@ export function ProductionPanel({ caseId }: { caseId: number }) {
             />
           ))}
         </fieldset>
+        {data.estimate && !dirty && (
+          <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs" data-testid="production-estimate">
+            Estimated cost for the saved languages: <span className="font-semibold">€{data.estimate.estimated_eur.toFixed(2)}</span>{" "}
+            (range €{data.estimate.range_eur.low.toFixed(2)}–€{data.estimate.range_eur.high.toFixed(2)}; picture research €
+            {data.estimate.visual_research_eur.toFixed(2)}). The only limit is the actual spend: it stops before a paid call once
+            €{data.estimate.cap_eur.toFixed(2)} is spent. Publishing is a dry run.
+          </p>
+        )}
         {!data.name.approved && (
           <p className="text-xs text-amber-600" data-testid="production-name-hint">
             Approve the English name in the Naming tab first: nothing is produced before the case is confirmed.
