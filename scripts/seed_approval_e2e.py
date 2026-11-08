@@ -78,8 +78,9 @@ def main(*, include_short_languages: bool = False) -> None:
         db.add(EditorialBlueprint(
             case_id=case.id, story_version_id=master.id, status="valid",
             blueprint_json=json.dumps({"beats": [
-                {"id": "B1", "text": "The last signal", "start_seconds": 0, "end_seconds": 4},
-                {"id": "B2", "text": "The disputed log", "start_seconds": 4, "end_seconds": 8},
+                # the film's source clip is 3 seconds long: a moment after that would cut an empty video
+                {"id": "B1", "text": "The last signal", "start_seconds": 0, "end_seconds": 1.5},
+                {"id": "B2", "text": "The disputed log", "start_seconds": 1.5, "end_seconds": 3},
             ]}),
         ))
         source_video = ROOT / "frontend" / "e2e" / "assets" / "short-101.mp4"
