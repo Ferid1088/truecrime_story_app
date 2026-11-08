@@ -18,7 +18,7 @@ from app.documentary.punctuation import stage as PS
 from app.documentary.reading import ask as ASK
 from app.documentary.reading import tashkeel as TK
 
-LANGUAGES = ["fa", "ar", "en", "de"]
+LANGUAGES = ["fa", "ar", "en", "de", "es", "it", "fr", "pt", "tr"]
 
 
 @pytest.fixture(autouse=True)
@@ -67,6 +67,13 @@ def test_the_writer_gets_the_craft_and_keeps_its_persona(language):
 def test_the_craft_of_each_language_is_its_own():
     assert "contractions" in H.craft_of("en") and "Schachtelsätze" in H.craft_of("de")
     assert "ezafe" in H.craft_of("fa") and "idafa" in H.craft_of("ar")
+    own = {"es": "Mexico", "it": "passato prossimo", "fr": "passé composé", "pt": "Brazil", "tr": "verb last"}
+    assert all(word in H.craft_of(language) for language, word in own.items())
+
+
+def test_every_channel_language_has_a_craft_so_the_host_writer_can_start():
+    for language in ai_config.channels:
+        assert H.writer_system_prompt(language), language
 
 
 @pytest.mark.parametrize("language,text", [("en", "I waited 21 seconds."), ("de", "Ich wartete 21 Sekunden."), ("ar", "انتظرت 21 ثانية.")])

@@ -1,0 +1,1 @@
+- Italian: spoken, not bureaucratic: "la polizia perquisì la casa", not "si è proceduto alla perquisizione dell'abitazione"; no "il suddetto", "lo stesso", "in data" or a noun chain of three "di"; claims stay in the conditional or with "secondo l'accusa" / "sarebbe"; prefer the passato prossimo and the present of the story, short sentences, and do not stack gerunds.
