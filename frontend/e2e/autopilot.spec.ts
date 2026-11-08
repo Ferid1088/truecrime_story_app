@@ -79,7 +79,7 @@ test.describe("Autopilot", () => {
       languages, saved, outfits: ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"].map(outfit),
       estimate: saved ? ESTIMATE : null, blockers: saved ? [] : ["Save the languages to produce."], run,
     });
-    let state = production(false, ["en", "de", "fa", "ar"]);
+    let state = production(false, ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"]);
     let savedBody: { languages: string[] } | null = null;
     await page.route("**/api/cases/1/production", (route) => {
       if (route.request().method() === "PUT") {
@@ -96,14 +96,15 @@ test.describe("Autopilot", () => {
     await page.goto("/cases/1");
     const panel = page.getByTestId("production-panel");
     await expect(panel).toBeVisible({ timeout: 30_000 });
-    for (const lang of ["en", "de", "fa", "ar"]) await expect(page.getByTestId(`production-language-${lang}`)).toBeChecked();
-    for (const lang of ["es", "it", "fr", "pt", "tr"]) await expect(page.getByTestId(`production-language-${lang}`)).not.toBeChecked();
+    for (const lang of ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"]) {
+      await expect(page.getByTestId(`production-language-${lang}`)).toBeChecked();      // all ticked by default
+      await expect(page.getByTestId(`production-outfit-${lang}`)).toBeVisible();        // and each one has its outfit choice
+    }
     await expect(page.getByTestId("production-language-en")).toBeDisabled();
     await expect(page.getByTestId("production-autopilot")).toBeDisabled();      // nothing saved yet
-    await page.getByTestId("production-language-ar").uncheck();                 // skipped
-    await page.getByTestId("production-language-tr").check();
-    await expect(page.getByTestId("production-outfit-tr")).toBeVisible();
+    for (const lang of ["ar", "it", "fr", "pt", "es"]) await page.getByTestId(`production-language-${lang}`).uncheck();   // skipped
     await expect(page.getByTestId("production-outfit-ar")).toHaveCount(0);
+    await expect(page.getByTestId("production-outfit-tr")).toBeVisible();
     await page.getByTestId("production-save").click();
     await expect(page.getByTestId("production-estimate")).toContainText("€38.59");
     expect(savedBody).toMatchObject({ languages: ["en", "de", "fa", "tr"] });

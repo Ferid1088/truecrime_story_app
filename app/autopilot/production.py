@@ -63,8 +63,7 @@ def blockers(db: Session, case: Case) -> list[str]:
 def view(db: Session, case: Case) -> dict:
     saved = saved_languages(db, case)
     run = latest_run(db, case)
-    chosen = saved if saved is not None else [lang for lang in allowed_languages()
-                                              if lang in ai_config.multilingual.production_languages]
+    chosen = saved if saved is not None else allowed_languages()      # every language is ticked until the owner unticks one
     return {
         "case_id": case.id,
         "name": {"approved": name_approved(db, case), "title": case.canonical_title},

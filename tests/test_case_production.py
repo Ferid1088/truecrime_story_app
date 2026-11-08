@@ -47,7 +47,7 @@ def choose_outfit(db, case, language):
 def test_a_fresh_case_shows_the_default_languages_unsaved_and_why_it_cannot_start(db_session, case):
     view = PR.view(db_session, case)
     assert view["saved"] is False and view["name"]["approved"] is False
-    assert view["languages"] == ["en", "de", "fa", "ar"] and view["required_language"] == "en"
+    assert view["languages"] == view["allowed_languages"] and view["required_language"] == "en"      # all ticked by default
     assert view["allowed_languages"] == ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"]
     assert any("Approve the case's English name" in b for b in view["blockers"])
 
