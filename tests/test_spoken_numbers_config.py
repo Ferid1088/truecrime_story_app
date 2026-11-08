@@ -18,3 +18,4 @@ def test_the_block_of_a_language_builds_its_reader_and_it_says_the_year_in_words
 def test_a_misspelled_option_is_refused_and_not_ignored():
     with pytest.raises(Exception):
         reader_for("es", {"emergency_number": "number_always"}, ai_config.voice.number_max)
+

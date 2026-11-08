@@ -2316,7 +2316,7 @@ class DocumentaryConfig(BaseModel):
     max_tts_characters_per_job: int = Field(default=0, ge=0)
     # Measured speed of the rendered narration per language (words per
     # minute), used to estimate film length before anything is rendered.
-    speech_wpm: dict[str, int] = {"en": 150, "de": 128, "fa": 116, "ar": 104}
+    speech_wpm: dict[str, int] = {"en": 150, "de": 128, "fa": 116, "ar": 104, "es": 142}
     storage_dir: str = "data/cases"
     dry_run: bool = False
 
@@ -3948,6 +3948,8 @@ class RenderConfig(BaseModel):
     burn_subtitles: bool = False
     subtitle_max_chars: int = Field(default=42, ge=10)
     subtitle_max_seconds: float = Field(default=6.0, gt=0)
+    # The language tag of the film's subtitle stream (ISO 639-2): a language missing here is stored as "und" (undetermined).
+    subtitle_language_codes: dict[str, str] = {}
 
 
 class DocumentaryCriticsConfig(BaseModel):

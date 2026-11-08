@@ -338,6 +338,84 @@
           "height": 0.12
         }
       }
+    },
+    {
+      "id": "STUDIO_FR_01_OVERVIEW_WIDE",
+      "language": "fr",
+      "file": "01_overview_wide.png",
+      "camera": 1,
+      "shot": "overview_wide",
+      "asset_type": "background",
+      "camera_angle": "front_wide",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "2dfb216ddd6e47ce80e0beec6a1abde81b02c1fd0ff9f6706c567ea99e4aaec6",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm tungsten practicals at night, low-key",
+      "studio_style": "French evidence library at night, Paris skyline in the window, leather armchair left of centre, case wall with the Pistes Cachées sign",
+      "notes": "master: the armchair for seated scenes, the free floor for standing scenes; medium and close are cuts of this picture",
+      "safe_zones": {
+        "host": { "x": 0.18, "y": 0.43, "width": 0.30, "height": 0.42 },
+        "head": { "x": 0.27, "y": 0.44, "width": 0.09, "height": 0.10 },
+        "logo": { "x": 0.40, "y": 0.22, "width": 0.22, "height": 0.15 },
+        "lower_third": { "x": 0.05, "y": 0.86, "width": 0.40, "height": 0.10 },
+        "host_standing": { "x": 0.56, "y": 0.18, "width": 0.22, "height": 0.67 },
+        "head_standing": { "x": 0.62, "y": 0.20, "width": 0.10, "height": 0.12 }
+      }
+    },
+    {
+      "id": "STUDIO_IT_01_OVERVIEW_WIDE",
+      "language": "it",
+      "file": "01_overview_wide.png",
+      "camera": 1,
+      "shot": "overview_wide",
+      "asset_type": "background",
+      "camera_angle": "front_wide",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "dacb8f5b0c526d68968cea5037d5e9149747cec454cda70b3a4486f39647eee6",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm tungsten practicals at night, low-key",
+      "studio_style": "Italian evidence library at night, Rome skyline in the window, leather armchair left of centre, case wall with the Tracce Nascoste sign",
+      "notes": "master: the armchair for seated scenes, the free floor for standing scenes; medium and close are cuts of this picture",
+      "safe_zones": {
+        "host": { "x": 0.18, "y": 0.43, "width": 0.30, "height": 0.42 },
+        "head": { "x": 0.27, "y": 0.44, "width": 0.09, "height": 0.10 },
+        "logo": { "x": 0.40, "y": 0.22, "width": 0.22, "height": 0.15 },
+        "lower_third": { "x": 0.05, "y": 0.86, "width": 0.40, "height": 0.10 },
+        "host_standing": { "x": 0.56, "y": 0.18, "width": 0.22, "height": 0.67 },
+        "head_standing": { "x": 0.62, "y": 0.20, "width": 0.10, "height": 0.12 }
+      }
+    },
+    {
+      "id": "STUDIO_PT_01_OVERVIEW_WIDE",
+      "language": "pt",
+      "file": "01_overview_wide.png",
+      "camera": 1,
+      "shot": "overview_wide",
+      "asset_type": "background",
+      "camera_angle": "front_wide",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "45d976bfbadd21d80ea700bc4de0dc39e4d83010eb3baff4e2e0916b248ca70e",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm tungsten practicals at night, low-key",
+      "studio_style": "Brazilian evidence library at night, Rio skyline in the window, leather armchair left of centre, case wall with the Pistas Ocultas sign",
+      "notes": "master: the armchair for seated scenes, the free floor for standing scenes; medium and close are cuts of this picture",
+      "safe_zones": {
+        "host": { "x": 0.18, "y": 0.43, "width": 0.30, "height": 0.42 },
+        "head": { "x": 0.27, "y": 0.44, "width": 0.09, "height": 0.10 },
+        "logo": { "x": 0.40, "y": 0.22, "width": 0.22, "height": 0.15 },
+        "lower_third": { "x": 0.05, "y": 0.86, "width": 0.40, "height": 0.10 },
+        "host_standing": { "x": 0.56, "y": 0.18, "width": 0.22, "height": 0.67 },
+        "head_standing": { "x": 0.62, "y": 0.20, "width": 0.10, "height": 0.12 }
+      }
     }
   ],
   "profiles": {
@@ -832,6 +910,123 @@
         "by": "visual review of the masters (Claude, 2026-10-27); measured against the armchair and the free floor",
         "confirmed": false
       }
+    },
+    "fr": {
+      "id": "STUDIO_FR",
+      "language": "fr",
+      "primary_background": "STUDIO_FR_01_OVERVIEW_WIDE",
+      "presets": {
+        "HOST_WIDE": {
+          "asset_id": "STUDIO_FR_01_OVERVIEW_WIDE",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.42,
+          "host_center_x": 0.33,
+          "host_bottom": 0.86,
+          "camera_safe": { "x": 0.05, "y": 0.05, "width": 0.9, "height": 0.9 },
+          "subtitle_safe": { "x": 0.1, "y": 0.82, "width": 0.8, "height": 0.13 }
+        },
+        "HOST_MEDIUM": {
+          "asset_id": "STUDIO_FR_01_OVERVIEW_WIDE",
+          "crop": { "x": 0.05, "y": 0.28, "width": 0.62, "height": 0.62 },
+          "background_blur": 0.0,
+          "host_height_ratio": 0.75,
+          "host_center_x": 0.48,
+          "host_bottom": 0.94,
+          "camera_safe": { "x": 0.05, "y": 0.05, "width": 0.9, "height": 0.9 },
+          "subtitle_safe": { "x": 0.1, "y": 0.82, "width": 0.8, "height": 0.13 }
+        },
+        "HOST_CLOSE": {
+          "asset_id": "STUDIO_FR_01_OVERVIEW_WIDE",
+          "crop": { "x": 0.12, "y": 0.16, "width": 0.5, "height": 0.5 },
+          "background_blur": 0.2,
+          "host_height_ratio": 0.95,
+          "host_center_x": 0.5,
+          "host_bottom": 1.18,
+          "camera_safe": { "x": 0.05, "y": 0.05, "width": 0.9, "height": 0.9 },
+          "subtitle_safe": { "x": 0.1, "y": 0.82, "width": 0.8, "height": 0.13 }
+        }
+      },
+      "alternate_angles": [],
+      "background_mode": "provider_composited",
+      "review": { "by": "initial studio setup", "confirmed": false }
+    },
+    "it": {
+      "id": "STUDIO_IT",
+      "language": "it",
+      "primary_background": "STUDIO_IT_01_OVERVIEW_WIDE",
+      "presets": {
+        "HOST_WIDE": {
+          "asset_id": "STUDIO_IT_01_OVERVIEW_WIDE",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.42,
+          "host_center_x": 0.33,
+          "host_bottom": 0.86,
+          "camera_safe": { "x": 0.05, "y": 0.05, "width": 0.9, "height": 0.9 },
+          "subtitle_safe": { "x": 0.1, "y": 0.82, "width": 0.8, "height": 0.13 }
+        },
+        "HOST_MEDIUM": {
+          "asset_id": "STUDIO_IT_01_OVERVIEW_WIDE",
+          "crop": { "x": 0.05, "y": 0.28, "width": 0.62, "height": 0.62 },
+          "background_blur": 0.0,
+          "host_height_ratio": 0.75,
+          "host_center_x": 0.48,
+          "host_bottom": 0.94,
+          "camera_safe": { "x": 0.05, "y": 0.05, "width": 0.9, "height": 0.9 },
+          "subtitle_safe": { "x": 0.1, "y": 0.82, "width": 0.8, "height": 0.13 }
+        },
+        "HOST_CLOSE": {
+          "asset_id": "STUDIO_IT_01_OVERVIEW_WIDE",
+          "crop": { "x": 0.12, "y": 0.16, "width": 0.5, "height": 0.5 },
+          "background_blur": 0.2,
+          "host_height_ratio": 0.95,
+          "host_center_x": 0.5,
+          "host_bottom": 1.18,
+          "camera_safe": { "x": 0.05, "y": 0.05, "width": 0.9, "height": 0.9 },
+          "subtitle_safe": { "x": 0.1, "y": 0.82, "width": 0.8, "height": 0.13 }
+        }
+      },
+      "alternate_angles": [],
+      "background_mode": "provider_composited",
+      "review": { "by": "initial studio setup", "confirmed": false }
+    },
+    "pt": {
+      "id": "STUDIO_PT",
+      "language": "pt",
+      "primary_background": "STUDIO_PT_01_OVERVIEW_WIDE",
+      "presets": {
+        "HOST_WIDE": {
+          "asset_id": "STUDIO_PT_01_OVERVIEW_WIDE",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.42,
+          "host_center_x": 0.33,
+          "host_bottom": 0.86,
+          "camera_safe": { "x": 0.05, "y": 0.05, "width": 0.9, "height": 0.9 },
+          "subtitle_safe": { "x": 0.1, "y": 0.82, "width": 0.8, "height": 0.13 }
+        },
+        "HOST_MEDIUM": {
+          "asset_id": "STUDIO_PT_01_OVERVIEW_WIDE",
+          "crop": { "x": 0.05, "y": 0.28, "width": 0.62, "height": 0.62 },
+          "background_blur": 0.0,
+          "host_height_ratio": 0.75,
+          "host_center_x": 0.48,
+          "host_bottom": 0.94,
+          "camera_safe": { "x": 0.05, "y": 0.05, "width": 0.9, "height": 0.9 },
+          "subtitle_safe": { "x": 0.1, "y": 0.82, "width": 0.8, "height": 0.13 }
+        },
+        "HOST_CLOSE": {
+          "asset_id": "STUDIO_PT_01_OVERVIEW_WIDE",
+          "crop": { "x": 0.12, "y": 0.16, "width": 0.5, "height": 0.5 },
+          "background_blur": 0.2,
+          "host_height_ratio": 0.95,
+          "host_center_x": 0.5,
+          "host_bottom": 1.18,
+          "camera_safe": { "x": 0.05, "y": 0.05, "width": 0.9, "height": 0.9 },
+          "subtitle_safe": { "x": 0.1, "y": 0.82, "width": 0.8, "height": 0.13 }
+        }
+      },
+      "alternate_angles": [],
+      "background_mode": "provider_composited",
+      "review": { "by": "initial studio setup", "confirmed": false }
     }
   }
 }

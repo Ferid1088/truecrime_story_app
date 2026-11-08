@@ -40,16 +40,22 @@
     },
     "fr": {
       "name": "Pistes Cachées",
+      "studio_dir": "data/studio/fr",
+      "studio_profile": "STUDIO_FR",
       "logo": "data/logos/Logo_French.png",
       "intro_concept": "arch"
     },
     "it": {
       "name": "Tracce Nascoste",
+      "studio_dir": "data/studio/it",
+      "studio_profile": "STUDIO_IT",
       "logo": "data/logos/Logo_Italian.png",
       "intro_concept": "keyhole"
     },
     "pt": {
       "name": "Pistas Ocultas",
+      "studio_dir": "data/studio/pt",
+      "studio_profile": "STUDIO_PT",
       "logo": "data/logos/Logo_Portuguese.png",
       "intro_concept": "trail_stamp"
     }

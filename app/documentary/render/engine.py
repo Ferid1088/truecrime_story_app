@@ -602,8 +602,8 @@ class VideoRenderer:
         srt = write_srt([{**s, "start": s["start"] + pre, "end": s["end"] + pre}
                          for s in script.get("subtitles") or [] if s["start"] < duration],
                         out_path.with_suffix(".srt"))
-        iso3 = {"en": "eng", "de": "ger", "fa": "per", "ar": "ara"}.get(lang, "und")
         cfg = ai_config.render
+        iso3 = cfg.subtitle_language_codes.get(lang, "und")
         # written next to the target and renamed when ffmpeg succeeded: a
         # crash never leaves a half film under the final name
         part = out_path.with_name(out_path.stem + ".part" + out_path.suffix)

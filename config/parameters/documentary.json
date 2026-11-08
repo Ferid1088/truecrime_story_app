@@ -30,7 +30,8 @@
       "en": 150,
       "de": 128,
       "fa": 116,
-      "ar": 104
+      "ar": 104,
+      "es": 142
     },
     "storage_dir": "data/cases",
     "video_research": true,
@@ -533,6 +534,7 @@
     "fps": 25,
     "crf": 20,
     "preset": "veryfast",
+    "subtitle_language_codes": {"en": "eng", "de": "ger", "fa": "per", "ar": "ara", "es": "spa", "it": "ita", "fr": "fre", "pt": "por", "tr": "tur"},
     "burn_subtitles": false,
     "subtitle_max_chars": 42,
     "subtitle_max_seconds": 6.0
