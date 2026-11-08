@@ -27,8 +27,8 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.documentary.pipeline.errors import JobPaused
 from app.db.models import DocumentaryJob
+from app.documentary.pipeline.errors import JobPaused
 from app.documentary.recovery import interrupt_job, reap_stale_jobs, requeue_job
 from app.utils import utc_now
 
@@ -110,7 +110,7 @@ class Worker:
     def __init__(self, session_factory=None, run_job=None, worker_id: str | None = None,
                  poll_seconds: float | None = None, lease_seconds: float | None = None,
                  max_auto_resumes: int | None = None, max_parallel: int | None = None,
-                 alive_file: str | None = None, run_autopilot=None):
+                 alive_file: str | None = None, run_autopilot=None, governor=None):
         from app.db.base import SessionLocal
 
         self.session_factory = session_factory or SessionLocal
@@ -134,6 +134,9 @@ class Worker:
 
             max_parallel = int(ai_config.concurrency.jobs)
         self.max_parallel = max_parallel
+        from app.orchestration.governor import Governor
+
+        self.governor = governor or Governor()
         self.stop = asyncio.Event()
         # Provider/native work inside a documentary task can be synchronous for
         # a while.  Keep the lease heartbeat on a real OS thread so a blocked
@@ -176,12 +179,17 @@ class Worker:
             self.tasks = {i: t for i, t in self.tasks.items() if not t.done()}
             self.short_tasks = {i: t for i, t in self.short_tasks.items() if not t.done()}
             self._drive_autopilot_runs(db)
-            while len(self.tasks) < self.max_parallel and not self.stop.is_set():
+            while not self.stop.is_set():
+                # the orchestrator decides whether the machine and the providers have room for one more film
+                if not self.governor.decide(len(self.tasks), self.max_parallel).allowed:
+                    break
                 job_id = claim_next_job(db, self.worker_id)
                 if job_id is None:
                     break
+                self.governor.admitted()
                 log.info("worker %s took job %s", self.worker_id, job_id)
                 self.tasks[job_id] = asyncio.create_task(self._run(job_id))
+            self._record_orchestrator_state(db)
             while len(self.tasks) + len(self.short_tasks) < self.max_parallel and not self.stop.is_set():
                 short_id = claim_next_short_job(db, self.worker_id, lease_seconds=self.lease)
                 if short_id is None:
@@ -190,6 +198,21 @@ class Worker:
                 self.short_tasks[short_id] = asyncio.create_task(self._run_short(short_id))
         finally:
             db.close()
+
+    def _record_orchestrator_state(self, db: Session) -> None:
+        """What the orchestrator saw, for the API and the monitor page (one row, rewritten every tick)."""
+        import json
+
+        from app.db.models import OrchestratorState
+
+        try:
+            row = db.get(OrchestratorState, 1) or OrchestratorState(id=1)
+            row.snapshot_json = json.dumps(self.governor.snapshot(len(self.tasks), self.max_parallel))
+            db.add(row)
+            db.commit()
+        except Exception:  # noqa: BLE001 - a monitoring write must never stall the queue
+            log.exception("orchestrator state not written")
+            db.rollback()
 
     def _drive_autopilot_runs(self, db: Session) -> None:
         """Every autopilot run that has not finished is driven by this worker, once. A run is

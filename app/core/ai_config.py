@@ -4470,6 +4470,36 @@ class FootageConfig(BaseModel):
     snap_seconds: float = Field(default=0.6, ge=0.0, le=3.0)
 
 
+class ThrottleConfig(BaseModel):
+    """What a provider's "too many requests" does to its limit: the limit shrinks to `shrink_factor` of itself (never below `min_limit`)
+    at once, and grows back one slot per `recovery_seconds` after `cooldown_seconds` without another report."""
+
+    shrink_factor: float = Field(gt=0.0, lt=1.0)
+    min_limit: int = Field(ge=1)
+    cooldown_seconds: float = Field(ge=0.0)
+    recovery_seconds: float = Field(gt=0.0)
+
+
+class HostLimitsConfig(BaseModel):
+    """What the own machine may be asked for. A new film is admitted only while the memory that stays free after it (its
+    `job_memory_gb` counted in advance) is at least `min_free_memory_gb` and the one-minute load per core is at most `max_load_per_core`."""
+
+    min_free_memory_gb: float = Field(gt=0.0)
+    job_memory_gb: float = Field(gt=0.0)
+    max_load_per_core: float = Field(gt=0.0)
+
+
+class OrchestratorConfig(BaseModel):
+    """The orchestrator that admits film jobs to run (app/orchestration): the own machine's limits, the provider throttling policy and how
+    far apart two films may start (so the memory of the first shows before the second is admitted)."""
+
+    stagger_seconds: float = Field(ge=0.0)
+    host: HostLimitsConfig
+    throttle: ThrottleConfig
+    throttle_overrides: dict[str, ThrottleConfig] = {}
+    event_log_size: int = Field(default=50, ge=1)
+
+
 class ConcurrencyConfig(BaseModel):
     """How much runs at the same time (per process). Two levels:
     inside one documentary (languages, critics, image checks and voice
@@ -4483,11 +4513,12 @@ class ConcurrencyConfig(BaseModel):
     asr: int = Field(default=1, ge=1, le=8)
     render: int = Field(default=2, ge=1, le=8)
     downloads: int = Field(default=4, ge=1, le=32)
-    # Documentary jobs running at the same time, worker-wide — including the
-    # autopilot's one-job-per-language films (checked live 2026-10-23: this
-    # machine's 8 cores/16GB fit 4; it is the per-provider semaphores below,
-    # not this count, that keep any one external service within its limit).
-    # More jobs than this wait in "queued".
+    # Documentary jobs running at the same time at most, worker-wide — including the
+    # autopilot's one-job-per-language films (one English plus eight other languages).
+    # How many really run is decided by the orchestrator (app/orchestration): a job is
+    # admitted only while the machine's free memory and load and the providers' limits
+    # (the per-provider semaphores below, which shrink when a provider throttles) have room.
+    # More jobs than that wait in "queued", with the reason.
     jobs: int = Field(default=4, ge=1, le=16)
     # Language branches of one documentary running at the same time (only
     # matters for a job given several languages at once; the autopilot's
@@ -4741,6 +4772,7 @@ class AIConfig(BaseModel):
     detective_board: DetectiveBoardConfig = Field(default_factory=DetectiveBoardConfig)
     detective_toolkit: DetectiveToolkitConfig = Field(default_factory=DetectiveToolkitConfig)
     autopilot: AutopilotConfig | None = None
+    orchestrator: OrchestratorConfig | None = None
     rights: RightsConfig = Field(default_factory=RightsConfig)
     motion: MotionConfig = Field(default_factory=MotionConfig)
     maps: MapsConfig = Field(default_factory=MapsConfig)
@@ -4989,6 +5021,12 @@ class AIConfig(BaseModel):
         if self.limits is None:
             raise RuntimeError("config/parameters/limits.json is missing")
         return self.limits
+
+    def orchestrator_settings(self) -> OrchestratorConfig:
+        """The orchestrator's limits (config/parameters/orchestrator.json)."""
+        if self.orchestrator is None:
+            raise RuntimeError("config/parameters/orchestrator.json is missing")
+        return self.orchestrator
 
     def autopilot_settings(self) -> AutopilotConfig:
         """The Start button's settings (config/parameters/autopilot.json)."""

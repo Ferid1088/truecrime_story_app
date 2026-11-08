@@ -13,9 +13,9 @@ export default function AutopilotPage() {
   const { data } = useApi(() => autopilotApi.runs(), [], { keepPrevious: true });
   return (
     <div>
-      <PageHeader title="Autopilot" description="Runs started with the Start button on a discovered case." />
+      <PageHeader title="Autopilot" description="Runs started with the Autopilot button on a case page." />
       {data && data.runs.length === 0 && (
-        <EmptyState title="No runs yet" description="Press Start on a case in Discover." />
+        <EmptyState title="No runs yet" description="Open a case, choose its languages and outfits and press Autopilot." />
       )}
       <div className="space-y-2">
         {data?.runs.map((r) => (

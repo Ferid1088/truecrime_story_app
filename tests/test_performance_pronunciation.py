@@ -114,7 +114,7 @@ def test_limits_cap_parallel_work(monkeypatch):
 
     async def main():
         out = await gather_limited(None, [work(i) for i in range(7)])
-        assert usage()["llm"] == {"active": 0, "limit": 2}
+        assert usage()["llm"] == {"active": 0, "limit": 2, "configured": 2, "throttled": False}
         assert limiter("llm") is limiter("llm")
         return out
 

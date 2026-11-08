@@ -16,7 +16,7 @@ from typing import Any
 import httpx
 
 from app.core.ai_config import ai_config
-from app.core.concurrency import slot
+from app.core.concurrency import report_throttle, slot
 from app.core.env import env_value
 from app.providers.generation import json_repair
 from app.providers.generation.base import (
@@ -481,6 +481,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                     )
                 except GenerationError as e:
                     last_error = e
+                    if e.kind == "rate_limited" or (e.kind == "provider_error" and "cpu overloaded" in str(e).lower()):
+                        report_throttle("vision" if images else "llm")      # the provider says "too many": its limit shrinks for a while
                     if e.provider is not None:
                         discarded_provider, discarded_model = e.provider, e.model
                     discarded_input = _sum_optional(discarded_input, e.input_tokens)

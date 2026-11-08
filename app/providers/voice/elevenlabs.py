@@ -18,7 +18,7 @@ import json
 import httpx
 
 from app.core.ai_config import ai_config
-from app.core.concurrency import slot
+from app.core.concurrency import report_throttle, slot
 from app.core.env import env_value
 from app.providers.voice.base import (
     VoiceProvider,
@@ -140,6 +140,8 @@ class ElevenLabsVoiceProvider(VoiceProvider):
                 if status == 200:
                     return self._parse(req, data, headers)
                 last = self._error(status, data)
+                if last.kind == "rate_limited":
+                    report_throttle("elevenlabs_tts")
             busy = last.kind == "rate_limited" and "concurren" in str(last).lower()
             limit = attempts - 1 if busy else self.cfg.max_retries
             if last.kind not in _RETRYABLE or attempt >= limit:

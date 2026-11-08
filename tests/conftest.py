@@ -436,3 +436,18 @@ def _open_coverage_unless_a_test_asks(request, monkeypatch):
     for field in ("max_card_stretch_seconds", "max_black_seconds", "max_still_seconds"):
         monkeypatch.setattr(ai_config.coverage, field, 1e9)
     monkeypatch.setattr(ai_config.coverage, "max_card_share", 1.0)
+
+
+@pytest.fixture(autouse=True)
+def roomy_machine(monkeypatch):
+    """The orchestrator judges the real machine and the real provider limits; a test that is not about it gets a roomy host and no stagger."""
+    from app.core import concurrency
+    from app.core.ai_config import ai_config
+    from app.orchestration import governor
+    from app.orchestration.host import HostSample
+
+    concurrency.reset_throttles()
+    monkeypatch.setattr(governor, "sample_host", lambda: HostSample(free_gb=64.0, total_gb=64.0, load_per_core=0.1, cores=8))
+    monkeypatch.setattr(ai_config.orchestrator, "stagger_seconds", 0.0)
+    yield
+    concurrency.reset_throttles()

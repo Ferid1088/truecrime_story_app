@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import time
 from collections.abc import Awaitable, Iterable
 from typing import Any, TypeVar
 from weakref import WeakKeyDictionary
@@ -28,49 +29,114 @@ from app.core.ai_config import ai_config
 
 T = TypeVar("T")
 
-_LIMITS: "WeakKeyDictionary[asyncio.AbstractEventLoop, dict[str, asyncio.Semaphore]]" = (
-    WeakKeyDictionary()
-)
-_ACTIVE: "WeakKeyDictionary[asyncio.AbstractEventLoop, dict[str, int]]" = WeakKeyDictionary()
+# Per provider limit: how far a rate-limit answer (HTTP 429, an overloaded gateway) has pulled it down, process-wide. The limit
+# shrinks at once and grows back one slot per `recovery_seconds` once `cooldown_seconds` have passed without another report, so a
+# provider that says "too many" is given room and is probed again, never hammered.
+_THROTTLE: dict[str, dict[str, float]] = {}
+_GATES: WeakKeyDictionary[asyncio.AbstractEventLoop, dict[str, Gate]] = WeakKeyDictionary()
+_ACTIVE: WeakKeyDictionary[asyncio.AbstractEventLoop, dict[str, int]] = WeakKeyDictionary()
 
 
 def limit_size(name: str) -> int:
     return max(1, int(getattr(ai_config.concurrency, name, 1)))
 
 
-def limiter(name: str) -> asyncio.Semaphore:
-    """The process-wide semaphore called `name` for the running loop."""
+def _policy(name: str):
+    cfg = ai_config.orchestrator_settings()
+    return cfg.throttle_overrides.get(name, cfg.throttle)
+
+
+def effective_limit(name: str, now: float | None = None) -> int:
+    """How many calls of `name` may run now: the configured limit, pulled down while the provider is throttling."""
+    configured = limit_size(name)
+    state = _THROTTLE.get(name)
+    if state is None:
+        return configured
+    policy = _policy(name)
+    now = time.monotonic() if now is None else now
+    quiet = now - state["at"] - policy.cooldown_seconds
+    grown = int(quiet // policy.recovery_seconds) + 1 if quiet >= 0 else 0
+    return max(1, min(configured, int(state["to"]) + grown))
+
+
+def report_throttle(name: str, now: float | None = None) -> int:
+    """A provider answered "too many requests" (or an overloaded gateway): the limit of `name` shrinks. Returns the new limit."""
+    policy = _policy(name)
+    now = time.monotonic() if now is None else now
+    current = effective_limit(name, now)
+    shrunk = max(policy.min_limit, int(current * policy.shrink_factor))
+    _THROTTLE[name] = {"to": float(shrunk), "at": now}
+    return shrunk
+
+
+def throttled(name: str, now: float | None = None) -> bool:
+    return effective_limit(name, now) < limit_size(name)
+
+
+def reset_throttles() -> None:
+    _THROTTLE.clear()
+
+
+class Gate:
+    """The process-wide limit called `name` for one event loop: a semaphore whose size follows `effective_limit`."""
+
+    POLL_SECONDS = 1.0
+
+    def __init__(self, name: str):
+        self.name = name
+        self.active = 0
+        self._changed = asyncio.Condition()
+
+    async def acquire(self) -> None:
+        async with self._changed:
+            while self.active >= effective_limit(self.name):
+                try:
+                    await asyncio.wait_for(self._changed.wait(), self.POLL_SECONDS)   # re-read the limit: it recovers with time
+                except TimeoutError:
+                    continue
+            self.active += 1
+
+    async def release(self) -> None:
+        async with self._changed:
+            self.active -= 1
+            self._changed.notify_all()
+
+
+def limiter(name: str) -> Gate:
+    """The process-wide gate called `name` for the running loop."""
     loop = asyncio.get_running_loop()
-    per_loop = _LIMITS.setdefault(loop, {})
-    sem = per_loop.get(name)
-    if sem is None:
-        sem = per_loop[name] = asyncio.Semaphore(limit_size(name))
-    return sem
+    per_loop = _GATES.setdefault(loop, {})
+    gate = per_loop.get(name)
+    if gate is None:
+        gate = per_loop[name] = Gate(name)
+    return gate
 
 
 @contextlib.asynccontextmanager
 async def slot(name: str):
     """`async with slot("llm"):` — waits for a free slot of that limit."""
-    sem = limiter(name)
+    gate = limiter(name)
     loop = asyncio.get_running_loop()
     active = _ACTIVE.setdefault(loop, {})
-    async with sem:
-        active[name] = active.get(name, 0) + 1
-        try:
-            yield
-        finally:
-            active[name] -= 1
+    await gate.acquire()
+    active[name] = active.get(name, 0) + 1
+    try:
+        yield
+    finally:
+        active[name] -= 1
+        await gate.release()
 
 
-def usage() -> dict[str, dict[str, int]]:
-    """Current use of every limit (for the API / UI)."""
+def usage() -> dict[str, dict[str, int | bool]]:
+    """Current use of every limit (for the API / UI): calls running, the limit now and the configured one."""
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return {}
     active = _ACTIVE.get(loop, {})
     names = set(ai_config.concurrency.model_dump()) | set(active)
-    return {n: {"active": active.get(n, 0), "limit": limit_size(n)} for n in sorted(names)}
+    return {n: {"active": active.get(n, 0), "limit": effective_limit(n), "configured": limit_size(n),
+                "throttled": throttled(n)} for n in sorted(names)}
 
 
 async def gather_limited(name: str | None, coros: Iterable[Awaitable[T]],

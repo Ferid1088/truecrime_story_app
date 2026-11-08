@@ -138,6 +138,25 @@ test.describe("Autopilot", () => {
     await expect(page.getByTestId("start-autopilot")).toHaveCount(0);
   });
 
+  test("the run page shows every chosen language, the new ones too, and Persian's own review as a need", async ({ page }) => {
+    await mockApi(page);
+    const film = (status: string) => ({ id: 1, status, progress: 0, stage: null, error: null });
+    const run = {
+      ...RUN, status: "waiting_owner", needs_you: [
+        { key: "films:fa:film_review", kind: "film_review", language: "fa", blocking: true,
+          message: "Review and approve the fa film (its pictures and its render): the other languages go on without waiting for it." },
+      ],
+      languages: Object.fromEntries(["en", "fa", "es", "it", "fr", "pt", "tr"].map((l) =>
+        [l, { film_job: film(l === "en" ? "completed" : "running"), titles: [] }])),
+    };
+    await page.route("**/api/autopilot/runs/9", (route) => route.fulfill(fulfil(run)));
+    await page.route("**/api/autopilot/runs/9/publish-requests", (route) => route.fulfill(fulfil(PUBLISH)));
+    await page.goto("/autopilot/9");
+    for (const [lang, label] of [["es", "Spanish"], ["it", "Italian"], ["fr", "French"], ["pt", "Portuguese"], ["tr", "Turkish"]])
+      await expect(page.getByTestId(`run-language-${lang}`)).toContainText(label);
+    await expect(page.getByTestId("needs-you")).toContainText("the other languages go on without waiting");
+  });
+
   test("Settings shows a not-connected placeholder per language and platform", async ({ page }) => {
     await mockApi(page);
     const channels = ["en", "de", "fa", "ar"].flatMap((language) =>

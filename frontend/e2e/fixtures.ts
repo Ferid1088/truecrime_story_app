@@ -246,6 +246,7 @@ export const fixtures = {
       { stage: "language_final", language: "fa", calls: 1, tokens_in: 52000, tokens_cached: 30000, tokens_reasoning: 12000, tokens_out: 21000, eur: 0.61, cache_share: 0.577, cache_saving_eur: 0.05 },
     ],
     cost_total_eur: 2.13,
+    optional_languages: [],
     calls_total: 43,
   },
   glossary: {
@@ -271,6 +272,7 @@ export const fixtures = {
     languages: ["fa", "en", "de", "ar"].map((language) => ({ language, stages: {} })),
     ledger: [],
     cost_total_eur: 0,
+    optional_languages: [],
   },
   languagePipelineEstimate: {
     note: "ESTIMATE from planning figures, not a price and not a spend. The actual cost is the ledger.",
@@ -484,7 +486,19 @@ export const namingFixture = {
     de: namingLang("de", ["Die Laterne von Keeper Point"], null),
     fa: namingLang("fa", ["فانوس سلله"], null),
     ar: namingLang("ar", ["فانوس سيله"], null),
+    es: namingLang("es", ["El Faro de Keeper Point"], null),
+    it: namingLang("it", ["Il Faro di Keeper Point"], null),
+    fr: namingLang("fr", ["Le Phare de Keeper Point"], null),
+    pt: namingLang("pt", ["O Farol de Keeper Point"], null),
+    tr: namingLang("tr", ["Keeper Point Feneri"], null),
   },
+};
+
+export const productionFixture = {
+  case_id: 1, name: { approved: false, title: "The Lamp Went Dark" },
+  allowed_languages: ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"], required_language: "en",
+  languages: ["en", "de", "fa", "ar"], saved: false, outfits: [], estimate: null,
+  blockers: ["Approve the case's English name first (Naming tab): nothing is produced before the case is confirmed."], run: null,
 };
 
 export const thumbnailFixture = {
@@ -693,6 +707,7 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     if (path === "/api/cases/1/mvp/reviews") return json(route, []);
     if (path.startsWith("/api/visuals/")) return route.fulfill({ status: 200, contentType: "image/png", body: PIXEL });
     if (path === "/api/cases/1/naming" && method === "GET") return json(route, namingFixture);
+    if (path === "/api/cases/1/production" && method === "GET") return json(route, productionFixture);
     if (path === "/api/cases/1/facts") return json(route, fixtures.facts);
     if (path === "/api/cases/1/timeline") return json(route, fixtures.timeline);
     if (path === "/api/cases/1/contradictions") return json(route, fixtures.contradictions);

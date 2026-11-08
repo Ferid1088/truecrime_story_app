@@ -3043,6 +3043,17 @@ class AutopilotRun(Base):
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
 
+class OrchestratorState(Base):
+    """What the orchestrator saw at its last look (one row, written by the worker every tick, read by the API): the machine, the
+    providers' limits, the last decision about starting a film and the recent changes of it."""
+
+    __tablename__ = "orchestrator_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    snapshot_json: Mapped[str] = mapped_column(Text, default="{}")
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
 class CaseProduction(Base):
     """The production choices of one case, saved on the case page before the Autopilot is pressed: the
     languages to produce (a language that is not in the list is never produced). The host outfit of each

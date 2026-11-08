@@ -1284,6 +1284,33 @@ export interface CaseProduction {
   run: AutopilotRunView | null;
 }
 
+export interface OrchestratorProvider {
+  active: number;
+  configured: number;
+  limit: number;
+  throttled: boolean;
+}
+
+export interface OrchestratorView {
+  worker_alive: boolean;
+  updated_at: string | null;
+  host: { free_gb: number; total_gb: number; load_per_core: number; cores: number } | null;
+  host_limits: { min_free_memory_gb: number; job_memory_gb: number; max_load_per_core: number } | null;
+  running: number;
+  cap: number;
+  decision: { allowed: boolean; code: string; reason: string } | null;
+  providers: Record<string, OrchestratorProvider>;
+  events: { at: number; code: string; reason: string }[];
+  jobs: { id: number; case_id: number; case_title: string | null; status: string; languages: string[]; stage: string | null;
+          progress: number; waiting_because: string | null }[];
+  runs: { id: number; status: string; stage: string | null; case: { id: number; title: string };
+          languages: Record<string, string | null>; needs_you: AutopilotNeed[] }[];
+}
+
+export const orchestratorApi = {
+  view: () => request<OrchestratorView>("/api/orchestrator"),
+};
+
 export interface PublishRequestRow {
   id: number;
   language: string;

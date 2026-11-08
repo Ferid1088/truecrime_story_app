@@ -546,3 +546,27 @@ def test_every_chosen_language_starts_together_after_english_and_persian_review_
     passes(db_session, row, ports)
     assert not any(n["kind"] == "film_review" for n in S.needs(row))
     assert S.step_status(row, "films") == "done"
+
+
+def test_a_failed_language_is_isolated_the_others_go_on_and_a_transient_failure_is_retried_by_itself(db_session, case):
+    chosen = ["en", "de", "fa", "tr"]
+    row = AutopilotRun(case_id=case.id, languages_json=json.dumps(chosen), steps_json=json.dumps(S.initial_steps()))
+    db_session.add(row)
+    db_session.commit()
+    ports = FakePorts(approve=chosen)
+    passes(db_session, row, ports)
+    approve_english(db_session, row)
+    passes(db_session, row, ports)
+    ids = S.film_job_ids(row)
+    de, fa, tr = (db_session.get(DocumentaryJob, ids[lang]) for lang in ("de", "fa", "tr"))
+    de.status, de.error = "failed", "the narrator voice was refused"        # not transient: waits for the owner
+    fa.status = "running"
+    tr.status, tr.error = "failed", "HTTP 503 temporarily unavailable"       # transient: retried without the owner
+    db_session.commit()
+    passes(db_session, row, ports)
+    db_session.refresh(fa)
+    db_session.refresh(tr)
+    stopped = [n for n in S.needs(row) if n["kind"] == "film_stopped"]
+    assert [n["language"] for n in stopped] == ["de"]
+    assert fa.status == "running"                                          # a problem in another language touched nothing here
+    assert tr.status == "queued" and tr.error is None and tr.auto_resumes == 1
