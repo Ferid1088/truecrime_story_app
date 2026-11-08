@@ -823,6 +823,41 @@
         "punctuation_chars": ",;:.!?…“”‘’\"'()-–—",
         "phrase_end_marks": ",;:.!?…“”\"()—–",
         "agents": "documentary.punctuation.en"
+      },
+      "es": {
+        "marks": [",", ";", ":", ".", "?", "!", "—"],
+        "normalize": {},
+        "punctuation_chars": ",;:.!?¿¡…«»“”‘’\"'()-–—",
+        "phrase_end_marks": ",;:.!?¿¡…«»“”\"()—–",
+        "agents": "documentary.punctuation.es"
+      },
+      "it": {
+        "marks": [",", ";", ":", ".", "?", "!", "—"],
+        "normalize": {},
+        "punctuation_chars": ",;:.!?…«»“”‘’\"'()-–—",
+        "phrase_end_marks": ",;:.!?…«»“”\"()—–",
+        "agents": "documentary.punctuation.it"
+      },
+      "fr": {
+        "marks": [",", ";", ":", ".", "?", "!", "—"],
+        "normalize": {},
+        "punctuation_chars": ",;:.!?…«»“”‘’\"'()-–—",
+        "phrase_end_marks": ",;:.!?…«»“”\"()—–",
+        "agents": "documentary.punctuation.fr"
+      },
+      "pt": {
+        "marks": [",", ";", ":", ".", "?", "!", "—"],
+        "normalize": {},
+        "punctuation_chars": ",;:.!?…«»“”‘’\"'()-–—",
+        "phrase_end_marks": ",;:.!?…«»“”\"()—–",
+        "agents": "documentary.punctuation.pt"
+      },
+      "tr": {
+        "marks": [",", ";", ":", ".", "?", "!", "—"],
+        "normalize": {},
+        "punctuation_chars": ",;:.!?…«»“”‘’\"'()-–—",
+        "phrase_end_marks": ",;:.!?…«»“”\"()—–",
+        "agents": "documentary.punctuation.tr"
       }
     }
   },

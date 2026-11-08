@@ -11,7 +11,7 @@ from app.documentary.persian_numbers import NUMBER
 TAG = re.compile(r"\[[^\[\]]*\]\s*")
 PIECE = re.compile(r"\S+")
 VOWEL_MARKS = re.compile("[ً-ْٰٔ]")      # fathatan .. sukun, the dagger alef, the hamza above
-EDGE_PUNCT = ".,;:!?؟،؛«»„“”‚‘’\"'()[]…-–—"
+EDGE_PUNCT = ".,;:!?¿¡؟،؛«»„“”‚‘’\"'()[]…-–—"
 NUMBER_WORD = "NUM"                                          # what a reading says for a number: the digits are read by code, not by an agent
 
 

@@ -42,7 +42,7 @@ def staged(language: str, text: str, syntax: dict, edits: list, *verdicts: dict)
     return asyncio.run(stage.block({"block_id": "b", "text": text})), stage
 
 
-@pytest.mark.parametrize("language", ["fa", "ar", "de", "en"])
+@pytest.mark.parametrize("language", ["fa", "ar", "de", "en", "es", "it", "fr", "pt", "tr"])
 def test_every_language_has_its_profile_agents_and_prompts(language):
     profile = ai_config.semantic_punctuation.profile(language)
     for kind in ("syntax", "punctuate", "check"):
@@ -53,9 +53,9 @@ def test_every_language_has_its_profile_agents_and_prompts(language):
 
 
 def test_a_language_without_a_profile_has_no_layer():
-    assert not ai_config.semantic_punctuation.covers("es")
+    assert not ai_config.semantic_punctuation.covers("xx")
     with pytest.raises(ValueError, match="no punctuation profile"):
-        ai_config.semantic_punctuation.profile("es")
+        ai_config.semantic_punctuation.profile("xx")
 
 
 def test_the_prompts_are_of_their_language():
@@ -147,13 +147,19 @@ def test_a_layer_never_changes_a_word_whatever_the_language(language, text):
     assert not check(layer) and [w.surface for w in layer.words] == text.split()
 
 
-@pytest.mark.parametrize("language,lowercase,capital", [("en", "He left and she stayed", "He left She stayed"), ("de", "Er ging und sie blieb", "Er ging Sie blieb")])
+@pytest.mark.parametrize("language,lowercase,capital", [("en", "He left and she stayed", "He left She stayed"), ("de", "Er ging und sie blieb", "Er ging Sie blieb"),
+    ("es", "Ella salió y él se quedó", "Ella salió Él se quedó"), ("it", "Lei uscì e lui rimase", "Lei uscì Lui rimase"),
+    ("fr", "Elle sortit et il resta", "Elle sortit Il resta"), ("pt", "Ela saiu e ele ficou", "Ela saiu Ele ficou"),
+    ("tr", "O çıktı ve ben kaldım", "O çıktı Ben kaldım")])
 def test_a_sentence_mark_before_a_lowercase_word_is_refused_the_layer_never_changes_a_letter(language, lowercase, capital):
     edit = [[{"after": 1, "new": ".", "reason": "two sentences"}]]
     result, _ = staged(language, lowercase, {"boundaries": []}, edit)
     assert result.layer.text == lowercase and "starts in lowercase" in result.refused[0]["why"]
     result, _ = staged(language, capital, {"boundaries": []}, edit)
-    assert result.layer.text == capital.replace(" She", ". She").replace(" Sie", ". Sie")
+    expected = capital
+    for word in ("She", "Sie", "Él", "Lui", "Il", "Ele", "Ben"):
+        expected = expected.replace(f" {word}", f". {word}")
+    assert result.layer.text == expected
 
 
 def test_arabic_has_no_capitals_so_a_period_is_never_refused_for_that():
@@ -187,3 +193,30 @@ def test_persian_and_its_locale_variants_still_pass_through_the_checker(language
                                 punctuate_runner=agent({"edits": [{"after": 1, "new": "،", "reason": "clause"}]}), check_runner=checker, language=language)
     result = asyncio.run(stage.block({"block_id": "b", "text": "مرد آمد و رفت"}))
     assert len(checker.seen) == 1 and result.review == "PASS" and result.checks
+
+
+@pytest.mark.parametrize("language,text", [("es", "Dijo que no vino"), ("it", "Disse che non venne"), ("fr", "Il dit qu'il n'est pas venu"),
+                                           ("pt", "Ele disse que não veio"), ("tr", "Gelmediğini söyledi")])
+def test_the_new_languages_keep_their_words_and_take_only_marks_of_their_profile(language, text):
+    layer = Layer("b", text, text, [Edit(0, "", ",", "x")], language=language)
+    assert not check(layer) and [w.surface for w in layer.words] == text.split()
+    with pytest.raises(LayerError):
+        _ = Layer("b", text, text, [Edit(0, "", "،", "a Persian mark")], language=language).text
+
+
+def test_spanish_inverted_question_and_exclamation_marks_are_punctuation_not_part_of_a_word():
+    layer = Layer("b", "Dijo ¿quién vino? y ¡corrió!", "Dijo ¿quién vino? y ¡corrió!", language="es")
+    assert [w.surface for w in layer.words] == ["Dijo", "quién", "vino", "y", "corrió"] and not check(layer)
+
+
+def test_french_guillemets_are_punctuation_not_part_of_a_word():
+    layer = Layer("b", "Il dit « viens » et partit", "Il dit « viens » et partit", language="fr")
+    assert [w.surface for w in layer.words] == ["Il", "dit", "viens", "et", "partit"] and not check(layer)
+
+
+def test_the_new_prompts_are_of_their_own_language():
+    assert "Mexican Spanish" in prompt("documentary/punctuation/punctuate_system_es") and "sino" in prompt("documentary/punctuation/syntax_system_es")
+    assert "Italian" in prompt("documentary/punctuation/punctuate_system_it") and "tuttavia" in prompt("documentary/punctuation/syntax_system_it")
+    assert "parce que" in prompt("documentary/punctuation/syntax_system_fr") and "mais, car" in prompt("documentary/punctuation/punctuate_system_fr")
+    assert "Brazilian Portuguese" in prompt("documentary/punctuation/check_system_pt") and "todavia" in prompt("documentary/punctuation/syntax_system_pt")
+    assert "verb-final" in prompt("documentary/punctuation/punctuate_system_tr") and "ezafe" not in prompt("documentary/punctuation/syntax_system_tr").lower()
