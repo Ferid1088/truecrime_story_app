@@ -37,6 +37,21 @@
       "name": "Gizli İzler",
       "logo": "data/logos/Logo_Turkish.png",
       "intro_concept": "sis"
+    },
+    "fr": {
+      "name": "Pistes Cachées",
+      "logo": "data/logos/Logo_French.png",
+      "intro_concept": "arch"
+    },
+    "it": {
+      "name": "Tracce Nascoste",
+      "logo": "data/logos/Logo_Italian.png",
+      "intro_concept": "keyhole"
+    },
+    "pt": {
+      "name": "Pistas Ocultas",
+      "logo": "data/logos/Logo_Portuguese.png",
+      "intro_concept": "trail_stamp"
     }
   },
   "video_identity": {

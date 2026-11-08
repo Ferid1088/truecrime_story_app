@@ -343,10 +343,13 @@ def test_api_flow(env, client, db_session, monkeypatch):
     assert bad.status_code == 422
 
 
-def test_a_language_without_a_channel_has_no_thumbnail_to_make_and_says_why(env, client, db_session):
+def test_a_language_without_a_channel_has_no_thumbnail_to_make_and_says_why(env, client, db_session, monkeypatch):
+    from app.core.ai_config import ai_config
+
     make_hosts(env)
     case = make_case(db_session, "Thumb channel", title="Der verschwundene Kreis")
     for language in ("it", "fr", "pt"):
+        monkeypatch.delitem(ai_config.channels, language)
         r = client.get(f"/api/cases/{case.id}/thumbnails/options", params={"language": language})
         assert r.status_code == 409 and "No channel is configured" in r.json()["detail"]
     assert client.get(f"/api/cases/{case.id}/thumbnails/options", params={"language": "xx"}).status_code == 422

@@ -12,7 +12,9 @@ from app.core.ai_config import AIConfig, ai_config
 from app.documentary import studio as ST
 
 CHANNELS = {"en": "ClueVera", "de": "Fallspur", "ar": "أثر خفي", "fa": "رد خاموش", "es": "Tras la Pista",
-            "tr": "Gizli İzler"}
+            "tr": "Gizli İzler",
+            "fr": "Pistes Cachées", "it": "Tracce Nascoste", "pt": "Pistas Ocultas"}
+STUDIO_LANGUAGES = [lang for lang in CHANNELS if lang not in ("fr", "it", "pt")]  # no studio pictures yet
 REG = ST.load_registry()
 
 
@@ -41,7 +43,7 @@ def test_language_resolves_to_its_channel_studio(lang):
 
 
 def test_primary_background_exists_and_is_host_ready():
-    for lang in CHANNELS:
+    for lang in STUDIO_LANGUAGES:
         prof = REG.profile_for(lang)
         a = REG.asset(prof.primary_background)
         assert a is not None and a.approved_for_host and a.safe_zones.host
@@ -54,7 +56,7 @@ def test_primary_background_exists_and_is_host_ready():
 def test_exactly_one_primary_per_channel_and_unique_ids():
     ids = [a.id for a in REG.assets]
     assert len(ids) == len(set(ids))
-    for lang in CHANNELS:
+    for lang in STUDIO_LANGUAGES:
         prof = REG.profile_for(lang)
         assert sum(1 for a in REG.assets_of(lang) if a.id == prof.primary_background) == 1
         assert [p.language for p in REG.profiles.values()].count(lang) == 1
@@ -78,7 +80,7 @@ def test_safe_zones_are_normalized_and_consistent():
 
 
 def test_framing_presets_reference_valid_approved_assets_of_the_channel():
-    for lang in CHANNELS:
+    for lang in STUDIO_LANGUAGES:
         for name, pr in REG.profile_for(lang).presets.items():
             a = REG.asset(pr.asset_id)
             assert a is not None and a.language == lang and a.approved_for_host, name
@@ -92,7 +94,7 @@ def test_framing_presets_reference_valid_approved_assets_of_the_channel():
 def test_the_real_registry_validates_with_warnings_only():
     checks = ST.validate_all(REG, check_files=_images_present())
     no_voice = ["no ElevenLabs voice configured (voice.languages)"]
-    for lang in CHANNELS:
+    for lang in STUDIO_LANGUAGES:
         # the only thing a studio can still lack is the channel's voice (Spanish and Turkish have none configured yet)
         assert checks[lang]["errors"] == ([] if lang in ai_config.voice.languages else no_voice), checks[lang]
         assert any("not yet confirmed" in w for w in checks[lang]["warnings"]) or \

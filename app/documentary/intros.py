@@ -147,7 +147,7 @@ def ensure_intro(language: str, W: int, H: int, fps: int) -> dict | None:
                         "audio": str(out / meta["audio"])}
         out.mkdir(parents=True, exist_ok=True)
         video, audio = out / f"intro_{tag}.mp4", out / f"intro_{tag}.wav"
-        IntroMaker(logo, W, H, fps, sr).render(concept, video, audio)
+        IntroMaker(logo, W, H, fps, sr, language=language).render(concept, video, audio)
         meta = {"concept": concept, "seconds": CONCEPTS[concept].seconds, "fingerprint": fp,
                 "logo": str(logo.relative_to(ROOT)) if logo.is_relative_to(ROOT) else str(logo),
                 "video": video.name, "audio": audio.name, "width": W, "height": H, "fps": fps}
@@ -223,6 +223,56 @@ class Sound:
             buf[j] = bright * 0.5 * (buf[j] + buf[(k + 1) % N])
         y = self.band(y, hi=2500 + 2500 * body) * np.exp(-np.linspace(0, 3.2, n))
         self.add(y, at, gain)
+
+    def accordion(self, at, freq, length=0.8, gain=0.25, tremolo=5.2):
+        """A compact musette/accordion-like reed tone for French colour."""
+        n = int(length * self.sr)
+        t = np.arange(n) / self.sr
+        y = np.zeros(n)
+        for cents, level in ((-7.0, 0.75), (0.0, 1.0), (7.0, 0.72)):
+            f = freq * 2 ** (cents / 1200)
+            phase = 2 * math.pi * f * t
+            y += level * (np.sin(phase) + 0.42 * np.sin(2 * phase)
+                          + 0.20 * np.sin(3 * phase) + 0.08 * np.sin(4 * phase))
+        env = np.clip(t / 0.035, 0, 1) * np.clip((length - t) / 0.16, 0, 1)
+        env *= 0.86 + 0.14 * np.sin(2 * math.pi * tremolo * t)
+        self.add(self.band(y * env, lo=90, hi=5200), at, gain / 2.2)
+
+    def mandolin(self, at, freq, length=1.1, gain=0.28) -> np.ndarray:
+        """A bright doubled tremolo pluck for an Italian mandolin colour."""
+        out = np.zeros(self.n)
+        for off in np.arange(0.0, length, 0.09):
+            n = int(0.48 * self.sr)
+            t = np.arange(n) / self.sr
+            for cents, level in ((-4.0, 1.0), (4.0, 0.76)):
+                f = freq * 2 ** (cents / 1200)
+                N = max(2, int(self.sr / f))
+                buf = self.rng.uniform(-1, 1, N)
+                y = np.empty(n)
+                for k in range(n):
+                    j = k % N
+                    y[k] = buf[j]
+                    buf[j] = 0.995 * 0.5 * (buf[j] + buf[(k + 1) % N])
+                y = self.band(y, lo=180, hi=7200) * np.exp(-t * 8.0)
+                i = int((at + off) * self.sr)
+                m = max(0, min(n, self.n - i))
+                out[i:i + m] += y[:m] * level * gain
+        return out
+
+    def berimbau(self, at, freq=196.0, length=1.1, gain=0.3) -> np.ndarray:
+        """A bowed single-string pulse with a Brazilian berimbau contour."""
+        n = int(length * self.sr)
+        t = np.arange(n) / self.sr
+        bend = freq * (1.0 + 0.22 * np.exp(-t * 5.0) * np.sin(2 * math.pi * 5.0 * t))
+        phase = 2 * math.pi * np.cumsum(bend) / self.sr
+        y = (np.sin(phase) + 0.35 * np.sin(2 * phase) + 0.16 * np.sin(3 * phase))
+        y *= np.exp(-t * 2.8) * (1 - np.exp(-t * 80))
+        y += self.band(self.rng.normal(0, 1, n), 900, 4200) * np.exp(-t * 26) * 0.22
+        out = np.zeros(self.n)
+        i = int(at * self.sr)
+        m = max(0, min(n, self.n - i))
+        out[i:i + m] += self.band(y[:m], lo=90, hi=4800) * gain
+        return out
 
     def guitar(self, at, freq, length=3.5, gain=0.3) -> np.ndarray:
         """A clean electric guitar note: two slightly detuned Karplus–Strong
@@ -336,8 +386,10 @@ class Sound:
 
 
 class IntroMaker:
-    def __init__(self, logo: Path, W: int, H: int, fps: int, sr: int, seed: int = 7):
+    def __init__(self, logo: Path, W: int, H: int, fps: int, sr: int,
+                 seed: int = 7, language: str | None = None):
         self.logo, self.W, self.H, self.fps, self.sr = logo, W, H, fps, sr
+        self.language = language
         self.k = H / DESIGN_H
         self.rng = np.random.default_rng(seed)
         self.yy, self.xx = np.mgrid[0:H, 0:W].astype(np.float32)
@@ -478,11 +530,23 @@ class IntroMaker:
             return self.fade(out, t, dur, 0.15, 0.6)
 
         snd = Sound(dur, self.sr)
-        snd.drone((55, 82.4), (0.25, 1.0))
-        snd.click(0.3, 0.2, 1500)
-        snd.whoosh(1.4, 2.0, 200, 1800, 0.3)
-        snd.boom(3.6, gain=0.85)
-        snd.whoosh(3.85, 1.0, 3000, 9000, 0.07)
+        if self.language == "it":
+            snd.drone((55.0, 82.41), (0.22, 0.82), 0.18)
+            notes = [(0.55, 220.00), (0.95, 261.63), (1.35, 329.63),
+                     (1.82, 293.66), (2.22, 246.94), (2.66, 220.00),
+                     (3.10, 329.63), (3.55, 293.66), (4.00, 246.94)]
+            bus = sum(snd.mandolin(at, f, 0.72, 0.30) for at, f in notes)
+            snd.add(snd.reverb(bus, 2.5, 0.28), 0, 0.95)
+            snd.click(0.3, 0.18, 1500)
+            snd.whoosh(1.4, 1.7, 260, 2300, 0.09)
+            snd.boom(3.6, f0=92, f1=38, length=1.8, gain=0.65)
+            snd.whoosh(3.85, 1.0, 3000, 9000, 0.05)
+        else:
+            snd.drone((55, 82.4), (0.25, 1.0))
+            snd.click(0.3, 0.2, 1500)
+            snd.whoosh(1.4, 2.0, 200, 1800, 0.3)
+            snd.boom(3.6, gain=0.85)
+            snd.whoosh(3.85, 1.0, 3000, 9000, 0.07)
         return dur, fr, snd
 
     def trail_stamp(self):
@@ -528,11 +592,26 @@ class IntroMaker:
             return self.fade(out, t, dur, 0.1, 0.6)
 
         snd = Sound(dur, self.sr)
-        snd.drone((58.3, 87.3), (0.25, 0.85))
-        for i in range(20):
-            snd.click(0.25 + 0.075 * i, 0.11, 2500)
-        snd.boom(2.05, f0=140, f1=45, length=1.8, gain=1.0)
-        snd.click(2.05, 0.6, 600)
+        if self.language == "pt":
+            snd.drone((55.0, 82.41), (0.2, 0.78), 0.16)
+            for at, freq, ln, gain in ((0.38, 146.83, 0.95, 0.36),
+                                       (1.28, 196.00, 0.85, 0.32),
+                                       (2.12, 164.81, 0.9, 0.34),
+                                       (3.05, 146.83, 1.2, 0.4)):
+                snd.add(snd.berimbau(at, freq, ln, gain), 0, 1.0)
+            for at, g in ((0.35, 0.48), (0.78, 0.25), (1.18, 0.38),
+                          (1.62, 0.24), (2.05, 0.42), (2.48, 0.22),
+                          (2.92, 0.4), (3.34, 0.24)):
+                snd.skin_drum(at, 96, 50, 0.42, g)
+                snd.click(at + 0.06, 0.12, 2100)
+            snd.boom(2.05, f0=120, f1=42, length=1.8, gain=0.72)
+            snd.click(2.05, 0.5, 600)
+        else:
+            snd.drone((58.3, 87.3), (0.25, 0.85))
+            for i in range(20):
+                snd.click(0.25 + 0.075 * i, 0.11, 2500)
+            snd.boom(2.05, f0=140, f1=45, length=1.8, gain=1.0)
+            snd.click(2.05, 0.6, 600)
         snd.whoosh(3.25, 1.2, 2500, 8000, 0.06)
         return dur, fr, snd
 
@@ -607,13 +686,35 @@ class IntroMaker:
             return self.fade(out, t, dur, 0.1, 0.6)
 
         snd = Sound(dur, self.sr)
-        d = 146.83  # maqam Hijaz on D: D Eb F# G
-        snd.drone((73.4, 110.0), (0.25, 0.9))
-        for at, f in [(0.6, d), (1.0, d * 2 ** (1 / 12)), (1.4, d * 2 ** (4 / 12)),
-                      (1.85, d * 2 ** (5 / 12)), (2.75, d * 2 ** (4 / 12)), (2.8, d / 2)]:
-            snd.pluck(at, f, 2.2, 0.36, 0.995, 0.4)
-        snd.boom(2.8, f0=100, f1=40, gain=0.75)
-        snd.whoosh(0.8, 2.0, 300, 2500, 0.15)
+        if self.language == "fr":
+            dm, a_note, f, e, c_sharp = 73.42, 110.00, 146.83, 164.81, 277.18
+            snd.drone((dm, a_note), (0.18, 0.68), 0.14)
+            for at, freq, length, gain in (
+                (0.35, dm, 0.55, 0.42), (0.78, f, 0.38, 0.24), (1.10, a_note, 0.38, 0.24),
+                (1.35, dm, 0.55, 0.38), (1.78, f, 0.38, 0.23), (2.10, a_note, 0.38, 0.23),
+                (2.35, a_note / 2, 0.55, 0.42), (2.78, e, 0.38, 0.24), (3.10, c_sharp, 0.38, 0.24),
+            ):
+                snd.accordion(at, freq, length, gain)
+            melody = [(0.48, 293.66), (0.88, 349.23), (1.28, 440.00),
+                      (1.68, 554.37), (2.08, 440.00), (2.48, 349.23),
+                      (2.92, 329.63), (3.32, 293.66), (3.80, 440.00),
+                      (4.22, 349.23), (4.64, 329.63), (5.02, 293.66)]
+            bus = np.zeros(snd.n)
+            for at, freq in melody:
+                before = snd.mix.copy()
+                snd.accordion(at, freq, 0.56, 0.34, tremolo=5.0)
+                bus += snd.mix - before
+            snd.add(snd.reverb(bus, 2.1, 0.24), 0, 0.55)
+            snd.boom(4.9, f0=92, f1=38, length=1.5, gain=0.55)
+            snd.whoosh(0.8, 1.8, 260, 2200, 0.08)
+        else:
+            d = 146.83  # maqam Hijaz on D: D Eb F# G
+            snd.drone((73.4, 110.0), (0.25, 0.9))
+            for at, f in [(0.6, d), (1.0, d * 2 ** (1 / 12)), (1.4, d * 2 ** (4 / 12)),
+                          (1.85, d * 2 ** (5 / 12)), (2.75, d * 2 ** (4 / 12)), (2.8, d / 2)]:
+                snd.pluck(at, f, 2.2, 0.36, 0.995, 0.4)
+            snd.boom(2.8, f0=100, f1=40, gain=0.75)
+            snd.whoosh(0.8, 2.0, 300, 2500, 0.15)
         return dur, fr, snd
 
     def flashlight(self):

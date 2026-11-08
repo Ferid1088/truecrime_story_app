@@ -25,7 +25,10 @@
       "de": "Willst du wahre Kriminalfälle hören, die auf Tatsachen beruhen? Schau auf unserem Kanal vorbei und folge uns.",
       "ar": "هل تريد أن تسمع قصص جرائم حقيقية مبنية على الوقائع؟ زر قناتنا وتابعنا.",
       "es": "¿Quieres escuchar historias reales de crímenes basadas en hechos? Visita nuestro canal y síguenos.",
-      "tr": "Gerçek olaylara dayanan gerçek suç hikâyelerini dinlemek ister misin? Kanalımızı ziyaret et ve bizi takip et."
+      "tr": "Gerçek olaylara dayanan gerçek suç hikâyelerini dinlemek ister misin? Kanalımızı ziyaret et ve bizi takip et.",
+      "fr": "Envie d'écouter de vraies affaires criminelles, fondées sur des faits ? Passe sur notre chaîne et abonne-toi.",
+      "it": "Vuoi ascoltare storie vere di crimini, basate sui fatti? Passa dal nostro canale e seguici.",
+      "pt": "Quer ouvir histórias reais de crimes, baseadas em fatos? Visite o nosso canal e siga a gente."
     },
     "channel_name": {
       "en": "ClueVera",
@@ -104,7 +107,10 @@
       "de": "Ich bin Fereidoun, und hier erzähle ich dir wahre Kriminalfälle.",
       "ar": "أنا فريدون، وهنا أروي لك قصص الجرائم الحقيقية.",
       "es": "Soy Fereidoun, y aquí te cuento historias reales de crímenes.",
-      "tr": "Ben Fereidoun, ve burada sana gerçek suç hikâyelerini anlatıyorum."
+      "tr": "Ben Fereidoun, ve burada sana gerçek suç hikâyelerini anlatıyorum.",
+      "fr": "Moi, c'est Fereidoun, et ici je te raconte de vraies affaires criminelles.",
+      "it": "Sono Fereidoun, e qui ti racconto storie vere di crimini.",
+      "pt": "Eu sou o Fereidoun, e aqui eu te conto histórias reais de crimes."
     },
     "closing_order": "cta_then_identity",
     "closing_library": {
@@ -120,7 +126,10 @@
       "fa": 146,
       "ar": 140,
       "es": 137,
-      "tr": 130
+      "tr": 130,
+      "fr": 150,
+      "it": 155,
+      "pt": 150
     }
   }
 }
