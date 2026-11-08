@@ -3221,6 +3221,8 @@ class HostLedShortsConfig(BaseModel):
     music_provider: MusicProviderConfig = Field(default_factory=MusicProviderConfig)
     music_library: HostLedMusicLibraryConfig = Field(default_factory=HostLedMusicLibraryConfig)
     music_attribution_text: dict[str, str] = {}
+    # The line in front of a reel's caption that points to the full film, per language: `{channel}` is the channel's name.
+    publish_cta: dict[str, str] = {}
     music_duck_db_under_speech: float = Field(default=-14.0, le=0)
     music_level_db_visual_only: float = Field(default=-8.0, le=0)
     music_duck_attack_seconds: float = Field(default=0.35, ge=0)

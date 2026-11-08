@@ -71,7 +71,12 @@
         "en": "flashlight: a single torch beam cutting through dark, empty rooms; patient, sparse, restrained",
         "de": "trail and stamp: footsteps on a cold trail, a stamped file closing; measured, procedural",
         "fa": "classical nylon guitar on its bass strings only, deep, no electric guitar, no vocal layer",
-        "ar": "sand and trace: wind over sand erasing a footprint; spare, dry, patient"
+        "ar": "sand and trace: wind over sand erasing a footprint; spare, dry, patient",
+        "es": "magnifying glass: a slow lens passing over worn paper and old photographs; curious, quiet, attentive",
+        "it": "keyhole: a single thread of light through a keyhole into a dark corridor; hushed, watchful, patient",
+        "fr": "archive arch: footsteps under a stone arch, a drawer of old files sliding shut; echoing, measured, restrained",
+        "pt": "trail and stamp: footsteps on a damp path, a stamp pressed on an old file; steady, procedural, low",
+        "tr": "fog: a low mist drifting over still water at dusk; muted, slow, distant"
       },
       "moods": [
         "searching",
@@ -101,7 +106,23 @@
       "en": "Music created in collaboration with ElevenLabs",
       "de": "Musik in Zusammenarbeit mit ElevenLabs erstellt",
       "fa": "موسیقی با همکاری ElevenLabs ساخته شده است",
-      "ar": "تم إنشاء الموسيقى بالتعاون مع ElevenLabs"
+      "ar": "تم إنشاء الموسيقى بالتعاون مع ElevenLabs",
+      "es": "Música creada en colaboración con ElevenLabs",
+      "it": "Musica creata in collaborazione con ElevenLabs",
+      "fr": "Musique créée en collaboration avec ElevenLabs",
+      "pt": "Música criada em colaboração com a ElevenLabs",
+      "tr": "Müzik, ElevenLabs iş birliğiyle oluşturuldu"
+    },
+    "publish_cta": {
+      "en": "Full documentary on YouTube - {channel}",
+      "de": "Die ganze Doku auf YouTube - {channel}",
+      "fa": "مستند کامل در یوتیوب - {channel}",
+      "ar": "الوثائقي الكامل على يوتيوب - {channel}",
+      "es": "El documental completo en YouTube - {channel}",
+      "it": "Il documentario completo su YouTube - {channel}",
+      "fr": "Le documentaire complet sur YouTube - {channel}",
+      "pt": "O documentário completo no YouTube - {channel}",
+      "tr": "Belgeselin tamamı YouTube'da - {channel}"
     },
     "music_duck_db_under_speech": -14.0,
     "music_level_db_visual_only": -8.0,

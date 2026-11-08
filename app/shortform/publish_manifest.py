@@ -49,13 +49,8 @@ class PublishManifest:
 
 
 def _caption_with_cta(language: str, channel: str) -> str:
-    cta = {
-        "en": f"Full documentary on YouTube - {channel}",
-        "de": f"Die ganze Doku auf YouTube - {channel}",
-        "fa": f"مستند کامل در یوتیوب - {channel}",
-        "ar": f"الوثائقي الكامل على يوتيوب - {channel}",
-    }.get(language, f"Full documentary on YouTube - {channel}")
-    return cta
+    template = ai_config.shorts_host_led.publish_cta.get(language) or ai_config.shorts_host_led.publish_cta["en"]
+    return template.format(channel=channel)
 
 
 def _with_music_attribution(manifest: PublishManifest, language: str,

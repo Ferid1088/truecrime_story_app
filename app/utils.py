@@ -54,6 +54,34 @@ _DE_STOP = {
     "ist", "im", "für", "dem", "ein", "eine", "als", "auch", "nicht",
     "wurde", "bei", "nach", "dass", "werden", "sie", "es", "aus",
 }
+_ES_STOP = {
+    "de", "la", "que", "el", "en", "los", "se", "del", "las", "por", "un", "para", "con", "no", "una", "su", "al", "lo",
+    "como", "más", "pero", "sus", "le", "ya", "este", "porque", "esta", "entre", "cuando", "muy", "sin", "sobre", "también",
+    "hasta", "hay", "donde", "desde", "todo", "durante", "ese", "fue", "era", "había",
+}
+_IT_STOP = {
+    "di", "il", "la", "che", "per", "un", "in", "non", "una", "sono", "le", "si", "con", "da", "lo", "del", "dei",
+    "della", "più", "ma", "come", "anche", "se", "ha", "al", "nel", "gli", "suo", "alla", "questo", "dopo", "ai", "era", "stato",
+}
+_FR_STOP = {
+    "le", "la", "les", "de", "des", "du", "et", "en", "un", "une", "est", "que", "qui", "dans", "pour", "pas", "au", "aux", "sur",
+    "avec", "il", "elle", "ce", "se", "sont", "par", "plus", "ne", "mais", "ou", "été", "son", "sa", "ses", "cette", "comme",
+}
+_PT_STOP = {
+    "de", "que", "do", "da", "em", "um", "para", "com", "não", "uma", "os", "no", "se", "na", "por", "mais",
+    "as", "dos", "como", "mas", "foi", "ao", "ele", "das", "tem", "seu", "sua", "ou", "ser", "quando", "muito", "há", "já",
+    "também", "só", "pelo", "pela", "até", "isso", "ela", "depois", "sem", "mesmo", "você",
+}
+_TR_STOP = {
+    "ve", "bir", "bu", "da", "de", "için", "ile", "çok", "daha", "olarak", "ama", "gibi", "ne", "en", "ki", "mi", "var",
+    "yok", "ben", "sen", "biz", "değil", "sonra", "kadar", "her", "şey", "çünkü", "ancak", "ya", "hem", "veya", "olan", "oldu",
+    "etti", "dedi", "bütün",
+}
+# Letters that mark a language among the Latin-script ones (each is worth `weight` stopword hits).
+_LATIN_MARKS = {"de": (re.compile(r"[äöüß]"), 2), "es": (re.compile(r"[ñ¿¡]"), 2), "pt": (re.compile(r"[ãõ]"), 2),
+                "tr": (re.compile(r"[ğışİ]"), 2), "fr": (re.compile(r"œ"), 2)}
+_LATIN_STOPS = {"en": _EN_STOP, "de": _DE_STOP, "es": _ES_STOP, "it": _IT_STOP, "fr": _FR_STOP, "pt": _PT_STOP, "tr": _TR_STOP}
+
 _WORD = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+|[؀-ۿݐ-ࣿ]+")
 
 
@@ -67,11 +95,11 @@ def primary_language(code: str | None) -> str | None:
 
 
 def detect_language(text: str, min_chars: int = 80) -> tuple[str | None, float]:
-    """Detect en/de/fa/ar from text.
+    """Detect en/de/es/it/fr/pt/tr (stopwords and marker letters) and fa/ar (script) from text.
 
     Returns (language_code | None, confidence 0..1). Returns (None, 0.0)
     when there is too little signal. Script is decisive for fa/ar;
-    German vs English is decided by stopword frequency + diacritics.
+    the Latin-script languages are decided by stopword frequency + marker letters.
     """
     if not text:
         return None, 0.0
@@ -100,18 +128,17 @@ def detect_language(text: str, min_chars: int = 80) -> tuple[str | None, float]:
     if not latin_words or len(latin_words) / total < 0.3:
         return None, 0.0
     lw = latin_words
-    de_hits = sum(1 for w in lw if w in _DE_STOP)
-    en_hits = sum(1 for w in lw if w in _EN_STOP)
-    diacritics = sum(1 for w in lw if re.search(r"[äöüß]", w))
-    de_score = (de_hits + 2 * diacritics) / len(lw)
-    en_score = en_hits / len(lw)
-    if de_score == 0 and en_score == 0:
+    scores = {}
+    for lang, stop in _LATIN_STOPS.items():
+        hits = sum(1 for w in lw if w in stop)
+        mark = _LATIN_MARKS.get(lang)
+        extra = mark[1] * sum(1 for w in lw if mark[0].search(w)) if mark else 0
+        scores[lang] = (hits + extra) / len(lw)
+    ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    (best, top), (_, second) = ranked[0], ranked[1]
+    if top == 0:
         return None, 0.0
-    lang = "de" if de_score > en_score else "en"
-    conf = min(
-        0.98, 0.5 + abs(de_score - en_score) / max(de_score + en_score, 0.01)
-    )
-    return lang, conf
+    return best, min(0.98, 0.5 + (top - second) / max(top + second, 0.01))
 
 
 def language_quality(text: str, language: str, cfg) -> dict:

@@ -71,6 +71,12 @@ def test_the_craft_of_each_language_is_its_own():
     assert all(word in H.craft_of(language) for language, word in own.items())
 
 
+def test_the_turkish_craft_teaches_by_bad_and_good_examples_like_the_persian_one():
+    craft = H.craft_of("tr")
+    assert craft.count("Bad (") >= 4 and craft.count("Good:") >= 4
+    assert "-miş" in craft and "Beni asıl iki kızı durdurdu" in craft
+
+
 def test_every_channel_language_has_a_craft_so_the_host_writer_can_start():
     for language in ai_config.channels:
         assert H.writer_system_prompt(language), language

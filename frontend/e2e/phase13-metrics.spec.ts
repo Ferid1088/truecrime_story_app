@@ -3,7 +3,7 @@ import { mockApi } from "./fixtures";
 
 test("Mock run is labelled honestly and manual Shorts enqueue reaches done", async ({ page }) => {
   await mockApi(page);
-  await page.goto("/short-form");
+  await page.goto("/short-form?case=1");
   await page.getByRole("tab", { name: "Mock run", exact: true }).click();
   await expect(page.getByRole("tabpanel", { name: "Mock run" }).getByText("Candidates")).toBeVisible();
   await expect(page.getByRole("tabpanel", { name: "Mock run" }).getByText("Real renders")).toBeVisible();

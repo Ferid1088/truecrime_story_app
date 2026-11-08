@@ -9,7 +9,7 @@ test("shorts controls preview and apply a persisted candidate", async ({ page })
       requests.push(`${request.method()} ${new URL(request.url()).pathname}`);
     }
   });
-  await page.goto("/short-form");
+  await page.goto("/short-form?case=1");
   await expect(page.getByTestId("short-form-workspace")).toBeVisible();
   await page.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(page.getByTestId("short-form-preview")).toBeVisible();
@@ -21,7 +21,7 @@ test("shorts controls preview and apply a persisted candidate", async ({ page })
 
 test("short-form page captures a real rendered-short state on desktop and phone", async ({ page }) => {
   await mockApi(page);
-  await page.goto("/short-form");
+  await page.goto("/short-form?case=1");
   await expect(page.getByTestId("short-form-workspace")).toBeVisible();
   await page.getByRole("tab", { name: "Rendered shorts", exact: true }).click();
   await expect(page.locator("video")).toBeVisible();

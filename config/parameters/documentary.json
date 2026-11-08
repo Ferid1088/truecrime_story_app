@@ -592,7 +592,12 @@
         "en",
         "de",
         "fa",
-        "ar"
+        "ar",
+        "es",
+        "it",
+        "fr",
+        "pt",
+        "tr"
       ],
       "max_redos": 2,
       "max_cost_usd_per_case": 2.0,
@@ -673,6 +678,76 @@
           {
             "file": "app/documentary/assets/fonts/NotoNaskhArabic-400.ttf",
             "family": "Noto Naskh Arabic"
+          }
+        ],
+        "es": [
+          {
+            "file": "/System/Library/Fonts/SFNS.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "app/documentary/assets/fonts/Inter-400.ttf",
+            "family": "Inter"
+          }
+        ],
+        "it": [
+          {
+            "file": "/System/Library/Fonts/SFNS.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "app/documentary/assets/fonts/Inter-400.ttf",
+            "family": "Inter"
+          }
+        ],
+        "fr": [
+          {
+            "file": "/System/Library/Fonts/SFNS.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "app/documentary/assets/fonts/Inter-400.ttf",
+            "family": "Inter"
+          }
+        ],
+        "pt": [
+          {
+            "file": "/System/Library/Fonts/SFNS.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "app/documentary/assets/fonts/Inter-400.ttf",
+            "family": "Inter"
+          }
+        ],
+        "tr": [
+          {
+            "file": "/System/Library/Fonts/SFNS.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "app/documentary/assets/fonts/Inter-400.ttf",
+            "family": "Inter"
           }
         ]
       }

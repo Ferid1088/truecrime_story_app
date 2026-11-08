@@ -39,7 +39,7 @@ test("production Shorts worker renders a 1080x1920 captioned Persian-safe packag
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   expect([...new Set(done.map((row) => row.language))].sort()).toEqual(["ar", "en", "fa"]);
-  await page.goto("/short-form");
+  await page.goto("/short-form?case=1");
   await page.getByRole("tab", { name: "Mock run" }).click();
   await expect(page.getByText("Real renders", { exact: true })).toBeVisible({ timeout: 20_000 });
   const workspace = await (await request.get(`${apiBase}/api/short-form/1/workspace`)).json() as { renders: { language: string; video_url: string | null; captions_url: string | null; render_source: string }[] };

@@ -4,9 +4,18 @@ import { mockApi } from "./fixtures";
 const TABS = ["Candidates", "Rendered shorts", "Settings", "Mock run"];
 
 test.describe("Phase 12 short-form workspace", () => {
-  test("renders persisted candidates and production defaults", async ({ page }) => {
+  test("the overview lists the cases with a finished film and opens one case's shorts", async ({ page }) => {
     await mockApi(page);
     await page.goto("/short-form");
+    await expect(page.getByTestId("short-form-overview")).toBeVisible();
+    await page.getByRole("button", { name: /Lighthouse Keeper/ }).click();
+    await expect(page).toHaveURL(/\/short-form\?case=1$/);
+    await expect(page.getByTestId("short-form-workspace")).toBeVisible();
+  });
+
+  test("renders persisted candidates and production defaults", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/short-form?case=1");
     await expect(page.getByTestId("short-form-workspace")).toBeVisible();
     for (const tab of TABS) await expect(page.getByRole("tab", { name: tab, exact: true })).toBeVisible();
     await expect(page.getByText("1 persisted candidates · 2 language renders")).toBeVisible();
@@ -16,7 +25,7 @@ test.describe("Phase 12 short-form workspace", () => {
 
   test("candidate actions use preview then apply", async ({ page }) => {
     await mockApi(page);
-    await page.goto("/short-form");
+    await page.goto("/short-form?case=1");
     await page.getByRole("button", { name: "Approve", exact: true }).click();
     await expect(page.getByTestId("short-form-preview")).toBeVisible();
     await page.getByRole("button", { name: "Apply", exact: true }).click();
@@ -25,7 +34,7 @@ test.describe("Phase 12 short-form workspace", () => {
 
   test("rendered short is playable and shows cover/caption metadata", async ({ page }) => {
     await mockApi(page);
-    await page.goto("/short-form");
+    await page.goto("/short-form?case=1");
     await page.getByRole("tab", { name: "Rendered shorts", exact: true }).click();
     await expect(page.locator("video")).toHaveCount(1);
     const media = await page.locator("video").evaluate((node) => {
