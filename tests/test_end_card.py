@@ -4,7 +4,7 @@ from app.shortform.asset_store import SharedAssetStore
 from app.shortform.end_card import H, W, create_end_card_asset, render_end_card
 
 
-@pytest.mark.parametrize("language", ["en", "de", "fa", "ar"])
+@pytest.mark.parametrize("language", ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"])
 def test_end_card_renders_full_frame(language):
     img = render_end_card(language)
     assert img.size == (W, H)

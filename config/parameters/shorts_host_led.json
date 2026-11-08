@@ -17,7 +17,12 @@
       "en": "TRUE CRIME",
       "de": "TRUE CRIME",
       "fa": "داستان جنایی واقعی",
-      "ar": "جرائم حقيقية"
+      "ar": "جرائم حقيقية",
+      "es": "CRÍMENES REALES",
+      "tr": "GERÇEK SUÇ",
+      "fr": "TRUE CRIME",
+      "it": "TRUE CRIME",
+      "pt": "CRIMES REAIS"
     },
     "outro_sentence": {
       "fa": "می‌خوای داستان‌های واقعیِ جنایی رو بر اساس واقعیت بشنوی؟ به کانال ما سر بزن و فالو کن.",
@@ -34,13 +39,23 @@
       "en": "ClueVera",
       "de": "Fallspur",
       "fa": "رد خاموش",
-      "ar": "أثر خفي"
+      "ar": "أثر خفي",
+      "es": "Tras la Pista",
+      "tr": "Gizli İzler",
+      "fr": "Pistes Cachées",
+      "it": "Tracce Nascoste",
+      "pt": "Pistas Ocultas"
     },
     "channel_logo": {
       "en": "data/logos/Logo_English.png",
       "de": "data/logos/Logo_German.png",
       "fa": "data/logos/Logo_Persian.png",
-      "ar": "data/logos/Logo_Arabic.png"
+      "ar": "data/logos/Logo_Arabic.png",
+      "es": "data/logos/Logo_Spanish.png",
+      "tr": "data/logos/Logo_Turkish.png",
+      "fr": "data/logos/Logo_French.png",
+      "it": "data/logos/Logo_Italian.png",
+      "pt": "data/logos/Logo_Portuguese.png"
     },
     "music_provider": {
       "name": "elevenlabs_music",

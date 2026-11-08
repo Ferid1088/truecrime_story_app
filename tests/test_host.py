@@ -371,7 +371,7 @@ def test_seconds_follow_role_act_weight_and_place_in_the_film():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("language", ["en", "de", "fa", "ar"])
+@pytest.mark.parametrize("language", ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"])
 def test_words_per_segment_are_seconds_times_the_languages_host_rate(language):
     wpm = ai_config.host.words_per_minute[language]
     assert target_words(30, language) == round(30 * wpm / 60)
