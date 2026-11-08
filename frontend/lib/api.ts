@@ -1277,6 +1277,18 @@ export interface AutopilotRunView {
   publish_requests: number;
 }
 
+export interface CaseProduction {
+  case_id: number;
+  name: { approved: boolean; title: string };
+  allowed_languages: string[];
+  required_language: string;
+  languages: string[];
+  saved: boolean;
+  outfits: AutopilotOutfitLanguage[];
+  blockers: string[];
+  run: AutopilotRunView | null;
+}
+
 export interface PublishRequestRow {
   id: number;
   language: string;
@@ -1316,6 +1328,12 @@ export const autopilotApi = {
   },
   outfitOptions: (candidateId: number, languages: string[]) =>
     request<AutopilotOutfitOptions>(`/api/autopilot/outfit-options${query({ candidate_id: candidateId, languages: languages.join(",") })}`),
+  /** The case page's production settings: languages, outfits, what blocks the Autopilot button, the latest run. */
+  production: (caseId: number) => request<CaseProduction>(`/api/cases/${caseId}/production`),
+  saveProduction: (caseId: number, languages: string[], outfits: Record<string, string>,
+                   outfitPhotos: Record<string, number[]>) =>
+    put<CaseProduction>(`/api/cases/${caseId}/production`, { languages, outfits, outfit_photos: outfitPhotos }),
+  startCaseAutopilot: (caseId: number) => post<AutopilotRunView>(`/api/cases/${caseId}/production/autopilot`),
   runs: () => request<{ runs: AutopilotRunView[] }>("/api/autopilot/runs"),
   run: (runId: number) => request<AutopilotRunView>(`/api/autopilot/runs/${runId}`),
   cancel: (runId: number) => post<AutopilotRunView>(`/api/autopilot/runs/${runId}/cancel`),

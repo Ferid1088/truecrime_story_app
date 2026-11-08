@@ -2912,6 +2912,9 @@ class AutopilotConfig(BaseModel):
     # A paid phase call (research, texts, titles) is tried at most this often per run; after
     # that the owner decides, the autopilot does not keep paying for the same failure.
     max_attempts_per_phase: int = Field(ge=1)
+    # A film in one of these languages counts as finished only after the owner approved its render; English is
+    # always one of them (the other languages start only after it). A language's own review never holds another one back.
+    owner_approval_languages: list[str] = ["en"]
     render_profile: Literal["preview", "publish"]
     schedule: AutopilotScheduleConfig
 

@@ -16,6 +16,7 @@ LANGS = ["en", "de", "fa", "ar"]
 def no_launch(monkeypatch):
     launched = []
     monkeypatch.setattr(SV, "launch", launched.append)
+    monkeypatch.setattr("app.autopilot.production.name_approved", lambda db, case: True)     # the name gate has its own test
     return launched
 
 

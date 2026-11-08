@@ -410,7 +410,7 @@ def test_outfit_api_create_select_pose_set_and_list(client, db_session):
 
 def test_outfit_registry_api_lists_the_outfits_a_video_can_use(client):
     body = client.get("/api/outfit-registry").json()
-    assert len(body) == 12 and {"id", "label", "languages"} <= set(body[0])
+    assert len(body) == 27 and {"id", "label", "languages"} <= set(body[0])
     assert all(o["languages"] == [o["id"].split("/")[0]] for o in body)
 
 

@@ -19,12 +19,12 @@ from app.db.models import (
     PublishRequest,
 )
 from app.documentary import jobs as documentary_jobs
+from app.documentary import outfits as documentary_outfits
 from app.lifecycle.candidates import open_case_from_candidate
 from app.lifecycle.identity import IdentityIndex, candidate_identity
 from app.services.budget import BudgetService
 from app.services.cost_model import documentary_estimate
 from app.utils import utc_now
-from app.documentary import outfits as documentary_outfits
 
 BLOCKED_STATES = ("archived", "deleted", "ignored", "duplicate", "filtered")
 ACTIVE_RUN = ("running", "waiting_owner")
@@ -35,7 +35,14 @@ class StartError(ValueError):
     """The Start button was refused; the message says why in plain words."""
 
 
-def _check_languages(languages: list[str]) -> list[str]:
+def default_languages() -> list[str]:
+    """The languages a run covers when none are named: the autopilot's languages that are production languages
+    (the optional ones are produced only when asked for)."""
+    return [lang for lang in ai_config.autopilot_settings().languages
+            if lang in ai_config.multilingual.production_languages]
+
+
+def check_languages(languages: list[str]) -> list[str]:
     cfg = ai_config.autopilot_settings()
     chosen = list(dict.fromkeys(languages))
     if "en" not in chosen:
@@ -49,7 +56,7 @@ def _check_languages(languages: list[str]) -> list[str]:
 def estimate_for_candidate(db: Session, cand: DiscoveryCandidate, languages: list[str]) -> dict:
     """What a run would cost, from the same model the documentary dry run uses. A suggestion has
     no case yet, so the estimate is made for an empty case: no row is created."""
-    langs = _check_languages(languages)
+    langs = check_languages(languages)
     case = Case(canonical_title=cand.title, slug="estimate", language="en")
     result = documentary_estimate(db, case, langs)
     research = sum(line["eur"]["expected"] for line in result["lines"]
@@ -73,7 +80,7 @@ def outfit_options_for_candidate(db: Session, cand: DiscoveryCandidate,
     from the shared, language-specific outfit registry and are materialised as
     case outfits only when the user starts the run.
     """
-    langs = _check_languages(languages)
+    langs = check_languages(languages)
     case = db.get(Case, cand.case_id) if cand.case_id else None
     result = []
     for lang in langs:
@@ -82,7 +89,7 @@ def outfit_options_for_candidate(db: Session, cand: DiscoveryCandidate,
             "languages": result}
 
 
-def _apply_outfit_choices(db: Session, case: Case, languages: list[str],
+def apply_outfit_choices(db: Session, case: Case, languages: list[str],
                           choices: dict[str, str], photo_choices: dict[str, list[int]] | None = None) -> None:
     """Persist the outfit and checked library photos before the worker starts."""
     photo_choices = photo_choices or {}
@@ -119,7 +126,7 @@ def start_run(db: Session, candidate_id: int, languages: list[str],
     cand = db.get(DiscoveryCandidate, candidate_id)
     if cand is None:
         raise StartError("That suggestion does not exist.")
-    langs = _check_languages(languages)
+    langs = check_languages(languages)
     if cand.state in BLOCKED_STATES:
         raise StartError(f"This suggestion is {cand.state}; restore it first.")
     estimate = estimate_for_candidate(db, cand, langs)
@@ -132,8 +139,13 @@ def start_run(db: Session, candidate_id: int, languages: list[str],
         if index.check(candidate_identity(cand)).duplicate:
             raise StartError("This case already exists in the system.")
         case = open_case_from_candidate(db, cand, "en")
+    from app.autopilot import production as PR
+
+    if not PR.name_approved(db, case):
+        raise StartError(f"The case is open (case {case.id}) but its English name is not approved: approve it in the Naming tab, "
+                         "then choose the languages and outfits and press Autopilot on the case page.")
     if outfits is not None:
-        _apply_outfit_choices(db, case, langs, outfits, outfit_photos)
+        apply_outfit_choices(db, case, langs, outfits, outfit_photos)
     run = AutopilotRun(case_id=case.id, candidate_id=cand.id, languages_json=json.dumps(langs),
                        status="running", steps_json=json.dumps(S.initial_steps()),
                        estimate_json=json.dumps(estimate))

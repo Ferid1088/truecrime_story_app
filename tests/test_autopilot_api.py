@@ -17,6 +17,7 @@ LANGS = ["en", "de", "fa", "ar"]
 @pytest.fixture(autouse=True)
 def no_launch(monkeypatch):
     monkeypatch.setattr(SV, "launch", lambda run_id: None)
+    monkeypatch.setattr("app.autopilot.production.name_approved", lambda db, case: True)     # the name gate has its own tests
 
 
 @pytest.fixture

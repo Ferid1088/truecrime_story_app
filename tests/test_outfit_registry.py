@@ -7,7 +7,7 @@ from app.outfits import OutfitRegistry
 
 def test_outfits_are_read_per_language_with_stances():
     outfits = OutfitRegistry().all()
-    assert {o.language for o in outfits} == {"en", "de", "fa", "ar"}
+    assert {o.language for o in outfits} == {"en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"}
     for outfit in outfits:
         assert outfit.outfit_id == f"{outfit.language}/{outfit.name}"
         assert {p.stance for p in outfit.poses.values()} == {"SEATED", "STANDING"}
@@ -70,4 +70,4 @@ def test_the_real_outfit_folder_is_readable():
     real = OutfitRegistry(Path(registry.__file__).resolve().parents[2] / "data" / "outfits")
     if not real.root.is_dir():
         pytest.skip("data/outfits is private and not in this checkout")
-    assert {o.language for o in real.all()} <= {"en", "de", "fa", "ar", "es", "tr"}
+    assert {o.language for o in real.all()} <= {"en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"}

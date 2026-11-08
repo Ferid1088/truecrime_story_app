@@ -497,6 +497,14 @@ def _apply_remembered(db: Session, language: str, options: list[dict]) -> str | 
     return option["key"]
 
 
+def _registered(language: str) -> tuple:
+    """The library's outfits of a language; a language whose folder holds no usable outfit has none to offer."""
+    try:
+        return OutfitRegistry().all(language)
+    except ValueError:
+        return ()
+
+
 def choice_options(db: Session, case_id: int | None, language: str) -> dict:
     """The outfits that can be chosen for a language: those the case already has, then the library's others, each with
     its photos. `selected` is the key of the outfit the video uses now."""
@@ -513,7 +521,7 @@ def choice_options(db: Session, case_id: int | None, language: str) -> dict:
                         "source": "case", "status": outfit.status, "selected": outfit.status == "selected",
                         "photos": library_photos(db, outfit.outfit_ref, selected_library_item_ids(db, outfit))})
     taken = {o.outfit_ref for o in existing if o.outfit_ref}
-    for registered in OutfitRegistry().all(language):
+    for registered in _registered(language):
         if registered.outfit_id not in taken:
             options.append({"key": f"registry:{registered.outfit_id}", "name": registered.label,
                             "ref": registered.outfit_id, "source": "library", "status": "available",

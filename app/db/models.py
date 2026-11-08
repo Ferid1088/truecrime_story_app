@@ -3043,6 +3043,18 @@ class AutopilotRun(Base):
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
 
+class CaseProduction(Base):
+    """The production choices of one case, saved on the case page before the Autopilot is pressed: the
+    languages to produce (a language that is not in the list is never produced). The host outfit of each
+    language is kept with the case's outfits, not here."""
+
+    __tablename__ = "case_production"
+
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), primary_key=True)
+    languages_json: Mapped[str] = mapped_column(Text, default="[]")
+    saved_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
 class ChannelSetting(Base):
     """The placeholder for one channel (language x platform): a handle the owner types and a
     `connected` flag that stays false until a real integration exists. Never a credential."""

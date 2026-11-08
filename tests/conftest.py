@@ -136,7 +136,7 @@ def outfit_root(tmp_path_factory):
 
     root = tmp_path_factory.mktemp("outfits")
     poses = ("stand", "standHand", "standPockets", "sitHands", "sitCrossFeet")
-    for language in ("en", "de", "fa", "ar"):
+    for language in ("en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"):
         for outfit in ("navySuit", "brownSweater", "blazerJeans"):
             (root / language / outfit).mkdir(parents=True)
             for n, pose in enumerate(poses):   # every pose is a different picture

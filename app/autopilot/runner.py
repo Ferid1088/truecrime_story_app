@@ -219,7 +219,9 @@ class AutopilotRunner:
         """One pass over the phases. True when the run is complete."""
         case = db.get(Case, run.case_id)
         assert case is not None
-        languages = json.loads(run.languages_json)
+        planned = json.loads(run.languages_json)
+        languages = self._wave(db, run, case, planned)
+        self._open_wave(run, languages)
         S.drop_blocking_needs(run)
         run.status, run.error, run.updated_at = "running", None, utc_now()
         db.commit()
@@ -245,7 +247,8 @@ class AutopilotRunner:
             # deliberately allowed to start for languages whose text is already approved
             # while the remaining language texts are being written.  Nothing downstream of
             # the film phase may be advertised as running until every film is finished.
-            if phase == "films" and not done:
+            if phase == "films" and (not done or languages != planned):
+                # English alone is being made: nothing after the films, and no other language, starts until it is approved
                 for later in ("titles", "shorts", "publish"):
                     if S.step_status(run, later) != "done":
                         S.set_step(run, later, "pending")
@@ -262,6 +265,32 @@ class AutopilotRunner:
             run.completed_at = utc_now()
         db.commit()
         return all_done
+
+    def _wave(self, db: Session, run: AutopilotRun, case: Case, planned: list[str]) -> list[str]:
+        """The languages this pass works on: English alone until its film is finished and approved, then all that
+        were chosen (they start together; a language the owner skipped is not in `planned`)."""
+        english = ai_config.language_pipeline.draft_language
+        if english not in planned or len(planned) == 1 or S.recall(run, "films", "all_languages_open", False):
+            return planned
+        job_id = S.film_job_ids(run).get(english)
+        film = db.get(DocumentaryJob, job_id) if job_id else None
+        from app.documentary.mvp import review as RV
+
+        if film is not None and film.status in FILM_DONE and RV.english_approved(db, case.id):
+            S.remember(run, "films", "all_languages_open", True)
+            return planned
+        return [english]
+
+    @staticmethod
+    def _open_wave(run: AutopilotRun, languages: list[str]) -> None:
+        """When more languages join (English was approved), the phases that were finished for the smaller set are
+        open again for the larger one."""
+        before = S.recall(run, "films", "wave_size", None)
+        if before is not None and len(languages) > before:
+            for phase in ("texts", "films", "titles", "shorts", "publish"):
+                S.set_step(run, phase, "pending")
+            S.set_attempts(run, "texts", 0)
+        S.remember(run, "films", "wave_size", len(languages))
 
     def _check_cancel(self, db: Session, run: AutopilotRun) -> None:
         db.refresh(run)
@@ -477,6 +506,12 @@ class AutopilotRunner:
                 continue
             db.refresh(film)
             if film.status in FILM_DONE:
+                if lang in self.cfg.owner_approval_languages and not self._film_approved(db, case.id, lang):
+                    S.add_need(run, f"films:{lang}:film_review", "film_review",
+                               f"Review and approve the {lang} film (its pictures and its render): "
+                               + ("the other languages start after this." if lang == english
+                                  else "the other languages go on without waiting for it."), language=lang)
+                    continue
                 finished += 1
             elif film.status not in FILM_ACTIVE:
                 if self._auto_resume_transient_film(db, film, J):
@@ -490,6 +525,13 @@ class AutopilotRunner:
                        "visual searches to finish")
         S.set_step(run, "films", "running", detail)
         return finished == len(languages)
+
+    @staticmethod
+    def _film_approved(db: Session, case_id: int, language: str) -> bool:
+        from app.documentary.mvp import review as RV
+
+        row = RV.current(db, case_id, language)
+        return row is not None and row.state == "APPROVED"
 
     @staticmethod
     def _auto_resume_transient_film(db: Session, film: DocumentaryJob, jobs_module) -> bool:

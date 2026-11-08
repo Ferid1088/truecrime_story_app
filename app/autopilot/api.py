@@ -10,10 +10,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.autopilot import channels
+from app.autopilot import production as PR
 from app.autopilot import service as SV
-from app.core.ai_config import ai_config
 from app.db.base import get_db
-from app.db.models import AutopilotRun, DiscoveryCandidate, PublishRequest
+from app.db.models import AutopilotRun, Case, DiscoveryCandidate, PublishRequest
 
 router = APIRouter()
 
@@ -36,6 +36,44 @@ class StartRequest(BaseModel):
     outfits: dict[str, str] | None = None
     # Library item ids checked by the owner for each language's chosen outfit.
     outfit_photos: dict[str, list[int]] | None = None
+
+
+class ProductionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    languages: list[str] = Field(min_length=1)
+    # language -> ``existing:<id>`` / ``registry:<outfit>``; the outfit may be saved language by language.
+    outfits: dict[str, str] | None = None
+    outfit_photos: dict[str, list[int]] | None = None
+
+
+def _case(db: Session, case_id: int) -> Case:
+    case = db.get(Case, case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return case
+
+
+@router.get("/api/cases/{case_id}/production")
+def case_production(case_id: int, db: Session = Depends(get_db)):
+    return PR.view(db, _case(db, case_id))
+
+
+@router.put("/api/cases/{case_id}/production")
+def save_case_production(case_id: int, payload: ProductionRequest, db: Session = Depends(get_db)):
+    try:
+        return PR.save(db, _case(db, case_id), payload.languages, payload.outfits, payload.outfit_photos)
+    except SV.StartError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/api/cases/{case_id}/production/autopilot", status_code=201)
+def start_case_autopilot(case_id: int, db: Session = Depends(get_db)):
+    try:
+        run = PR.start(db, _case(db, case_id))
+    except SV.StartError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return SV.run_view(db, run)
 
 
 @router.get("/api/channel-settings")
@@ -65,7 +103,7 @@ def autopilot_estimate(candidate_id: int, languages: str | None = None,
     cand = db.get(DiscoveryCandidate, candidate_id)
     if cand is None:
         raise HTTPException(status_code=404, detail="Suggestion not found")
-    chosen = languages.split(",") if languages else list(ai_config.autopilot_settings().languages)
+    chosen = languages.split(",") if languages else SV.default_languages()
     try:
         return SV.estimate_for_candidate(db, cand, chosen)
     except SV.StartError as exc:
@@ -88,7 +126,7 @@ def autopilot_outfit_options(candidate_id: int, languages: str | None = None,
     cand = db.get(DiscoveryCandidate, candidate_id)
     if cand is None:
         raise HTTPException(status_code=404, detail="Suggestion not found")
-    chosen = languages.split(",") if languages else list(ai_config.autopilot_settings().languages)
+    chosen = languages.split(",") if languages else SV.default_languages()
     try:
         return SV.outfit_options_for_candidate(db, cand, chosen)
     except SV.StartError as exc:

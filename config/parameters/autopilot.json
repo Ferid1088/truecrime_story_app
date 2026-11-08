@@ -4,7 +4,12 @@
       "en",
       "de",
       "fa",
-      "ar"
+      "ar",
+      "es",
+      "it",
+      "fr",
+      "pt",
+      "tr"
     ],
     "platforms": [
       "youtube_short",
@@ -12,6 +17,7 @@
       "facebook_reel",
       "tiktok_video"
     ],
+    "owner_approval_languages": ["en", "fa"],
     "automatic_approver": "autopilot (automatic)",
     "tick_seconds": 20,
     "render_profile": "publish",

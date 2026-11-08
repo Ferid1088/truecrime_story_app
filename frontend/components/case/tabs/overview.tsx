@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { pipelineStageSource } from "@/components/documentary/stage-control";
+import { ProductionPanel } from "@/components/case/production-panel";
 
 type StageState = "waiting" | "running" | "complete" | "failed";
 
@@ -62,6 +63,7 @@ export function OverviewTab({ caseData, jobs = [] }: { caseData: CaseDetail; job
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
+        <ProductionPanel caseId={caseData.id} />
         <BudgetPanel caseId={caseData.id} />
         <Card>
           <CardHeader>
