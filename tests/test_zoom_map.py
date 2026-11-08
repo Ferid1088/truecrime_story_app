@@ -222,12 +222,12 @@ def test_the_extract_box_surrounds_the_places_and_is_reused_or_widened(tmp_path,
         Path(cmd[4]).write_bytes(b"pm")
         return SimpleNamespace(returncode=0, stderr="")
 
-    first = DATA.ensure_extract(8, [FALL_RIVER], runner=runner)
-    again = DATA.ensure_extract(8, [FALL_RIVER], runner=runner)            # covered: no second cut
+    first = DATA.ensure_extract(8, [FALL_RIVER], runner=runner, exists=lambda url: True)
+    again = DATA.ensure_extract(8, [FALL_RIVER], runner=runner, exists=lambda url: True)            # covered: no second cut
     assert len(calls) == 1 and again["bbox"] == first["bbox"]
-    DATA.ensure_extract(8, [(41.9, -71.6)], runner=runner)                    # outside: cut again, wider
+    DATA.ensure_extract(8, [(41.9, -71.6)], runner=runner, exists=lambda url: True)                    # outside: cut again, wider
     assert len(calls) == 2
-    wide = DATA.ensure_extract(8, [FALL_RIVER], runner=runner)
+    wide = DATA.ensure_extract(8, [FALL_RIVER], runner=runner, exists=lambda url: True)
     assert wide["bbox"][0] < first["bbox"][0] and len(calls) == 2
     cmd = calls[0]
     assert cmd[2] == "extract" and cmd[3].startswith("https://build.protomaps.com/") and "--maxzoom=15" in cmd
@@ -239,7 +239,7 @@ def test_an_extract_failure_is_reported_not_swallowed(tmp_path, monkeypatch):
     monkeypatch.setattr(DATA, "root", lambda: tmp_path)
     monkeypatch.setattr(storage, "ROOT", tmp_path)
     with pytest.raises(DATA.MapDataError, match="extract failed"):
-        DATA.ensure_extract(9, [FALL_RIVER], runner=lambda *a, **k: SimpleNamespace(returncode=1, stderr="boom"))
+        DATA.ensure_extract(9, [FALL_RIVER], runner=lambda *a, **k: SimpleNamespace(returncode=1, stderr="boom"), exists=lambda url: True)
 
 
 def limits(**lim):
@@ -539,3 +539,39 @@ def test_every_language_renders_its_own_map_with_labels_in_that_language(db_sess
     with pytest.raises(SHOT.ZoomMapUnavailable, match="stop here"):
         asyncio.run(SHOT.zoom_asset(db_session, case, language, info, renderer=renderer))
     assert seen == [language] and LAB.chain(language)[0] == f"name:{language}"
+
+
+def test_latest_build_is_the_newest_one_the_provider_still_serves():
+    from datetime import UTC, datetime
+
+    cfg = AC.ai_config.zoom()
+    served = {"https://build.protomaps.com/20261106.pmtiles", "https://build.protomaps.com/20261105.pmtiles"}
+    today = datetime(2026, 11, 8, tzinfo=UTC)
+    assert DATA.resolve_build(cfg, exists=lambda url: url in served, today=today) == "20261106"
+
+
+def test_no_build_within_the_search_days_is_reported_not_guessed():
+    from datetime import UTC, datetime
+
+    with pytest.raises(DATA.MapDataError, match="no Protomaps build"):
+        DATA.resolve_build(AC.ai_config.zoom(), exists=lambda url: False, today=datetime(2026, 11, 8, tzinfo=UTC))
+
+
+def test_a_pinned_build_is_used_as_configured_without_asking_the_provider():
+    cfg = cfg_with(data={**raw()["data"], "build": "20261102"})
+    assert DATA.resolve_build(cfg, exists=lambda url: False) == "20261102"
+
+
+def test_a_retired_pinned_extract_is_cut_again_but_a_latest_one_is_kept(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "ROOT", tmp_path)
+    monkeypatch.setattr(DATA, "root", lambda: tmp_path)
+    calls = []
+
+    def runner(cmd, **kw):
+        calls.append(cmd)
+        Path(cmd[4]).write_bytes(b"pm")
+        return SimpleNamespace(returncode=0, stderr="")
+
+    DATA.ensure_extract(10, [FALL_RIVER], runner=runner, exists=lambda url: True)
+    DATA.ensure_extract(10, [FALL_RIVER], runner=runner, exists=lambda url: False)   # covered: nothing is asked again
+    assert len(calls) == 1

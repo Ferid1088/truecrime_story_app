@@ -1,6 +1,6 @@
 """The vector map data of a case: one regional Protomaps/OpenStreetMap extract on disk.
 
-The extract is cut once from a pinned Protomaps build for a box around the case's places and is
+The extract is cut once from the newest Protomaps build for a box around the case's places and is
 rendered offline afterwards, so a map shot costs nothing and looks the same every time. The public
 OpenStreetMap tile servers are never used."""
 
@@ -9,7 +9,8 @@ from __future__ import annotations
 import json
 import math
 import subprocess
-from datetime import UTC, datetime
+import urllib.request
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from app.core.ai_config import ZoomMapConfig, ai_config
@@ -51,13 +52,39 @@ def union(a: tuple, b: tuple) -> tuple:
     return (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
 
 
+def build_exists(url: str) -> bool:
+    """Whether the provider still serves this build (it keeps only the last days' builds)."""
+    request = urllib.request.Request(url, method="HEAD")
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310 (host checked against the allow-list)
+            return response.status == 200
+    except OSError:
+        return False
+
+
+def resolve_build(cfg: ZoomMapConfig, exists=build_exists, today: datetime | None = None) -> str:
+    """The build to cut from: the configured one, or for "latest" the newest build the provider still serves."""
+    wanted = str(cfg.data["build"])
+    if wanted != "latest":
+        return wanted
+    today = today or datetime.now(UTC)
+    template = str(cfg.data["pmtiles_source"])
+    for back in range(int(cfg.data["build_search_days"]) + 1):
+        build = (today - timedelta(days=back)).strftime("%Y%m%d")
+        url = template.format(build=build)
+        check_host(url, cfg)
+        if exists(url):
+            return build
+    raise MapDataError(f"no Protomaps build of the last {cfg.data['build_search_days']} days is available")
+
+
 def extract_command(cfg: ZoomMapConfig, source: str, out: Path, bbox: tuple) -> list[str]:
     return [str(root() / str(cfg.data["pmtiles_bin"])), "-q", "extract", source, str(out),
             "--bbox=" + ",".join(f"{v}" for v in bbox), f"--maxzoom={int(cfg.data['max_zoom'])}"]
 
 
 def ensure_extract(case_id: int, places: list[tuple[float, float]], cfg: ZoomMapConfig | None = None,
-                   runner=subprocess.run) -> dict:
+                   runner=subprocess.run, exists=build_exists) -> dict:
     """The case's extract: reused while it covers every place, cut again (box = old box + new places)
     when a place falls outside. Returns {"path", "bbox", "build", "source", "attribution", "created"}."""
     cfg = cfg or ai_config.zoom()
@@ -65,11 +92,14 @@ def ensure_extract(case_id: int, places: list[tuple[float, float]], cfg: ZoomMap
     pm, meta_path = folder / "region.pmtiles", folder / "region.json"
     wanted = bbox_around(places, float(cfg.data["bbox_margin_km"]))
     old = json.loads(meta_path.read_text()) if meta_path.exists() and pm.exists() else None
-    if old and old.get("build") == cfg.data["build"] and contains(old["bbox"], wanted):
+    pinned = str(cfg.data["build"]) != "latest"
+    same_build = old is not None and (not pinned or old.get("build") == cfg.data["build"])
+    if old and same_build and contains(old["bbox"], wanted):
         return {**old, "path": str(pm)}
-    if old and old.get("build") == cfg.data["build"]:
+    if old and same_build:
         wanted = union(tuple(old["bbox"]), wanted)
-    source = str(cfg.data["pmtiles_source"]).format(build=cfg.data["build"])
+    build = resolve_build(cfg, exists)
+    source = str(cfg.data["pmtiles_source"]).format(build=build)
     check_host(source, cfg)
     tmp = folder / "region.pmtiles.part"
     r = runner(extract_command(cfg, source, tmp, wanted), capture_output=True, text=True, timeout=1800)
@@ -77,7 +107,7 @@ def ensure_extract(case_id: int, places: list[tuple[float, float]], cfg: ZoomMap
         tmp.unlink(missing_ok=True)
         raise MapDataError(f"pmtiles extract failed: {(r.stderr or '')[-300:]}")
     tmp.replace(pm)
-    meta = {"bbox": list(wanted), "build": cfg.data["build"], "source": source,
+    meta = {"bbox": list(wanted), "build": build, "source": source,
             "attribution": cfg.data["vector_attribution"], "licence": "ODbL 1.0 (OpenStreetMap contributors)",
             "created": datetime.now(UTC).isoformat(timespec="seconds"),
             "bytes": pm.stat().st_size, "max_zoom": int(cfg.data["max_zoom"])}
