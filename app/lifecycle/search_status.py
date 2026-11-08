@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
+from app.core.ai_config import ai_config
 from app.db.models import Case, DiscoveryCandidate, Video
 
 LANGUAGES = ("en", "de", "fa", "ar")
@@ -38,14 +39,15 @@ def candidate_status(db: Session, candidate: DiscoveryCandidate) -> str:
 
 
 def language_badges(db: Session | None, case_id: int | None) -> dict[str, str]:
-    """Per-language video state (en/de/fa/ar): the real `Video.state`
-    (rendered/published/archived) or "not_created" when no Video row
-    exists yet for that language."""
+    """Per-language video state: the real `Video.state` (rendered/published/archived) or "not_created"
+    when no Video row exists yet. The default languages always have a badge; an optional production
+    language (es, it, fr, pt, tr) has one only once the case has a video in it."""
     badges = dict.fromkeys(LANGUAGES, "not_created")
     if db is None or case_id is None:
         return badges
+    optional = set(ai_config.multilingual.optional_production_languages)
     for video in db.query(Video).filter(Video.case_id == case_id).all():
-        if video.language in badges:
+        if video.language in badges or video.language in optional:
             badges[video.language] = video.state
     return badges
 

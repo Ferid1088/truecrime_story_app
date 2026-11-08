@@ -83,6 +83,14 @@ def test_language_badges_report_per_language_video_state(db_session):
     assert badges == {"en": "published", "de": "rendered", "fa": "not_created", "ar": "not_created"}
 
 
+def test_an_optional_language_shows_a_badge_once_the_case_has_a_video_in_it(db_session):
+    case = _case(db_session, "Spanish Film Case")
+    assert "es" not in language_badges(db_session, case.id)
+    _video(db_session, case.id, "es", "rendered")
+    assert language_badges(db_session, case.id) == {
+        "en": "not_created", "de": "not_created", "fa": "not_created", "ar": "not_created", "es": "rendered"}
+
+
 def test_language_badges_all_not_created_when_no_case():
     assert language_badges(None, None) == {
         "en": "not_created", "de": "not_created", "fa": "not_created", "ar": "not_created"}
