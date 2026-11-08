@@ -22,6 +22,9 @@ const LANGS: { code: NamingLanguage; name: string }[] = [
   { code: "ar", name: "Arabic · أثر خفي" },
   { code: "es", name: "Spanish · Tras la Pista" },
   { code: "tr", name: "Turkish · Gizli İzler" },
+  { code: "fr", name: "French · Pistes Cachées" },
+  { code: "it", name: "Italian · Tracce Nascoste" },
+  { code: "pt", name: "Portuguese · Pistas Ocultas" },
 ];
 
 const FIELDS: [keyof ThumbnailRecord["critic"]["scorecard"], string, boolean][] = [
