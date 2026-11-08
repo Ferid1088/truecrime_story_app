@@ -42,13 +42,14 @@ export function ChannelsCard() {
         </p>
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {data.channels.map((c) => (
-            <div key={key(c)} className="flex items-center gap-2 text-xs">
-              <span className="w-40 shrink-0">
+            <div key={key(c)} className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="w-full shrink-0 sm:w-40">
                 {langLabel(c.language)} · {humanize(c.platform)}
               </span>
               <Input
                 aria-label={`Handle for ${langLabel(c.language)} ${humanize(c.platform)}`}
                 value={drafts[key(c)] ?? c.handle}
+                className="min-w-0 flex-1"
                 maxLength={100}
                 placeholder="@handle"
                 onChange={(e) => setDrafts((d) => ({ ...d, [key(c)]: e.target.value }))}

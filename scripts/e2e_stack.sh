@@ -118,16 +118,21 @@ until curl -fsS "http://127.0.0.1:${WEB_PORT}" >/dev/null; do
 done
 
 echo "E2E isolated stack: api=http://127.0.0.1:${API_PORT} frontend=http://127.0.0.1:${WEB_PORT} db=${DB_NAME}"
+# A browser failure must not skip the isolated backend check below: both run, and the script fails if either failed.
+browser_status=0
 if [[ "${E2E_PLAYWRIGHT_RANDOM:-0}" == "1" ]]; then
-  (cd "$ROOT/frontend" && PLAYWRIGHT_BASE_URL="http://127.0.0.1:${WEB_PORT}" node e2e/run-random.mjs)
+  (cd "$ROOT/frontend" && PLAYWRIGHT_BASE_URL="http://127.0.0.1:${WEB_PORT}" node e2e/run-random.mjs) || browser_status=$?
 else
-  (cd "$ROOT/frontend" && PLAYWRIGHT_BASE_URL="http://127.0.0.1:${WEB_PORT}" npx playwright test --reporter=line ${E2E_PLAYWRIGHT_ARGS:-})
+  (cd "$ROOT/frontend" && PLAYWRIGHT_BASE_URL="http://127.0.0.1:${WEB_PORT}" npx playwright test --reporter=line ${E2E_PLAYWRIGHT_ARGS:-}) || browser_status=$?
 fi
 # The isolated backend check intentionally monkeypatches job launching. Stop
 # the real worker first so it cannot claim that test's queued fixture job.
 kill "$MOCK_WORKER_PID" 2>/dev/null || true
 wait "$MOCK_WORKER_PID" 2>/dev/null || true
 MOCK_WORKER_PID=""
+backend_status=0
 TC_COPY_DATABASE_URL="$E2E_DATABASE_URL" TRUECRIME_DATABASE_URL="$E2E_DATABASE_URL" \
   PYTHONPATH="$ROOT:$ROOT/tests" "$ROOT/.venv/bin/pytest" -q \
-  "$ROOT/tests/test_stage_control_isolated.py"
+  "$ROOT/tests/test_stage_control_isolated.py" || backend_status=$?
+echo "E2E result: browser exit ${browser_status}, isolated backend exit ${backend_status}"
+[[ "$browser_status" -eq 0 && "$backend_status" -eq 0 ]]

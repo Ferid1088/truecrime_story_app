@@ -118,7 +118,7 @@ export function ClosingClipsCard() {
           </label>
           <select
             id="closing-case"
-            className="h-7 rounded-md border border-border bg-transparent px-2"
+            className="h-7 w-full max-w-full rounded-md border border-border bg-transparent px-2"
             value={payer ?? ""}
             onChange={(e) => setCaseId(Number(e.target.value))}
           >
@@ -130,6 +130,7 @@ export function ClosingClipsCard() {
           </select>
         </div>
 
+        <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="text-left text-muted-foreground">
             <tr>
@@ -192,6 +193,7 @@ export function ClosingClipsCard() {
             ))}
           </tbody>
         </table>
+        </div>
 
         {pending && (
           <div className="rounded-md border border-border p-3 text-xs" data-testid="closing-estimate">

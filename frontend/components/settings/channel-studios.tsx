@@ -171,11 +171,11 @@ function StudioCard({
                 {current.id === prof?.primary_background && " · primary"}
                 {current.approved_for_host ? " · host ✓" : " · not for the host"}
               </span>
-              <label className="flex cursor-pointer items-center gap-1.5">
+              <label className="flex cursor-pointer flex-wrap items-center gap-1.5">
                 <input type="checkbox" checked={zones} onChange={(e) => setZones(e.target.checked)} />
                 Safe zones
                 {zones && (
-                  <span className="flex gap-1.5 pl-1">
+                  <span className="flex flex-wrap gap-1.5 pl-1">
                     {ZONE_STYLES.map(({ key, label, cls }) => (
                       <span key={key} className="flex items-center gap-0.5">
                         <span className={`inline-block size-2.5 border-2 ${cls}`} />
