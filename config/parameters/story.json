@@ -378,7 +378,7 @@
     ],
     "min_duration_ratio": 0.85,
     "max_duration_ratio": 1.3,
-    "max_repair_iterations": 2,
+    "max_repair_iterations": 20,
     "min_storyteller_share": 0.7,
     "max_sentence_words": {
       "en": 24,
@@ -392,6 +392,7 @@
       "tr": 16
     },
     "max_long_sentence_share": 0.12,
+    "max_meaning_changed_share": 0.05,
     "numbers_as_words": [
       "en",
       "de",

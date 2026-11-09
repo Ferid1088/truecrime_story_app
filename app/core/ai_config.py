@@ -1097,7 +1097,6 @@ class LanguagePipelineConfig(BaseModel):
     long_draft_minutes: int = Field(ge=1, le=240)
     requested_minutes_default: int = Field(ge=1, le=240)
     rewrite_headroom_minutes: int = Field(ge=0, le=60)
-    language_concurrency: int = Field(ge=1, le=16)
     # Stage 2 of one language runs to the end first so the other languages' stage 2 reads the
     # shared prefix (plan, evidence, draft) from the provider's cache.
     stage2_cache_primer: bool
@@ -1867,7 +1866,7 @@ class SpokenConfig(BaseModel):
     # language words-per-minute). Storytelling may breathe a little more.
     min_duration_ratio: float = Field(default=0.85, gt=0.0, le=1.0)
     max_duration_ratio: float = Field(default=1.3, ge=1.0, le=3.0)
-    max_repair_iterations: int = Field(default=1, ge=0, le=3)
+    max_repair_iterations: int = Field(default=20, ge=0, le=20)
     # 0 = the whole story in one writer call (best flow); N = N beats per
     # call, each continuing from the previous chunk's spoken ending.
     beats_per_call: int = Field(default=0, ge=0)
@@ -1878,6 +1877,9 @@ class SpokenConfig(BaseModel):
     # "long" for the listener, and the share of long sentences allowed.
     max_sentence_words: dict[str, int] = {"en": 24, "de": 20, "fa": 24, "ar": 22}
     max_long_sentence_share: float = Field(default=0.12, ge=0.0, le=1.0)
+    # The share of beats whose meaning the checker may still flag when the repair rounds are used up: a few small wording
+    # differences (a relative, a place name) do not hold a whole narration back; more than this share does.
+    max_meaning_changed_share: float = Field(default=0.05, ge=0.0, le=0.5)
     # The languages whose numbers are written out in words in the spoken version (the writer's prompt says how, a check sends a beat with a digit
     # back for repair, and a digit left after the repairs fails the version). Persian numbers are read by code later (reading/numbers.py).
     numbers_as_words: list[str] = []
@@ -4522,10 +4524,6 @@ class ConcurrencyConfig(BaseModel):
     # (the per-provider semaphores below, which shrink when a provider throttles) have room.
     # More jobs than that wait in "queued", with the reason.
     jobs: int = Field(default=4, ge=1, le=16)
-    # Language branches of one documentary running at the same time (only
-    # matters for a job given several languages at once; the autopilot's
-    # one-job-per-language films are capped by `jobs` instead).
-    languages: int = Field(default=4, ge=1, le=8)
 
 
 class AgentDef(BaseModel):

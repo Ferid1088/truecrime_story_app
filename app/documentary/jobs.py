@@ -673,19 +673,15 @@ class DocumentaryPipeline(StageRunner):
             await LanguageChain(self, lang, spoken[lang], shared).run()
 
         async def guarded(lang: str):
-            # Do not let the language semaphore be occupied by a task waiting
-            # for the ordered music boundary; otherwise an arbitrary pair of
-            # later languages can starve the first turn.
             await shared.music_turns[shared.languages.index(lang)].wait()
-            async with slot("languages"):
-                try:
-                    await language_chain(lang)
-                except JobCancelled:
-                    raise
-                except Exception as e:
-                    log.exception("documentary job %s: the %s film failed", self.job.id, lang)
-                    self.lang_errors[lang] = f"{type(e).__name__}: {e}"[:400]
-                    self._skip_language(lang, str(e))
+            try:
+                await language_chain(lang)
+            except JobCancelled:
+                raise
+            except Exception as e:
+                log.exception("documentary job %s: the %s film failed", self.job.id, lang)
+                self.lang_errors[lang] = f"{type(e).__name__}: {e}"[:400]
+                self._skip_language(lang, str(e))
 
         await self._parallel([visual_chain()] + [guarded(l) for l in shared.languages], shared_from=0,
                              shared_count=1)

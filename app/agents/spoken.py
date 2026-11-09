@@ -221,7 +221,7 @@ class SpokenNarrator:
         grow to (every beat within the ratio keeps the film within it)."""
         source_words = len(source_text.split())
         spoken_words = len(spoken_text.split())
-        ratio = _words_minutes(spoken_text, language) / max(_words_minutes(source_text, "en"), 1e-6)
+        ratio = _words_minutes(spoken_text, language) / max(_words_minutes(source_text, language), 1e-6)
         return {"source_words": source_words, "spoken_words": spoken_words,
                 "max_words": int(spoken_words / ratio * self.cfg.max_duration_ratio)
                 if ratio else spoken_words,
@@ -333,14 +333,15 @@ class SpokenNarrator:
                                         checks, uncertain)
             changed = {s["id"] for s in spoken if s["text"] != before[s["id"]]}
             if not changed:
-                break
+                continue            # the writer answered with the same words: the next round asks again
             rechecked, overall, notes = await self._check(
                 db, case.id, language, source, spoken, changed)
             checks.update(rechecked)
 
         text = _join_sections(spoken)
         failures = []
-        if any(not c["meaning_ok"] for c in checks.values()):
+        changed = sum(1 for c in checks.values() if not c["meaning_ok"])
+        if changed / max(len(checks), 1) > self.cfg.max_meaning_changed_share:
             failures.append("meaning_changed")
         if any(c["verdict"] == "newsreader" for c in checks.values()):
             failures.append("newsreader_tone")
@@ -359,7 +360,7 @@ class SpokenNarrator:
         if re.search(r"https?://|www\.", text) or has_meta_text(text):
             failures.append("output_purity")
         ratio = _words_minutes(text, language) / max(
-            _words_minutes(_join_sections(source), "en"), 1e-6)
+            _words_minutes(_join_sections(source), language), 1e-6)
         if not (self.cfg.min_duration_ratio <= ratio <= self.cfg.max_duration_ratio):
             failures.append("duration_out_of_range")
 

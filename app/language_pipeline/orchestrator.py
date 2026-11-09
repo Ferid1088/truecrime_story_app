@@ -1115,7 +1115,6 @@ class LanguagePipeline:
         the first language writes its stage 2 text alone; the others start their stage 2 once it
         exists, so their calls read the shared prefix (plan, English text) from the provider's cache.
         The first language goes on to the later stages meanwhile."""
-        gate = asyncio.Semaphore(ai_config.language_pipeline.language_concurrency)
         primed = asyncio.Event()
         use_primer = (ai_config.language_pipeline.stage2_cache_primer
                       if cache_primer is None else cache_primer)
@@ -1124,12 +1123,11 @@ class LanguagePipeline:
             primed.set()
 
         async def one(language: str) -> LanguageOutcome:
-            async with gate:
-                if language == primer:
-                    return await self.run_language(case_id, language, material, base_id, requested,
-                                                   on_rewrite_done=primed.set)
-                await primed.wait()
-                return await self.run_language(case_id, language, material, base_id, requested)
+            if language == primer:
+                return await self.run_language(case_id, language, material, base_id, requested,
+                                               on_rewrite_done=primed.set)
+            await primed.wait()
+            return await self.run_language(case_id, language, material, base_id, requested)
 
         return list(await asyncio.gather(*(one(lg) for lg in languages)))
 

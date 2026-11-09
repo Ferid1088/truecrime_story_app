@@ -63,8 +63,7 @@
     "asr": 1,
     "render": 2,
     "downloads": 4,
-    "jobs": 9,
-    "languages": 4
+    "jobs": 9
   },
   "host": {
     "enabled": true,
