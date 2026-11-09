@@ -164,3 +164,15 @@ def test_an_invalid_output_of_the_second_gateway_is_never_moved():
 
 def test_the_share_of_the_second_gateway_comes_from_the_connections_config():
     assert ai_config.generation_failover.secondary_share == 0.5
+
+
+def test_an_unpaid_billing_settlement_of_the_first_gateway_moves_the_calls_to_the_second():
+    from app.core.ai_config import ai_config
+
+    cfg = ai_config.generation_failover
+    unpaid = error("forbidden", "APIMaster permission/quota failure (403): A previous request has an unpaid billing settlement. "
+                                "Please restore the original funding balance or contact support.")
+    assert failure_of(unpaid, cfg) == "quota"
+    primary, secondary = Fake("apimaster", unpaid), Fake("apiko")
+    result = asyncio.run(FailoverGenerationProvider(primary, secondary, cfg).generate_text("reading_checker", "s", "u"))
+    assert (result.provider, secondary.calls) == ("apiko", ["reading_checker"])
