@@ -228,14 +228,14 @@ def test_a_language_off_the_layer_is_punctuated_by_its_voice_director_with_its_o
 
     cfg = ai_config.voice_performance
     layer = ai_config.semantic_punctuation
-    assert [layer.covers(code) for code in ("ar", "de", "fa", "en")] == [True, False, False, False]
+    assert [layer.covers(code) for code in ("ar", "de", "fa", "en")] == [False] * 4
     assert layer.has_ezafe("fa") and not layer.has_ezafe("de")
-    for code in ("en", "de", "es", "it", "fr", "pt", "tr", "fa"):
+    for code in ("en", "de", "es", "it", "fr", "pt", "tr", "fa", "ar"):
         assert code in cfg.punctuation_languages and cfg.punctuation_notes[code]
         assert "PUNCTUATION FOR THE VOICE" in director_system(code, cfg)
     assert "mandatory grammar" in director_system("de", cfg)
     assert "FORBIDDEN" in director_system("fa", cfg) and "ezafe" in director_system("fa", cfg)
-    assert "PUNCTUATION FOR THE VOICE" not in director_system("ar", cfg)
+    assert "PUNCTUATION FOR THE VOICE" in director_system("ar", cfg) and "PUNCTUATION FOR THE VOICE" not in director_system("zz", cfg)
 
 
 def test_the_director_keeps_a_comma_only_change_and_drops_one_that_changes_a_word():

@@ -877,7 +877,7 @@
     "max_rounds": 2,
     "block_concurrency": 8,
     "run_file": "punctuation.json",
-    "enabled_languages": ["ar"],
+    "enabled_languages": [],
     "languages": {
       "fa": {
         "marks": ["،", "؛", ":", ".", "؟", "!"],
