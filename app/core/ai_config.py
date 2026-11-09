@@ -2301,6 +2301,9 @@ class DocumentaryConfig(BaseModel):
     """Film-level rules shared by every stage."""
 
     languages: list[str] = ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"]
+    # The order in which the language films of one job take their turn at the music (the music choice reads what the films before it used): the
+    # earlier languages keep their place, a new language goes after them. Every language of `languages` must be listed.
+    language_order: list[str] = ["fa", "ar", "en", "de", "es", "it", "fr", "pt", "tr"]
     # Approval gates: a result its auditor rejects is made again with the
     # reasons (and judged again) at most this many times; then it is left
     # out (a language, a host scene, a picture) or the job stops.
@@ -2325,6 +2328,12 @@ class DocumentaryConfig(BaseModel):
     def wpm(self, language: str) -> int:
         return self.speech_wpm.get(language) or 140
 
+
+    @model_validator(mode="after")
+    def _every_language_has_its_turn(self) -> "DocumentaryConfig":
+        if set(self.language_order) != set(self.languages) or len(self.language_order) != len(set(self.language_order)):
+            raise ValueError("documentary.language_order must list every language of documentary.languages exactly once")
+        return self
 
 class UsgsNaipConfig(BaseModel):
     """USGS/USDA NAIP aerial imagery (The National Map image service), public domain."""

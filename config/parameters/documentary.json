@@ -27,6 +27,7 @@
       "pt",
       "tr"
     ],
+    "language_order": ["fa", "ar", "en", "de", "es", "it", "fr", "pt", "tr"],
     "max_redos": 2,
     "min_film_minutes": 45,
     "max_film_minutes": 120,

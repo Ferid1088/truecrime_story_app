@@ -123,6 +123,13 @@ def latest_spoken(db: Session, master: StoryVersion, language: str,
     return None
 
 
+def film_language_order(languages) -> list[str]:
+    """The languages of a job in the order of config documentary.language_order. No language is ever left out: one missing from the order
+    goes last (a language that is not in this list gets no film at all)."""
+    order = ai_config.documentary.language_order
+    return sorted(languages, key=lambda lang: order.index(lang) if lang in order else len(order))
+
+
 def spoken_version(db: Session, master: StoryVersion, language: str, blueprint_id: int | None, detail: dict | None) -> StoryVersion | None:
     """The spoken version of a language for this run: the one its stage reports, else the latest (a stage that did not run, outside a
     stage-control rerun or kept from an earlier run, reports no version)."""
@@ -666,7 +673,7 @@ class DocumentaryPipeline(StageRunner):
         shared.visual_state, shared.renders = visual_state, renders
         # Music selection reads usage history written by preceding language
         # renders. Preserve the pre-incremental completion order explicitly.
-        shared.languages = [lang for lang in ("fa", "ar", "en", "de") if lang in ok_langs]
+        shared.languages = film_language_order(ok_langs)
         shared.music_turns = [asyncio.Event() for _ in shared.languages]
         if shared.music_turns:
             shared.music_turns[0].set()
