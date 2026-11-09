@@ -762,6 +762,8 @@
   "voice_performance": {
     "enabled": true,
     "punctuation_languages": ["en", "de", "es", "it", "fr", "pt", "tr", "fa", "ar"],
+    "punctuation_reference": {"ar": "fa"},
+    "reference_max_chars": 3000,
     "punctuation_notes": {
       "en": "English: a comma after an introductory word or phrase (\"So,\" \"Then,\"), none inside a plain \"X and Y\" pair; no comma before \"that\".",
       "de": "German: the comma before every subordinate clause (dass, weil, wenn, ob, relative clauses) and between main clauses is mandatory grammar: keep it. No comma before \"und\" between two plain parts.",

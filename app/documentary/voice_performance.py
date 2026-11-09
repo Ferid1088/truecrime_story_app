@@ -49,6 +49,7 @@ from app.documentary.voice_blocks import split_sentences
 TAG = re.compile(r"\[([^\[\]\n]{1,48})\]")
 _TERMINAL = re.compile(r"([.?!…؟]+)[\s\"'»”“’)\]]*$")
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
+_BREAK_MARKS = (",", "،", ";", "؛", ":", "—")
 
 LEVEL_NAMES = {0: "neutral", 1: "unease", 2: "dark", 3: "climax"}
 
@@ -184,6 +185,9 @@ def validate_line(speech: str, tts: str | None, level: int, language: str,
     if plain.count("...") + plain.count("…") > cfg.max_ellipses_per_sentence + (
             speech.count("...") + speech.count("…")):
         return fallback("too_many_ellipses")
+    ellipses_added = plain.count("...") + plain.count("…") - speech.count("...") - speech.count("…")
+    if ellipses_added > 0 and sum(plain.count(m) for m in _BREAK_MARKS) < sum(speech.count(m) for m in _BREAK_MARKS):
+        return fallback("ellipsis_replaces_a_mark")             # a held breath is added, not put where a comma, colon or dash was
     t0, t1 = _terminal(speech), _terminal(plain)
     if t0 in ("?", "!") and t1 != t0:
         return fallback("sentence_type_changed")
@@ -329,7 +333,8 @@ def director_system(language: str, cfg: VoicePerformanceConfig) -> str:
         "- Never change letter case (no capitals for emphasis in this language)."
     )
     focus = prompt("documentary/voice_performance/punctuation_focus").format(notes=cfg.punctuation_notes.get(language, "")) if language in cfg.punctuation_languages else ""
-    return prompt("documentary/voice_performance/director_system").format(palette=_palette(cfg), max_tags_per_sentence=cfg.max_tags_per_sentence, max_ellipses_per_sentence=cfg.max_ellipses_per_sentence, caps=caps, caps_note=" (and English emphasis capitals)" if language in cfg.caps_languages else "", punctuation_focus=focus)
+    reference = prompt("documentary/voice_performance/punctuation_reference").format(reference=cfg.punctuation_reference[language]) if language in cfg.punctuation_reference else ""
+    return prompt("documentary/voice_performance/director_system").format(palette=_palette(cfg), max_tags_per_sentence=cfg.max_tags_per_sentence, max_ellipses_per_sentence=cfg.max_ellipses_per_sentence, caps=caps, caps_note=" (and English emphasis capitals)" if language in cfg.caps_languages else "", punctuation_focus=focus, punctuation_reference=reference)
 
 
 # ---------------------------------------------------------------------------
@@ -342,6 +347,21 @@ def latest_performance(db: Session, version_id: int) -> VoicePerformance | None:
             .filter(VoicePerformance.story_version_id == version_id,
                     VoicePerformance.status != "invalid")
             .order_by(VoicePerformance.version.desc()).first())
+
+
+def reference_beats(db: Session, case_id: int, language: str, cfg: VoicePerformanceConfig | None = None) -> dict[str, str]:
+    """{beat_id: the beat's sentences} of the reference language of `language` (config voice_performance.punctuation_reference): the newest version of
+    the case in that language that has a performance. Its sentences are the spoken text the owner reviewed, without the director's tags. Empty when
+    the language has no reference or the reference language has no performance yet."""
+    cfg = cfg or ai_config.voice_performance
+    reference = cfg.punctuation_reference.get(language)
+    if not reference:
+        return {}
+    for version in db.query(StoryVersion).filter(StoryVersion.case_id == case_id, StoryVersion.language == reference).order_by(StoryVersion.id.desc()):
+        records = performance_records(latest_performance(db, version.id))
+        if records:
+            return {beat: " ".join(r["speech"] for para in paragraphs for r in para)[:cfg.reference_max_chars] for beat, paragraphs in records.items()}
+    return {}
 
 
 def performance_records(row: VoicePerformance | None) -> dict[str, list[list[dict]]]:

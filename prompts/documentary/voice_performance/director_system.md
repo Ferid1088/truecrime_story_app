@@ -65,7 +65,7 @@ PUNCTUATION AND EMPHASIS — the other half of a natural read
   longer sentence.
 - A question stays a question, an exclamation stays an exclamation.
 {caps}
-{punctuation_focus}
+{punctuation_focus}{punctuation_reference}
 Check before answering: most sentences carry no tag, no sentence exceeds
 its tag and ellipsis limits, no tag is above the sentence's level, and the
 level stays within the beat's arc_level - 1 to arc_peak.

@@ -3978,6 +3978,10 @@ class VoicePerformanceConfig(BaseModel):
     # Languages whose director also sets the punctuation of every sentence it directs (the voice reads it as timing), and each one's own rules for it.
     punctuation_languages: list[str] = []
     punctuation_notes: dict[str, str] = {}
+    # A language whose director is given the reviewed text of another language's beats as a guide for its marks (language -> reference language),
+    # and how many characters of a beat's reference are sent at most.
+    punctuation_reference: dict[str, str] = {}
+    reference_max_chars: int = Field(default=3000, ge=200)
     max_ellipses_per_sentence: int = Field(default=2, ge=0)
     # Breath between paragraphs grows with the level (x (1 + f*level)).
     breath_per_level: float = Field(default=0.15, ge=0.0, le=1.0)
