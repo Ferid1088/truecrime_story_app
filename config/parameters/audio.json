@@ -761,6 +761,17 @@
   },
   "voice_performance": {
     "enabled": true,
+    "punctuation_languages": ["en", "de", "es", "it", "fr", "pt", "tr", "fa"],
+    "punctuation_notes": {
+      "en": "English: a comma after an introductory word or phrase (\"So,\" \"Then,\"), none inside a plain \"X and Y\" pair; no comma before \"that\".",
+      "de": "German: the comma before every subordinate clause (dass, weil, wenn, ob, relative clauses) and between main clauses is mandatory grammar: keep it. No comma before \"und\" between two plain parts.",
+      "es": "Spanish: no comma between subject and verb; a comma around insertions and before \"pero\"; the opening marks of a question or exclamation stay.",
+      "it": "Italian: no comma between subject and verb; a comma around insertions and before \"ma\" and \"però\".",
+      "fr": "French: no comma before \"et\" in a plain pair; a comma around insertions and before \"mais\"; keep the spaces before ? ! : ; as the text has them.",
+      "pt": "Portuguese: no comma between subject and verb; a comma around insertions, after a fronted adverbial and before \"mas\".",
+      "tr": "Turkish: a comma after a fronted adverbial or subordinate verb form (\"-ince,\" \"-ip,\"); no comma between subject and predicate.",
+      "fa": "Persian: use the Persian marks (، ؛ ؟). The ezafe (کسرهٔ اضافه) joins a noun to what describes it (noun + adjective, noun + noun, possessive): a comma, colon or dash between those two words cuts that construction and is FORBIDDEN there. Never put a mark inside an ezafe chain, and take out one that is there. Marks belong at clause boundaries, around insertions, after vocatives and introductory words, before «که» when a new clause starts, and before «اما» and «ولی»."
+    },
     "sentences_per_call": 70,
     "level_styles": {
       "0": "v3_neutral",

@@ -2687,7 +2687,7 @@ class PunctuationProfile(BaseModel):
 
 class SemanticPunctuationConfig(BaseModel):
     """The punctuation layer of a narration (documentary/punctuation): punctuation added to the text the voice is given, never to the story. A
-    language has a layer when it has a profile in `languages`. `use_agents`: the syntax, punctuation and checker agents run (billable); without them
+    language has a layer when it has a profile in `languages` and is in `enabled_languages`. `use_agents`: the syntax, punctuation and checker agents run (billable); without them
     only the deterministic rules apply. `max_rounds`: how often a REVISE goes back to the punctuation agent before the safest version is kept."""
 
     use_agents: bool = False
@@ -2696,6 +2696,9 @@ class SemanticPunctuationConfig(BaseModel):
     # model calls themselves stay under the provider limits (concurrency.llm and the throttle).
     block_concurrency: int = Field(default=1, ge=1, le=32)
     languages: dict[str, PunctuationProfile]
+    # The languages that run the layer (billable agents). Every other language is punctuated by its voice director in the same call that directs it
+    # (voice_performance.punctuation_languages); their profiles stay here for switching a language back.
+    enabled_languages: list[str]
     run_file: str = "punctuation.json"
 
     @staticmethod
@@ -2704,7 +2707,7 @@ class SemanticPunctuationConfig(BaseModel):
         return (language or "").replace("_", "-").split("-")[0].lower()
 
     def covers(self, language: str) -> bool:
-        return self._key(language) in self.languages
+        return self._key(language) in self.languages and self._key(language) in self.enabled_languages
 
     def profile(self, language: str) -> PunctuationProfile:
         try:
@@ -2714,7 +2717,7 @@ class SemanticPunctuationConfig(BaseModel):
 
     def has_ezafe(self, language: str) -> bool:
         """Only a language whose profile says so (Persian) has an ezafe to keep; any other or unknown language is treated as having none."""
-        return self.covers(language) and self.profile(language).ezafe
+        return self._key(language) in self.languages and self.profile(language).ezafe
 
 
 class EnglishAlignmentConfig(BaseModel):
@@ -4058,6 +4061,9 @@ class VoicePerformanceConfig(BaseModel):
     # Emphasis by capitals (one word per sentence, not at level 0) —
     # only where the script has letter case and it reads naturally.
     caps_languages: list[str] = ["en"]
+    # Languages whose director also sets the punctuation of every sentence it directs (the voice reads it as timing), and each one's own rules for it.
+    punctuation_languages: list[str] = []
+    punctuation_notes: dict[str, str] = {}
     max_ellipses_per_sentence: int = Field(default=2, ge=0)
     # Breath between paragraphs grows with the level (x (1 + f*level)).
     breath_per_level: float = Field(default=0.15, ge=0.0, le=1.0)

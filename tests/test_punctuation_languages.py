@@ -220,3 +220,29 @@ def test_the_new_prompts_are_of_their_own_language():
     assert "parce que" in prompt("documentary/punctuation/syntax_system_fr") and "mais, car" in prompt("documentary/punctuation/punctuate_system_fr")
     assert "Brazilian Portuguese" in prompt("documentary/punctuation/check_system_pt") and "todavia" in prompt("documentary/punctuation/syntax_system_pt")
     assert "verb-final" in prompt("documentary/punctuation/punctuate_system_tr") and "ezafe" not in prompt("documentary/punctuation/syntax_system_tr").lower()
+
+
+def test_a_language_off_the_layer_is_punctuated_by_its_voice_director_with_its_own_rules():
+    from app.core.ai_config import ai_config
+    from app.documentary.voice_performance import director_system
+
+    cfg = ai_config.voice_performance
+    layer = ai_config.semantic_punctuation
+    assert [layer.covers(code) for code in ("ar", "de", "fa", "en")] == [True, False, False, False]
+    assert layer.has_ezafe("fa") and not layer.has_ezafe("de")
+    for code in ("en", "de", "es", "it", "fr", "pt", "tr", "fa"):
+        assert code in cfg.punctuation_languages and cfg.punctuation_notes[code]
+        assert "PUNCTUATION FOR THE VOICE" in director_system(code, cfg)
+    assert "mandatory grammar" in director_system("de", cfg)
+    assert "FORBIDDEN" in director_system("fa", cfg) and "ezafe" in director_system("fa", cfg)
+    assert "PUNCTUATION FOR THE VOICE" not in director_system("ar", cfg)
+
+
+def test_the_director_keeps_a_comma_only_change_and_drops_one_that_changes_a_word():
+    from app.documentary.voice_performance import validate_line
+
+    speech = "So patrol officers came out that night."
+    kept, _ = validate_line(speech, "So, patrol officers came out that night.", 0, "en")
+    refused, issues = validate_line(speech, "So, the patrol officers came out that night.", 0, "en")
+    assert kept == "So, patrol officers came out that night."
+    assert refused == speech and issues
