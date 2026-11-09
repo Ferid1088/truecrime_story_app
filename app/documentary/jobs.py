@@ -102,7 +102,8 @@ from app.services.retry_policy import RetryAuditPolicy  # noqa: E402
 
 
 def latest_spoken(db: Session, master: StoryVersion, language: str,
-                  blueprint_id: int | None = None) -> StoryVersion | None:
+                  blueprint_id: int | None = None, whole_film: bool = False) -> StoryVersion | None:
+    """The newest spoken version. With `whole_film` a pilot's cut (a part of the beats) is skipped: a full run narrates every beat."""
     rows = (db.query(StoryVersion)
             .filter(StoryVersion.case_id == master.case_id, StoryVersion.kind == "spoken",
                     StoryVersion.language == language,
@@ -115,6 +116,8 @@ def latest_spoken(db: Session, master: StoryVersion, language: str,
         if blueprint_id is not None and struct.get("blueprint_id") != blueprint_id:
             continue
         if ai_config.ppie.fresh(language) and struct.get("prepared"):       # a voice-prepare rewrite of the approved text is never the narration's source
+            continue
+        if whole_film and struct.get("pilot_beat_ids"):
             continue
         return v
     return None
@@ -423,7 +426,7 @@ class DocumentaryPipeline(StageRunner):
 
         async def spoken_branch(lang: str):
             async def make_spoken():
-                current = latest_spoken(db, master, lang, bp_row.id)
+                current = latest_spoken(db, master, lang, bp_row.id, whole_film=job.mode == "full")
                 if pilot and current is not None:
                     saved = json.loads(current.narrative_structure or "{}")
                     if not reusable_spoken(saved, pilot_seconds, focus_beats, bp):

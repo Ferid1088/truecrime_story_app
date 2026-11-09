@@ -713,3 +713,14 @@ def test_a_beat_is_measured_against_its_source_in_the_same_language_speaking_rat
     words = " ".join(["kelime"] * 40)
     length = SP.SpokenNarrator()._length("tr", words, words)      # Turkish is spoken slower than English: the same words are the same time
     assert length["too_long"] is False
+
+
+def test_a_full_run_skips_the_cut_of_a_pilot_when_it_picks_its_spoken_version(db_session, monkeypatch):
+    from app.documentary import jobs as J
+
+    case, master, full = _narrate(db_session, monkeypatch, SpokenGen())
+    pilot = asyncio.run(SP.SpokenNarrator().create(db_session, case, master, "en", beat_ids={"B01", "B02"}, pilot_seconds=30.0))
+    assert json.loads(pilot.narrative_structure)["pilot_beat_ids"] == ["B01", "B02"]
+    blueprint_id = json.loads(full.narrative_structure)["blueprint_id"]
+    assert J.latest_spoken(db_session, master, "en", blueprint_id).id == pilot.id                           # a pilot is still the newest for a pilot
+    assert J.latest_spoken(db_session, master, "en", blueprint_id, whole_film=True).id == full.id       # a full run narrates every beat
