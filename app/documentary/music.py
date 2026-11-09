@@ -788,10 +788,30 @@ def _overlapping_placements(spans, beat_audio, total, direction) -> list[dict]:
     return out
 
 
+def beat_spans_of(manifest: dict) -> list[dict]:
+    """The beat spans of a narration, checked against the voice blocks they were made from. A block id names its beat (`AR_B04_g01_01`), so a beat ends
+    where its last block ends. When a stored span is further from that than `max_beat_span_drift_seconds` (a narration re-timed after it was voiced,
+    without its beats), the spans are taken from the blocks: the music is placed in the pauses of the speech that is really there."""
+    timeline = manifest.get("timeline") or {}
+    stored = sorted(timeline.get("beats") or [], key=lambda b: b["start"])
+    derived: dict[str, list[float]] = {}
+    for block in timeline.get("blocks") or []:
+        parts = str(block.get("block_id", "")).split("_")
+        if len(parts) < 3:
+            continue
+        span = derived.setdefault(parts[1], [float(block["start"]), float(block["end"])])
+        span[0], span[1] = min(span[0], float(block["start"])), max(span[1], float(block["end"]))
+    tolerance = ai_config.audio_direction.max_beat_span_drift_seconds
+    if not any(b["beat_id"] in derived and abs(float(b["end"]) - derived[b["beat_id"]][1]) > tolerance for b in stored):
+        return stored
+    log.warning("the beat spans of this narration do not match its voice blocks: the spans are taken from the blocks")
+    return sorted(({"beat_id": beat, "start": round(start, 3), "end": round(end, 3)} for beat, (start, end) in derived.items()), key=lambda b: b["start"])
+
+
 def _plan(manifest: dict, script: dict) -> tuple[list[dict], list[dict]]:
     direction = ai_config.audio_direction
     beat_audio = script.get("beat_audio") or {}
-    spans = sorted(manifest["timeline"].get("beats") or [], key=lambda b: b["start"])
+    spans = beat_spans_of(manifest)
     if not spans:
         return [], []
     if direction.beds_under_narration:

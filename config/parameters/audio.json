@@ -626,6 +626,7 @@
     "music_lead_seconds": 2.0,
     "music_tail_seconds": 3.0,
     "beds_under_narration": false,
+    "max_beat_span_drift_seconds": 1.0,
     "music_start_after_word_seconds": 0.25,
     "music_end_before_word_seconds": 0.4,
     "moods": [

@@ -79,7 +79,9 @@ def card_tail(window: dict) -> float:
 def beat_windows(manifest: dict) -> list[dict]:
     """Each beat's slot of the timeline, exactly as the production script cuts it: from its own start
     (the first from 0) to the next beat's start (the last to the end), with its timed sentences."""
-    spans = sorted(manifest["timeline"].get("beats") or [], key=lambda b: b["start"])
+    from app.documentary.music import beat_spans_of
+
+    spans = beat_spans_of(manifest)
     duration = float(manifest.get("duration_seconds") or 0.0)
     sentences = manifest["timeline"].get("sentences") or []
     out = []

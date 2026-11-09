@@ -1029,7 +1029,9 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     motion_cfg = ai_config.motion
     att = ai_config.attention
     duration = float(manifest.get("duration_seconds") or 0.0)
-    spans = sorted(manifest["timeline"].get("beats") or [], key=lambda b: b["start"])
+    from app.documentary.music import beat_spans_of
+
+    spans = beat_spans_of(manifest)
     plan_beats = {b["beat_id"]: b for b in plan.get("beats") or []}
     words = manifest["timeline"].get("words") or []
     cands = plan.get("candidates") or {}

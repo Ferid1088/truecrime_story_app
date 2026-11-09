@@ -2175,6 +2175,9 @@ class AudioDirectionConfig(BaseModel):
     # Most library tracks sent to the director with one film (spread over
     # the kinds and moods so a cap never starves one mood).
     library_max_tracks: int = Field(default=40, ge=1, le=200)
+    # How far (seconds) the end of a beat's span may be from the end of its last voice block before the span is taken from the blocks instead: a narration
+    # that was re-timed after it was voiced, without its beats, would put the music into the speech.
+    max_beat_span_drift_seconds: float = Field(default=1.0, gt=0.0)
 
     # Allowed length (seconds) of each transition type after a beat.
     transitions: dict[str, list[float]] = Field(default_factory=lambda: {
