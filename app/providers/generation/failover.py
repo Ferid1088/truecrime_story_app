@@ -36,8 +36,13 @@ def with_discarded(result: GenerationResult, error: GenerationError) -> Generati
 
 
 class FailoverGenerationProvider(GenerationProvider):
+    """Two gateways. While both are available the calls are shared by `cfg.secondary_share` (the gateway that is less loaded for its share gets the
+    next call, so a slow one is not waited for); a gateway that is not available (as configured) is skipped for the cooldown and its calls go to the
+    other one."""
+
     _lock = threading.Lock()
-    _until: dict[str, float] = {}           # per primary: until when calls go to the second gateway (process-wide)
+    _until: dict[str, float] = {}           # per gateway: until when no call goes to it (process-wide)
+    _inflight: dict[str, int] = {}          # per gateway: calls running now (process-wide)
 
     def __init__(self, primary: GenerationProvider, secondary: GenerationProvider, cfg: GenerationFailoverConfig):
         self.primary, self.secondary, self.cfg = primary, secondary, cfg
@@ -52,38 +57,69 @@ class FailoverGenerationProvider(GenerationProvider):
     async def check_health(self) -> bool:
         return await self.primary.check_health() or await self.secondary.check_health()
 
-    def cooling(self) -> bool:
+    def cooling(self, gateway: GenerationProvider | None = None) -> bool:
+        gateway = gateway or self.primary
         with self._lock:
-            return self._until.get(self.primary.name, 0.0) > time.monotonic()
+            return self._until.get(gateway.name, 0.0) > time.monotonic()
 
-    def moved(self, error: GenerationError) -> bool:
-        if failure_of(error, self.cfg) not in self.cfg.on or not self.secondary.is_configured():
+    def _prefer_secondary(self) -> bool:
+        share = self.cfg.secondary_share
+        if share <= 0.0:
+            return False
+        if share >= 1.0:
+            return True
+        with self._lock:
+            primary, secondary = self._inflight.get(self.primary.name, 0), self._inflight.get(self.secondary.name, 0)
+        return (secondary + 1) / share < (primary + 1) / (1.0 - share)
+
+    def _order(self) -> list[GenerationProvider]:
+        if not self.secondary.is_configured():
+            return [self.primary]
+        primary_cooling, secondary_cooling = self.cooling(self.primary), self.cooling(self.secondary)
+        if primary_cooling and not secondary_cooling:
+            return [self.secondary, self.primary]
+        if secondary_cooling or primary_cooling:
+            return [self.primary, self.secondary]
+        return [self.secondary, self.primary] if self._prefer_secondary() else [self.primary, self.secondary]
+
+    def moved(self, gateway: GenerationProvider, error: GenerationError) -> bool:
+        if failure_of(error, self.cfg) not in self.cfg.on:
             return False
         with self._lock:
-            self._until[self.primary.name] = time.monotonic() + self.cfg.cooldown_s
-        log.warning("%s not available (%s: %s): the call goes to %s, and every call for %ss", self.primary.label, error.kind, str(error)[:200],
-                    self.secondary.label, self.cfg.cooldown_s)
+            self._until[gateway.name] = time.monotonic() + self.cfg.cooldown_s
+        other = self.secondary if gateway is self.primary else self.primary
+        log.warning("%s not available (%s: %s): the call goes to %s, and no call goes to %s for %ss", gateway.label, error.kind, str(error)[:200],
+                    other.label, gateway.label, self.cfg.cooldown_s)
         return True
 
-    async def generate_text(self, role, system, user, images=None, *, prefix=None, cache_key=None) -> GenerationResult:
-        if self.cooling():
-            return replace(await self.secondary.generate_text(role, system, user, images, prefix=prefix, cache_key=cache_key), fallback_used=True)
-        try:
-            return await self.primary.generate_text(role, system, user, images, prefix=prefix, cache_key=cache_key)
-        except GenerationError as e:
-            if not self.moved(e):
+    async def _call(self, method: str, role, system, user, images, prefix, cache_key):
+        order = self._order()
+        discarded: GenerationError | None = None
+        for position, gateway in enumerate(order):
+            with self._lock:
+                self._inflight[gateway.name] = self._inflight.get(gateway.name, 0) + 1
+            try:
+                out = await getattr(gateway, method)(role, system, user, images, prefix=prefix, cache_key=cache_key)
+            except GenerationError as e:
+                if position + 1 < len(order) and self.moved(gateway, e):
+                    discarded = e
+                    continue
                 raise
-            result = await self.secondary.generate_text(role, system, user, images, prefix=prefix, cache_key=cache_key)
-            return with_discarded(result, e)
+            finally:
+                with self._lock:
+                    self._inflight[gateway.name] -= 1
+            moved = discarded is not None or (gateway is not self.primary and self.cooling(self.primary))       # a share of the calls is no fallback
+            return out, discarded, moved
+        raise AssertionError("unreachable: the last gateway either answers or raises")
+
+    async def generate_text(self, role, system, user, images=None, *, prefix=None, cache_key=None) -> GenerationResult:
+        result, discarded, moved = await self._call("generate_text", role, system, user, images, prefix, cache_key)
+        if discarded is not None:
+            return with_discarded(result, discarded)
+        return replace(result, fallback_used=True) if moved else result
 
     async def generate_structured(self, role, system, user, images=None, *, prefix=None, cache_key=None):
-        if self.cooling():
-            data, result = await self.secondary.generate_structured(role, system, user, images, prefix=prefix, cache_key=cache_key)
-            return data, replace(result, fallback_used=True)
-        try:
-            return await self.primary.generate_structured(role, system, user, images, prefix=prefix, cache_key=cache_key)
-        except GenerationError as e:
-            if not self.moved(e):
-                raise
-            data, result = await self.secondary.generate_structured(role, system, user, images, prefix=prefix, cache_key=cache_key)
-            return data, with_discarded(result, e)
+        (data, result), discarded, moved = await self._call("generate_structured", role, system, user, images, prefix, cache_key)
+        if discarded is not None:
+            return data, with_discarded(result, discarded)
+        return (data, replace(result, fallback_used=True)) if moved else (data, result)

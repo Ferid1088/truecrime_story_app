@@ -69,6 +69,7 @@
     "secret_env": "TRUECRIME_APICO",
     "inactivity_timeout_s": 900,
     "cooldown_s": 300,
+    "secondary_share": 0.5,
     "on": [
       "unreachable",
       "timeout",

@@ -421,6 +421,9 @@ class GenerationFailoverConfig(BaseModel):
     secret_env: str
     inactivity_timeout_s: float = Field(default=90.0, gt=0.0, le=900.0)
     cooldown_s: float = Field(default=300.0, ge=0.0)
+    # The share of the calls the second gateway takes while both are available (0 = it is only a fallback, 1 = it takes every call). A call goes to the
+    # gateway that is less loaded for its share.
+    secondary_share: float = Field(default=0.0, ge=0.0, le=1.0)
     # The HTTP status codes that mean "no quota left" (the failure `quota`); another permission refusal is never moved.
     quota_http_status: list[int] = [402]
     # A 403 whose message holds one of these texts (lower case) is also "no quota left": APIMaster answers an empty balance with a 403. A 403 without one
