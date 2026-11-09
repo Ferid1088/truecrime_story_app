@@ -1,13 +1,12 @@
 """Arabic (Modern Standard) numbers for the voice: the words a documentary narrator says for the digits of a text, built on arabic_numbers.py (the cardinal
-engine) and ar_words.py (the tables). Rules and sources: scratchpad/numbers/ar.md. The expected strings of tests/test_spoken_numbers_ar.py are PROPOSALS from
-that research: no native speaker has reviewed them yet.
+engine) and ar_words.py (the tables). Rules, sources and what stays unverified: docs/spoken_numbers_ar.md. The words are plain: no vowel marks, no case endings.
 
 The text is read in stages, each one replacing the spans it understands with words (marked with private-use characters so that later stages and the context
-checks ignore them and `vowelled=False` can strip their vowel marks for the speech check): numeric and written dates, phone numbers, clock times, currency,
+checks ignore them): numeric and written dates, phone numbers, clock times, currency,
 percent, a number before "million", Hijri/Gregorian year marks, units, fractions, year ranges and ranges, scores, ordinals after "ال" or a head noun
 ("القرن 20"), Roman numerals, then every other number as a cardinal. A cardinal takes its gender from the counted noun that follows it (a closed lexicon: a
 noun not listed is masculine, the safe default) and its case from the word before it (oblique after a word, nominative only at the start of a sentence or after
-a subject-taking verb): "عام 2007" is "عَام أَلْفَيْن وَسَبْعَة". The vowel marks stay on the stem, there are no case endings."""
+a subject-taking verb): "عام 2007" is "عام ألفين وسبعة"."""
 
 from __future__ import annotations
 
@@ -32,10 +31,10 @@ START = r"(?<![A-Za-z0-9_{])(?<![A-Za-z]-)(?<!\d[.,])"      # not inside a token
 NUM = r"(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?)"
 END = r"(?![\d}])(?![.,]\d)"
 NEXT_WORD = re.compile(r"[ \t]*([^\s\d.,;:!?؟،؛()\[\]{}«»\"'\-–—%٪/]+)")
-PERCENT_WORDS = {"بالمئة": "بِالمِئَة", "في المئة": "فِي المِئَة"}
-ERA_WORDS = {"هـ": "لِلْهِجْرَة", "ه": "لِلْهِجْرَة", "م": "لِلْمِيلَاد"}
+PERCENT_WORDS = {"بالمئة": "بالمئة", "في المئة": "في المئة"}
+ERA_WORDS = {"هـ": "للهجرة", "ه": "للهجرة", "م": "للميلاد"}
 POUNDS = {"sterling": "gbp", "egyptian": "egp"}
-FRACTION_WORD = "فَاصِلَة"
+FRACTION_WORD = "فاصلة"
 
 PHONE = re.compile(r"(?<![\w{+])(?P<plus>\+)?(?P<body>\d[\d \-()]{5,}\d)(?![\d}])")
 NUMERIC_DATE_YEAR_FIRST = re.compile(START + r"(?P<y>\d{4})[-/.](?P<m>\d{1,2})[-/.](?P<d>\d{1,2})" + END)
@@ -128,12 +127,11 @@ def split_number(token: str) -> tuple[str, str | None]:
 
 
 class Numbers(LanguageNumbers):
-    """`options` is the language's block of config voice.number_words (see `Options`); `vowelled=False` gives the plain words the speech check expects."""
+    """`options` is the language's block of config voice.number_words (see `Options`)."""
 
-    def __init__(self, options: dict, max_value: int, vowelled: bool = True):
+    def __init__(self, options: dict, max_value: int):
         super().__init__(options, max_value)
         self.opts = Options.model_validate(options)
-        self.vowelled = vowelled
         self.stages = [self.numeric_dates, self.phones, self.written_dates, self.times, self.currency, self.percent, self.scaled, self.eras, self.units,
                        self.fractions, self.year_ranges, self.ranges, self.scores, self.article_ordinals, self.roman, self.plain, self.leftovers]
 
@@ -151,7 +149,7 @@ class Numbers(LanguageNumbers):
         text = self.normalized(text)
         for stage in self.stages:
             text = stage(text)
-        return SPAN.sub(lambda m: m.group(1) if self.vowelled else AN.bare(m.group(1)), text)
+        return SPAN.sub(r"\1", text)
 
     # --- reading helpers -------------------------------------------------------------------------------------------------------------------------------------
     @staticmethod
@@ -225,8 +223,8 @@ class Numbers(LanguageNumbers):
 
     # --- stages ----------------------------------------------------------------------------------------------------------------------------------------------
     def date_words(self, day: int, month: str, year: str | None, era: str | None, oblique: bool) -> str:
-        words = f"{self.day(day, oblique)} مِنْ {month}"
-        return f"{words} عَام {self.year(year, era)}" if year else words
+        words = f"{self.day(day, oblique)} من {month}"
+        return f"{words} عام {self.year(year, era)}" if year else words
 
     def numeric_dates(self, text: str) -> str:
         def sub(m: re.Match) -> str:
@@ -242,10 +240,10 @@ class Numbers(LanguageNumbers):
             day, year = int(m.group("d")), m.group("y")
             if not 1 <= day <= 31 or (m.group("era") == "م" and len(year or "") < 4):
                 return m.group()
-            head = self.say(f"{self.day(day, self.oblique(Around(m)))} مِنْ")
+            head = self.say(f"{self.day(day, self.oblique(Around(m)))} من")
             if not year:
                 return f"{head} {m.group('month')}"
-            return f"{head} {m.group('month')} {self.say('عَام ' + self.year(year, m.group('era')))}"
+            return f"{head} {m.group('month')} {self.say('عام ' + self.year(year, m.group('era')))}"
         return WRITTEN_DATE.sub(sub, text)
 
     def phones(self, text: str) -> str:
@@ -255,7 +253,7 @@ class Numbers(LanguageNumbers):
             if not ((plus and len(digits) >= 7) or (body[0] == "0" and len(digits) >= 8)):
                 return m.group()
             groups = " ، ".join(AN.digit_by_digit(g) for g in re.findall(r"\d+", body))
-            return self.say(("زَائِد " if plus else "") + groups)
+            return self.say(("زائد " if plus else "") + groups)
         return PHONE.sub(sub, text)
 
     def clock(self, h24: int, minute: int, oblique: bool) -> str:
@@ -264,11 +262,11 @@ class Numbers(LanguageNumbers):
         if minute == 0:
             return W.hour(h12)
         if minute in (15, 30):
-            return f"{W.hour(h12)} {AN.AND}{'الرُّبْع' if minute == 15 else 'النِّصْف'}"
+            return f"{W.hour(h12)} {AN.AND}{'الربع' if minute == 15 else 'النصف'}"
         if minute == 45:
-            return f"{following} إِلَّا رُبْعًا"
+            return f"{following} إلا ربعا"
         if minute in (50, 55):
-            return f"{following} إِلَّا {self.noun_phrase(60 - minute, W.MINUTE, oblique)}"
+            return f"{following} إلا {self.noun_phrase(60 - minute, W.MINUTE, oblique)}"
         return f"{W.hour(h12)} {AN.AND}{self.noun_phrase(minute, W.MINUTE, oblique)}"
 
     def times(self, text: str) -> str:
@@ -359,7 +357,7 @@ class Numbers(LanguageNumbers):
             if a == 2:
                 return W.dual(singular, oblique)
             return f"{AN.ONES[a]} {plural}"
-        return f"{AN.to_words(a)} مِنْ {AN.to_words(b, Form(oblique=True))}"
+        return f"{AN.to_words(a)} من {AN.to_words(b, Form(oblique=True))}"
 
     def fractions(self, text: str) -> str:
         def mixed(m: re.Match) -> str:
@@ -384,7 +382,7 @@ class Numbers(LanguageNumbers):
             years = (self.year(first), self.year(last))
             if before == ["بين"]:
                 return self.say(f"{years[0]} {AN.AND}{years[1]}")
-            return self.say(f"{'' if before == ['من'] else 'مِنْ '}عَام {years[0]} إِلَى عَام {years[1]}")
+            return self.say(f"{'' if before == ['من'] else 'من '}عام {years[0]} إلى عام {years[1]}")
         return YEAR_RANGE.sub(sub, text)
 
     def ranges(self, text: str) -> str:
@@ -396,11 +394,11 @@ class Numbers(LanguageNumbers):
             around = Around(m)
             form = Form(feminine=around.next_word() in W.FEMININE_NOUNS, oblique=True)
             low, high = self.spoken(first, first_frac, form), self.spoken(last, last_frac, form)
-            return self.say(f"{low} {AN.AND}{high}" if around.tokens_before(1) == ["بين"] else f"مِنْ {low} إِلَى {high}")
+            return self.say(f"{low} {AN.AND}{high}" if around.tokens_before(1) == ["بين"] else f"من {low} إلى {high}")
         return RANGE.sub(sub, text)
 
     def scores(self, text: str) -> str:
-        return SCORE.sub(lambda m: self.say(f"{AN.to_words(int(m.group('a')))} مُقَابِل {AN.to_words(int(m.group('b')))}"), text)
+        return SCORE.sub(lambda m: self.say(f"{AN.to_words(int(m.group('a')))} مقابل {AN.to_words(int(m.group('b')))}"), text)
 
     def article_ordinals(self, text: str) -> str:
         """A number written after the article ("الـ13 من نوفمبر", "في الـ35 من عمره") is an ordinal; its gender is the noun's after it or the head's before."""
@@ -458,7 +456,7 @@ class Numbers(LanguageNumbers):
                 if head and 1 <= int(whole) <= 99:
                     return self.say(self.head_ordinal(int(whole), head, around))
             form = Form(feminine=around.next_word() in W.FEMININE_NOUNS, oblique=self.oblique(around))
-            return self.say(("سَالِب " if m.group("neg") else "") + self.spoken(whole, frac, form))
+            return self.say(("سالب " if m.group("neg") else "") + self.spoken(whole, frac, form))
         return NUMBER.sub(sub, text)
 
     def leftovers(self, text: str) -> str:
