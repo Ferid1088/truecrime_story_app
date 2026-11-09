@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ExternalLink, Plus, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
-import { formatDateTime, langLabel } from "@/lib/format";
+import { formatDateTime, langLabel, PRODUCTION_LANGUAGES } from "@/lib/format";
 import type { Fact, Source, SourceDetail as SourceDetailData } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 
 const SOURCE_TYPES = ["youtube", "news", "court", "police", "book", "documentary", "article", "other"];
-const LANGS = ["en", "de", "fa", "ar", "unknown"];
+const LANGS = [...PRODUCTION_LANGUAGES, "unknown"];
 
 const CONTENT_STATUS_LABEL: Record<string, string> = {
   full_text: "full text",

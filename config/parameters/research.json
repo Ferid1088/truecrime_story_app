@@ -35,7 +35,12 @@
       "en",
       "de",
       "fa",
-      "ar"
+      "ar",
+      "es",
+      "it",
+      "fr",
+      "pt",
+      "tr"
     ],
     "max_results_per_language": 8,
     "discovery_provider": "auto",
@@ -63,7 +68,12 @@
       "en",
       "de",
       "fa",
-      "ar"
+      "ar",
+      "es",
+      "it",
+      "fr",
+      "pt",
+      "tr"
     ],
     "max_transcript_seconds": 10800,
     "max_segments_per_video": 2000,

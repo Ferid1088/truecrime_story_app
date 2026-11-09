@@ -23,8 +23,11 @@ def test_german_english_and_arabic_have_stability_07_and_speed_09_in_every_style
 
 def test_only_fa_has_the_fast_pace():
     assert ai_config.voice.settings_for("factual", "fa")["speed"] == 1.2
-    assert ai_config.voice.post_speed == {"fa": 1.1, "ar": 1.05, "de": 1.05, "es": 0.9}
-    assert ai_config.voice.post_speed_gaps == ["ar", "de", "es"], "the pauses follow the voice's post speed in German and Arabic (faster) and Spanish (slower) only"
+    assert ai_config.voice.post_speed == {
+        "fa": 1.1, "ar": 1.05, "de": 1.05, "es": 0.9,
+        "it": 1.0, "fr": 1.0, "pt": 1.0, "tr": 1.0,
+    }
+    assert ai_config.voice.post_speed_gaps == ["ar", "de", "es"], "only calibrated pause speeds alter the planned gaps"
 
 
 def test_the_voice_config_has_no_key_the_app_ignores():

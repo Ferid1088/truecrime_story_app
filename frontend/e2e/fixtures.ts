@@ -33,6 +33,8 @@ const CASE = {
     estimated_cost_usd: 0.42,
   },
 };
+
+export const PRODUCTION_LANGUAGES = ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"] as const;
 const SHORT_101_VIDEO = join(process.cwd(), "e2e/assets/short-101.mp4");
 const SHORT_101_COVER = join(process.cwd(), "e2e/assets/short-101.png");
 
@@ -250,7 +252,7 @@ export const fixtures = {
     calls_total: 43,
   },
   glossary: {
-    languages: ["fa", "en", "de", "ar"],
+    languages: [...PRODUCTION_LANGUAGES],
     approved: { fa: false, en: true, de: false, ar: false },
     entities: [
       {
@@ -269,7 +271,7 @@ export const fixtures = {
   languagePipelineEmpty: {
     draft: null,
     retired_method: [],
-    languages: ["fa", "en", "de", "ar"].map((language) => ({ language, stages: {} })),
+    languages: PRODUCTION_LANGUAGES.map((language) => ({ language, stages: {} })),
     ledger: [],
     cost_total_eur: 0,
     optional_languages: [],
@@ -280,7 +282,7 @@ export const fixtures = {
     total_eur: 4.2, total_tokens_in: 602937, total_tokens_out: 350746,
   },
   researchLanguages: {
-    production_languages: ["fa", "en", "de", "ar"],
+    production_languages: [...PRODUCTION_LANGUAGES],
     total_sources: 3,
     languages: {
       en: { searched: true, queries: ["keeper disappearance 1900"], sources: 2, full_text_sources: 1, evidence_items: 3, unique_evidence: 2 },
@@ -350,8 +352,8 @@ export const fixtures = {
     youtube: { configured: false },
     research_provider: { provider: "truecrime", configured: true },
     multilingual: {
-      research_languages: ["en", "de", "fa", "ar"],
-      production_languages: ["fa", "en", "de", "ar"],
+      research_languages: [...PRODUCTION_LANGUAGES],
+      production_languages: [...PRODUCTION_LANGUAGES],
       research_only_languages: [],
       available_languages: { en: "English", de: "German", fa: "Persian", ar: "Arabic", ja: "Japanese" },
     },
@@ -497,7 +499,7 @@ export const namingFixture = {
 export const productionFixture = {
   case_id: 1, name: { approved: false, title: "The Lamp Went Dark" },
   allowed_languages: ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"], required_language: "en",
-  languages: ["en", "de", "fa", "ar"], saved: false, outfits: [], estimate: null,
+  languages: [...PRODUCTION_LANGUAGES], saved: false, outfits: [], estimate: null,
   blockers: ["Approve the case's English name first (Naming tab): nothing is produced before the case is confirmed."], run: null,
 };
 

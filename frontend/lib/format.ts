@@ -13,6 +13,9 @@ export const LANGUAGES: Record<string, string> = {
   unknown: "Unknown",
 };
 
+/** The languages supported by the film and production workflows, in UI order. */
+export const PRODUCTION_LANGUAGES = ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"] as const;
+
 export const RTL_LANGS = new Set(["fa", "ar", "he", "ur"]);
 
 export function isRtl(lang: string | null | undefined): boolean {

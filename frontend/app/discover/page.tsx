@@ -10,7 +10,7 @@ import type {
   DiscoveryCandidate, DiscoveryCountry, DuplicateConflict,
   ResearchJob, ResolutionFilter, SelectionStats,
 } from "@/lib/types";
-import { LANGUAGES, formatDateTime, humanize, langLabel } from "@/lib/format";
+import { LANGUAGES, PRODUCTION_LANGUAGES, formatDateTime, humanize, langLabel } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +26,7 @@ import { Collapsible, FieldLabel, SourceLinks } from "@/components/lifecycle/sha
 import { SearchHealthWarning } from "@/components/search-health-warning";
 import { SearchesList } from "@/components/discover/searches-list";
 
-const LANG_OPTIONS = ["en", "de", "fa", "ar", "other"];
+const LANG_OPTIONS = [...PRODUCTION_LANGUAGES, "other"];
 const COUNT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
 const RESOLUTION_FILTER_OPTIONS: { value: ResolutionFilter; label: string }[] = [
   { value: "solved_only", label: "Solved only" },

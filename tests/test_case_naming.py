@@ -21,6 +21,16 @@ FA = ["فانوس سلله", "قایق قرضی", "پایاب خاموش", "چر
       "نه پله تا رود", "کتری مسی", "پل بی‌نشان"]
 AR = ["فانوس سيله", "القارب المستعار", "العبّارة الصامتة", "مصباح الميناء", "طريق الملح",
       "تسع درجات", "غلاية النحاس", "جسر بلا اسم"]
+ES = ["La Linterna de Celle", "El Puerto de las Siete Puertas", "El Barco Prestado", "La Lámpara de Rita",
+      "El Reloj de la Ruta de la Sal", "Nueve Pasos Río Arriba", "El Barquero Silencioso"]
+IT = ["La Lanterna di Celle", "Il Porto delle Sette Porte", "La Barca in Prestito", "La Lampada di Rita",
+      "L'Orologio della Strada del Sale", "Nove Passi Controcorrente", "Il Traghettatore Silenzioso"]
+FR = ["La Lanterne de Celle", "Le Port aux Sept Portes", "Le Bateau Emprunté", "La Lampe de Rita",
+      "L'Horloge de la Route du Sel", "Neuf Pas en Amont", "Le Passeur Silencieux"]
+PT = ["A Lanterna de Celle", "O Porto das Sete Portas", "O Barco Emprestado", "A Lâmpada de Rita",
+      "O Relógio da Estrada do Sal", "Nove Passos Rio Acima", "O Barqueiro Silencioso"]
+TR = ["Celle Feneri", "Yedi Kapılı Liman", "Ödünç Tekne", "Rita'nın Lambası",
+      "Tuz Yolu Saati", "Yukarı Nehirde Dokuz Adım", "Sessiz Kayıkçı"]
 
 
 class ScriptedGen:
@@ -37,7 +47,8 @@ class ScriptedGen:
         d = json.loads(user)
         if role == "case_naming_agent":
             lang = {"English": "en", "German": "de", "Persian (Farsi)": "fa",
-                    "Arabic": "ar"}[d["language"]]
+                    "Arabic": "ar", "Mexican Spanish": "es", "Italian": "it", "French": "fr",
+                    "Brazilian Portuguese": "pt", "Turkish": "tr"}[d["language"]]
             pool = self.proposals[lang]
             take, self.proposals[lang] = pool[:d["count"]], pool[d["count"]:]
             return {"editorial_concept": "a lamp that was left burning",
@@ -81,7 +92,7 @@ def _run(coro):
 
 def test_exactly_seven_per_language_with_replacement(db_session):
     case = _case(db_session)
-    gen = ScriptedGen({"en": EN, "de": DE, "fa": FA, "ar": AR},
+    gen = ScriptedGen({"en": EN, "de": DE, "fa": FA, "ar": AR, "es": ES, "it": IT, "fr": FR, "pt": PT, "tr": TR},
                       bad={EN[0]: {"spoiler_risk": 0.9}})
     out = _run(A.generate_case_titles(db_session, case, gen))
     for lang in ("en", "de", "fa", "ar"):
@@ -95,7 +106,7 @@ def test_exactly_seven_per_language_with_replacement(db_session):
                 if r.case_id == case.id}) == 1
     best = [json.loads(r.critic_json) for r in en_rows if r.status != "rejected"]
     assert sum(1 for b in best if b["recommended"]) == 1
-    assert "native_title_critic" in gen.calls and gen.calls.count("native_title_critic") == 3
+    assert "native_title_critic" in gen.calls and gen.calls.count("native_title_critic") == 8
 
 
 def test_shortfall_is_reported_not_padded(db_session):
@@ -229,7 +240,7 @@ def test_api_flow(client, db_session, monkeypatch):
     import app.naming.api as N
 
     case = _case(db_session, "Celle api")
-    gen = ScriptedGen({"en": EN, "de": DE, "fa": FA, "ar": AR})
+    gen = ScriptedGen({"en": EN, "de": DE, "fa": FA, "ar": AR, "es": ES, "it": IT, "fr": FR, "pt": PT, "tr": TR})
     monkeypatch.setattr(N, "_gen", lambda: gen)
     monkeypatch.setattr(N, "_embedder", lambda: None)
     started = client.post(f"/api/cases/{case.id}/naming/generate", json={}).json()
@@ -245,8 +256,8 @@ def test_api_flow(client, db_session, monkeypatch):
     assert ok["youtube_title"].endswith("(حل‌نشده) | رد خاموش")
 
 
-def test_the_optional_languages_are_titled_only_when_asked_for_and_in_a_fixed_order():
-    assert A.title_languages(None) == ["en", "de", "fa", "ar"]
+def test_all_production_languages_are_titled_in_a_fixed_order():
+    assert A.title_languages(None) == ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"]
     assert A.title_languages(["tr", "es", "en"]) == ["en", "es", "tr"]
     assert A.title_languages(["xx"]) == []
 

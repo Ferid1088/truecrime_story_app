@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ExternalLink, Search } from "lucide-react";
 import { api } from "@/lib/api";
-import { langLabel } from "@/lib/format";
+import { langLabel, PRODUCTION_LANGUAGES } from "@/lib/format";
 import type { CorpusHit, CorpusSearchResponse } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,10 +13,7 @@ import { EmptyState, ErrorState } from "@/components/state";
 
 const LANGS = [
   { value: "", label: "All languages" },
-  { value: "en", label: "English" },
-  { value: "de", label: "Deutsch" },
-  { value: "fa", label: "فارسی" },
-  { value: "ar", label: "العربية" },
+  ...PRODUCTION_LANGUAGES.map((value) => ({ value, label: langLabel(value) })),
 ];
 
 function HitCard({ hit }: { hit: CorpusHit }) {

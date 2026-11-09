@@ -267,7 +267,7 @@ class ResearchAssembler:
             } for s in sources[:30]],
             "output_schema": {
                 "summary": "2-4 sentence factual status",
-                "coverage": {"en": 0, "de": 0, "fa": 0, "ar": 0},
+                "coverage": {"en": 0, "de": 0, "fa": 0, "ar": 0, "es": 0, "it": 0, "fr": 0, "pt": 0, "tr": 0},
                 "thin_areas": ["..."],
             },
         }, ensure_ascii=False)

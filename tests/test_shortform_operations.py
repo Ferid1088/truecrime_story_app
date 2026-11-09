@@ -8,7 +8,7 @@ from app.shortform.operations import (
 
 def test_voice_ids_resolve_from_central_config():
     ids = resolve_voice_ids()
-    assert set(ids) == {"en", "de", "fa", "ar"}
+    assert set(ids) == {"en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"}
     assert all(ids.values())
 
 

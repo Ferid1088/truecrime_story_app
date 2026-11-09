@@ -80,20 +80,24 @@ def test_language_badges_report_per_language_video_state(db_session):
     _video(db_session, case.id, "en", "published")
     _video(db_session, case.id, "de", "rendered")
     badges = language_badges(db_session, case.id)
-    assert badges == {"en": "published", "de": "rendered", "fa": "not_created", "ar": "not_created"}
+    assert badges == {
+        "en": "published", "de": "rendered", "fa": "not_created", "ar": "not_created",
+        "es": "not_created", "it": "not_created", "fr": "not_created", "pt": "not_created", "tr": "not_created",
+    }
 
 
-def test_an_optional_language_shows_a_badge_once_the_case_has_a_video_in_it(db_session):
+def test_every_production_language_shows_a_badge_before_and_after_a_video(db_session):
     case = _case(db_session, "Spanish Film Case")
-    assert "es" not in language_badges(db_session, case.id)
+    assert language_badges(db_session, case.id)["es"] == "not_created"
     _video(db_session, case.id, "es", "rendered")
-    assert language_badges(db_session, case.id) == {
-        "en": "not_created", "de": "not_created", "fa": "not_created", "ar": "not_created", "es": "rendered"}
+    assert language_badges(db_session, case.id)["es"] == "rendered"
 
 
 def test_language_badges_all_not_created_when_no_case():
     assert language_badges(None, None) == {
-        "en": "not_created", "de": "not_created", "fa": "not_created", "ar": "not_created"}
+        "en": "not_created", "de": "not_created", "fa": "not_created", "ar": "not_created",
+        "es": "not_created", "it": "not_created", "fr": "not_created", "pt": "not_created", "tr": "not_created",
+    }
 
 
 def test_search_counts_cover_every_state(db_session):

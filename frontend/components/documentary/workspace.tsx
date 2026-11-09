@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, FolderOpen, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
+import { PRODUCTION_LANGUAGES } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -103,10 +104,17 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
     );
   }
 
+  // Keep the workspace usable while an older API process is being restarted:
+  // the typed production catalog is authoritative for the UI, while API
+  // settings may still contain only the former four-language list.
+  const fullSettings = {
+    ...settings,
+    languages: Array.from(new Set([...PRODUCTION_LANGUAGES, ...settings.languages])),
+  };
   const finalId = finalChoice ?? overview.final_version_id;
   const language =
-    languageChoice ?? productionLanguages(settings.languages, overview)[0] ?? settings.languages[0] ?? "en";
-  const common = { caseId, settings, overview, refreshKey: tick };
+    languageChoice ?? productionLanguages(fullSettings.languages, overview)[0] ?? fullSettings.languages[0] ?? "en";
+  const common = { caseId, settings: fullSettings, overview, refreshKey: tick };
   const languageProps = { ...common, language, onLanguageChange: setLanguageChoice, finalId };
 
   return (

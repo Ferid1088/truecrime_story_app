@@ -1,5 +1,5 @@
 import { test, expect } from "./test-base";
-import { mockApi } from "./fixtures";
+import { mockApi, PRODUCTION_LANGUAGES } from "./fixtures";
 
 const CANDIDATE = {
   candidate_id: 501,
@@ -26,7 +26,7 @@ const job = {
 };
 
 const ESTIMATE = {
-  languages: ["en", "de", "fa", "ar"], cap_eur: 300, estimated_eur: 38.59, visual_research_eur: 6.4,
+  languages: [...PRODUCTION_LANGUAGES], cap_eur: 300, estimated_eur: 38.59, visual_research_eur: 6.4,
   range_eur: { low: 26.83, high: 47.23 }, pricing_last_verified: "2026-10-01", price_warnings: [],
 };
 
@@ -160,7 +160,7 @@ test.describe("Autopilot", () => {
 
   test("Settings shows a not-connected placeholder per language and platform", async ({ page }) => {
     await mockApi(page);
-    const channels = ["en", "de", "fa", "ar"].flatMap((language) =>
+    const channels = PRODUCTION_LANGUAGES.flatMap((language) =>
       ["youtube_short", "instagram_reel", "facebook_reel", "tiktok_video"].map((platform) => ({
         language, platform, handle: "", connected: false,
       })));
@@ -172,7 +172,7 @@ test.describe("Autopilot", () => {
     });
     await page.goto("/settings");
     const card = page.getByTestId("channel-settings");
-    await expect(card.getByText("Not connected")).toHaveCount(16);
+    await expect(card.getByText("Not connected")).toHaveCount(PRODUCTION_LANGUAGES.length * 4);
     await card.getByLabel("Handle for German tiktok video").fill("@wahr");
     await card.getByRole("button", { name: "Save" }).nth(7).click();
     await expect(card.getByRole("status")).toContainText("Saved");

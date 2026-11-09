@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, ChevronDown, Clock3, Lock, PenLine, Play, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
-import { langLabel } from "@/lib/format";
+import { langLabel, PRODUCTION_LANGUAGES } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type {
   DocumentaryJob,
@@ -308,7 +308,7 @@ export function ActionPanel({ caseId, jobId, state, expanded, onPreview, onAutom
           {canEdit ? (
             <>
               <div className="grid gap-2 sm:grid-cols-2">
-                <label className="text-xs font-medium">Language<Select value={editLanguage} onChange={(event) => setEditLanguage(event.target.value)} className="mt-1"><option value="de">{langLabel("de")}</option><option value="en">{langLabel("en")}</option><option value="fa">{langLabel("fa")}</option><option value="ar">{langLabel("ar")}</option></Select></label>
+                <label className="text-xs font-medium">Language<Select value={editLanguage} onChange={(event) => setEditLanguage(event.target.value)} className="mt-1">{PRODUCTION_LANGUAGES.map((code) => <option key={code} value={code}>{langLabel(code)}</option>)}</Select></label>
                 <label className="text-xs font-medium">Chapter title<select className="mt-1 flex h-8 w-full rounded-md border border-border bg-transparent px-3 py-1 text-sm" value={chapterTitle} onChange={(event) => setChapterTitle(event.target.value)}><option value="">Choose a chapter</option>{chapters.data?.plan.chapters.map((chapter) => <option key={chapter.act_id} value={chapter.title[editLanguage] ?? chapter.title.en ?? chapter.act_id}>{chapter.title[editLanguage] ?? chapter.title.en ?? chapter.act_id}</option>)}</select></label>
               </div>
               <Textarea aria-label="Edit text" value={chapterText} onChange={(event) => setChapterText(event.target.value)} placeholder="Enter the edited chapter text" rows={5} />
@@ -564,7 +564,7 @@ export function StageControlPanel({ caseId, job }: { caseId: number; job: Docume
   const [stale, setStale] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const stages = job ? fullPipelineStages(job).map((stage) => stage.name) : [];
-  const languages = job?.languages ?? ["en", "de", "fa", "ar"];
+  const languages = job?.languages ?? [...PRODUCTION_LANGUAGES];
 
   const apply = async () => {
     if (!preview) return;

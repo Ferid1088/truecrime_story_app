@@ -224,12 +224,12 @@ def test_research_languages_endpoint(client, db_session):
     r = client.get(f"/api/cases/{case.id}/research/languages")
     assert r.status_code == 200
     body = r.json()
-    assert body["production_languages"] == ["fa", "en", "de", "ar"]
+    assert body["production_languages"] == ["fa", "en", "de", "ar", "es", "it", "fr", "pt", "tr"]
     assert body["languages"]["en"]["sources"] == 1
     assert body["languages"]["de"]["sources"] == 1
     assert body["languages"]["de"]["evidence_items"] == 1
     assert body["languages"]["de"]["unique_evidence"] == 1
-    assert list(body["languages"])[:4] == ai_config.multilingual.research_languages
+    assert list(body["languages"])[:len(ai_config.multilingual.research_languages)] == ai_config.multilingual.research_languages
     assert body["languages"]["en"]["name"] == "English"
     assert body["languages"]["en"]["research_only"] is False
     assert body["languages"]["en"]["enabled"] is True

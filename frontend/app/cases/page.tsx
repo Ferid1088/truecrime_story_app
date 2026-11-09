@@ -6,7 +6,7 @@ import { Plus, Search } from "lucide-react";
 import { api, duplicateConflict } from "@/lib/api";
 import type { DuplicateConflict, ResolutionStatus } from "@/lib/types";
 import { useApi } from "@/lib/hooks";
-import { langLabel } from "@/lib/format";
+import { langLabel, PRODUCTION_LANGUAGES } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { CaseOverview } from "@/components/case/overview";
 import { CaseControls } from "@/components/case/controls";
@@ -306,15 +306,9 @@ function CreateCaseForm({ onCancel, onCreated }: { onCancel: () => void; onCreat
             Primary language
           </label>
           <Select id={`${ids}-language`} value={language} onChange={(e) => setLanguage(e.target.value)}>
-            <option value="en">English</option>
-            <option value="de">German</option>
-            <option value="fa">Persian</option>
-            <option value="ar">Arabic</option>
-            <option value="es">Spanish</option>
-            <option value="it">Italian</option>
-            <option value="fr">French</option>
-            <option value="pt">Portuguese (Brazil)</option>
-            <option value="tr">Turkish</option>
+            {PRODUCTION_LANGUAGES.map((code) => (
+              <option key={code} value={code}>{langLabel(code)}</option>
+            ))}
           </Select>
         </div>
       </div>

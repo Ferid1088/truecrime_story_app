@@ -1,11 +1,11 @@
 import { test, expect } from "./test-base";
-import { mockApi } from "./fixtures";
+import { mockApi, PRODUCTION_LANGUAGES } from "./fixtures";
 
 const settings = {
-  languages: ["en", "de", "fa", "ar"],
+  languages: [...PRODUCTION_LANGUAGES],
   film_minutes: { min: 45, max: 120 },
   pilot_seconds: 120,
-  voices: Object.fromEntries(["en", "de", "fa", "ar"].map((language) => [language, {
+  voices: Object.fromEntries(PRODUCTION_LANGUAGES.map((language) => [language, {
     voice_id: `voice-${language}`, model_id: "eleven_v4", language_code: language, audio_tags: true,
   }])),
   pronunciation_check: { enabled: false, languages: [], max_rounds: 1 },

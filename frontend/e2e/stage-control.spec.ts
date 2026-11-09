@@ -1,5 +1,5 @@
 import { expect, test } from "./test-base";
-import { fixtures } from "./fixtures";
+import { fixtures, PRODUCTION_LANGUAGES } from "./fixtures";
 
 const stages = [
   { name: "research", status: "done", detail: { summary: "Research saved" } },
@@ -42,7 +42,7 @@ async function mockStageControlApi(page: import("@playwright/test").Page, staleA
     if (path === "/api/auth/session") return json({ authenticated: true, auth_required: false });
     if (path === "/api/cases/1" && method === "GET") return json(fixtures.caseDetail);
     if (path === "/api/documentary/settings") return json({
-      languages: ["en", "de", "fa", "ar"], film_minutes: { min: 45, max: 120 }, pilot_seconds: 60,
+      languages: [...PRODUCTION_LANGUAGES], film_minutes: { min: 45, max: 120 }, pilot_seconds: 60,
       voices: {}, pronunciation_check: { enabled: false, languages: [], max_rounds: 1 },
       voice_performance: { enabled: false, level_tags: {}, level_styles: {} },
       concurrency: { llm: 1, vision: 1, elevenlabs_tts: 1, elevenlabs_sound: 1, asr: 1, render: 1, downloads: 1, jobs: 1, languages: 1 },
@@ -53,7 +53,7 @@ async function mockStageControlApi(page: import("@playwright/test").Page, staleA
       masters: [{ id: 41, version: 1, language: "en", status: "approved", words: 900, kind: "master" }],
       master_version_id: 41, film_minutes: { min: 45, max: 120 }, blueprint: null, audio_plan: null,
       languages: { en: null, de: null, fa: null, ar: null }, visual_plan: null,
-      jobs: [{ id: 12, case_id: 1, master_version_id: 41, mode: "full", languages: ["en", "de", "fa", "ar"],
+      jobs: [{ id: 12, case_id: 1, master_version_id: 41, mode: "full", languages: [...PRODUCTION_LANGUAGES],
         pilot_seconds: null, render_profile: "preview", refresh_visuals: false, from_zero: false,
         target_minutes: null, batch_id: null, production_type: "new", follow_up_id: null,
         status: "completed", stage: null, progress: 1, stages, result: {}, error: null,
@@ -61,15 +61,15 @@ async function mockStageControlApi(page: import("@playwright/test").Page, staleA
       visual_counts: {},
     });
     if (path === "/api/cases/1/documentary/jobs") return json([{
-      id: 12, case_id: 1, master_version_id: 41, mode: "full", languages: ["en", "de", "fa", "ar"],
+      id: 12, case_id: 1, master_version_id: 41, mode: "full", languages: [...PRODUCTION_LANGUAGES],
       pilot_seconds: null, render_profile: "preview", refresh_visuals: false, from_zero: false,
       target_minutes: null, batch_id: null, production_type: "new", follow_up_id: null,
       status: "completed", stage: null, progress: 1, stages, result: {}, error: null,
       created_at: "2026-10-13T08:00:00Z", updated_at: "2026-10-13T08:01:00Z", completed_at: "2026-10-13T08:01:00Z",
     }]);
     if (path === "/api/cases/1/documentary/chapters") return json({
-      id: 7, version: 1, status: "approved", blueprint_id: 3, languages: ["en", "de", "fa", "ar"],
-      plan: { languages: ["en", "de", "fa", "ar"], cold_open: true, film_title: {},
+      id: 7, version: 1, status: "approved", blueprint_id: 3, languages: [...PRODUCTION_LANGUAGES],
+      plan: { languages: [...PRODUCTION_LANGUAGES], cold_open: true, film_title: {},
         chapters: [{ act_id: "act-1", number: 1, first_beat: "b1", last_beat: "b2", title: { en: "Arrival", de: "Ankunft", fa: "ورود", ar: "الوصول" } }], events: [] },
       audit: { rounds: [], left_out: [], error: null, max_redos: 1 }, created_at: "2026-10-13T08:00:00Z",
     });

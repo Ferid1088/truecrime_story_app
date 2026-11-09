@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import Case, DiscoveryCandidate, Video
 
-LANGUAGES = ("en", "de", "fa", "ar")
+LANGUAGES = ("en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr")
 
 # The states counted toward a Search's totals: everything the user was
 # actually shown. Duplicates/filtered/ignored candidates were never
@@ -40,8 +40,7 @@ def candidate_status(db: Session, candidate: DiscoveryCandidate) -> str:
 
 def language_badges(db: Session | None, case_id: int | None) -> dict[str, str]:
     """Per-language video state: the real `Video.state` (rendered/published/archived) or "not_created"
-    when no Video row exists yet. The default languages always have a badge; an optional production
-    language (es, it, fr, pt, tr) has one only once the case has a video in it."""
+    when no Video row exists yet. Every production language always has a badge."""
     badges = dict.fromkeys(LANGUAGES, "not_created")
     if db is None or case_id is None:
         return badges

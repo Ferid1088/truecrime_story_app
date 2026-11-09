@@ -1,9 +1,9 @@
 import type { Page, Route } from "@playwright/test";
 import { test, expect } from "./test-base";
-import { mockApi } from "./fixtures";
+import { mockApi, PRODUCTION_LANGUAGES } from "./fixtures";
 
 const settings = {
-  languages: ["en", "de", "fa", "ar"],
+  languages: [...PRODUCTION_LANGUAGES],
   film_minutes: { min: 45, max: 120 },
   pilot_seconds: 120,
   voices: {},

@@ -149,7 +149,7 @@ def config_artifact_roots(config_sections: set[str]) -> set[str]:
 
 
 def predicted_for_config(config_sections: set[str], languages: tuple[str, ...] =
-                         ("en", "de", "fa", "ar")) -> set[str]:
+                         ("en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr")) -> set[str]:
     """Predict scoped artifact keys for a typed config perturbation."""
     types = artifact_closure(config_artifact_roots(config_sections))
     predicted = {

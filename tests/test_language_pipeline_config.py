@@ -161,7 +161,7 @@ def test_the_safety_retry_of_the_review_uses_its_own_model_route_and_the_neutral
         assert seen["system"].startswith(prompt("language_pipeline/safety_preamble").strip()[:40]) is safety
 
 
-def test_a_run_may_name_an_optional_language_but_the_default_run_produces_only_the_production_languages():
+def test_the_default_run_produces_all_configured_production_languages():
     import pytest
     from fastapi import HTTPException
 
@@ -169,7 +169,7 @@ def test_a_run_may_name_an_optional_language_but_the_default_run_produces_only_t
 
     multilingual = ai_config.multilingual
     assert _languages(None) == multilingual.production_languages
-    assert set(multilingual.optional_production_languages) == {"es", "it", "fr", "pt", "tr"}
+    assert multilingual.optional_production_languages == []
     assert _languages(["es", "tr"]) == ["es", "tr"]
     with pytest.raises(HTTPException) as caught:
         _languages(["xx"])

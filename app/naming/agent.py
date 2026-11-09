@@ -32,7 +32,7 @@ from app.naming.gates import brevity_score, run_gates
 from app.naming.normalize import norm_title
 
 # The languages a title run covers when it names none; the optional production languages only when asked for.
-ORDER = ("en", "de", "fa", "ar")
+ORDER = ("en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr")
 
 
 def title_languages(requested: list[str] | None = None) -> list[str]:

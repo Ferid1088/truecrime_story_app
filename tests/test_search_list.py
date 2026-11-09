@@ -84,4 +84,6 @@ def test_discovery_history_filters_by_job_and_reports_live_case_status(client, d
     assert len(rows) == 1
     assert rows[0]["case_status"] == "free"
     assert rows[0]["language_badges"] == {
-        "en": "not_created", "de": "not_created", "fa": "not_created", "ar": "not_created"}
+        "en": "not_created", "de": "not_created", "fa": "not_created", "ar": "not_created",
+        "es": "not_created", "it": "not_created", "fr": "not_created", "pt": "not_created", "tr": "not_created",
+    }

@@ -823,7 +823,7 @@ def test_followup_builds_targeted_objective(client, db_session, monkeypatch):
     r = client.post(f"/api/cases/{case.id}/research/followup")
     assert r.status_code == 200
     assert "TARGETED" in captured["objective"]
-    assert set(captured["langs"]) == {"en", "de", "fa", "ar"}
+    assert set(captured["langs"]) == {"en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"}
     assert r.json()["gap_plan"]["missing"]
 
 

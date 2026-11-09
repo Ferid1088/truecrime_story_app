@@ -150,6 +150,6 @@ def test_every_defined_agent_is_run_by_a_class_or_a_stage():
 def test_the_draft_is_english_and_ninety_minutes_in_config():
     cfg = ai_config.language_pipeline
     assert (cfg.draft_language, cfg.long_draft_minutes) == ("en", 90)
-    assert ai_config.multilingual.production_languages == ["fa", "en", "de", "ar"]
+    assert ai_config.multilingual.production_languages == ["fa", "en", "de", "ar", "es", "it", "fr", "pt", "tr"]
     assert ai_config.story_quality.max_evidence_per_story == 100
     assert ai_config.story_quality.max_evidence_for_long_draft is None

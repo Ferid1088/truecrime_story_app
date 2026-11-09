@@ -68,7 +68,12 @@
       "fa",
       "en",
       "de",
-      "ar"
+      "ar",
+      "es",
+      "it",
+      "fr",
+      "pt",
+      "tr"
     ],
     "evidence_language": "en",
     "language_catalog": {
@@ -206,15 +211,14 @@
       "fa",
       "en",
       "de",
-      "ar"
-    ],
-    "optional_production_languages": [
+      "ar",
       "es",
       "it",
       "fr",
       "pt",
       "tr"
-    ]
+    ],
+    "optional_production_languages": []
   },
   "language_quality": {
     "fa": {
@@ -365,7 +369,12 @@
       "en",
       "de",
       "fa",
-      "ar"
+      "ar",
+      "es",
+      "it",
+      "fr",
+      "pt",
+      "tr"
     ],
     "min_duration_ratio": 0.85,
     "max_duration_ratio": 1.3,

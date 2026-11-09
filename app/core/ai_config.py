@@ -599,7 +599,7 @@ class LanguageEntry(BaseModel):
 
 
 class MultilingualConfig(BaseModel):
-    research_languages: list[str] = ["en", "de", "fa", "ar"]
+    research_languages: list[str] = ["fa", "en", "de", "ar", "es", "it", "fr", "pt", "tr"]
     # Every language research or production can use. A language in here but
     # not in research_languages / production_languages is ready to enable by
     # editing those lists.
@@ -608,7 +608,7 @@ class MultilingualConfig(BaseModel):
     evidence_language: str = "en"
     # Languages a film is produced in. Each one is finished independently from the
     # shared draft, the shared plan and the shared evidence; none is the reference.
-    production_languages: list[str] = ["fa", "en", "de", "ar"]
+    production_languages: list[str] = ["fa", "en", "de", "ar", "es", "it", "fr", "pt", "tr"]
     # Languages the pipeline can produce when a run asks for them by name, and that no run produces
     # unasked: the default run, the readiness of a case and the documentary's default language stay
     # the production_languages'. Each one has the same agents and stage config as a production language.
@@ -1322,7 +1322,7 @@ class OfficialSourcesConfig(BaseModel):
 
 
 class YouTubeResearchConfig(BaseModel):
-    languages: list[str] = ["en", "de", "fa", "ar"]
+    languages: list[str] = ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"]
     max_results_per_language: int = Field(ge=1, le=50)
     discovery_provider: str = "auto"  # auto | youtube_api | engine
     # Discovery depth: query stems tried per language, results asked per query,
@@ -1862,7 +1862,7 @@ class SpokenConfig(BaseModel):
     way a person TELLS a true story (not how a newsreader reads it),
     natively per language, facts and uncertainty unchanged."""
 
-    languages: list[str] = ["en", "de", "fa", "ar"]
+    languages: list[str] = ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"]
     # Estimated speaking time of the spoken text vs. the source (per
     # language words-per-minute). Storytelling may breathe a little more.
     min_duration_ratio: float = Field(default=0.85, gt=0.0, le=1.0)
@@ -2298,7 +2298,7 @@ class MusicLibraryConfig(BaseModel):
 class DocumentaryConfig(BaseModel):
     """Film-level rules shared by every stage."""
 
-    languages: list[str] = ["en", "de", "fa", "ar"]
+    languages: list[str] = ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"]
     # Approval gates: a result its auditor rejects is made again with the
     # reasons (and judged again) at most this many times; then it is left
     # out (a language, a host scene, a picture) or the job stops.
@@ -4593,7 +4593,7 @@ class ShortFormProductionConfig(BaseModel):
     caption_side_margin_px: int = Field(default=90, ge=0, le=400)
     caption_bottom_margin_px: int = Field(default=340, ge=0, le=900)
     default_visibility: Literal["private", "draft"] = "private"
-    languages: list[str] = ["en", "de", "fa", "ar"]
+    languages: list[str] = ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"]
     max_redos: int = Field(default=2, ge=0, le=2)
     max_cost_usd_per_case: float = Field(default=2.0, gt=0.0)
     # The ffmpeg/ffprobe builds to use, the first that exists (a Mac's keg-only ffmpeg-full has libass);

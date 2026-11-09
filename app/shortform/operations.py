@@ -70,7 +70,7 @@ def transition_publish_status(
     return target
 
 
-def resolve_voice_ids(languages: tuple[str, ...] = ("en", "de", "fa", "ar")) -> dict[str, str]:
+def resolve_voice_ids(languages: tuple[str, ...] = ("en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr")) -> dict[str, str]:
     return {language: ai_config.voice.for_language(language).voice_id for language in languages}
 
 

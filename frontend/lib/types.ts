@@ -592,7 +592,7 @@ export interface SuggestionRecord {
   created_at: string | null;
   /** D3: the furthest state across every language, computed live. */
   case_status: DiscoveredCaseStatus;
-  /** D3: per-language Video state (en/de/fa/ar), or "not_created". */
+  /** D3: per-production-language Video state, or "not_created". */
   language_badges: Record<string, string>;
 }
 
