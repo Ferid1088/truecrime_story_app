@@ -46,7 +46,7 @@
         "REVISION_REQUIRED",
         "REJECTED"
       ],
-      "require_english_first": true
+      "require_english_first": false
     },
     "call_timeout_s": 150,
     "topup": {

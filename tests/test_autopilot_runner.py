@@ -55,6 +55,12 @@ class FakePorts(R.Ports):
         db.commit()
 
 
+@pytest.fixture(autouse=True)
+def english_first(monkeypatch):
+    """Most tests here are about the rule that English is made and approved before the other languages; the rule has its own switch."""
+    monkeypatch.setattr(ai_config.mvp().review, "require_english_first", True)
+
+
 @pytest.fixture
 def case(db_session, monkeypatch):
     monkeypatch.setattr("app.documentary.jobs.launch", lambda job_id: None)
@@ -504,6 +510,22 @@ def test_only_the_english_text_is_written_until_the_english_film_is_approved(db_
     approve_english(db_session, run)
     passes(db_session, run, ports)
     assert set(S.film_job_ids(run)) == set(LANGS)
+
+
+def test_without_the_english_first_rule_no_language_waits_for_the_english_film_to_be_approved(db_session, run, monkeypatch):
+    monkeypatch.setattr(ai_config.mvp().review, "require_english_first", False)
+    seen = []
+
+    class Recording(FakePorts):
+        async def write_texts(self, db, case, languages):
+            seen.append(list(languages))
+            return await super().write_texts(db, case, languages)
+
+    ports = Recording()
+    passes(db_session, run, ports)
+    assert seen == [LANGS], "the texts of every language are written at once, no language waits for the English film's approval"
+    assert set(S.film_job_ids(run)) == {"en"} and "wait for the en film's visual searches" in S.step_detail(run, "films"), (
+        "the other films wait only for the pictures they share with the English film, not for an approval")
 
 
 def test_a_failed_texts_write_is_retried_up_to_the_limit_then_listed(db_session, run):

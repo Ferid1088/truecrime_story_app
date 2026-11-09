@@ -267,10 +267,12 @@ class AutopilotRunner:
         return all_done
 
     def _wave(self, db: Session, run: AutopilotRun, case: Case, planned: list[str]) -> list[str]:
-        """The languages this pass works on: English alone until its film is finished and approved, then all that
-        were chosen (they start together; a language the owner skipped is not in `planned`)."""
+        """The languages this pass works on: with config mvp.review.require_english_first, English alone until its film is
+        finished and approved, then all that were chosen (they start together; a language the owner skipped is not in
+        `planned`); without it, every chosen language from the start."""
         english = ai_config.language_pipeline.draft_language
-        if english not in planned or len(planned) == 1 or S.recall(run, "films", "all_languages_open", False):
+        if (not ai_config.mvp().review.require_english_first or english not in planned or len(planned) == 1
+                or S.recall(run, "films", "all_languages_open", False)):
             return planned
         job_id = S.film_job_ids(run).get(english)
         film = db.get(DocumentaryJob, job_id) if job_id else None
