@@ -87,3 +87,28 @@ def test_a_worker_tick_drives_every_active_run_once(db_session, case):
     assert seen.count(run.id) == 1
     assert json.loads(run.languages_json) == LANGS and S.steps(run)
     assert db_session.get(AutopilotRun, run.id).status == "running"
+
+
+def test_a_red_phase_shows_its_reason_and_a_retry_gives_it_a_fresh_start(client, db_session, case):
+    run = make_run(db_session, case)
+    S.set_step(run, "research", "done")
+    S.set_step(run, "texts", "waiting")
+    S.add_need(run, "texts:de:text_failed", "text_failed", "The German text was not approved.", language="de")
+    S.set_attempts(run, "texts", 3)
+    db_session.commit()
+    lights = {h["phase"]: h for h in client.get(f"/api/autopilot/runs/{run.id}").json()["health"]}
+    assert lights["research"]["light"] == "green"
+    assert lights["texts"] == {"phase": "texts", "light": "red", "reason": "The German text was not approved.", "attempts": 3, "can_retry": True}
+    assert lights["films"]["light"] == "grey"
+    body = client.post(f"/api/autopilot/runs/{run.id}/phases/texts/retry").json()
+    texts = next(h for h in body["health"] if h["phase"] == "texts")
+    assert texts["light"] == "grey" and texts["attempts"] == 0 and body["needs_you"] == []
+
+
+def test_retry_is_refused_for_a_phase_that_is_not_stopped_or_a_finished_run(client, db_session, case):
+    run = make_run(db_session, case)
+    assert client.post(f"/api/autopilot/runs/{run.id}/phases/films/retry").status_code == 409
+    assert client.post(f"/api/autopilot/runs/{run.id}/phases/nonsense/retry").status_code == 409
+    run.status = "cancelled"
+    db_session.commit()
+    assert client.post(f"/api/autopilot/runs/{run.id}/phases/texts/retry").status_code == 409

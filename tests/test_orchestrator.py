@@ -301,3 +301,24 @@ def test_without_a_worker_the_monitor_says_so(client, db_session):
     db_session.commit()
     body = client.get("/api/orchestrator").json()
     assert body["worker_alive"] is False and body["host"] is None
+
+
+# --- Shorts ------------------------------------------------------------------------------------------------------------------------------
+
+def test_a_shorts_job_is_held_while_a_provider_asks_for_less_and_admitted_again_when_it_recovers():
+    concurrency.reset_throttles()
+    try:
+        concurrency.report_throttle("llm")
+        d = governor().decide_short(running=1, cap=9)
+        assert not d.allowed and d.code == "provider" and "llm" in d.reason
+        assert governor().decide_short(running=0, cap=9).allowed        # the first one always starts
+    finally:
+        concurrency.reset_throttles()
+    assert governor().decide_short(running=1, cap=9).allowed
+
+
+def test_a_machine_under_load_holds_the_next_shorts_job():
+    load = ai_config.orchestrator_settings().host.max_load_per_core + 0.5
+    d = governor(host(load=load)).decide_short(running=1, cap=9)
+    assert not d.allowed and d.code == "cpu"
+    assert not governor().decide_short(running=9, cap=9).allowed

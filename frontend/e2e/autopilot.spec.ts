@@ -178,4 +178,31 @@ test.describe("Autopilot", () => {
     await expect(card.getByRole("status")).toContainText("Saved");
     expect(saved).toEqual({ handle: "@wahr" });
   });
+
+  test("Home shows a light per phase with the reason, and Retry gives a red phase a fresh start", async ({ page }) => {
+    await mockApi(page);
+    const lights = (texts: "red" | "grey") => [
+      { phase: "research", light: "green", reason: null, attempts: 1, can_retry: false },
+      { phase: "texts", light: texts, reason: texts === "red" ? "The German text was not approved." : null, attempts: texts === "red" ? 3 : 0, can_retry: texts === "red" },
+      { phase: "films", light: "grey", reason: null, attempts: 0, can_retry: false },
+    ];
+    let current = { ...RUN, status: "waiting_owner", health: lights("red") };
+    let retried: string | null = null;
+    await page.route("**/api/autopilot/runs", (route) => route.fulfill(fulfil({ runs: [current] })));
+    await page.route("**/api/autopilot/runs/9/phases/*/retry", (route) => {
+      retried = route.request().url().split("/phases/")[1].split("/")[0];
+      current = { ...current, status: "running", health: lights("grey") };
+      return route.fulfill(fulfil(current));
+    });
+    await page.goto("/");
+    const texts = page.getByTestId("autopilot-phase-9-texts");
+    await expect(texts).toContainText("The German text was not approved.", { timeout: 30_000 });
+    await expect(texts.locator("[data-light]")).toHaveAttribute("data-light", "red");
+    await expect(page.getByTestId("autopilot-phase-9-research").locator("[data-light]")).toHaveAttribute("data-light", "green");
+    await expect(page.getByTestId("autopilot-phase-9-research").getByRole("button", { name: "Retry" })).toHaveCount(0);
+    await texts.getByRole("button", { name: "Retry" }).click();
+    await expect(texts.locator("[data-light]")).toHaveAttribute("data-light", "grey");
+    expect(retried).toBe("texts");
+    await expect(texts.getByRole("button", { name: "Retry" })).toHaveCount(0);
+  });
 });

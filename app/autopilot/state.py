@@ -89,3 +89,32 @@ def remember(run: AutopilotRun, phase: str, key: str, value) -> None:
 def recall(run: AutopilotRun, phase: str, key: str, default=None):
     return next((s.get("memory", {}).get(key, default) for s in steps(run) if s["name"] == phase),
                 default)
+
+
+def reset_phase(run: AutopilotRun, phase: str) -> None:
+    """Give a stopped phase a fresh start: its attempts and remembered failure are cleared and its blocking items dropped."""
+    set_attempts(run, phase, 0)
+    remember(run, phase, "failure", None)
+    drop_needs(run, f"{phase}:")
+    set_step(run, phase, "pending")
+
+
+def health(run: AutopilotRun) -> list[dict]:
+    """One traffic light per phase: green (done), red (a blocking item stops it, with its reason), amber (working or
+    waiting without a blocker) or grey (not reached yet)."""
+    blocking = [n for n in needs(run) if n["blocking"]]
+    lights = []
+    for phase in PHASES:
+        status = step_status(run, phase)
+        stops = [n for n in blocking if n["key"].startswith(f"{phase}:")]
+        if status == "done":
+            light, reason = "green", None
+        elif stops:
+            light, reason = "red", "; ".join(n["message"] for n in stops)
+        elif status == "pending":
+            light, reason = "grey", None
+        else:
+            light, reason = "amber", step_detail(run, phase)
+        lights.append({"phase": phase, "light": light, "reason": reason,
+                       "attempts": attempts(run, phase), "can_retry": light == "red"})
+    return lights

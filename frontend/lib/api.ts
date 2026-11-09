@@ -1248,6 +1248,14 @@ export interface AutopilotStep {
   at: string | null;
 }
 
+export interface AutopilotHealth {
+  phase: string;
+  light: "green" | "amber" | "red" | "grey";
+  reason: string | null;
+  attempts: number;
+  can_retry: boolean;
+}
+
 export interface AutopilotRunView {
   id: number;
   status: "running" | "waiting_owner" | "completed" | "cancelled";
@@ -1260,6 +1268,7 @@ export interface AutopilotRunView {
   estimate: Partial<AutopilotEstimate>;
   budget: { cap_eur: number; spent_eur: number };
   steps: AutopilotStep[];
+  health: AutopilotHealth[];
   needs_you: AutopilotNeed[];
   languages: Record<
     string,
@@ -1350,6 +1359,8 @@ export const autopilotApi = {
   runs: () => request<{ runs: AutopilotRunView[] }>("/api/autopilot/runs"),
   run: (runId: number) => request<AutopilotRunView>(`/api/autopilot/runs/${runId}`),
   cancel: (runId: number) => post<AutopilotRunView>(`/api/autopilot/runs/${runId}/cancel`),
+  retryPhase: (runId: number, phase: string) =>
+    post<AutopilotRunView>(`/api/autopilot/runs/${runId}/phases/${phase}/retry`),
   publishRequests: (runId: number) =>
     request<{ sent: number; requests: PublishRequestRow[] }>(`/api/autopilot/runs/${runId}/publish-requests`),
   channels: () => request<{ channels: ChannelSettingRow[] }>("/api/channel-settings"),

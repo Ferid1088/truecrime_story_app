@@ -99,6 +99,14 @@ def cancel_autopilot_run(run_id: int, db: Session = Depends(get_db)):
     return SV.run_view(db, SV.cancel_run(db, _run(db, run_id)))
 
 
+@router.post("/api/autopilot/runs/{run_id}/phases/{phase}/retry")
+def retry_autopilot_phase(run_id: int, phase: str, db: Session = Depends(get_db)):
+    try:
+        return SV.run_view(db, SV.retry_phase(db, _run(db, run_id), phase))
+    except SV.StartError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @router.get("/api/autopilot/runs/{run_id}/publish-requests")
 def autopilot_publish_requests(run_id: int, db: Session = Depends(get_db)):
     _run(db, run_id)

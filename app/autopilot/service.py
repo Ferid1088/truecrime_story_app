@@ -113,6 +113,21 @@ def cancel_run(db: Session, run: AutopilotRun) -> AutopilotRun:
     return run
 
 
+def retry_phase(db: Session, run: AutopilotRun, phase: str) -> AutopilotRun:
+    """Retry a red phase: it gets a fresh start and the run is driven again."""
+    if phase not in S.PHASES:
+        raise StartError(f"Not a phase of the autopilot: {phase}.")
+    if run.status in ("completed", "cancelled"):
+        raise StartError(f"The run is {run.status}; start a new one.")
+    if not next(h for h in S.health(run) if h["phase"] == phase)["can_retry"]:
+        raise StartError(f"The phase {phase} is not stopped, so there is nothing to retry.")
+    S.reset_phase(run, phase)
+    run.status, run.error, run.updated_at = "running", None, utc_now()
+    db.commit()
+    launch(run.id)
+    return run
+
+
 def _language_view(db: Session, run: AutopilotRun, case: Case, lang: str) -> dict:
     job_id = S.film_job_ids(run).get(lang)
     job = db.get(DocumentaryJob, job_id) if job_id else None
@@ -155,7 +170,7 @@ def run_view(db: Session, run: AutopilotRun) -> dict:
         "case": {"id": case.id, "title": case.canonical_title},
         "estimate": json.loads(run.estimate_json or "{}"),
         "budget": {"cap_eur": snapshot.cap_eur, "spent_eur": snapshot.spent_eur},
-        "steps": steps, "needs_you": S.needs(run),
+        "steps": steps, "health": S.health(run), "needs_you": S.needs(run),
         "languages": {lang: _language_view(db, run, case, lang) for lang in languages},
         "publish_requests": db.query(PublishRequest).filter(
             PublishRequest.run_id == run.id).count(),

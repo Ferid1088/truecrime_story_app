@@ -190,7 +190,10 @@ class Worker:
                 log.info("worker %s took job %s", self.worker_id, job_id)
                 self.tasks[job_id] = asyncio.create_task(self._run(job_id))
             self._record_orchestrator_state(db)
-            while len(self.tasks) + len(self.short_tasks) < self.max_parallel and not self.stop.is_set():
+            while not self.stop.is_set():
+                # Shorts are paced by the same orchestrator: a throttled provider or a loaded machine holds the next one back
+                if not self.governor.decide_short(len(self.tasks) + len(self.short_tasks), self.max_parallel).allowed:
+                    break
                 short_id = claim_next_short_job(db, self.worker_id, lease_seconds=self.lease)
                 if short_id is None:
                     break

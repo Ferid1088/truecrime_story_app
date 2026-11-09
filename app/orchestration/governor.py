@@ -68,6 +68,21 @@ class Governor:
                 f"{name} limit {concurrency.effective_limit(name)} of {concurrency.limit_size(name)}" for name in held))
         return Decision(True, "admit", "the machine and the providers have room")
 
+    def decide_short(self, running: int, cap: int) -> Decision:
+        """May one more Shorts job start? Shorts are light, so only the cap, the machine's load and the providers count; the first
+        one always starts."""
+        if running >= cap:
+            return Decision(False, "cap", f"{running} of {cap} jobs are running")
+        if running == 0:
+            return Decision(True, "admit", "no Shorts job is running: the first one always starts")
+        host = self.sampler()
+        if host.load_per_core > self.cfg.host.max_load_per_core:
+            return Decision(False, "cpu", f"the machine's load is {host.load_per_core:.2f} per core (limit {self.cfg.host.max_load_per_core:.2f})")
+        held = [name for name in PROVIDER_LIMITS if concurrency.throttled(name, now=None)]
+        if held:
+            return Decision(False, "provider", "a provider is asking for less: " + ", ".join(held))
+        return Decision(True, "admit", "the machine and the providers have room")
+
     def admitted(self) -> None:
         """A job was taken: the stagger clock starts."""
         self.last_admitted = self.clock()
