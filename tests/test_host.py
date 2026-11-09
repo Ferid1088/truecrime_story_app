@@ -1365,3 +1365,37 @@ def test_a_pilots_spoken_version_with_only_its_first_beats_still_gives_the_host_
         story_text="\n\n".join(first.values()),
         narrative_structure=json.dumps({"sections": [{"id": k, "text": v} for k, v in first.items()]}))
     assert beat_texts(spoken, BP) == first          # the beats a pilot did not voice have no text; the others keep theirs
+
+
+def test_a_host_writer_that_answers_with_the_dialogue_alone_has_still_written_it(db_session, monkeypatch):
+    """The writer's contract is JSON, but a model that returns only the dialogue (twice, so the provider's own repair fails) has written it: the
+    answer is taken as the dialogue; another agent's invalid output is never accepted this way."""
+    from conftest import _delete_case_tree
+
+    from app.agents import host as HA
+    from app.db.models import Case
+    from app.providers.generation.base import GenerationError
+
+    class DialogueOnly:
+        async def generate_structured(self, role, system, user, images=None, **kw):
+            raise GenerationError("invalid_output", "returned non-JSON output")
+
+        async def generate_text(self, role, system, user, images=None, **kw):
+            return GenerationResult(text="Three in the morning, and he is already telling her who did it.", model="m", provider="fake")
+
+    monkeypatch.setattr(HA, "get_generation_provider", lambda: DialogueOnly())
+    monkeypatch.setattr(HA, "stamp_run", lambda *a, **k: None)
+    case = Case(canonical_title="Host dialogue only", slug="host-dialogue-only", language="en")
+    db_session.add(case)
+    db_session.commit()
+    try:
+        director = HA.HostDirector()
+        writer = ai_config.host.writer_agents["en"]
+        raw, _ = asyncio.run(director._json(db_session, case.id, "Host Writer en retime", writer, "system", {"x": 1}, persona=False))
+        assert raw == {"dialogue": "Three in the morning, and he is already telling her who did it."}
+        critic = next(name for name in ai_config.agents if name != writer and name not in ai_config.host.writer_agents.values())
+        with pytest.raises(GenerationError):
+            asyncio.run(director._json(db_session, case.id, "Host Critic", critic, "system", {"x": 1}, persona=False))
+    finally:
+        db_session.expire_all()
+        _delete_case_tree(db_session, case.id)
