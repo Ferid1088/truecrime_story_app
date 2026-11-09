@@ -162,14 +162,7 @@
     "work_dir": "data/cases",
     "prepared_languages": [],
     "review_languages": [
-      "fa",
-      "ar",
-      "de",
-      "es",
-      "it",
-      "fr",
-      "pt",
-      "tr"
+      "fa"
     ],
     "host_review_languages": [
       "fa"
