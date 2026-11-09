@@ -6,7 +6,7 @@ whisper-normalizer>=0.1.12  # number/date-aware English normalization for that c
 Pillow>=10.3                 # typography, cards, maps (raqm layout for Persian/Arabic)
 opencv-python-headless>=4.9  # video frames: camera moves, face focus
 arabic-reshaper>=3.0          # joined letter forms for Persian/Arabic graphics when Pillow has no raqm
-python-bidi>=0.6              # visual order of right-to-left lines (same)
+python-bidi>=0.6.12              # visual order of right-to-left lines (same)
 # pronunciation check (phoneme listener, CPU is enough):
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
 torch>=2.3
