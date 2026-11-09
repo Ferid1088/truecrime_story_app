@@ -3739,6 +3739,8 @@ class MvpReviewConfig(BaseModel):
     state_machine: list[str] = Field(min_length=2)
     # Full films in the other languages wait for the owner's approval of the exact English render.
     require_english_first: bool
+    # Only these languages' rendered films wait for the owner's decision; another language's film that passed the checks is approved at once.
+    owner_review_languages: list[str]
 
 
 class MainVisualPlannerConfig(BaseModel):
