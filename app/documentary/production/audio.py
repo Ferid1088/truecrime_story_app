@@ -7,6 +7,7 @@ import json
 
 from sqlalchemy.orm import Session
 
+from app.core.concurrency import slot
 from app.documentary import storage
 from app.documentary.music import DocumentaryMixer
 from app.documentary.voice_render import VoiceRenderer
@@ -40,7 +41,8 @@ async def mix_narration(manifest: dict, plan: dict, out, *, mixer: DocumentaryMi
     """The music mix under a rendered narration (a plan that is not directed has none)."""
     if plan.get("directed"):
         extra = {"db": db} if db is not None else {}
-        manifest["mix"] = await (mixer or DocumentaryMixer()).mix(manifest, plan, out, **extra)
+        async with slot("mix"):
+            manifest["mix"] = await (mixer or DocumentaryMixer()).mix(manifest, plan, out, **extra)
         manifest["audio_notes"] = plan.get("audio_notes")
         storage.write_atomic(out / "manifest.json",
                              json.dumps(manifest, ensure_ascii=False, indent=2, default=str))

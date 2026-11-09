@@ -62,9 +62,10 @@
     "elevenlabs_tts": 4,
     "elevenlabs_sound": 2,
     "asr": 1,
-    "render": 2,
+    "mix": 1,
+    "render": 1,
     "downloads": 4,
-    "jobs": 9
+    "jobs": 5
   },
   "host": {
     "enabled": true,

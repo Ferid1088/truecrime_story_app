@@ -4533,6 +4533,8 @@ class ConcurrencyConfig(BaseModel):
     elevenlabs_tts: int = Field(default=4, ge=1, le=32)
     elevenlabs_sound: int = Field(default=2, ge=1, le=16)
     asr: int = Field(default=1, ge=1, le=8)
+    # The ffmpeg music mix under a narration is CPU-bound: one at a time, however many films are voiced side by side.
+    mix: int = Field(default=1, ge=1, le=8)
     render: int = Field(default=2, ge=1, le=8)
     downloads: int = Field(default=4, ge=1, le=32)
     # Documentary jobs running at the same time at most, worker-wide — including the

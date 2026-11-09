@@ -26,6 +26,18 @@ class LanguageChain:
         self.shared = shared  # PipelineShared: what the shared stages produced
 
     async def run(self) -> None:
+        """The language's chain. The host's text and then its voice and avatar videos start the moment the film's version exists, next to
+        the narration; the chain waits for them where the film needs them, and a chain that stops first stops them too."""
+        self.host_media: asyncio.Task | None = None
+        try:
+            await self._run()
+        finally:
+            if self.host_media is not None and not self.host_media.done():
+                self.host_media.cancel()
+            if self.host_media is not None:
+                await asyncio.gather(self.host_media, return_exceptions=True)
+
+    async def _run(self) -> None:
         from app.agents.stages import get_stage_agent
         from app.documentary.jobs import (
             _load_manifest,
@@ -105,8 +117,17 @@ class LanguageChain:
                                     f"{', '.join(left_out)}"} if left_out else {}),
                     **({"studio_error": scene_error} if scene_error else {})}
 
-        if not planning:
+        async def mvp_host():
+            from app.documentary.mvp import pipeline as MVP
+
+            return await MVP.stage_host(db, case, version, lang)
+
+        async def host_media():
             await pipe._optional(f"host:{lang}", host)
+            await pipe._stage(f"mvp_host:{lang}", mvp_host)
+
+        if not planning:
+            self.host_media = asyncio.create_task(host_media())
             await pipe._stage(f"performance:{lang}", performance)
         else:
             await pipe._stage(f"performance:{lang}", lambda: skipped("planning job: no narration is made"))
@@ -284,11 +305,10 @@ class LanguageChain:
             raise LanguageFailed("Full-film production for this language requires the owner to watch and "
                                  "explicitly approve the English film first.")
 
-        async def mvp_host():
-            return await MVP.stage_host(db, case, version, lang)
-
-        await pipe._stage(f"mvp_host:{lang}", (lambda: skipped("planning job: the Host is not made")) if planning
-                          else mvp_host)
+        if planning:
+            await pipe._stage(f"mvp_host:{lang}", lambda: skipped("planning job: the Host is not made"))
+        else:
+            await self.host_media          # made next to the narration; a failure of it stops the film here, as it always did
 
         async def mvp_direct():
             from app.documentary.mvp import reference as REF
