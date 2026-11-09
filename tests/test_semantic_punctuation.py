@@ -202,3 +202,29 @@ def test_a_voice_text_that_joined_two_words_has_no_word_map_and_is_reported_not_
     rejected = asyncio.run(PS.PunctuationStage(None, None, use_agents=False).block(block("با باتنر، بدون اشلی.", tts="با باتنر—بدون اشلی.")))
     assert rejected.review == "REJECT" and any("source integrity" in f for f in rejected.flags)
     assert rejected.describe()["word_map"] == [], "the record is written; the block is flagged"
+
+
+def test_the_blocks_of_a_narration_run_side_by_side_under_the_configured_limit_with_the_same_result_in_the_same_order(monkeypatch):
+    blocks = [block(f"او آمد {n}", block_id=f"b{n:02d}") for n in range(12)]
+
+    def stage_with(concurrency, running):
+        monkeypatch.setattr(ai_config.semantic_punctuation, "block_concurrency", concurrency)
+        stage = PS.PunctuationStage(None, None, use_agents=False)
+        original = stage.block
+
+        async def slow(b, *rest):
+            running["now"] += 1
+            running["peak"] = max(running["peak"], running["now"])
+            await asyncio.sleep(0.01)
+            running["now"] -= 1
+            return await original(b, *rest)
+
+        stage.block = slow
+        return stage
+
+    one, many = {"now": 0, "peak": 0}, {"now": 0, "peak": 0}
+    results_one, _ = asyncio.run(stage_with(1, one).run(blocks))
+    results_many, _ = asyncio.run(stage_with(4, many).run(blocks))
+    assert one["peak"] == 1 and many["peak"] == 4, "the limit is the number of blocks worked on at the same time"
+    assert list(results_many) == [b["block_id"] for b in blocks] == list(results_one)
+    assert {k: v.layer.text for k, v in results_many.items()} == {k: v.layer.text for k, v in results_one.items()}

@@ -2689,6 +2689,9 @@ class SemanticPunctuationConfig(BaseModel):
 
     use_agents: bool = False
     max_rounds: int = Field(default=2, ge=1, le=4)
+    # How many blocks of one narration are worked on at the same time (a block only reads its neighbours' words, never their results); the
+    # model calls themselves stay under the provider limits (concurrency.llm and the throttle).
+    block_concurrency: int = Field(default=1, ge=1, le=32)
     languages: dict[str, PunctuationProfile]
     run_file: str = "punctuation.json"
 

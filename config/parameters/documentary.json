@@ -874,6 +874,7 @@
   "semantic_punctuation": {
     "use_agents": true,
     "max_rounds": 2,
+    "block_concurrency": 8,
     "run_file": "punctuation.json",
     "languages": {
       "fa": {

@@ -11,6 +11,7 @@ Identical blocks are analysed once per run; nothing is kept after it."""
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import pickle
@@ -147,11 +148,17 @@ class PunctuationStage:
 
     async def run(self, blocks: list[dict], english: dict[str, tuple[str, str]] | None = None) -> tuple[dict[str, BlockResult], dict]:
         """Every block of the plan, in order; `english`: block -> (English passage, alignment status)."""
-        started, out = time.monotonic(), {}
+        started = time.monotonic()
         english = english or {}
-        for i, b in enumerate(blocks):
+        turn = asyncio.Semaphore(ai_config.semantic_punctuation.block_concurrency)
+
+        async def one(i: int, b: dict) -> BlockResult:
             passage, status = english.get(b["block_id"], ("", "MISSING_REFERENCE"))
-            out[b["block_id"]] = await self.block(b, blocks[i - 1]["text"] if i else "", blocks[i + 1]["text"] if i + 1 < len(blocks) else "", passage, status)
+            async with turn:
+                return await self.block(b, blocks[i - 1]["text"] if i else "", blocks[i + 1]["text"] if i + 1 < len(blocks) else "", passage, status)
+
+        results = await asyncio.gather(*(one(i, b) for i, b in enumerate(blocks)))
+        out = {b["block_id"]: result for b, result in zip(blocks, results, strict=True)}
         return out, statistics(out, time.monotonic() - started, self.use_agents)
 
 
