@@ -1,5 +1,5 @@
-"""The Persian narration of a case from a fresh spoken version, step by step with the real agents and the real voice: performance direction, semantic
-punctuation, PPIE reading (risk-gated checker), the ElevenLabs voice. No host, no music, no video. Every step prints what it cost; a step that stopped on a
+"""The Persian narration of a case from a fresh spoken version, step by step with the real agents and the real voice: performance direction (with its punctuation),
+PPIE reading (risk-gated checker), the ElevenLabs voice. No host, no music, no video. Every step prints what it cost; a step that stopped on a
 provider error is run again by this script and only pays for what is missing. Nothing it keeps is read by another run."""
 
 from __future__ import annotations
@@ -93,21 +93,13 @@ async def main() -> None:
             row = await get_stage_agent("voice_performance").create(db, run.case, run.version, bp)
             return {"voice_performance_id": row.id, "status": row.status}
 
-        async def punctuation():
-            from app.documentary.punctuation import stage as PS
-
-            plan = performance_for_version(db, run.version)
-            ai_config.semantic_punctuation.use_agents = True
-            holder["plan"] = plan
-            holder["punctuation"] = await PS.for_version(db, args.case, run.version, plan, PS.PunctuationStage(db, args.case, use_agents=True, memo_path=run.out / "punctuation_memo.pkl"))
-            return holder["punctuation"][1]
-
         async def reading():
             from app.documentary import voice_prepare as VP
             from app.documentary.reading.block import block_inputs
             from app.documentary.reading.stage import summary
             from app.documentary.reading.text import ReadingStage
 
+            holder["plan"] = performance_for_version(db, run.version)
             items = block_inputs(holder["plan"]["blocks"], VP.english_sources(db, run.version), ai_config.semantic_review.neighbour_chars)
             stage = ReadingStage(db, args.case, run.version, LANG, items, run_cache=run.out / "reading_cache.json")
             read = await stage.run()
@@ -118,24 +110,21 @@ async def main() -> None:
             from app.documentary import pronunciation_explain as PE
             from app.documentary.production.audio import render_documentary_audio
             from app.documentary.pronunciation_planner import Planner
-            from app.documentary.punctuation import stage as PS
             from app.documentary.reading import stage as RS
             from app.documentary.voice_render import VoiceRenderer
 
-            marked = holder["punctuation"]
-            plan = PS.applied(holder["plan"], marked[0])
+            plan = holder["plan"]
             renderer = VoiceRenderer(db=db, budget_case_id=args.case, budget_stage=f"tts:{LANG}", use_asr=False, use_listener=False, arbiter=None)
             items, read = holder["reading"]
-            renderer.voicing = await RS.voicing_of(db, LANG, read, items, PS.boundaries_of(marked[0]))
+            renderer.voicing = await RS.voicing_of(db, LANG, read, items)
             voice_cfg = ai_config.voice.for_language(LANG)
             renderer.planner = Planner(db, LANG, voice_cfg.voice_id, voice_cfg.model_id)
             manifest = await render_documentary_audio(plan, case_id=args.case, story_version_id=run.version.id, db=db, renderer=renderer, with_music=False)
             folder = renderer.out_dir(args.case, LANG, run.version.id)
             PE.save_run(db, run.version, LANG, plan, renderer.planner, renderer.voicing, folder)
-            PS.save(folder, *marked)
             return {"seconds": manifest.get("duration_seconds"), "characters_paid": manifest.get("characters_paid"), "flags": manifest.get("flags"), "folder": str(folder)}
 
-        for name, fn in (("performance", performance), ("punctuation", punctuation), ("reading", reading), ("voice", voice)):
+        for name, fn in (("performance", performance), ("reading", reading), ("voice", voice)):
             await run.step(name, fn)
         print(json.dumps(run.report["steps"], ensure_ascii=False, indent=1, default=str))
 

@@ -14,7 +14,6 @@ from test_studio import FakeVoice, _renderer, _segments
 from app.core.ai_config import ai_config
 from app.documentary import host as H
 from app.documentary import host_voice_text as HVT
-from app.documentary.punctuation import stage as PS
 from app.documentary.reading import ask as ASK
 from app.documentary.reading import tashkeel as TK
 
@@ -49,11 +48,6 @@ class Scene:
 
     def __init__(self, language: str, text: str):
         self.language, self.text = language, text
-
-
-def stage(language: str, edits: list[dict]) -> PS.PunctuationStage:
-    return PS.PunctuationStage(None, None, use_agents=True, syntax_runner=agent({"boundaries": []}), punctuate_runner=agent({"edits": edits}),
-                               check_runner=agent({"decision": "PASS"}), language=language)
 
 
 @pytest.mark.parametrize("language", LANGUAGES)
@@ -134,8 +128,8 @@ def test_persian_gets_the_ppie_reading_and_the_risk_planner_without_a_punctuatio
         asked["items"] = items
         return "READ"
 
-    async def voicing_of(db, language, read, items, boundaries):
-        asked.update(read=read, boundaries=boundaries)
+    async def voicing_of(db, language, read, items):
+        asked.update(read=read)
         return "VOICING"
 
     class Db:
@@ -149,7 +143,6 @@ def test_persian_gets_the_ppie_reading_and_the_risk_planner_without_a_punctuatio
     assert prepared == text and scene.text == text
     assert [i.text for i in asked["items"]] == [prepared] and asked["read"] == "READ"
     assert renderer.voicing == "VOICING" and renderer.planner is not None and renderer.planner.language == "fa"
-    assert asked["boundaries"] is None, "no punctuation layer settled any boundary"
 
 
 def test_a_language_that_is_not_prepared_gets_its_text_as_it_is_and_no_stale_reading(monkeypatch):
@@ -184,7 +177,7 @@ def test_the_voice_step_speaks_the_prepared_text_while_the_scene_keeps_its_own(d
 def test_the_german_voice_is_given_the_hosts_name_spelled_for_it_and_the_avatar_shows_it_unchanged():
     text = "Ich bin Fereidoun, und hier erzähle ich dir wahre Kriminalfälle."
     renderer, scene = Renderer(), Scene("de", text)
-    spoken = asyncio.run(HVT.prepare(None, scene, renderer, stage("de", [])))
+    spoken = asyncio.run(HVT.prepare(None, scene, renderer))
     assert spoken == "Ich bin Fereydun, und hier erzähle ich dir wahre Kriminalfälle."
     assert scene.text == text, "what the avatar shows never changes"
     assert HVT.respelled("Fereidouns Fall", "de") == "Fereidouns Fall", "only the whole word is respelled"

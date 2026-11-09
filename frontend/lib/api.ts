@@ -10,8 +10,6 @@ import type {
   BlockReviewReplace,
   BlockReviewStatus,
   PronunciationPlan,
-  PunctuationBlock,
-  PunctuationSummary,
   ReadingReview,
   PhoneticSample,
   PronunciationEntry,
@@ -600,10 +598,6 @@ export const api = {
   decideReading: (versionId: number, language: string, body: { word: string; reading: string; reviewer: string }) =>
     request<{ word: string; reading: string; rows_saved: number }>(`/api/documentary/versions/${versionId}/reading-resolutions?language=${encodeURIComponent(language)}`,
       { method: "POST", body: JSON.stringify(body), timeoutMs: 120_000 }),
-  semanticPunctuation: (versionId: number) =>
-    request<PunctuationSummary>(`/api/documentary/versions/${versionId}/semantic-punctuation?language=fa`, { timeoutMs: 120_000 }),
-  semanticPunctuationBlock: (versionId: number, blockId: string) =>
-    request<PunctuationBlock>(`/api/documentary/versions/${versionId}/semantic-punctuation/${blockId}?language=fa`, { timeoutMs: 120_000 }),
   pronunciationPlan: (versionId: number, language: string) =>
     request<PronunciationPlan>(`/api/documentary/versions/${versionId}/pronunciation-plan?language=${encodeURIComponent(language)}`),
   narrationPreviews: () => request<NarrationPreviewSummary[]>("/api/documentary/previews"),

@@ -8,4 +8,5 @@ would sound better. Most sentences stay as they are. You change marks, never wor
   question or an exclamation or the reverse.
 - Keep the marks of the language itself (its own comma, question mark and quotation marks), and follow its grammar: where it requires a comma, the comma stays.
 - Quoted speech, names, numbers and titles keep their marks.
-{notes}
+- To mark a breath, a comma or a dash comes first; an ellipsis is only for the held breath before a hard fact, as described above.
+- Rules of this language: {notes}

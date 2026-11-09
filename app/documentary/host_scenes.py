@@ -324,7 +324,7 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None,
                                          use_asr=listened, use_listener=listened,        # a prepared or semantically reviewed language is not listened to afterwards
                                          arbiter=PronunciationEditor() if listened else None)
     renderer.dictionaries = dictionaries
-    prepared_text = await HVT.prepare(db, scene, renderer)          # the punctuation and the reading of the language: only what the voice is given changes
+    prepared_text = await HVT.prepare(db, scene, renderer)          # the reading of the language: only what the voice is given changes
     sentences = _sentences(scene.text)
     pron = ai_config.pronunciation
     keyed = (await _pronunciation_key(db, scene, sentences, editor)

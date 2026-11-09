@@ -74,14 +74,13 @@ class BlockPlan:
     risks: list[WordRisk] = field(default_factory=list)
     note: str = ""
     boundaries: list[EZ.Boundary] = field(default_factory=list)       # the ezafe analysis of the block, one per word
-    disagreements: list[dict] = field(default_factory=list)          # where PPIE's ezafe and the punctuation stage's boundary analysis differ
 
     @property
     def naturalness(self) -> dict:
         return naturalness(self.decisions)
 
     def describe(self) -> dict:
-        return {"block_id": self.block_id, "note": self.note, "naturalness": self.naturalness, "rules": self.rules, "disagreements": self.disagreements,
+        return {"block_id": self.block_id, "note": self.note, "naturalness": self.naturalness, "rules": self.rules,
                 "words": [{"risk": r.describe(), "decision": d.describe(), **({"ezafe": b.describe()} if b.ezafe_type != "NONE" else {})}
                           for r, d, b in zip(self.risks, self.decisions, self.boundaries or [None] * len(self.decisions), strict=True)]}
 
@@ -171,11 +170,9 @@ class Planner:
         decisions = [self.decide(w, r, readings[w.n], words, voicing, allow_dictionary, covered, boundaries[w.n], references[w.n]) for w, r in zip(words, risks, strict=True)]
         for d, (status, cause) in zip(decisions, diagnoses, strict=True):
             d.reference_status, d.reference_cause = status, cause
-        disagreements = self.compare(words, boundaries, decisions, voicing.boundaries.get(block_id, {}))
         self.limit(decisions)
         plan = BlockPlan(block_id, substitute(text, {d.n: d.replacement for d in decisions if d.strategy in TEXT_CHANGES and d.strategy != "dictionary_rule" and d.replacement}),
-                         [self.rule(d) for d in decisions if d.strategy == "dictionary_rule"], decisions, risks, boundaries=boundaries,
-                         disagreements=disagreements)
+                         [self.rule(d) for d in decisions if d.strategy == "dictionary_rule"], decisions, risks, boundaries=boundaries)
         for b, d in zip(boundaries, decisions, strict=True):
             if b.ezafe_type in ("E", "YE"):
                 changed = d.strategy in CHANGES and d.replacement is not None
@@ -183,25 +180,6 @@ class Planner:
                                           tts_form=d.replacement if changed else None)
         self.plans[block_id] = plan
         return plan
-
-    @staticmethod
-    def compare(words: list[Word], boundaries: list[EZ.Boundary], decisions: list[Decision], verified: dict[int, dict]) -> list[dict]:
-        """Where the punctuation stage's verified boundary (EZAFE_REQUIRED / EZAFE_FORBIDDEN) and PPIE's ezafe differ, neither wins: the word is
-        escalated with both interpretations, for a person (or an arbiter) to decide. Where they agree, PPIE's decision stands."""
-        out = []
-        for n, found in verified.items():
-            if n >= len(words) or found.get("status") not in ("EZAFE_REQUIRED", "EZAFE_FORBIDDEN") or decisions[n].strategy == "number_words":
-                continue
-            ppie = boundaries[n].ezafe_type
-            required = found["status"] == "EZAFE_REQUIRED"
-            if (required and ppie == "NONE") or (not required and ppie in ("E", "YE")):
-                out.append({"n": n, "word": words[n].surface, "ppie": ppie, "boundary": found["status"], "reason": found.get("reason", ""),
-                            "source": found.get("source", "")})
-                d = decisions[n]
-                d.strategy, d.replacement, d.needs_review = "escalate", None, True
-                d.basis = (f"PPIE reads the ezafe after it as {ppie}, the boundary analysis says {found['status']} ({found.get('reason', '')}): "
-                           f"the two disagree, a person decides. {d.basis}")
-        return out
 
     def keep_all(self, block_id: str, text: str, note: str) -> BlockPlan:
         plan = BlockPlan(block_id, text, note=note)

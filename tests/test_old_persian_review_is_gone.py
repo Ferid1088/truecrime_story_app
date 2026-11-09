@@ -22,7 +22,7 @@ def test_the_old_review_package_scripts_prompts_and_config_are_gone():
     assert importlib.util.find_spec("app.documentary.ppie_review") is None
     assert not (ROOT / "app/documentary/ppie_review").exists() and not (ROOT / "scripts/ppie_review.py").exists()
     assert not (ROOT / "prompts/documentary/ppie_review").exists()
-    assert not hasattr(ai_config, "ppie_review") and hasattr(ai_config, "english_reference")
+    assert not hasattr(ai_config, "ppie_review") and not hasattr(ai_config, "semantic_punctuation") and not hasattr(ai_config, "english_reference")
     text = (ROOT / "config/agents.json").read_text(encoding="utf-8") + (ROOT / "config/models.json").read_text(encoding="utf-8")
     assert "ppie_review" not in text and not any(role in text for role in GONE_ROLES)
 

@@ -35,7 +35,6 @@ class Voicing:
     opinions: dict[str, dict[int, list[Opinion]]] = field(default_factory=dict)     # block -> word -> the reading agents' own ezafe judgements
     variants: dict[str, tuple[str, ...]] = field(default_factory=dict)           # word -> its readings, for a word the film reads in more than one way
     unresolved: dict[str, str] = field(default_factory=dict)                     # word -> why its reading is unresolved (a name read two ways, no owner approval)
-    boundaries: dict[str, dict[int, dict]] = field(default_factory=dict)        # block -> word -> the punctuation stage's verified ezafe boundary after it
 
     def with_fixed(self, more: dict[str, str]) -> Voicing:
         return replace(self, fixed={**self.fixed, **more})

@@ -160,11 +160,6 @@ REQUIRED_ROLES = {
     "reading_checker",
     "reading_arbiter",
     "reading_listener",
-    # Semantic punctuation of a Persian narration (documentary/punctuation): the structure and meaning of a block, the punctuation that makes it
-    # clear to the voice, and the independent check of that punctuation (another model).
-    "punctuation_syntax",
-    "punctuation_editor",
-    "punctuation_checker",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",
@@ -2104,7 +2099,7 @@ class HostConfig(BaseModel):
     spoiler_name_case_languages: list[str] = Field(default_factory=lambda: ["en"])
     # Languages whose host words go through the fact (meaning) check before the voice.
     meaning_check_languages: list[str] = Field(default_factory=list)
-    # Languages whose host words are prepared for the voice like the narration's blocks (documentary/host_voice_text.py): the punctuation layer, and the
+    # Languages whose host words are prepared for the voice like the narration's blocks (documentary/host_voice_text.py): the
     # reading text where the language has one (Persian's PPIE reading, Arabic's Tashkeel). The words the avatar shows never change.
     text_preparation: list[str] = Field(default_factory=list)
     # How a word is spelled for the voice of one language, where that language's voice reads it wrongly (the host's name: "Fereydun").
@@ -2666,87 +2661,6 @@ class PPIEConfig(BaseModel):
 
     def fresh(self, language: str) -> bool:
         return language in self.languages
-
-
-class PunctuationProfile(BaseModel):
-    """The punctuation of one language: `marks` the layer may insert; `normalize` the Latin punctuation the text writes and its form in that language;
-    `punctuation_chars` what counts as punctuation in a gap (the layer changes nothing else); `phrase_end_marks` what ends a phrase; `ezafe` whether
-    the language has an ezafe to keep (Persian: a mark never cuts one); `reviewed` whether the independent checker audits the proposals (Persian only; elsewhere the
-    proposals go from the punctuation agent through the code filter alone); `vowel_letters` the final letters after which an ezafe is said -ye; `agents`
-    the prefix of the language's syntax, punctuation and checker agents (config/agents.json: `<prefix>.syntax|punctuate|check`)."""
-
-    marks: list[str]
-    normalize: dict[str, str] = {}
-    punctuation_chars: str
-    phrase_end_marks: str
-    ezafe: bool = False
-    reviewed: bool = False
-    vowel_letters: list[str] = []
-    agents: str
-
-
-class SemanticPunctuationConfig(BaseModel):
-    """The punctuation layer of a narration (documentary/punctuation): punctuation added to the text the voice is given, never to the story. A
-    language has a layer when it has a profile in `languages` and is in `enabled_languages`. `use_agents`: the syntax, punctuation and checker agents run (billable); without them
-    only the deterministic rules apply. `max_rounds`: how often a REVISE goes back to the punctuation agent before the safest version is kept."""
-
-    use_agents: bool = False
-    max_rounds: int = Field(default=2, ge=1, le=4)
-    # How many blocks of one narration are worked on at the same time (a block only reads its neighbours' words, never their results); the
-    # model calls themselves stay under the provider limits (concurrency.llm and the throttle).
-    block_concurrency: int = Field(default=1, ge=1, le=32)
-    languages: dict[str, PunctuationProfile]
-    # The languages that run the layer (billable agents). Every other language is punctuated by its voice director in the same call that directs it
-    # (voice_performance.punctuation_languages); their profiles stay here for switching a language back.
-    enabled_languages: list[str]
-    run_file: str = "punctuation.json"
-
-    @staticmethod
-    def _key(language: str) -> str:
-        """The profile key of a language tag: its primary subtag, lowercase ("fa-IR" and "fa_AF" are "fa")."""
-        return (language or "").replace("_", "-").split("-")[0].lower()
-
-    def covers(self, language: str) -> bool:
-        return self._key(language) in self.languages and self._key(language) in self.enabled_languages
-
-    def profile(self, language: str) -> PunctuationProfile:
-        try:
-            return self.languages[self._key(language)]
-        except KeyError:
-            raise ValueError(f"no punctuation profile for language {language!r} (config semantic_punctuation.languages)") from None
-
-    def has_ezafe(self, language: str) -> bool:
-        """Only a language whose profile says so (Persian) has an ezafe to keep; any other or unknown language is treated as having none."""
-        return self._key(language) in self.languages and self.profile(language).ezafe
-
-
-class EnglishAlignmentConfig(BaseModel):
-    """The English–Persian alignment (documentary/english_reference/alignment.py). The thresholds are set by reasoning, not calibrated: no reviewed
-    alignment exists, so the statuses they give are reported as uncalibrated and no confidence number is invented. `band`: how far from the
-    diagonal (as a share of the story) a match may lie; `max_group`: the most sentences one side of a match may join; a match must reach
-    `match_floor` to be made at all (else the sentence has no English match)."""
-
-    band: float = Field(gt=0, le=1)
-    max_group: int = Field(ge=1, le=3)
-    # Where a sentence ends (and the quotes or brackets that may close it), and the longest bracketed tag ([calm]) that is not story text.
-    sentence_end_marks: str
-    closing_marks: str
-    max_tag_chars: int = Field(ge=1)
-    skip_gain: float = 0.0
-    match_floor: float = Field(ge=0, le=1)
-    aligned_min: float = Field(ge=0, le=1)
-    partial_min: float = Field(ge=0, le=1)
-    ambiguous_margin: float = Field(ge=0, le=1)
-
-
-class EnglishReferenceConfig(BaseModel):
-    """The approved English story as a reference of the Persian text (documentary/english_reference): the local embedding model that aligns the sentences
-    of the two stories, and the alignment."""
-
-    embedding_model: str
-    embedding_batch: int = Field(ge=1)
-    embedding_max_tokens: int = Field(ge=32)
-    alignment: EnglishAlignmentConfig
 
 
 class NumberReadingConfig(BaseModel):
@@ -4790,8 +4704,6 @@ class AIConfig(BaseModel):
     morphology: MorphologyConfig
     homographs: HomographsConfig
     ppie: PPIEConfig = Field(default_factory=PPIEConfig)
-    english_reference: EnglishReferenceConfig
-    semantic_punctuation: SemanticPunctuationConfig
     number_reading: NumberReadingConfig
     pronunciation_auto: PronunciationAutoConfig = Field(default_factory=PronunciationAutoConfig)
     semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)

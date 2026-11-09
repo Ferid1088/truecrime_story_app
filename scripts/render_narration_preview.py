@@ -51,13 +51,6 @@ async def main() -> None:
         voicing = await RS.voicing_of(db, args.language, read, items)
         provider = VE.CountingProvider(get_voice_provider(), int(args.cap_eur / VE.eur_per_character(lang.model_id)))
         plan = performance_for_version(db, version)
-        marked = None
-        if ai_config.ppie.fresh(args.language):          # the punctuation layer, as the film's run makes it
-            from app.documentary.punctuation import stage as PS
-
-            marked = await PS.for_version(db, version.case_id, version, plan)
-            plan = PS.applied(plan, marked[0])
-            voicing.boundaries = PS.boundaries_of(marked[0])
         if args.language in ai_config.voice.prepared_languages and not ai_config.ppie.fresh(args.language):
             plan = {**plan, "pronunciation_dictionary": await VP.ensure_dictionary(db, version, args.language), "pronunciation_rules": VP.sent_rules(version)}
         out_root = NP.folder(args.name)
@@ -71,7 +64,6 @@ async def main() -> None:
             folder = renderer.out_dir(version.case_id, args.language, version.id)
             if ai_config.ppie.fresh(args.language):
                 PE.save_run(db, version, args.language, plan, renderer.planner, voicing, folder)
-                PS.save(folder, *marked)
         finally:
             ai_config.voice.work_dir = kept
         after = BudgetService(db).snapshot(version.case_id)

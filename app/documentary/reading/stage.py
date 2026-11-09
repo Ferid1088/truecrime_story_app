@@ -49,8 +49,7 @@ async def read_items(db: Session, case: Case, version: StoryVersion, language: s
     return await ReadingStage(db, case.id, version, language, items).run()
 
 
-async def voicing_of(db: Session, language: str, read: ReadingResult | TashkeelResult, items: list[BlockInput],
-                     boundaries: dict[str, dict[int, dict]] | None = None) -> Voicing | TashkeelVoicing:
+async def voicing_of(db: Session, language: str, read: ReadingResult | TashkeelResult, items: list[BlockInput]) -> Voicing | TashkeelVoicing:
     """What the voice is given for the readings of this run: the owner's approvals of the language on top, except for a PPIE language (read from
     scratch: no approval of an earlier run applies). An Arabic reading gives the voice the words with their vowel marks."""
     if isinstance(read, TashkeelResult):
@@ -66,7 +65,7 @@ async def voicing_of(db: Session, language: str, read: ReadingResult | TashkeelR
     by_block = {i.block_id: settled_words(i.words, [r.latin for r in read.readings[i.block_id]], signals[i.block_id])
                 for i in items if i.block_id in read.readings and len(read.readings[i.block_id]) == len(i.words)}
     return Voicing(fixed, {block: [r.latin for r in words] for block, words in read.readings.items()}, signals, names, opinions_of(read.readings),
-                   CS.inconsistent(CS.variants(by_block, names)), boundaries=boundaries or {})
+                   CS.inconsistent(CS.variants(by_block, names)))
 
 
 def names_of(table: FilmTable | None) -> frozenset[str]:

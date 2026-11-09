@@ -160,15 +160,9 @@ class LanguageChain:
             from app.documentary.reading import stage as RS
 
             fresh = ai_config.ppie.fresh(lang)              # PPIE alone: this run's readings and decisions, nothing of an earlier run
-            punctuated = ai_config.semantic_punctuation.covers(lang)
-            if punctuated:                  # the punctuation layer: the voice's text with meaning-based punctuation, the story untouched
-                from app.documentary.punctuation import stage as PS
-
-                marked = holder.pop("punctuation", None) or await PS.for_version(db, case.id, version, plan)
-                plan = PS.applied(plan, marked[0])
             if RS.required(lang):           # the words the owner has fixed go to the voice as IPA
                 items, read = holder.pop("reading", None) or await RS.result(db, case, version, lang)
-                renderer.voicing = await RS.voicing_of(db, lang, read, items, PS.boundaries_of(marked[0]) if punctuated else None)
+                renderer.voicing = await RS.voicing_of(db, lang, read, items)
                 if ai_config.pronunciation_risk.enabled and RS.engine(lang) == "persian":      # what each word is given follows its risk and the memory (Persian's risk engine)
                     from app.documentary.pronunciation_planner import Planner
 
@@ -187,8 +181,6 @@ class LanguageChain:
                 from app.documentary import pronunciation_explain as PE
 
                 PE.save_run(db, version, lang, plan, renderer.planner, renderer.voicing, renderer.out_dir(case.id, lang, version.id))
-            if punctuated:
-                PS.save(renderer.out_dir(case.id, lang, version.id), *marked)
             if listened:
                 from app.documentary.production.audio import mix_narration
 
@@ -261,22 +253,13 @@ class LanguageChain:
 
         from app.documentary.reading import stage as RS
 
-        async def punctuation():
-            from app.documentary.punctuation import stage as PS
-
-            holder["punctuation"] = await PS.for_version(db, case.id, version, performance_for_version(db, version))
-            return holder["punctuation"][1]
-
         async def reading():
             holder["reading"] = await RS.result(db, case, version, lang)          # the voice of this run is given these readings, not a stored copy
             return RS.summary(*holder["reading"], lang)
 
-        if not planning and not approved and (RS.required(lang) or ai_config.semantic_punctuation.covers(lang)):           # the text is prepared before anything is voiced; doubts wait for the owner
+        if not planning and not approved and RS.required(lang):           # the text is read before anything is voiced; doubts wait for the owner
             try:
-                if ai_config.semantic_punctuation.covers(lang):          # the punctuation layer comes before the reading
-                    await pipe._stage(f"punctuation:{lang}", punctuation)
-                if RS.required(lang):
-                    await pipe._stage(f"reading:{lang}", reading)
+                await pipe._stage(f"reading:{lang}", reading)
             except BaseException:
                 pass_turn()                  # the next language's turn does not wait for a stage that stopped
                 raise

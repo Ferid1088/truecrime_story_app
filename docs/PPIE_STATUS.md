@@ -14,28 +14,20 @@ flags it. Numbers in digits are read by `reading/numbers.py` from their context.
 is what the Pronunciation tab shows. Every Persian style is voiced at speed 1.2, stability 0.2, then played 1.1 times faster. Nothing of a run is kept.
 Each run pays for the full reading stage again (Case 15: about EUR 23 on 2026-11-04).
 
-## Semantic punctuation and ezafe boundaries (`app/documentary/punctuation`, 2026-11-04)
+## Punctuation (changed 2026-11-10)
 
-Runs in the Persian (PPIE) path of a film job as the stage `punctuation:fa`, before PPIE's reading; the renderer then gives the voice each
-block's punctuation layer, and the planner gets the settled boundaries.
-
-| Part | Status | Where |
-|---|---|---|
-| Layer | Done | `layer.py`: punctuation changed only in the gaps between words of the voice text; every edit traced to the word it follows and to its offset in the approved text and the story; `check` refuses any change of a word, a letter, a half-space or a tag. Never stored as a story version. |
-| Ezafe boundaries | Done | `boundary.py`: REQUIRED (written in the text, or the syntax agent), FORBIDDEN (punctuation, function words, a verb or را next, or the syntax agent), NO_EZAFE_ANALYSIS_NEEDED, else CONTEXT_DEPENDENT. -e / -ye from the letters; open after a plain ه. |
-| Syntax agent, punctuation agent, independent checker | Done, not run live (billable; `semantic_punctuation.use_agents` false) | `syntax.py`, `punctuate.py` (code refuses a mark at a required ezafe, a mark not allowed, a second mark in a gap), `check.py` (another model; PASS / REVISE / UNCERTAIN / REJECT; bounded rounds; the safest version is kept otherwise). |
-| PPIE integration | Done | `Voicing.boundaries`; `Planner.compare`: where PPIE's ezafe and a settled boundary disagree, the word is escalated (neither wins) and the disagreement recorded. |
-| UI | Done | Pronunciation tab → "Punctuation". |
-
-Free dry run of Case 15 v270 (rules only, `scripts/punctuation_dry_run.py`): checksum unchanged, 0 EUR, 0.5 s, 0 integrity violations, 0 changes;
-boundaries: 469 required (written), 1849 forbidden, 1905 need no analysis, 4125 context-dependent (the meaning decides: the syntax agent's work).
+The separate semantic punctuation layer (`app/documentary/punctuation`: syntax agent, punctuation agent, independent checker, the `punctuation:<lang>`
+stage, the settled ezafe boundaries given to the planner, the Pronunciation tab "Punctuation") was removed. It cost about EUR 310 on Case 15 and left
+German unchanged in all 209 blocks. The voice director now sets the punctuation of every sentence in the same call that directs it
+(`voice_performance.punctuation_languages`, the rules of each language in `voice_performance.punctuation_notes`, Persian's ezafe rule included); the code
+check that refuses any changed word stays. The planner still analyses the ezafe on its own (`EzafeAnalyzer`); it no longer compares it with a second
+analysis.
 
 ## Review after the voice (2026-11-05)
 
 The automatic acoustic review (wav2vec2, the independent expected-reading agent, the repair proposals) was removed. On Case 15 it found 6 of the 13
 errors the owner heard, so it could not replace listening. A person listens to the voiced blocks and corrects them by hand in the voice review
-(Pronunciation tab, "Narration preview"). The English reference (the sentence alignment with the approved English story) stays, as
-`app/documentary/english_reference`, for the semantic punctuation stage.
+(Pronunciation tab, "Narration preview"). The English reference (the sentence alignment with the approved English story, `app/documentary/english_reference`) was removed with the punctuation layer, the only stage that used it.
 
 ## Pipeline as it runs (`VoiceRenderer` → `Planner.plan`)
 

@@ -15,7 +15,6 @@ import { EmptyState, ErrorState } from "@/components/state";
 import { BlockReview } from "./block-review";
 import { NarrationPreviews } from "./narration-preview";
 import { PhoneticBenchmark } from "./phonetic-benchmark";
-import { PunctuationView } from "./punctuation-view";
 import { PronunciationPlanView } from "./pronunciation-plan";
 import { ReadingConflicts } from "./reading-conflicts";
 import { InlineAlert, LanguagePicker, type LanguageTabProps } from "../shared";
@@ -303,7 +302,7 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
   const versionId = overview.languages[language]?.version_id ?? null;
   const [status, setStatus] = useState<string>("legacy_unverified");
   const [selected, setSelected] = useState<number | null>(null);
-  const [view, setView] = useState<"entries" | "plan" | "conflicts" | "punctuation" | "benchmark" | "preview" | "voice" | "host">(() => {
+  const [view, setView] = useState<"entries" | "plan" | "conflicts" | "benchmark" | "preview" | "voice" | "host">(() => {
     try {
       const wanted = typeof window === "undefined" ? null : window.sessionStorage.getItem("pronunciation-view");
       if (wanted === "voice") window.sessionStorage.removeItem("pronunciation-view");       // the Monitoring shortcut asks for the voice review once
@@ -366,7 +365,6 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
             <Button size="sm" variant={view === "entries" ? "default" : "secondary"} onClick={() => setView("entries")}>Entries</Button>
             <Button size="sm" variant={view === "plan" ? "default" : "secondary"} onClick={() => setView("plan")}>Why words change</Button>
             <Button size="sm" variant={view === "conflicts" ? "default" : "secondary"} onClick={() => setView("conflicts")}>Conflicting readings</Button>
-            <Button size="sm" variant={view === "punctuation" ? "default" : "secondary"} onClick={() => setView("punctuation")}>Punctuation</Button>
             <Button size="sm" variant={view === "benchmark" ? "default" : "secondary"} onClick={() => setView("benchmark")}>Phonetic benchmark</Button>
             <Button size="sm" variant={view === "voice" ? "default" : "secondary"} onClick={() => setView("voice")}>Voice review</Button>
             {language === "fa" && <Button size="sm" variant={view === "host" ? "default" : "secondary"} onClick={() => setView("host")}>Host voice review</Button>}
@@ -376,7 +374,6 @@ export function PronunciationReviewTab({ settings, overview, refreshKey, languag
           {view === "host" && language === "fa" && (versionId != null ? <BlockReview key={`host-${versionId}`} versionId={versionId} kind="host" /> : <EmptyState title="No narration yet" description="The host voice review opens when this language has a narration." />)}
           {view === "preview" && <NarrationPreviews />}
           {view === "plan" && <PronunciationPlanView versionId={versionId} language={language} />}
-          {view === "punctuation" && <PunctuationView versionId={versionId} />}
           {view === "conflicts" && <ReadingConflicts versionId={versionId} language={language} reviewer={reviewer} />}
           {view === "benchmark" && <PhoneticBenchmark language={language} reviewer={reviewer} />}
           {view === "entries" && <>
