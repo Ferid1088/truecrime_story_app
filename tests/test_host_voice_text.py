@@ -94,39 +94,37 @@ def test_a_persian_host_text_keeps_its_numbers_for_the_readings_code():
     assert not any(i["type"] == "numbers_as_digits" for i in H.dialogue_issues(seg, "تو ۲۱ ثانیه صبر کردی؟", "fa", [], []))
 
 
-@pytest.mark.parametrize("language,text,edits,expected", [
-    ("en", "Last night I waited twenty-one seconds in the hallway and then I knocked", [{"after": 1, "new": ",", "reason": "introductory phrase"}],
-     "Last night, I waited twenty-one seconds in the hallway and then I knocked"),
-    ("de", "Ich wartete einundzwanzig Sekunden im Flur bevor ich klopfte", [{"after": 5, "new": ",", "reason": "Nebensatz"}],
-     "Ich wartete einundzwanzig Sekunden im Flur, bevor ich klopfte"),
+@pytest.mark.parametrize("language,text", [
+    ("en", "Last night, I waited twenty-one seconds in the hallway and then I knocked"),
+    ("de", "Ich wartete einundzwanzig Sekunden im Flur, bevor ich klopfte"),
 ])
-def test_german_and_english_get_the_punctuation_layer_and_no_reading(language, text, edits, expected):
+def test_german_and_english_keep_the_writers_punctuation_and_get_no_reading(language, text):
     renderer, scene = Renderer(), Scene(language, text)
-    assert asyncio.run(HVT.prepare(None, scene, renderer, stage(language, edits))) == expected
+    assert asyncio.run(HVT.prepare(None, scene, renderer)) == text, "the host writer sets the marks: no punctuation layer runs"
     assert renderer.voicing is None and renderer.planner is None, "no reading stage for this language"
     assert scene.text == text, "what the avatar shows never changes"
 
 
-def test_arabic_gets_the_punctuation_layer_and_then_its_vowel_marks():
+def test_arabic_gets_its_vowel_marks_on_the_writers_text():
     text = "انتظرت ثانية في الممر ثم طرقت الباب"
     marks = ["انْتَظَرْتُ", "ثَانِيَةً", "فِي", "الْمَمَرِّ", "ثُمَّ", "طَرَقْتُ", "الْبَابَ"]
     renderer, scene = Renderer(), Scene("ar", text)
 
     async def reader(db, case, version, language, items):
-        assert [i.text for i in items] == ["انتظرت ثانية في الممر، ثم طرقت الباب"], "the reading is made on the punctuated text"
+        assert [i.text for i in items] == [text], "the reading is made on the writer's text: no punctuation layer runs"
         return await TK.TashkeelStage(None, 1, items, agent({"words": [{"n": n, "text": t} for n, t in enumerate(marks)]})).run()
 
     class Db:
         def get(self, model, key):
             return None
 
-    prepared = asyncio.run(HVT.prepare(Db(), scene, renderer, stage("ar", [{"after": 3, "new": "،", "reason": "clause"}]), reader))
-    assert prepared == "انتظرت ثانية في الممر، ثم طرقت الباب" and scene.text == text
+    prepared = asyncio.run(HVT.prepare(Db(), scene, renderer, reader=reader))
+    assert prepared == text and scene.text == text
     assert isinstance(renderer.voicing, TK.TashkeelVoicing) and renderer.planner is None
-    assert renderer.voicing.text(HVT.block_id(scene), prepared) == "انْتَظَرْتُ ثَانِيَةً فِي الْمَمَرِّ، ثُمَّ طَرَقْتُ الْبَابَ"
+    assert renderer.voicing.text(HVT.block_id(scene), prepared) == "انْتَظَرْتُ ثَانِيَةً فِي الْمَمَرِّ ثُمَّ طَرَقْتُ الْبَابَ"
 
 
-def test_persian_gets_the_punctuation_layer_the_ppie_reading_and_the_risk_planner(monkeypatch):
+def test_persian_gets_the_ppie_reading_and_the_risk_planner_without_a_punctuation_layer(monkeypatch):
     from app.documentary.reading import stage as RS
 
     text = "یه شب تو خونه صبر کردم و بعد در زدم"
@@ -147,11 +145,11 @@ def test_persian_gets_the_punctuation_layer_the_ppie_reading_and_the_risk_planne
     monkeypatch.setattr(RS, "voicing_of", voicing_of)
     monkeypatch.setattr(ai_config.pronunciation_risk, "enabled", True)
     renderer, scene = Renderer(), Scene("fa", text)
-    prepared = asyncio.run(HVT.prepare(Db(), scene, renderer, stage("fa", [{"after": 3, "new": "،", "reason": "phrase"}]), reader))
-    assert prepared == "یه شب تو خونه، صبر کردم و بعد در زدم" and scene.text == text
+    prepared = asyncio.run(HVT.prepare(Db(), scene, renderer, reader=reader))
+    assert prepared == text and scene.text == text
     assert [i.text for i in asked["items"]] == [prepared] and asked["read"] == "READ"
     assert renderer.voicing == "VOICING" and renderer.planner is not None and renderer.planner.language == "fa"
-    assert set(asked["boundaries"]) == {HVT.block_id(scene)}
+    assert asked["boundaries"] is None, "no punctuation layer settled any boundary"
 
 
 def test_a_language_that_is_not_prepared_gets_its_text_as_it_is_and_no_stale_reading(monkeypatch):
