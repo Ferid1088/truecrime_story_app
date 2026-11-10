@@ -183,8 +183,8 @@ def test_a_call_with_a_cacheable_prefix_stays_on_the_first_gateway_while_the_sha
     primary, secondary = Fake("apimaster"), Fake("apiko")
     provider = FailoverGenerationProvider(primary, secondary, cfg)
 
-    cached = asyncio.run(provider.generate_text("reading_checker", "s", "u", prefix="stable facts", cache_key="case1"))
-    plain = asyncio.run(provider.generate_text("reading_checker", "s", "u"))
+    cached = asyncio.run(provider.generate_text("mvp_candidate_verifier", "s", "u", prefix="stable facts", cache_key="case1"))
+    plain = asyncio.run(provider.generate_text("mvp_candidate_verifier", "s", "u"))
 
     assert cached.provider == "apimaster" and plain.provider == "apiko"
 
@@ -194,6 +194,6 @@ def test_a_cached_call_moves_to_the_second_gateway_when_the_first_is_not_availab
     primary = Fake("apimaster", error("rate_limited"))
     secondary = Fake("apiko")
 
-    result = asyncio.run(FailoverGenerationProvider(primary, secondary, cfg).generate_text("reading_checker", "s", "u", prefix="stable", cache_key="case1"))
+    result = asyncio.run(FailoverGenerationProvider(primary, secondary, cfg).generate_text("mvp_candidate_verifier", "s", "u", prefix="stable", cache_key="case1"))
 
     assert result.provider == "apiko"

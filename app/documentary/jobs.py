@@ -13,10 +13,11 @@ Stages (each idempotent — a re-run resumes and reuses what exists):
   mvp_needs          Main Visual Planner: visual requirements per beat from the reveal graph
   mvp_verify         library candidates for each requirement, judged on five separate decisions
   mvp_research       bounded search rounds (1 + 2) for the requirements still unmet
-  host:<lang>        the host's dialogue, natively per language
-  performance:<lang> narrator arc + ElevenLabs v4 audio tags
+  host:<lang>        the host's dialogue, natively per language (starts next to the narration, as soon as the version exists)
+  performance:<lang> narrator arc + ElevenLabs v4 audio tags and the punctuation of every sentence (voice director)
   voice:<lang>       narration + music mix (pilot: first N seconds)
-  mvp_host:<lang>    every host scene the Host plan placed has its voice and avatar video
+  host_voice:<lang>  (Persian: host.avatar_after_voice_approval_languages) the host scenes' voices only, while the owner reviews the narration
+  mvp_host:<lang>    every host scene the Host plan placed has its voice and avatar video (Persian: after the narration's voice is approved)
   mvp_direct:<lang>  shot list against this language's real narration timing
   production:<lang>  language-specific timeline
   critique:<lang>    critics + targeted fixes
