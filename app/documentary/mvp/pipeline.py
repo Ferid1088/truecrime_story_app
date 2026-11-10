@@ -194,11 +194,12 @@ def host_required() -> bool:
     return bool(ai_config.host.required_for_film and ai_config.host.enabled and ai_config.avatar.enabled)
 
 
-async def stage_host(db: Session, case: Case, version, language: str) -> dict:
+async def stage_host(db: Session, case: Case, version, language: str, until: str = "avatar") -> dict:
     """The planner's host stage: every scene the Host plan placed has its voice and its avatar video
     BEFORE the film is directed and rendered. The Host text, position, outfit and direction stay the
     Host system's; this stage only makes sure its planned appearances exist as media, and fails the
-    film (resumable) if one cannot be produced."""
+    film (resumable) if one cannot be produced. `until="voice"` makes only the voices (the host of a language whose avatar videos wait for the owner's
+    approval of the voices, config host.avatar_after_voice_approval_languages); the videos are made by the later `until="avatar"` run."""
     from app.agents.stage_director import StageDirector
     from app.db.models import HostScene
     from app.documentary.host import HostDirector, latest_host_segments
@@ -213,6 +214,12 @@ async def stage_host(db: Session, case: Case, version, language: str) -> dict:
     scenes = db.query(HostScene).filter(HostScene.host_segments_id == seg.id).order_by(HostScene.id).all()
     if not scenes:
         raise RuntimeError("The Host segments have no planned scenes; the host is required.")
+    if until == "voice":
+        voiced = [s.id for s in scenes if s.voice_path]
+        for scene in scenes:
+            if not scene.voice_path:
+                await run_scene(db, scene, "voice", retimer=HostDirector().retime_scene)
+        return {"voice_only": True, "scenes": len(scenes), "already_voiced": len(voiced), "voiced_now": len(scenes) - len(voiced)}
     ready = {i["scene_id"] for i in HT.host_items(db, version)}
     produced: list[int] = []
     for scene in scenes:

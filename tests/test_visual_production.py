@@ -473,7 +473,7 @@ class PipelineGen:
     def _res(role):
         return GenerationResult(text="{}", model=f"m/{role}", provider="fake")
 
-    async def generate_text(self, role, system, user, images=None):
+    async def generate_text(self, role, system, user, images=None, *, prefix=None, cache_key=None):
         from mock_payload import generation_request_payload, provider_request, request_language
 
         fingerprint = provider_request(
@@ -488,7 +488,7 @@ class PipelineGen:
         result.text += f"\n\n[MOCK_REQUEST_SHA256:{fingerprint}]"
         return result
 
-    async def generate_structured(self, role, system, user, images=None):
+    async def generate_structured(self, role, system, user, images=None, *, prefix=None, cache_key=None):
         from mock_payload import generation_request_payload, provider_request, request_language
 
         fingerprint = provider_request(

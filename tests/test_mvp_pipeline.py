@@ -119,7 +119,7 @@ def _host_env(db_session, monkeypatch, *, ready_after):
     case = Case(canonical_title="Host proof", slug=f"hp-{uuid4().hex[:8]}", language="en")
     db_session.add(case)
     db_session.commit()
-    scenes = [SimpleNamespace(id=1), SimpleNamespace(id=2)]
+    scenes = [SimpleNamespace(id=1, voice_path=None), SimpleNamespace(id=2, voice_path=None)]
     state = {"ready": [], "run": []}
 
     class FakeQuery:
@@ -139,7 +139,7 @@ def _host_env(db_session, monkeypatch, *, ready_after):
 
     async def run_scene(db, scene, until, retimer=None, director=None):
         state["run"].append((scene.id, until))
-        if len(state["run"]) <= ready_after:
+        if until == "avatar" and len(state["run"]) <= ready_after:
             state["ready"].append({"scene_id": scene.id, "position": "mid", "beat_id": "B02", "seconds": 20.0})
 
     monkeypatch.setattr(host_scenes, "run_scene", run_scene)
@@ -286,3 +286,23 @@ def test_a_film_the_checks_held_back_is_not_approved_whatever_its_language(db_se
     held = P.stage_review(db_session, case, "de", 1, film, {"blocking": ["a gap in the pictures"]}, probe)
 
     assert held["state"] == "PRODUCING" and held["review_ready"] is False
+
+
+def test_the_host_stage_can_stop_at_the_voices_and_makes_the_videos_in_a_later_run(db_session, monkeypatch):
+    case, state = _host_env(db_session, monkeypatch, ready_after=2)
+    version = type("V", (), {"id": 1})()
+
+    voices = asyncio.run(P.stage_host(db_session, case, version, "fa", until="voice"))
+
+    assert state["run"] == [(1, "voice"), (2, "voice")] and voices == {"voice_only": True, "scenes": 2, "already_voiced": 0, "voiced_now": 2}
+    assert state["ready"] == [], "no avatar video exists before the later run"
+
+    state["run"].clear()
+    videos = asyncio.run(P.stage_host(db_session, case, version, "fa"))
+    assert state["run"] == [(1, "avatar"), (2, "avatar")] and videos["scenes"] == 2
+
+
+def test_only_persian_waits_for_the_approval_of_its_voices_before_its_avatar_videos():
+    from app.core.ai_config import ai_config
+
+    assert ai_config.host.avatar_after_voice_approval_languages == ["fa"]

@@ -117,14 +117,24 @@ class LanguageChain:
                                     f"{', '.join(left_out)}"} if left_out else {}),
                     **({"studio_error": scene_error} if scene_error else {})}
 
+        voices_first = lang in ai_config.host.avatar_after_voice_approval_languages          # the owner hears the voices first; the videos follow his approval
+
         async def mvp_host():
             from app.documentary.mvp import pipeline as MVP
 
             return await MVP.stage_host(db, case, version, lang)
 
+        async def mvp_host_voice():
+            from app.documentary.mvp import pipeline as MVP
+
+            return await MVP.stage_host(db, case, version, lang, until="voice")
+
         async def host_media():
             await pipe._optional(f"host:{lang}", host)
-            await pipe._stage(f"mvp_host:{lang}", mvp_host)
+            if voices_first:
+                await pipe._stage(f"host_voice:{lang}", mvp_host_voice)
+            else:
+                await pipe._stage(f"mvp_host:{lang}", mvp_host)
 
         if not planning:
             self.host_media = asyncio.create_task(host_media())
@@ -247,6 +257,8 @@ class LanguageChain:
             await pipe._stage(f"mvp_host:{lang}", lambda: skipped("planning job: the Host is not made"))
         else:
             await self.host_media          # made next to the narration; a failure of it stops the film here, as it always did
+            if voices_first:
+                await pipe._stage(f"mvp_host:{lang}", mvp_host)          # the narration is approved (the guard above): now the videos are made
 
         async def mvp_direct():
             from app.documentary.mvp import reference as REF

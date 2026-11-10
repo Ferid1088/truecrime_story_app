@@ -2086,6 +2086,9 @@ class HostConfig(BaseModel):
     # How a word is spelled for the voice of one language, where that language's voice reads it wrongly (the host's name: "Fereydun").
     # Only what the voice is given changes; the words the avatar and the screen show stay.
     voice_respellings: dict[str, dict[str, str]] = Field(default_factory=dict)
+    # Languages whose host goes only as far as the voice while the film runs: the owner listens to the voices (voice review), and the avatar videos
+    # (paid) are made after the narration's voice is approved.
+    avatar_after_voice_approval_languages: list[str] = Field(default_factory=list)
     # The angle of an appearance (documentary/host_angle.py) is decided and checked before it is written: how often the editor is asked again with the problems,
     # and how many words a quote of the narration has at least (a moment, not a word).
     angle_repairs: int = Field(default=2, ge=0, le=5)

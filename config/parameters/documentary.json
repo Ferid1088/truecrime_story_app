@@ -489,6 +489,7 @@
     },
     "max_writer_repairs": 5,
     "voice_respellings": {"de": {"Fereidoun": "Fereydun"}, "en": {"Fereidoun": "Fereydun"}},
+    "avatar_after_voice_approval_languages": ["fa"],
     "angle_repairs": 2,
     "angle_min_quote_words": 4,
     "angle_turn_from_seconds": 30,
