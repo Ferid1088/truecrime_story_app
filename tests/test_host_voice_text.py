@@ -104,3 +104,13 @@ def test_the_german_voice_is_given_the_hosts_name_spelled_for_it_and_the_avatar_
     assert HVT.respelled("Fereidouns Fall", "de") == "Fereidouns Fall", "only the whole word is respelled"
     assert HVT.respelled("I'm Fereidoun, and here I tell you.", "en") == "I'm Fereydun, and here I tell you."
     assert HVT.respelled("من فریدونم", "fa") == "من فریدونم", "Persian keeps its own"
+
+
+def test_the_host_writer_is_given_the_punctuation_rules_of_the_voice_for_its_language():
+    german = H.writer_system_prompt("de")
+    persian = H.writer_system_prompt("fa")
+
+    assert "PUNCTUATION FOR THE VOICE" in german and "mandatory grammar" in german
+    assert "ezafe" in persian and "FORBIDDEN" in persian
+    assert "your words are voiced as they are written" in german
+    assert H.punctuation_for_the_voice("zz") == "", "a language the director does not punctuate adds nothing"

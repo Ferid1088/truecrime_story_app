@@ -117,7 +117,7 @@ Rules:
   numbers the way they are spoken.
 - Before you answer, check once: every fact is in facts or story_so_far, nothing the viewer has
   not heard, direct and informal address, a question if required, the length inside allowed_words.
-{craft}
+{craft}{punctuation}
 Return JSON only:
 {{"dialogue": "...", "dimensions": ["curiosity"], "memory_used": null,
   "delivery": "direct and warm; a beat before the question",

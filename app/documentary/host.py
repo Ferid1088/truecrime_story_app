@@ -269,7 +269,17 @@ def writer_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
     return prompt("documentary/host/writer_system_prompt").format(
         persona_prompt=persona_prompt(cfg), name=name, brand=brand, register=register_of(language, cfg), craft=craft_of(language),
         opening_first_sentence=cfg.opening_max_first_sentence_words,
-        dimensions=", ".join(DIMENSIONS))
+        dimensions=", ".join(DIMENSIONS), punctuation=punctuation_for_the_voice(language))
+
+
+def punctuation_for_the_voice(language: str) -> str:
+    """The punctuation rules of the narration's voice director (config voice_performance.punctuation_languages), for the host's words: the host's
+    dialogue is voiced the same way, and nothing sets its punctuation after the writer."""
+    vp = ai_config.voice_performance
+    if language not in vp.punctuation_languages:
+        return ""
+    return prompt("documentary/voice_performance/punctuation_focus").format(notes=vp.punctuation_notes.get(language, "")).replace(
+        "you are also the punctuation editor of this language", "your words are voiced as they are written, so set the punctuation too")
 
 
 def angle_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
