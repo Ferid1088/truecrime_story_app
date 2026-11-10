@@ -26,6 +26,18 @@ class LanguageChain:
         self.shared = shared  # PipelineShared: what the shared stages produced
 
     async def run(self) -> None:
+        """The language's chain. The host's text and then its voice and avatar videos start the moment the film's version exists, next to
+        the narration; the chain waits for them where the film needs them, and a chain that stops first stops them too."""
+        self.host_media: asyncio.Task | None = None
+        try:
+            await self._run()
+        finally:
+            if self.host_media is not None and not self.host_media.done():
+                self.host_media.cancel()
+            if self.host_media is not None:
+                await asyncio.gather(self.host_media, return_exceptions=True)
+
+    async def _run(self) -> None:
         from app.agents.stages import get_stage_agent
         from app.documentary.jobs import (
             _load_manifest,
@@ -105,8 +117,17 @@ class LanguageChain:
                                     f"{', '.join(left_out)}"} if left_out else {}),
                     **({"studio_error": scene_error} if scene_error else {})}
 
-        if not planning:
+        async def mvp_host():
+            from app.documentary.mvp import pipeline as MVP
+
+            return await MVP.stage_host(db, case, version, lang)
+
+        async def host_media():
             await pipe._optional(f"host:{lang}", host)
+            await pipe._stage(f"mvp_host:{lang}", mvp_host)
+
+        if not planning:
+            self.host_media = asyncio.create_task(host_media())
             await pipe._stage(f"performance:{lang}", performance)
         else:
             await pipe._stage(f"performance:{lang}", lambda: skipped("planning job: no narration is made"))
@@ -128,19 +149,11 @@ class LanguageChain:
                                      use_asr=ai_config.listens_after_voice(lang),       # a semantically reviewed language is judged by a model that listens, not by the speech-to-text check
                                      documentary_job_id=job.id,
                                      budget_pilot_seconds=pilot_seconds if pilot else None)
-            punctuated = ai_config.semantic_punctuation.covers(lang)
-            if punctuated:                  # the punctuation layer: the voice's text with meaning-based punctuation, the story untouched
-                from app.documentary.punctuation import stage as PS
-
-                marked = holder.pop("punctuation", None) or await PS.for_version(db, case.id, version, plan)
-                plan = PS.applied(plan, marked[0])
             if ai_config.voice.after_voice_review and SR.required(lang):           # after the voice-repair loop of each block, a model listens to it and judges it against the source
                 renderer.reviewer = SR.Reviewer(db, case.id, SR.english_sources(db, version), SR.tones_of(db, version))
             m = await render_documentary_audio(
                 plan, case_id=case.id, story_version_id=version.id,
                 max_seconds=pilot_seconds if pilot else None, db=db, renderer=renderer)
-            if punctuated:
-                PS.save(renderer.out_dir(case.id, lang, version.id), *marked)
             holder["m"] = m
             paid[lang] = int(m.get("characters_paid") or 0)
             out = {"seconds": m.get("duration_seconds"),
@@ -205,15 +218,6 @@ class LanguageChain:
             finally:
                 pass_turn()
 
-        async def punctuation():
-            from app.documentary.punctuation import stage as PS
-
-            holder["punctuation"] = await PS.for_version(db, case.id, version, performance_for_version(db, version))
-            return holder["punctuation"][1]
-
-        if not planning and not approved and ai_config.semantic_punctuation.covers(lang):           # the punctuation of the voice's text is made before anything is voiced
-            try:
-                await pipe._stage(f"punctuation:{lang}", punctuation)
             except BaseException:
                 pass_turn()                  # the next language's turn does not wait for a stage that stopped
                 raise
@@ -242,11 +246,10 @@ class LanguageChain:
             raise LanguageFailed("Full-film production for this language requires the owner to watch and "
                                  "explicitly approve the English film first.")
 
-        async def mvp_host():
-            return await MVP.stage_host(db, case, version, lang)
-
-        await pipe._stage(f"mvp_host:{lang}", (lambda: skipped("planning job: the Host is not made")) if planning
-                          else mvp_host)
+        if planning:
+            await pipe._stage(f"mvp_host:{lang}", lambda: skipped("planning job: the Host is not made"))
+        else:
+            await self.host_media          # made next to the narration; a failure of it stops the film here, as it always did
 
         async def mvp_direct():
             from app.documentary.mvp import reference as REF

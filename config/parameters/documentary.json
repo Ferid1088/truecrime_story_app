@@ -27,6 +27,7 @@
       "pt",
       "tr"
     ],
+    "language_order": ["fa", "ar", "en", "de", "es", "it", "fr", "pt", "tr"],
     "max_redos": 2,
     "min_film_minutes": 45,
     "max_film_minutes": 120,
@@ -61,10 +62,10 @@
     "elevenlabs_tts": 4,
     "elevenlabs_sound": 2,
     "asr": 1,
-    "render": 2,
+    "mix": 1,
+    "render": 1,
     "downloads": 4,
-    "jobs": 9,
-    "languages": 4
+    "jobs": 5
   },
   "host": {
     "enabled": true,
@@ -870,95 +871,6 @@
     "asr_languages": ["ar"],
     "folder_suffix": "_ppie",
     "run_file": "ppie_run.json"
-  },
-  "semantic_punctuation": {
-    "use_agents": true,
-    "max_rounds": 2,
-    "run_file": "punctuation.json",
-    "languages": {
-      "fa": {
-        "marks": ["،", "؛", ":", ".", "؟", "!"],
-        "normalize": {",": "،", ";": "؛", "?": "؟"},
-        "punctuation_chars": "،,؛;:.!?؟…«»\"'()-–—",
-        "phrase_end_marks": "،,؛;:.!?؟…«»\"()—–",
-        "ezafe": true, "reviewed": true,
-        "vowel_letters": ["ا", "و", "ی"],
-        "agents": "documentary.punctuation"
-      },
-      "ar": {
-        "marks": ["،", "؛", ":", ".", "؟", "!"],
-        "normalize": {",": "،", ";": "؛", "?": "؟"},
-        "punctuation_chars": "،,؛;:.!?؟…«»\"'()-–—",
-        "phrase_end_marks": "،,؛;:.!?؟…«»\"()—–",
-        "agents": "documentary.punctuation.ar"
-      },
-      "de": {
-        "marks": [",", ";", ":", ".", "?", "!", "—"],
-        "normalize": {},
-        "punctuation_chars": ",;:.!?…„“”‚‘’»«\"'()-–—",
-        "phrase_end_marks": ",;:.!?…„“”»«\"()—–",
-        "agents": "documentary.punctuation.de"
-      },
-      "en": {
-        "marks": [",", ";", ":", ".", "?", "!", "—"],
-        "normalize": {},
-        "punctuation_chars": ",;:.!?…“”‘’\"'()-–—",
-        "phrase_end_marks": ",;:.!?…“”\"()—–",
-        "agents": "documentary.punctuation.en"
-      },
-      "es": {
-        "marks": [",", ";", ":", ".", "?", "!", "—"],
-        "normalize": {},
-        "punctuation_chars": ",;:.!?¿¡…«»“”‘’\"'()-–—",
-        "phrase_end_marks": ",;:.!?¿¡…«»“”\"()—–",
-        "agents": "documentary.punctuation.es"
-      },
-      "it": {
-        "marks": [",", ";", ":", ".", "?", "!", "—"],
-        "normalize": {},
-        "punctuation_chars": ",;:.!?…«»“”‘’\"'()-–—",
-        "phrase_end_marks": ",;:.!?…«»“”\"()—–",
-        "agents": "documentary.punctuation.it"
-      },
-      "fr": {
-        "marks": [",", ";", ":", ".", "?", "!", "—"],
-        "normalize": {},
-        "punctuation_chars": ",;:.!?…«»“”‘’\"'()-–—",
-        "phrase_end_marks": ",;:.!?…«»“”\"()—–",
-        "agents": "documentary.punctuation.fr"
-      },
-      "pt": {
-        "marks": [",", ";", ":", ".", "?", "!", "—"],
-        "normalize": {},
-        "punctuation_chars": ",;:.!?…«»“”‘’\"'()-–—",
-        "phrase_end_marks": ",;:.!?…«»“”\"()—–",
-        "agents": "documentary.punctuation.pt"
-      },
-      "tr": {
-        "marks": [",", ";", ":", ".", "?", "!", "—"],
-        "normalize": {},
-        "punctuation_chars": ",;:.!?…«»“”‘’\"'()-–—",
-        "phrase_end_marks": ",;:.!?…«»“”\"()—–",
-        "agents": "documentary.punctuation.tr"
-      }
-    }
-  },
-  "english_reference": {
-    "embedding_model": "BAAI/bge-m3",
-    "embedding_batch": 8,
-    "embedding_max_tokens": 256,
-    "alignment": {
-      "band": 0.2,
-      "max_group": 3,
-      "skip_gain": 0.0,
-      "match_floor": 0.45,
-      "aligned_min": 0.6,
-      "partial_min": 0.45,
-      "ambiguous_margin": 0.02,
-      "sentence_end_marks": ".!?؟…",
-      "closing_marks": "»\"”'’)",
-      "max_tag_chars": 40
-    }
   },
   "number_reading": {
     "digit_by_digit": [],

@@ -109,3 +109,70 @@ def test_the_configured_gateway_lists_its_key_by_name_only_and_serves_the_models
     assert cfg is not None and cfg.secret_env == "TRUECRIME_APICO" and cfg.base_url == "https://api.apiko.app/v1"
     connections = (Path(__file__).resolve().parents[1] / "config" / "connections.json").read_text(encoding="utf-8")
     assert "sk-" not in connections and json.loads(connections)["generation_failover"]["name"] == "apiko"
+
+
+class Slow(Fake):
+    """A gateway that takes a moment per call, so that calls overlap and the shares can be seen."""
+
+    async def generate_text(self, role, system, user, images=None, *, prefix=None, cache_key=None):
+        await asyncio.sleep(0.01)
+        return await super().generate_text(role, system, user, images, prefix=prefix, cache_key=cache_key)
+
+
+def shared_calls(share: float, primary, secondary, count: int = 20):
+    provider = FailoverGenerationProvider(primary, secondary, CFG.model_copy(update={"secondary_share": share}))
+
+    async def run():
+        return await asyncio.gather(*(provider.generate_text("r", "s", "u") for _ in range(count)))
+
+    return asyncio.run(run())
+
+
+def test_while_both_gateways_are_available_the_calls_are_shared_by_the_configured_share():
+    primary, secondary = Slow("apimaster"), Slow("apiko")
+    results = shared_calls(0.5, primary, secondary)
+    assert len(primary.calls) + len(secondary.calls) == 20 and 8 <= len(secondary.calls) <= 12
+    assert not any(r.fallback_used for r in results), "a call sent to the second gateway by the share is no fallback"
+    primary, secondary = Slow("apimaster"), Slow("apiko")
+    shared_calls(0.25, primary, secondary)
+    assert 3 <= len(secondary.calls) <= 7
+
+
+def test_without_a_share_the_second_gateway_is_only_a_fallback():
+    primary, secondary = Slow("apimaster"), Slow("apiko")
+    shared_calls(0.0, primary, secondary)
+    assert secondary.calls == [] and len(primary.calls) == 20
+
+
+def test_a_second_gateway_that_is_not_available_gives_its_calls_to_the_first_for_the_cooldown():
+    primary, secondary = Slow("apimaster"), Slow("apiko", error("timeout"))
+    results = shared_calls(0.5, primary, secondary)
+    assert all(r.provider == "apimaster" for r in results) and len(primary.calls) == 20
+    assert len(secondary.calls) < 20 and FailoverGenerationProvider(primary, secondary, CFG).cooling(secondary)
+    calls_before = len(secondary.calls)
+    shared_calls(0.5, primary, secondary)
+    assert len(secondary.calls) == calls_before, "no call goes to a gateway in its cooldown"
+
+
+def test_an_invalid_output_of_the_second_gateway_is_never_moved():
+    primary, secondary = Slow("apimaster"), Slow("apiko", error("invalid_output"))
+    provider = FailoverGenerationProvider(primary, secondary, CFG.model_copy(update={"secondary_share": 1.0}))
+    with pytest.raises(GenerationError):
+        asyncio.run(provider.generate_text("r", "s", "u"))
+    assert primary.calls == []
+
+
+def test_the_share_of_the_second_gateway_comes_from_the_connections_config():
+    assert ai_config.generation_failover.secondary_share == 0.5
+
+
+def test_an_unpaid_billing_settlement_of_the_first_gateway_moves_the_calls_to_the_second():
+    from app.core.ai_config import ai_config
+
+    cfg = ai_config.generation_failover
+    unpaid = error("forbidden", "APIMaster permission/quota failure (403): A previous request has an unpaid billing settlement. "
+                                "Please restore the original funding balance or contact support.")
+    assert failure_of(unpaid, cfg) == "quota"
+    primary, secondary = Fake("apimaster", unpaid), Fake("apiko")
+    result = asyncio.run(FailoverGenerationProvider(primary, secondary, cfg).generate_text("reading_checker", "s", "u"))
+    assert (result.provider, secondary.calls) == ("apiko", ["reading_checker"])

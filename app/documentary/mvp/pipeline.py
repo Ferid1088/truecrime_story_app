@@ -559,5 +559,8 @@ def stage_review(db: Session, case: Case, language: str, production_script_id: i
         RV.advance(db, review, "VALIDATING")
     RV.submit_for_review(db, review, production_script_id=production_script_id, render_path=render_path,
                          validation=validation)
+    if review.state == "AWAITING_OWNER_REVIEW" and language not in ai_config.mvp().review.owner_review_languages:
+        RV.decide(db, review, "APPROVED", "Approved without owner review: the checks passed and this language is not in "
+                  "review.owner_review_languages.", review.render_sha256)
     return {"review_id": review.id, "state": review.state, "review_ready": validation["review_ready"],
             "blocking": problems, "render_sha256": review.render_sha256}

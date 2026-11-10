@@ -189,7 +189,8 @@ class SpokenGen:
     Meaning check: always fine. Style critic: verdicts from a script
     (per call), default storyteller."""
 
-    def __init__(self, style_rounds=(), lead_in=False, short=False):
+    def __init__(self, style_rounds=(), lead_in=False, short=False, meaning_flags=()):
+        self.meaning_flags = set(meaning_flags)
         self.style_rounds = list(style_rounds)
         self.lead_in = lead_in
         self.short = short
@@ -224,7 +225,7 @@ class SpokenGen:
         payload = json.loads(user)
         if role == "spoken_meaning_checker":
             data = {"beats": [{"beat_id": b["beat_id"], "missing": [], "added": [],
-                               "changed": [], "certainty": []}
+                               "changed": ["a relative"] if b["beat_id"] in self.meaning_flags else [], "certainty": []}
                               for b in payload["beats"]]}
         else:
             ids = [s["id"] for s in _parse_sections(payload["narration"])]
@@ -334,12 +335,13 @@ def test_the_story_meaning_check_covers_every_beat_in_fa_and_ar(db_session, monk
 
 def test_newsreader_tone_fails_the_gates(db_session, monkeypatch):
     stubborn = {"B03": "newsreader", "B04": "newsreader"}
-    gen = SpokenGen(style_rounds=[stubborn, stubborn, stubborn])
+    gen = SpokenGen(style_rounds=[stubborn] * (ai_config.spoken.max_repair_iterations + 1))
     _, _, sv = _narrate(db_session, monkeypatch, gen)
     gates = json.loads(sv.critic_notes)["quality_gates"]
     assert not gates["pass"]
     assert {"newsreader_tone", "not_enough_storytelling"} <= set(gates["failures"])
     spoken = json.loads(sv.critic_notes)["spoken"]
+    # every round is used, also when the writer answers with the same words (the fake writer settles after two rounds)
     assert spoken["repair_iterations"] == ai_config.spoken.max_repair_iterations
 
 
@@ -695,3 +697,30 @@ def test_a_beat_told_much_longer_than_its_script_is_tightened_not_just_rejected(
               if r == "spoken_writer" and "INPUT:\n" in u and "output_template" in u]
     problem = repair[0]["beats"][0]["too_long_for_the_length"]
     assert problem["max_words"] < problem["spoken_words"] and problem["source_words"] > 0
+
+
+def test_a_few_flagged_beats_do_not_fail_the_meaning_gate_but_a_larger_share_does(db_session, monkeypatch):
+    monkeypatch.setattr(ai_config.spoken, "max_meaning_changed_share", 0.25)
+    _, _, sv = _narrate(db_session, monkeypatch, SpokenGen(meaning_flags=("B03",)))        # 1 of 5 beats: within the share
+    assert "meaning_changed" not in json.loads(sv.critic_notes)["quality_gates"]["failures"]
+    monkeypatch.setattr(ai_config.spoken, "max_meaning_changed_share", 0.05)
+    _, _, sv = _narrate(db_session, monkeypatch, SpokenGen(meaning_flags=("B03",)))        # the same beat is now too many
+    assert "meaning_changed" in json.loads(sv.critic_notes)["quality_gates"]["failures"]
+
+
+def test_a_beat_is_measured_against_its_source_in_the_same_language_speaking_rate(monkeypatch):
+    monkeypatch.setattr("app.agents.spoken.get_generation_provider", lambda: SpokenGen())
+    words = " ".join(["kelime"] * 40)
+    length = SP.SpokenNarrator()._length("tr", words, words)      # Turkish is spoken slower than English: the same words are the same time
+    assert length["too_long"] is False
+
+
+def test_a_full_run_skips_the_cut_of_a_pilot_when_it_picks_its_spoken_version(db_session, monkeypatch):
+    from app.documentary import jobs as J
+
+    case, master, full = _narrate(db_session, monkeypatch, SpokenGen())
+    pilot = asyncio.run(SP.SpokenNarrator().create(db_session, case, master, "en", beat_ids={"B01", "B02"}, pilot_seconds=30.0))
+    assert json.loads(pilot.narrative_structure)["pilot_beat_ids"] == ["B01", "B02"]
+    blueprint_id = json.loads(full.narrative_structure)["blueprint_id"]
+    assert J.latest_spoken(db_session, master, "en", blueprint_id).id == pilot.id                           # a pilot is still the newest for a pilot
+    assert J.latest_spoken(db_session, master, "en", blueprint_id, whole_film=True).id == full.id       # a full run narrates every beat

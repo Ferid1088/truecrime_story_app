@@ -255,10 +255,3 @@ def test_the_approved_story_stays_byte_for_byte_and_the_voice_gets_the_planner_t
         ("۹۱۱", "نهصد و یازده", "عمر نهصد و یازده")]
     db_session.refresh(source)
     assert hashlib.sha256(source.story_text.encode()).hexdigest() == sha
-
-
-def test_the_voicing_carries_the_settled_boundaries_it_is_given(db_session):
-    read = ReadingResult({"FA_a_01": [ReadingWord(0, "omr", False, "", "high")]}, 0)
-    boundaries = {"FA_a_01": {0: {"status": "REQUIRED", "reason": "written ezafe", "source": "text"}}}
-    voicing = asyncio.run(RS.voicing_of(db_session, "fa", read, [], boundaries))
-    assert voicing.boundaries == boundaries and asyncio.run(RS.voicing_of(db_session, "fa", read, [])).boundaries == {}

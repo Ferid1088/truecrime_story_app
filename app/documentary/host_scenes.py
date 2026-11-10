@@ -288,7 +288,7 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, reviewer=Non
     renderer = renderer or VoiceRenderer(db=db, budget_case_id=scene.case_id,
                                          budget_stage=f"tts:host:{scene.language}",
                                          use_asr=listened)        # a semantically reviewed language is not listened to afterwards
-    prepared_text = await HVT.prepare(db, scene)          # the punctuation of the language: only what the voice is given changes
+    prepared_text = HVT.prepare(scene)          # only what the voice is given changes
     sentences = _sentences(scene.text)
     d = scene_dir(scene)
     block = {"block_id": f"host{scene.id}", "text": " ".join(sentences), "beats": [], **({"tts_text": prepared_text} if prepared_text is not None else {}),

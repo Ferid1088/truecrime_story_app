@@ -46,7 +46,8 @@
         "REVISION_REQUIRED",
         "REJECTED"
       ],
-      "require_english_first": true
+      "require_english_first": false,
+      "owner_review_languages": ["fa"]
     },
     "call_timeout_s": 150,
     "topup": {

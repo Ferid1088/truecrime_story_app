@@ -21,6 +21,7 @@ from app.documentary.voice_performance import (
     enforce_levels,
     latest_performance,
     performance_records,
+    reference_beats,
     speech_structure,
     thin_tags,
     validate_arc,
@@ -53,7 +54,7 @@ class VoicePerformanceDirector:
         return (data if isinstance(data, dict) else {}), res
 
     async def _direct_chunk(self, db, case_id, language, chunk: list[dict],
-                            beats_info: dict[str, dict]) -> dict[int, dict]:
+                            beats_info: dict[str, dict], reference: dict[str, str] | None = None) -> dict[int, dict]:
         payload = {"language": language, "beats": []}
         for r in chunk:
             if not payload["beats"] or payload["beats"][-1]["beat_id"] != r["beat_id"]:
@@ -61,7 +62,7 @@ class VoicePerformanceDirector:
                 payload["beats"].append({
                     "beat_id": r["beat_id"], "purpose": info.get("purpose"),
                     "summary": info.get("summary"), "arc_level": info["level"],
-                    "arc_peak": info["peak"], "sentences": []})
+                    "arc_peak": info["peak"], **({"reference": reference[r["beat_id"]]} if (reference or {}).get(r["beat_id"]) else {}), "sentences": []})
             payload["beats"][-1]["sentences"].append({"i": r["i"], "text": r["speech"]})
         with track_run(db, case_id, f"Voice Performance ({language})",
                        input_summary=f"{len(chunk)} sentences") as run:
@@ -141,8 +142,9 @@ class VoicePerformanceDirector:
                 cur = []
         if cur:
             chunks.append(cur)
+        reference = reference_beats(db, case.id, language, self.cfg)         # the reviewed text of the reference language, where there is one
         results = await gather_limited(
-            None, [self._direct_chunk(db, case.id, language, c, info) for c in chunks],
+            None, [self._direct_chunk(db, case.id, language, c, info, reference) for c in chunks],
             return_exceptions=True)
         errors = []
         for chunk, res in zip(chunks, results):

@@ -53,6 +53,7 @@ from app.documentary.host_planning import fit_plan, inherit, story_seconds, vali
 from app.documentary.host_story import HostStory, load_story
 from app.documentary.identity_line import ends_with_identity, identity_line, strip_identity, with_identity
 from app.providers.generation import get_generation_provider
+from app.providers.generation.base import GenerationError, GenerationResult
 from app.services.tracking import stamp_run, track_run
 
 
@@ -69,9 +70,30 @@ class HostDirector:
             raise RuntimeError(f"the host persona is missing from the {label} prompt")
         with track_run(db, case_id, label,
                        input_summary=f"{label} persona_sha256={persona_sha256(self.cfg)}") as run:
-            raw, res = await run_agent(role, self.gen, json.dumps(payload, ensure_ascii=False), system=system)
+            try:
+                raw, res = await run_agent(role, self.gen, json.dumps(payload, ensure_ascii=False), system=system)
+            except GenerationError as e:
+                if e.kind != "invalid_output" or role not in set(self.cfg.writer_agents.values()):
+                    raise
+                # A writer that answers with the dialogue alone, without the JSON around it, has still written it: the whole answer is the dialogue.
+                res = await self.gen.generate_text(role, system, json.dumps(payload, ensure_ascii=False))
+                raw = self._dialogue_answer(res.text)
             stamp_run(run, res, ai_config.agents[role].role)
         return raw, res
+
+    @staticmethod
+    def _dialogue_answer(text: str) -> dict:
+        cleaned = text.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        if cleaned.startswith("{"):
+            try:
+                parsed = json.loads(cleaned)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, dict):
+                return parsed
+        return {"dialogue": cleaned}
 
     @staticmethod
     def _story(db: Session, case: Case, version: StoryVersion,

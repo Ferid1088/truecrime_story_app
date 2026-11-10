@@ -255,3 +255,34 @@ def test_the_marks_are_cut_away_before_the_pictures_are_labelled_for_their_place
     asyncio.run(PL.stage_direct(SimpleNamespace(commit=lambda: None), SimpleNamespace(id=1), needs, bp, {"timeline": {}}, "en"))
     assert calls == ["overlays", "timing", "describe", "people", "direct"], \
         "only the approved pictures are described, after they are cut and labelled; the people are checked before the plan is made"
+
+
+def _review_inputs(tmp_path):
+    film = tmp_path / "film.mp4"
+    film.write_bytes(b"film")
+    probe = {"black_seconds": 0, "frozen_stretches": [], "audio_codec": "aac"}
+    return film, {"blocking": []}, probe
+
+
+def test_a_film_that_passed_the_checks_is_approved_at_once_unless_its_language_is_reviewed_by_the_owner(db_session, tmp_path):
+    case = Case(canonical_title="Review gate", slug=f"rg-{uuid4().hex[:8]}", language="en")
+    db_session.add(case)
+    db_session.commit()
+    film, coverage, probe = _review_inputs(tmp_path)
+
+    german = P.stage_review(db_session, case, "de", 1, film, coverage, probe)
+    persian = P.stage_review(db_session, case, "fa", 1, film, coverage, probe)
+
+    assert german["state"] == "APPROVED"
+    assert persian["state"] == "AWAITING_OWNER_REVIEW"
+
+
+def test_a_film_the_checks_held_back_is_not_approved_whatever_its_language(db_session, tmp_path):
+    case = Case(canonical_title="Review gate held", slug=f"rh-{uuid4().hex[:8]}", language="en")
+    db_session.add(case)
+    db_session.commit()
+    film, _, probe = _review_inputs(tmp_path)
+
+    held = P.stage_review(db_session, case, "de", 1, film, {"blocking": ["a gap in the pictures"]}, probe)
+
+    assert held["state"] == "PRODUCING" and held["review_ready"] is False

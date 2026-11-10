@@ -245,3 +245,15 @@ def test_the_pipeline_endpoint_rejects_out_of_range_minutes(client, db_session):
     r = client.post(f"/api/cases/{case.id}/language-pipeline/run",
                     json={"requested_minutes": too_long})
     assert r.status_code == 422
+
+
+def test_every_documentary_language_gets_its_film_chain_in_a_fixed_order():
+    from app.core.ai_config import DocumentaryConfig, ai_config
+    from app.documentary import jobs as J
+
+    languages = ai_config.documentary.languages
+    assert sorted(J.film_language_order(languages)) == sorted(languages)         # none is left out (the job once ran chains for en, de, fa and ar only)
+    assert J.film_language_order(["tr", "en", "fa", "es"]) == ["fa", "en", "es", "tr"]
+    assert J.film_language_order(["xx", "en"]) == ["en", "xx"]
+    with pytest.raises(ValueError, match="language_order"):
+        DocumentaryConfig(languages=["en", "de"], language_order=["en"])

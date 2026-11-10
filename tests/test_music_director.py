@@ -919,3 +919,32 @@ def test_o_the_mix_result_lists_the_library_misses(db_session, library, source_m
     assert [(m["kind"], m["mood"], m["after_beat"]) for m in result["library_misses"]
             if m["mood"] == "danger"] == [("bridge", "danger", "B02")]
     assert result["tracks_generated"] == [] and result["music_characters_paid"] == 0
+
+
+def _narration_with_blocks(stale_ends: dict[str, float] | None = None) -> dict:
+    """Five beats as voice blocks (ids name their beat), a word every half second, pauses of 2 s and more after every beat; `stale_ends` are the
+    beat span ends a narration re-timed after its voicing would still carry."""
+    times = {"B01": (0.0, 10.0), "B02": (12.0, 20.0), "B03": (30.0, 38.0), "B04": (44.0, 52.0), "B05": (54.0, 63.0)}
+    blocks = [{"block_id": f"EN_{bid}_g01_01", "start": a, "end": b} for bid, (a, b) in times.items()]
+    words = [{"word": "w", "start": round(a + 0.5 * i, 3), "end": round(a + 0.5 * i + 0.4, 3)}
+             for _, (a, b) in times.items() for i in range(int((b - a) / 0.5))]
+    spans = [{"beat_id": bid, "start": a, "end": (stale_ends or {}).get(bid, b)} for bid, (a, b) in times.items()]
+    return {"language": "en", "duration_seconds": 63.0, "timeline": {"beats": spans, "blocks": blocks, "words": words}}
+
+
+def test_a_narration_re_timed_after_its_voicing_places_its_music_from_the_blocks_not_from_stale_beat_spans():
+    from app.documentary import music as M
+
+    stale = _narration_with_blocks({"B03": 31.0, "B04": 45.0})              # the spans end well before the speech does
+    ends = {s["beat_id"]: s["end"] for s in M.beat_spans_of(stale)}
+    assert ends["B03"] == 38.0 and ends["B04"] == 52.0, "the spans are taken from the voice blocks"
+    placed, skipped = M._plan(stale, _script())
+    assert {p["role"] for p in placed} >= {"silence", "sting"} and not skipped, "no cue is lost to a gap that only the stale span made short"
+    assert [(p["role"], p["start"]) for p in placed] == [(p["role"], p["start"]) for p in M._plan(_narration_with_blocks(), _script())[0]]
+
+
+def test_spans_that_match_their_voice_blocks_are_left_as_they_are():
+    from app.documentary import music as M
+
+    fine = _narration_with_blocks({"B03": 37.5})                              # within the tolerance
+    assert M.beat_spans_of(fine) == sorted(fine["timeline"]["beats"], key=lambda b: b["start"])

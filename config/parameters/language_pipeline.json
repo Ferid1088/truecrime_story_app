@@ -4,7 +4,6 @@
     "long_draft_minutes": 90,
     "requested_minutes_default": 60,
     "rewrite_headroom_minutes": 10,
-    "language_concurrency": 4,
     "final_length_tolerance": 0.03,
     "words_per_minute": {
       "en": 150,

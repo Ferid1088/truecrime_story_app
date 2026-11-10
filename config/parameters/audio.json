@@ -162,15 +162,7 @@
     "work_dir": "data/cases",
     "prepared_languages": [],
     "review_languages": [
-      "fa",
-      "ar",
-      "de",
-      "en",
-      "es",
-      "it",
-      "fr",
-      "pt",
-      "tr"
+      "fa"
     ],
     "host_review_languages": [
       "fa"
@@ -180,10 +172,10 @@
       "ar": 1.05,
       "de": 1.05,
       "es": 0.9,
-      "it": 1.0,
-      "fr": 1.0,
+      "it": 0.9,
+      "fr": 0.95,
       "pt": 1.0,
-      "tr": 1.0
+      "tr": 0.9
     },
     "post_speed_gaps": ["ar", "de", "es"],
     "number_max": 999999999999999,
@@ -194,7 +186,9 @@
       "fr": {"year_style": "hundreds_before_1700", "emergency_numbers": "number_always", "time_style": "digits", "three_decimals": "number", "dollar_singular": "dollar", "dollar_plural": "dollars", "mass_word": "kilo", "say_celsius": false, "second_in_fixed_phrases": true, "age_in_parentheses": false, "postal_codes": true},
       "it": {"emergency_numbers": "digits_in_context", "emergency_context_chars": 40, "symbol_currencies": {"€": "euro", "$": "dollaro", "£": "sterlina", "L.": "lira", "Lit.": "lira"}, "kilogram_word": "chili", "elide_tens_before_anni": false, "space_thousands": true, "decimals_as_number_up_to": 2, "half_as_mezzo": true, "quarter_and_half": true},
       "ar": {"emergency_numbers": "digits_in_context", "month_names": "gulf_egypt", "percent_word": "بالمئة", "pound_symbol": "sterling", "case_from_context": true, "day_parts": true, "ordinal_dates": true, "currency_subunits": true},
-      "de": {"emergency_numbers": "digits_in_context", "digit_two": "zwei", "dollar_name": "Dollar", "toll_free_as_number": true, "half_as_einhalb": true, "round_the_clock": "vierundzwanzig sieben", "paragraph_word": "Paragraf", "roman_numerals": true, "years_2000s": "cardinal", "cents_below_ten": "bare", "postcodes_digit_by_digit": true}
+      "de": {"emergency_numbers": "digits_in_context", "digit_two": "zwei", "dollar_name": "Dollar", "toll_free_as_number": true, "half_as_einhalb": true, "round_the_clock": "vierundzwanzig sieben", "paragraph_word": "Paragraf", "roman_numerals": true, "years_2000s": "cardinal", "cents_below_ten": "bare", "postcodes_digit_by_digit": true},
+      "fa": {"emergency_numbers": "digits_in_context", "speech_style": "written", "nine_word": "نُه", "first_of_month": "اول", "half_as_nim": true, "decimal_word": "ممیز", "decimal_cardinal_max_digits": 2, "time_quarters": true, "phone_numbers": "digits", "gregorian_month_names": "farhangestan", "solar_year_range": [1200, 1500], "digit_cues": ["شماره", "تلفن", "کد", "پلاک"], "digit_cue_min_length": 5, "code_digits_from": 11, "ordinal_heads": ["قرن", "سده"], "range_word": "تا", "score_word": "بر"},
+      "en": {"emergency_numbers": "digits_in_context", "zero_word": "oh", "and_after_hundred": false, "years_2000s": "two_thousand", "years_after_2009": "pairs", "ambiguous_numeric_dates": "month_first", "money_cents": "and_cents", "phone_double_digits": false, "toll_free_800_as_number": true, "roman_numerals": true}
     },
     "review_required": {
       "fa": {"speed": 1.2, "stability": 0.2, "post_speed": 1.1},
@@ -627,6 +621,7 @@
     "music_lead_seconds": 2.0,
     "music_tail_seconds": 3.0,
     "beds_under_narration": false,
+    "max_beat_span_drift_seconds": 1.0,
     "music_start_after_word_seconds": 0.25,
     "music_end_before_word_seconds": 0.4,
     "moods": [
@@ -768,6 +763,20 @@
   },
   "voice_performance": {
     "enabled": true,
+    "punctuation_languages": ["en", "de", "es", "it", "fr", "pt", "tr", "fa", "ar"],
+    "punctuation_reference": {"ar": "fa"},
+    "reference_max_chars": 3000,
+    "punctuation_notes": {
+      "en": "English: a comma after an introductory word or phrase (\"So,\" \"Then,\"), none inside a plain \"X and Y\" pair; no comma before \"that\".",
+      "de": "German: the comma before every subordinate clause (dass, weil, wenn, ob, relative clauses) and between main clauses is mandatory grammar: keep it. No comma before \"und\" between two plain parts.",
+      "es": "Spanish: no comma between subject and verb; a comma around insertions and before \"pero\"; the opening marks of a question or exclamation stay.",
+      "it": "Italian: no comma between subject and verb; a comma around insertions and before \"ma\" and \"però\".",
+      "fr": "French: no comma before \"et\" in a plain pair; a comma around insertions and before \"mais\".",
+      "pt": "Portuguese: no comma between subject and verb; a comma around insertions, after a fronted adverbial and before \"mas\".",
+      "tr": "Turkish: a comma after a fronted adverbial or subordinate verb form (\"-ince,\" \"-ip,\"); no comma between subject and predicate.",
+      "ar": "Arabic: use the Arabic marks (، ؛ ؟). A mark belongs at a clause boundary, around an insertion, after a vocative and before a new thought introduced by «لكن», «بل» or «إذ»; never between a noun and its adjective or the second term of a possessive construction (الإضافة), and never between a verb and its subject.",
+      "fa": "Persian: use the Persian marks (، ؛ ؟). The ezafe (کسرهٔ اضافه) joins a noun to what describes it (noun + adjective, noun + noun, possessive): a comma, colon or dash between those two words cuts that construction and is FORBIDDEN there. Never put a mark inside an ezafe chain, and take out one that is there. Marks belong at clause boundaries, around insertions, after vocatives and introductory words, before «اما» and «ولی»; before «که» only where a speaker really pauses."
+    },
     "sentences_per_call": 70,
     "level_styles": {
       "0": "v3_neutral",

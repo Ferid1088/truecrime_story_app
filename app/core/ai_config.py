@@ -160,11 +160,6 @@ REQUIRED_ROLES = {
     "reading_checker",
     "reading_arbiter",
     "reading_listener",
-    # Semantic punctuation of a Persian narration (documentary/punctuation): the structure and meaning of a block, the punctuation that makes it
-    # clear to the voice, and the independent check of that punctuation (another model).
-    "punctuation_syntax",
-    "punctuation_editor",
-    "punctuation_checker",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",
@@ -421,6 +416,9 @@ class GenerationFailoverConfig(BaseModel):
     secret_env: str
     inactivity_timeout_s: float = Field(default=90.0, gt=0.0, le=900.0)
     cooldown_s: float = Field(default=300.0, ge=0.0)
+    # The share of the calls the second gateway takes while both are available (0 = it is only a fallback, 1 = it takes every call). A call goes to the
+    # gateway that is less loaded for its share.
+    secondary_share: float = Field(default=0.0, ge=0.0, le=1.0)
     # The HTTP status codes that mean "no quota left" (the failure `quota`); another permission refusal is never moved.
     quota_http_status: list[int] = [402]
     # A 403 whose message holds one of these texts (lower case) is also "no quota left": APIMaster answers an empty balance with a 403. A 403 without one
@@ -1097,7 +1095,6 @@ class LanguagePipelineConfig(BaseModel):
     long_draft_minutes: int = Field(ge=1, le=240)
     requested_minutes_default: int = Field(ge=1, le=240)
     rewrite_headroom_minutes: int = Field(ge=0, le=60)
-    language_concurrency: int = Field(ge=1, le=16)
     # Stage 2 of one language runs to the end first so the other languages' stage 2 reads the
     # shared prefix (plan, evidence, draft) from the provider's cache.
     stage2_cache_primer: bool
@@ -1867,7 +1864,7 @@ class SpokenConfig(BaseModel):
     # language words-per-minute). Storytelling may breathe a little more.
     min_duration_ratio: float = Field(default=0.85, gt=0.0, le=1.0)
     max_duration_ratio: float = Field(default=1.3, ge=1.0, le=3.0)
-    max_repair_iterations: int = Field(default=1, ge=0, le=3)
+    max_repair_iterations: int = Field(default=20, ge=0, le=20)
     # 0 = the whole story in one writer call (best flow); N = N beats per
     # call, each continuing from the previous chunk's spoken ending.
     beats_per_call: int = Field(default=0, ge=0)
@@ -1878,6 +1875,9 @@ class SpokenConfig(BaseModel):
     # "long" for the listener, and the share of long sentences allowed.
     max_sentence_words: dict[str, int] = {"en": 24, "de": 20, "fa": 24, "ar": 22}
     max_long_sentence_share: float = Field(default=0.12, ge=0.0, le=1.0)
+    # The share of beats whose meaning the checker may still flag when the repair rounds are used up: a few small wording
+    # differences (a relative, a place name) do not hold a whole narration back; more than this share does.
+    max_meaning_changed_share: float = Field(default=0.05, ge=0.0, le=0.5)
     # The languages whose numbers are written out in words in the spoken version (the writer's prompt says how, a check sends a beat with a digit
     # back for repair, and a digit left after the repairs fails the version). Persian numbers are read by code later (reading/numbers.py).
     numbers_as_words: list[str] = []
@@ -2099,7 +2099,7 @@ class HostConfig(BaseModel):
     spoiler_name_case_languages: list[str] = Field(default_factory=lambda: ["en"])
     # Languages whose host words go through the fact (meaning) check before the voice.
     meaning_check_languages: list[str] = Field(default_factory=list)
-    # Languages whose host words are prepared for the voice like the narration's blocks (documentary/host_voice_text.py): the punctuation layer, and the
+    # Languages whose host words are prepared for the voice like the narration's blocks (documentary/host_voice_text.py): the
     # reading text where the language has one (Persian's PPIE reading, Arabic's Tashkeel). The words the avatar shows never change.
     text_preparation: list[str] = Field(default_factory=list)
     # How a word is spelled for the voice of one language, where that language's voice reads it wrongly (the host's name: "Fereydun").
@@ -2170,6 +2170,9 @@ class AudioDirectionConfig(BaseModel):
     # Most library tracks sent to the director with one film (spread over
     # the kinds and moods so a cap never starves one mood).
     library_max_tracks: int = Field(default=40, ge=1, le=200)
+    # How far (seconds) the end of a beat's span may be from the end of its last voice block before the span is taken from the blocks instead: a narration
+    # that was re-timed after it was voiced, without its beats, would put the music into the speech.
+    max_beat_span_drift_seconds: float = Field(default=1.0, gt=0.0)
 
     # Allowed length (seconds) of each transition type after a beat.
     transitions: dict[str, list[float]] = Field(default_factory=lambda: {
@@ -2299,6 +2302,9 @@ class DocumentaryConfig(BaseModel):
     """Film-level rules shared by every stage."""
 
     languages: list[str] = ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"]
+    # The order in which the language films of one job take their turn at the music (the music choice reads what the films before it used): the
+    # earlier languages keep their place, a new language goes after them. Every language of `languages` must be listed.
+    language_order: list[str] = ["fa", "ar", "en", "de", "es", "it", "fr", "pt", "tr"]
     # Approval gates: a result its auditor rejects is made again with the
     # reasons (and judged again) at most this many times; then it is left
     # out (a language, a host scene, a picture) or the job stops.
@@ -2323,6 +2329,12 @@ class DocumentaryConfig(BaseModel):
     def wpm(self, language: str) -> int:
         return self.speech_wpm.get(language) or 140
 
+
+    @model_validator(mode="after")
+    def _every_language_has_its_turn(self) -> "DocumentaryConfig":
+        if set(self.language_order) != set(self.languages) or len(self.language_order) != len(set(self.language_order)):
+            raise ValueError("documentary.language_order must list every language of documentary.languages exactly once")
+        return self
 
 class UsgsNaipConfig(BaseModel):
     """USGS/USDA NAIP aerial imagery (The National Map image service), public domain."""
@@ -2649,81 +2661,6 @@ class PPIEConfig(BaseModel):
 
     def fresh(self, language: str) -> bool:
         return language in self.languages
-
-
-class PunctuationProfile(BaseModel):
-    """The punctuation of one language: `marks` the layer may insert; `normalize` the Latin punctuation the text writes and its form in that language;
-    `punctuation_chars` what counts as punctuation in a gap (the layer changes nothing else); `phrase_end_marks` what ends a phrase; `ezafe` whether
-    the language has an ezafe to keep (Persian: a mark never cuts one); `reviewed` whether the independent checker audits the proposals (Persian only; elsewhere the
-    proposals go from the punctuation agent through the code filter alone); `vowel_letters` the final letters after which an ezafe is said -ye; `agents`
-    the prefix of the language's syntax, punctuation and checker agents (config/agents.json: `<prefix>.syntax|punctuate|check`)."""
-
-    marks: list[str]
-    normalize: dict[str, str] = {}
-    punctuation_chars: str
-    phrase_end_marks: str
-    ezafe: bool = False
-    reviewed: bool = False
-    vowel_letters: list[str] = []
-    agents: str
-
-
-class SemanticPunctuationConfig(BaseModel):
-    """The punctuation layer of a narration (documentary/punctuation): punctuation added to the text the voice is given, never to the story. A
-    language has a layer when it has a profile in `languages`. `use_agents`: the syntax, punctuation and checker agents run (billable); without them
-    only the deterministic rules apply. `max_rounds`: how often a REVISE goes back to the punctuation agent before the safest version is kept."""
-
-    use_agents: bool = False
-    max_rounds: int = Field(default=2, ge=1, le=4)
-    languages: dict[str, PunctuationProfile]
-    run_file: str = "punctuation.json"
-
-    @staticmethod
-    def _key(language: str) -> str:
-        """The profile key of a language tag: its primary subtag, lowercase ("fa-IR" and "fa_AF" are "fa")."""
-        return (language or "").replace("_", "-").split("-")[0].lower()
-
-    def covers(self, language: str) -> bool:
-        return self._key(language) in self.languages
-
-    def profile(self, language: str) -> PunctuationProfile:
-        try:
-            return self.languages[self._key(language)]
-        except KeyError:
-            raise ValueError(f"no punctuation profile for language {language!r} (config semantic_punctuation.languages)") from None
-
-    def has_ezafe(self, language: str) -> bool:
-        """Only a language whose profile says so (Persian) has an ezafe to keep; any other or unknown language is treated as having none."""
-        return self.covers(language) and self.profile(language).ezafe
-
-
-class EnglishAlignmentConfig(BaseModel):
-    """The English–Persian alignment (documentary/english_reference/alignment.py). The thresholds are set by reasoning, not calibrated: no reviewed
-    alignment exists, so the statuses they give are reported as uncalibrated and no confidence number is invented. `band`: how far from the
-    diagonal (as a share of the story) a match may lie; `max_group`: the most sentences one side of a match may join; a match must reach
-    `match_floor` to be made at all (else the sentence has no English match)."""
-
-    band: float = Field(gt=0, le=1)
-    max_group: int = Field(ge=1, le=3)
-    # Where a sentence ends (and the quotes or brackets that may close it), and the longest bracketed tag ([calm]) that is not story text.
-    sentence_end_marks: str
-    closing_marks: str
-    max_tag_chars: int = Field(ge=1)
-    skip_gain: float = 0.0
-    match_floor: float = Field(ge=0, le=1)
-    aligned_min: float = Field(ge=0, le=1)
-    partial_min: float = Field(ge=0, le=1)
-    ambiguous_margin: float = Field(ge=0, le=1)
-
-
-class EnglishReferenceConfig(BaseModel):
-    """The approved English story as a reference of the Persian text (documentary/english_reference): the local embedding model that aligns the sentences
-    of the two stories, and the alignment."""
-
-    embedding_model: str
-    embedding_batch: int = Field(ge=1)
-    embedding_max_tokens: int = Field(ge=32)
-    alignment: EnglishAlignmentConfig
 
 
 class NumberReadingConfig(BaseModel):
@@ -3719,6 +3656,8 @@ class MvpReviewConfig(BaseModel):
     state_machine: list[str] = Field(min_length=2)
     # Full films in the other languages wait for the owner's approval of the exact English render.
     require_english_first: bool
+    # Only these languages' rendered films wait for the owner's decision; another language's film that passed the checks is approved at once.
+    owner_review_languages: list[str]
 
 
 class MainVisualPlannerConfig(BaseModel):
@@ -4036,6 +3975,13 @@ class VoicePerformanceConfig(BaseModel):
     # Emphasis by capitals (one word per sentence, not at level 0) —
     # only where the script has letter case and it reads naturally.
     caps_languages: list[str] = ["en"]
+    # Languages whose director also sets the punctuation of every sentence it directs (the voice reads it as timing), and each one's own rules for it.
+    punctuation_languages: list[str] = []
+    punctuation_notes: dict[str, str] = {}
+    # A language whose director is given the reviewed text of another language's beats as a guide for its marks (language -> reference language),
+    # and how many characters of a beat's reference are sent at most.
+    punctuation_reference: dict[str, str] = {}
+    reference_max_chars: int = Field(default=3000, ge=200)
     max_ellipses_per_sentence: int = Field(default=2, ge=0)
     # Breath between paragraphs grows with the level (x (1 + f*level)).
     breath_per_level: float = Field(default=0.15, ge=0.0, le=1.0)
@@ -4513,6 +4459,8 @@ class ConcurrencyConfig(BaseModel):
     elevenlabs_tts: int = Field(default=4, ge=1, le=32)
     elevenlabs_sound: int = Field(default=2, ge=1, le=16)
     asr: int = Field(default=1, ge=1, le=8)
+    # The ffmpeg music mix under a narration is CPU-bound: one at a time, however many films are voiced side by side.
+    mix: int = Field(default=1, ge=1, le=8)
     render: int = Field(default=2, ge=1, le=8)
     downloads: int = Field(default=4, ge=1, le=32)
     # Documentary jobs running at the same time at most, worker-wide — including the
@@ -4522,10 +4470,6 @@ class ConcurrencyConfig(BaseModel):
     # (the per-provider semaphores below, which shrink when a provider throttles) have room.
     # More jobs than that wait in "queued", with the reason.
     jobs: int = Field(default=4, ge=1, le=16)
-    # Language branches of one documentary running at the same time (only
-    # matters for a job given several languages at once; the autopilot's
-    # one-job-per-language films are capped by `jobs` instead).
-    languages: int = Field(default=4, ge=1, le=8)
 
 
 class AgentDef(BaseModel):
@@ -4764,8 +4708,6 @@ class AIConfig(BaseModel):
     morphology: MorphologyConfig
     homographs: HomographsConfig
     ppie: PPIEConfig = Field(default_factory=PPIEConfig)
-    english_reference: EnglishReferenceConfig
-    semantic_punctuation: SemanticPunctuationConfig
     number_reading: NumberReadingConfig
     pronunciation_auto: PronunciationAutoConfig = Field(default_factory=PronunciationAutoConfig)
     semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)

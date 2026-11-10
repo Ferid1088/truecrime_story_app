@@ -102,7 +102,8 @@ from app.services.retry_policy import RetryAuditPolicy  # noqa: E402
 
 
 def latest_spoken(db: Session, master: StoryVersion, language: str,
-                  blueprint_id: int | None = None) -> StoryVersion | None:
+                  blueprint_id: int | None = None, whole_film: bool = False) -> StoryVersion | None:
+    """The newest spoken version. With `whole_film` a pilot's cut (a part of the beats) is skipped: a full run narrates every beat."""
     rows = (db.query(StoryVersion)
             .filter(StoryVersion.case_id == master.case_id, StoryVersion.kind == "spoken",
                     StoryVersion.language == language,
@@ -116,8 +117,17 @@ def latest_spoken(db: Session, master: StoryVersion, language: str,
             continue
         if ai_config.ppie.fresh(language) and struct.get("prepared"):       # a voice-prepare rewrite of the approved text is never the narration's source
             continue
+        if whole_film and struct.get("pilot_beat_ids"):
+            continue
         return v
     return None
+
+
+def film_language_order(languages) -> list[str]:
+    """The languages of a job in the order of config documentary.language_order. No language is ever left out: one missing from the order
+    goes last (a language that is not in this list gets no film at all)."""
+    order = ai_config.documentary.language_order
+    return sorted(languages, key=lambda lang: order.index(lang) if lang in order else len(order))
 
 
 def spoken_version(db: Session, master: StoryVersion, language: str, blueprint_id: int | None, detail: dict | None) -> StoryVersion | None:
@@ -423,7 +433,7 @@ class DocumentaryPipeline(StageRunner):
 
         async def spoken_branch(lang: str):
             async def make_spoken():
-                current = latest_spoken(db, master, lang, bp_row.id)
+                current = latest_spoken(db, master, lang, bp_row.id, whole_film=job.mode == "full")
                 if pilot and current is not None:
                     saved = json.loads(current.narrative_structure or "{}")
                     if not reusable_spoken(saved, pilot_seconds, focus_beats, bp):
@@ -652,7 +662,7 @@ class DocumentaryPipeline(StageRunner):
         shared.visual_state, shared.renders = visual_state, renders
         # Music selection reads usage history written by preceding language
         # renders. Preserve the pre-incremental completion order explicitly.
-        shared.languages = [lang for lang in ("fa", "ar", "en", "de") if lang in ok_langs]
+        shared.languages = film_language_order(ok_langs)
         shared.music_turns = [asyncio.Event() for _ in shared.languages]
         if shared.music_turns:
             shared.music_turns[0].set()
@@ -662,19 +672,15 @@ class DocumentaryPipeline(StageRunner):
             await LanguageChain(self, lang, spoken[lang], shared).run()
 
         async def guarded(lang: str):
-            # Do not let the language semaphore be occupied by a task waiting
-            # for the ordered music boundary; otherwise an arbitrary pair of
-            # later languages can starve the first turn.
             await shared.music_turns[shared.languages.index(lang)].wait()
-            async with slot("languages"):
-                try:
-                    await language_chain(lang)
-                except JobCancelled:
-                    raise
-                except Exception as e:
-                    log.exception("documentary job %s: the %s film failed", self.job.id, lang)
-                    self.lang_errors[lang] = f"{type(e).__name__}: {e}"[:400]
-                    self._skip_language(lang, str(e))
+            try:
+                await language_chain(lang)
+            except JobCancelled:
+                raise
+            except Exception as e:
+                log.exception("documentary job %s: the %s film failed", self.job.id, lang)
+                self.lang_errors[lang] = f"{type(e).__name__}: {e}"[:400]
+                self._skip_language(lang, str(e))
 
         await self._parallel([visual_chain()] + [guarded(l) for l in shared.languages], shared_from=0,
                              shared_count=1)
