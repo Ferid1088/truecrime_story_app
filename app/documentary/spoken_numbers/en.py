@@ -121,9 +121,10 @@ class Numbers(LanguageNumbers):
         return p.ROMAN_LABEL.sub(self._roman_label, text)
 
     def _ruler(self, match: re.Match) -> str:
-        """"Henry VIII" as "Henry the Eighth". A single letter before a capitalised word after a full stop is an initial ("Paul V. Smith") and stays."""
+        """"Henry VIII" as "Henry the Eighth". A single letter before a capitalised word after a full stop is an initial ("Paul V. Smith") and stays; a lone "I" is the ordinal only at the end of a clause or before a word like "was" ("Mary I think" stays)."""
         value = self._roman_value(match["num"])
-        if value is None or (len(match["num"]) == 1 and p.INITIAL_AFTER.match(match.string[match.end():])):
+        after = match.string[match.end():]
+        if value is None or (len(match["num"]) == 1 and p.INITIAL_AFTER.match(after)) or (match["num"] == "I" and not p.ORDINAL_I_FOLLOWERS.match(after)):
             return match.group()
         return f"{match['name']} the {ordinal(value).capitalize()}"
 

@@ -118,5 +118,8 @@ ROMAN = re.compile(r"^(?=[IVXLC])C?(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})$")
 ROMAN_VALUES = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100}
 RULER = re.compile(r"\b(?P<name>" + "|".join(RULER_NAMES) + r")\s+(?P<num>[IVXLC]+)\b")
 INITIAL_AFTER = re.compile(r"\.\s+[A-Z][a-z]+")
+# A lone "I" after a ruler's name is the pronoun in "Mary I think" and the ordinal in "Elizabeth I was queen": it is an ordinal at the end of a clause or before one
+# of these words, and the pronoun before any other word.
+ORDINAL_I_FOLLOWERS = re.compile(r"^\s*(?:$|[.,;:!?)\u2019'\"\u201d]|(?:of|was|ruled|reigned|died|became|had|who|and|the|in|on|at|as|from)\b)")
 WORLD_WAR = re.compile(r"\b(?P<w>World War)\s+(?P<num>I{1,3}|IV)\b")
 ROMAN_LABEL = re.compile(r"\b(?P<w>Chapter|Part|Volume|Act|Book|Section|Article|Phase|Stage|Level|Appendix|Title|Schedule|Category)\s+(?P<num>(?!I\b)[IVXLC]+)\b")

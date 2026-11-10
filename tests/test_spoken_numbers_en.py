@@ -179,3 +179,14 @@ def test_british_cardinals_have_the_and(value: int, words: str):
                                               (21, "twenty-first"), (30, "thirtieth"), (100, "one hundredth"), (101, "one hundred first"), (112, "one hundred twelfth")])
 def test_ordinals(value: int, words: str):
     assert en_words.ordinal(value) == words
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Mary I think so.", "Mary I think so."),
+    ("Mary I was queen of England.", "Mary the First was queen of England."),
+    ("Elizabeth I.", "Elizabeth the First."),
+    ("Louis I, king of France", "Louis the First, king of France"),
+    ("Pope John Paul II spoke.", "Pope John Paul the Second spoke."),
+])
+def test_a_lone_i_after_a_rulers_name_is_the_ordinal_only_where_the_sentence_says_so(numbers: Numbers, text, expected):
+    assert numbers.text(text) == expected
