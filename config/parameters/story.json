@@ -271,7 +271,7 @@
         ],
         "strict": true,
         "same_model_allowed": true,
-        "owner_decision": "Owner decision 2026-11-10: the shot-list director runs on Gemini Flash like the critics, to save about 55-60% of its cost (about EUR 22 per case); the owner checks the film himself. A replay of 82 real director calls gave 0 invalid answers and 0 rule breaks, 62.6% the same slot choice as Sonnet (Sonnet against itself: 71.8%) and about 10% more empty slots."
+        "owner_decision": "Owner decision 2026-11-10: the shot-list director runs on Gemini Flash like the critics, to save about 55-60% of its cost (about EUR 22 per case); the owner checks the film himself. A replay of 82 real director calls gave 0 invalid answers and 0 rule breaks, 62.6% the same slot choice as Sonnet (Sonnet against itself: 71.8%) and about 10% more empty slots. Owner decision, later the same day: the shot-list director (mvp_scene_director) runs on Luna (gpt-5.6-luna) instead, about ten times cheaper per call (EUR 0.0014 against 0.0142). A replay of 218 real director beats (the es and tr films of case 15): 54-62% the same slot choice as Sonnet (Flash: 68%; Luna against itself: 72%), 2 rule-break beats per film, about as many empty slots as Flash; the owner checks the film himself."
       },
       {
         "name": "documentary_host",
