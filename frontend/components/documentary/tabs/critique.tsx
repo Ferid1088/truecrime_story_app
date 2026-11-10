@@ -1,7 +1,7 @@
 "use client";
 
 import { formatTimecode, humanize, langLabel } from "@/lib/format";
-import type { CriticReport, CritiqueIssue, CritiqueReport, VisualAuditReport } from "@/lib/types";
+import type { CoverageAuditReport, CriticReport, CritiqueIssue, CritiqueReport, VisualAuditReport } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -72,11 +72,57 @@ export function CritiqueTab({ settings, overview, language, onLanguageChange }: 
         />
       ) : (
         <>
-          {entry.production.audit && <AuditView audit={entry.production.audit} />}
+          {entry.production.audit && <AuditPanel audit={entry.production.audit} />}
           <CritiqueView critique={critique} />
         </>
       )}
     </div>
+  );
+}
+
+const isPictureAudit = (audit: VisualAuditReport | CoverageAuditReport): audit is VisualAuditReport => Array.isArray((audit as VisualAuditReport).left_out);
+
+/** The stored audit comes in two shapes: the older picture audit and the cut's coverage report. */
+function AuditPanel({ audit }: { audit: VisualAuditReport | CoverageAuditReport }) {
+  return isPictureAudit(audit) ? <AuditView audit={audit} /> : <CoverageView audit={audit} />;
+}
+
+/** The gate before render: the cut's coverage (seconds with a picture, black frames, weak sentences) and what blocks the owner's review. */
+function CoverageView({ audit }: { audit: CoverageAuditReport }) {
+  const blocking = audit.blocking ?? [];
+  const publication = audit.publication_blockers ?? [];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Coverage audit</CardTitle>
+        <Badge variant={blocking.length ? "warning" : "success"}>{blocking.length ? `${blocking.length} blocking` : "review ready"}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Metric label="Covered" value={`${Math.round((audit.temporal_coverage ?? 0) * 100)}%`} />
+          <Metric label="Black seconds" value={String(audit.black_seconds ?? 0)} />
+          <Metric label="Weak sentences" value={String(audit.weak_sentence_count ?? 0)} />
+          <Metric label="Unapproved pictures" value={String((audit.unapproved_assets ?? []).length)} />
+        </div>
+        {blocking.length > 0 && (
+          <ul className="list-disc space-y-1 pl-5 text-xs">
+            {blocking.map((reason, i) => (
+              <li key={i}>{reason}</li>
+            ))}
+          </ul>
+        )}
+        {publication.length > 0 && (
+          <div>
+            <p className="mb-1 text-xs font-medium">Before publication</p>
+            <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+              {publication.map((reason, i) => (
+                <li key={i}>{reason}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

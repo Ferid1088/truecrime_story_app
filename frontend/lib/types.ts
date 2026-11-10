@@ -2105,6 +2105,21 @@ export interface VisualAuditReport {
   symbolic: string[];
 }
 
+/** The cut's coverage report that the film's production stores as its audit (the picture planner's gate before render). */
+export interface CoverageAuditReport {
+  duration: number;
+  covered_seconds: number;
+  temporal_coverage: number;
+  black_seconds: number;
+  longest_black: number;
+  long_stills: unknown[];
+  unapproved_assets: unknown[];
+  weak_sentence_count: number;
+  review_ready: boolean;
+  blocking: string[];
+  publication_blockers: string[];
+}
+
 export interface ProductionSummary {
   id: number;
   story_version_id: number;
@@ -2115,7 +2130,7 @@ export interface ProductionSummary {
   duration_seconds: number | null;
   critique: CritiqueReport | null;
   /** The picture auditor's report (gate before render). */
-  audit?: VisualAuditReport | null;
+  audit?: VisualAuditReport | CoverageAuditReport | null;
   render: RenderInfo | null;
   /** Relative API paths — prefix with API_BASE. */
   video_url: string | null;
