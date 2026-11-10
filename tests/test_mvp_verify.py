@@ -232,3 +232,34 @@ def test_only_the_inspector_can_take_out_an_owner_approved_item_and_only_the_own
     assert json.loads(cand.verifiers_json)[-1]["note"] == "the logo could not be cut away"
     _owner(cand, "approve")
     assert cand.final_status == "approved", "the owner decides again"
+
+
+def test_the_case_facts_travel_in_one_cacheable_prefix_and_not_in_the_picture_message(db_session, tmp_path, monkeypatch):
+    import contextlib
+
+    case, _req, asset, _cand = _setup(db_session, tmp_path, monkeypatch)
+    seen = []
+
+    async def run_agent(name, gen, body, **kw):
+        seen.append((name, body, kw))
+        return {"matches": []}, type("Res", (), {"model": "m"})()
+
+    async def checked(a):
+        return b"x"
+
+    monkeypatch.setattr(V, "run_agent", run_agent)
+    monkeypatch.setattr(V, "checked_image", checked)
+    monkeypatch.setattr(V.IM, "data_url", lambda b: "data:image/jpeg;base64,eA==")
+    monkeypatch.setattr(V, "get_generation_provider", lambda: object())
+    monkeypatch.setattr(V, "track_run", lambda *a, **k: contextlib.nullcontext(object()))
+    monkeypatch.setattr(V, "stamp_run", lambda *a, **k: None)
+    facts = [{"id": "F1", "claim": "The call came at 2:31."}, {"id": "F2", "claim": "A 9mm was used.", "extra": "dropped"}]
+
+    for agent in ("mvp.verify", "mvp.verify_second"):
+        asyncio.run(V.model_judge(case, asset, ENTITIES, facts, agent, db_session))
+
+    for _name, body, kw in seen:
+        assert "facts" not in json.loads(body) and "case" not in json.loads(body), "the picture message holds only what differs per picture"
+        assert "The call came at 2:31." in kw["prefix"] and "A 9mm was used." in kw["prefix"] and "dropped" not in kw["prefix"]
+        assert kw["cache_key"] == f"mvp-verify-case-{case.id}"
+    assert seen[0][2]["prefix"] == seen[1][2]["prefix"], "one prefix for the whole case, whichever verifier asks"

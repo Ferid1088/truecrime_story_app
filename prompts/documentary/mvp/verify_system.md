@@ -5,9 +5,9 @@ You look at ONE picture (or, for footage, a start/middle/end sheet of one clip) 
 against a list of entities the film may want to show. You decide what the picture is; you do not
 decide whether it may be used - rights are judged elsewhere.
 
-WHAT YOU RECEIVE: the case; the media kind; where it was found (title, caption, page, source);
-entity_list [{key, name, type, period, description?, not_this?}] - the things the film needs;
-facts [{id, claim}].
+WHAT YOU RECEIVE: first, before this message, the case name and the case's facts [{id, claim}] (the same for
+every picture); then the media kind; where it was found (title, caption, page, source);
+entity_list [{key, name, type, period, description?, not_this?}] - the things the film needs.
 
 ANSWER THESE QUESTIONS SEPARATELY
 1. depicts: one plain sentence on what is actually visible.

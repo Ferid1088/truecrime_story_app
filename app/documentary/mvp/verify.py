@@ -214,18 +214,25 @@ def remove_unusable(candidate: MvpCandidate, reason: str) -> None:
 Judge = Callable[[Case, VisualAsset, list[dict], list[dict], str], Awaitable[Verdict]]
 
 
+def case_prefix(case: Case, facts: list[dict]) -> str:
+    """The part of every picture judgement that is the same for the whole case: its name and facts. It is sent first and as a cacheable prefix, so a case's
+    hundreds of verifications pay for it once (the picture and what is known about it come after)."""
+    shown = json.dumps([{"id": f["id"], "claim": f["claim"]} for f in facts], ensure_ascii=False)
+    return f"CASE: {case.canonical_title}\nFACTS OF THE CASE (the same for every picture; `reveals` uses their ids): {shown}"
+
+
 async def model_judge(case: Case, asset: VisualAsset, entities: list[dict], facts: list[dict],
                       agent: str = "mvp.verify", db: Session | None = None) -> Verdict:
     """One vision call. A transport error or an answer outside the schema is a transient failure,
     never a rejection of the picture."""
     payload = {
-        "case": case.canonical_title,
         "media": ("video: start, middle and end frames, left to right"
                   if asset.asset_type == "video" else "image"),
         "title": asset.title, "caption": asset.caption, "page_url": asset.page_url,
         "source": asset.source_name, "found_for": asset.found_for,
-        "entity_list": entities, "facts": [{"id": f["id"], "claim": f["claim"]} for f in facts],
+        "entity_list": entities,
     }
+    prefix, cache_key = case_prefix(case, facts), f"mvp-verify-case-{case.id}"
     try:
         image = IM.data_url(await checked_image(asset))
         gen = get_generation_provider()
@@ -234,10 +241,10 @@ async def model_judge(case: Case, asset: VisualAsset, entities: list[dict], fact
             body = json.dumps(payload, ensure_ascii=False)
             if agent == "mvp.verify_second":
                 data, res = await asyncio.wait_for(
-                    run_agent("mvp.verify_second", gen, body, images=[image]), timeout)
+                    run_agent("mvp.verify_second", gen, body, images=[image], prefix=prefix, cache_key=cache_key), timeout)
             else:
                 data, res = await asyncio.wait_for(
-                    run_agent("mvp.verify", gen, body, images=[image]), timeout)
+                    run_agent("mvp.verify", gen, body, images=[image], prefix=prefix, cache_key=cache_key), timeout)
             stamp_run(run, res, ai_config.agents[agent].role)
     except (GenerationError, OSError, IM.ImageError, TimeoutError) as e:
         log.warning("verify %s failed transiently: %s", asset.asset_code, type(e).__name__)
