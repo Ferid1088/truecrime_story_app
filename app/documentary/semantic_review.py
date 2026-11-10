@@ -22,9 +22,8 @@ from sqlalchemy.orm import Session
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.core.prompts import prompt_sha256
-from app.documentary.reading.block import beats_of
+from app.db.models import EditorialBlueprint, StoryVersion
 from app.documentary import audio as A
-from app.documentary import lexicon as LEX
 from app.documentary.persian_numbers import NUMBER
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
@@ -35,7 +34,6 @@ log = logging.getLogger(__name__)
 ERROR_TYPES = {"meaning", "omission", "addition", "date", "number", "name", "url", "path", "technical_term", "pronunciation", "delivery"}
 BLOCKING = {"critical", "major"}
 TAG = re.compile(r"\[[^\[\]]*\]\s*")
-NOTATION_ALOUD = re.compile(r"slash|اسلش", re.IGNORECASE)
 URL = re.compile(r"https?://\S+|www\.\S+")
 PATH = re.compile(r"(?<![\w/])(?:/[\w.\-]+){1,}/?")
 SENTENCE_END = re.compile(r"(?<=[.!?؟…])\s+")
@@ -81,14 +79,7 @@ def normalise(raw: dict) -> dict:
     rules = [{"surface": str(r["surface"]), "replacement": str(r["replacement"])} for r in raw.get("corrected_pronunciation_rules") or []
              if isinstance(r, dict) and r.get("surface") and r.get("replacement")]
     text, delivery = raw.get("corrected_text"), raw.get("corrected_delivery_instruction")
-    missing = [{"phrase": str(m["phrase"]), "head": str(m["head"]), "heard": str(m.get("heard") or "")} for m in raw.get("ezafe_missing") or []
-               if isinstance(m, dict) and m.get("phrase") and m.get("head")]
-    for m in missing:            # a place where grammar needs an ezafe that is not said is an error
-        errors.append({"type": "pronunciation", "severity": "major", "expected": m["phrase"] + " (with the ezafe)", "heard": m["heard"],
-                       "reason": f"the ezafe after {m['head']} is not said"})
-    passed = passed and not missing
-    aloud = bool(raw.get("notation_read_aloud")) or any(NOTATION_ALOUD.search(e["heard"]) for e in errors)     # the voice reads a pronunciation rule out as symbols
-    return {"verdict": "pass" if passed else "fail", "confidence": confidence, "errors": errors, "ezafe_missing": missing, "notation_read_aloud": aloud,
+    return {"verdict": "pass" if passed else "fail", "confidence": confidence, "errors": errors,
             "corrected_text": text if isinstance(text, str) and text.strip() else None, "corrected_pronunciation_rules": rules,
             "corrected_delivery_instruction": delivery if isinstance(delivery, str) and delivery in ai_config.semantic_review.delivery_tags else None}
 
@@ -97,34 +88,12 @@ def whole_word(surface: str) -> re.Pattern:
     return re.compile(rf"(?<![\w‌]){re.escape(surface)}(?![\w‌])")
 
 
-def without_dictionary(block: dict, rules: list[dict]) -> tuple[dict, list[str]]:
-    """The block for a voice that reads the pronunciation notation aloud ("slash F-E-V-R-I-G-E slash"): it goes to the voice without the film's
-    dictionary, the words whose rule is a respelling are written as that respelling in the voice text, and when it happens again the audio tags
-    go too. What people read is not touched."""
-    sentences = [dict(s) for s in block.get("sentences") or []]
-    forms = [s.get("tts") or s["speech"] for s in sentences]
-    applied = ["without the dictionary"]
-    for rule in rules:
-        if rule.get("type") == "alias" and rule.get("alias") and any(whole_word(rule["string_to_replace"]).search(f) for f in forms):
-            pattern = whole_word(rule["string_to_replace"])
-            forms = [pattern.sub(rule["alias"], f) for f in forms]
-            applied.append(f"respelled {rule['string_to_replace']}")
-    if block.get("no_dictionary"):
-        forms = [TAG.sub("", f).strip() for f in forms]
-        applied.append("without audio tags")
-    out = {**block, "no_dictionary": True, "sentences": [{**s, "tts": f} for s, f in zip(sentences, forms)]}
-    out["tts_text"] = " ".join(forms)
-    return out, applied
-
-
-def corrected_block(block: dict, review: dict) -> tuple[dict, list[str], list[dict]]:
-    """The block with the reviewer's corrections applied to what the voice is given (the sentences' tts forms), what was applied, and the
-    respellings among it ({"surface", "replacement"}). The
+def corrected_block(block: dict, review: dict) -> tuple[dict, list[str]]:
+    """The block with the reviewer's corrections applied to what the voice is given (the sentences' tts forms), and what was applied. The
     sentences' speech and display text, which people read, are never touched. A corrected text is taken only when it has the same
     sentences as the block."""
     sentences = [dict(s) for s in block.get("sentences") or []]
     applied: list[str] = []
-    respelled: list[dict] = []
     forms = [s.get("tts") or s["speech"] for s in sentences]
     text = review.get("corrected_text")
     if text and sentences:
@@ -139,27 +108,66 @@ def corrected_block(block: dict, review: dict) -> tuple[dict, list[str], list[di
         if any(pattern.search(f) for f in forms):
             forms = [pattern.sub(rule["replacement"], f) for f in forms]
             applied.append(f"respelled {rule['surface']}")
-            respelled.append(rule)
     tag = review.get("corrected_delivery_instruction")
     if tag and forms and not forms[0].startswith(tag):
         forms[0] = f"{tag} {forms[0]}"
         applied.append(f"tag {tag}")
     if not sentences:
-        return block, [], []
+        return block, []
     out = {**block, "sentences": [{**s, "tts": f} for s, f in zip(sentences, forms)]}
     out["tts_text"] = " ".join(forms)
-    return out, [a for a in applied if not a.startswith("text ignored")] + [a for a in applied if a.startswith("text ignored")], respelled
+    return out, [a for a in applied if not a.startswith("text ignored")] + [a for a in applied if a.startswith("text ignored")]
+
+
+def beats_of(block: dict) -> list[str]:
+    """The beats of the story a block tells (a block of "B08.g02" tells beat B08)."""
+    found = [b["beat_id"] for b in block.get("beats") or [] if b.get("beat_id")]
+    return list(dict.fromkeys(found or [(block.get("section_id") or "").split(".")[0]]))
+
+
+def english_sources(db: Session, version: StoryVersion) -> dict[str, str]:
+    """For each beat of this version, the English film's text of the same stretch of the story (the beats of two films are cut differently:
+    they are matched by their place in the story). Empty when the case has no English film to compare with."""
+    from app.documentary.blueprint import version_sections
+    from app.documentary.mvp import reference as REF
+    from app.documentary.spoken import beat_sections
+
+    struct = json.loads(version.narrative_structure or "{}")
+    mine = db.get(EditorialBlueprint, struct.get("blueprint_id") or -1)
+    english_plan = REF.english_needs_plan(db, version.case_id)
+    theirs = db.get(EditorialBlueprint, english_plan.blueprint_id) if english_plan is not None else None
+    master = db.get(StoryVersion, theirs.story_version_id) if theirs is not None else None
+    if mine is None or theirs is None or master is None:
+        return {}
+    english_text = {s["id"]: s["text"] for s in beat_sections(version_sections(master), json.loads(theirs.blueprint_json or "{}"))}
+    english_spans = REF.beat_spans(theirs.blueprint_json)
+    limit = ai_config.semantic_review.source_chars
+    order = list(english_spans)
+
+    def window(span: tuple[float, float]) -> list[str]:
+        """The English beats of this stretch and the one before and after (the two films cut their beats at other points)."""
+        hit = [order.index(b) for b in REF.matching_beats(span, english_spans)]
+        if not hit:
+            return []
+        return order[max(min(hit) - 1, 0):min(max(hit) + 2, len(order))]
+
+    return {beat: " ".join(english_text.get(b, "") for b in window(span))[:limit] for beat, span in REF.beat_spans(mine.blueprint_json).items()}
+
+
+def tones_of(db: Session, version: StoryVersion) -> dict[str, dict]:
+    struct = json.loads(version.narrative_structure or "{}")
+    row = db.get(EditorialBlueprint, struct.get("blueprint_id") or -1)
+    beats = json.loads(row.blueprint_json or "{}").get("beats") or [] if row else []
+    return {b["id"]: {k: b.get(k) for k in ("purpose", "emotional_load") if b.get(k)} for b in beats}
 
 
 class Reviewer:
-    """Listens to audio for the semantic review and keeps the record of every block. `corrects` False (a PPIE language): the review only reports;
-    nothing it hears changes what the voice is given, and nothing is kept in the lexicon."""
+    """Listens to audio for the semantic review and keeps the record of every block."""
 
     def __init__(self, db: Session, case_id: int, sources: dict[str, str] | None = None, tones: dict[str, dict] | None = None,
-                 rules: list[dict] | None = None, runner: Callable[[object, str, list[str]], Awaitable[tuple[dict, object]]] | None = None,
-                 corrects: bool = True):
-        self.db, self.case_id, self.corrects = db, case_id, corrects
-        self.sources, self.tones, self.rules = sources or {}, tones or {}, rules or []
+                 runner: Callable[[object, str, list[str]], Awaitable[tuple[dict, object]]] | None = None):
+        self.db, self.case_id = db, case_id
+        self.sources, self.tones = sources or {}, tones or {}
         self.runner = runner or (lambda gen, body, audio: run_agent("documentary.semantic_review.audio", gen, TASK + body, images=audio))
         self.records: dict[str, dict] = {}
 
@@ -173,7 +181,7 @@ class Reviewer:
         return {"source_text": (block.get("source_text") or source)[:cfg.source_chars],
                 "scene_context": next((self.tones[beat] for beat in beats if self.tones.get(beat)), None) or block.get("scene_context") or {},
                 "display_text": display, "tts_text": tts, "protected_items": protected_items(display, tts),
-                "pronunciation_rules": self.rules, "previous_text": (block.get("previous_text") or "")[-cfg.neighbour_chars:] if cfg.neighbour_chars else "",
+                "previous_text": (block.get("previous_text") or "")[-cfg.neighbour_chars:] if cfg.neighbour_chars else "",
                 "next_text": (block.get("next_text") or "")[:cfg.neighbour_chars], "allowed_delivery_tags": cfg.delivery_tags}
 
     async def _ask(self, runner, body: str, data: str, label: str) -> dict:
@@ -214,7 +222,7 @@ class Reviewer:
         """The review of a voiced block: the whole block, listened to once against its context."""
         return await self.listen(self.context(result["block"]), Path(result["take"]["wav_path"]), result["block"]["block_id"])
 
-    async def run(self, result: dict, speak: Callable[[dict, int], Awaitable[dict]], seed: int, language: str = "fa") -> dict:
+    async def run(self, result: dict, speak: Callable[[dict, int], Awaitable[dict]], seed: int) -> dict:
         """The review of a voiced block, with the corrections: `result` is what the voice-repair loop made, `speak(block, seed)` runs that loop
         again for a corrected block. Returns the result that is kept; its record says whether it was approved."""
         cfg = ai_config.semantic_review
@@ -222,9 +230,7 @@ class Reviewer:
         record = {"block_id": block["block_id"], "voice_attempts": 1, "semantic_review_attempts": 0, "voice_review_result": "fail",
                   "avatar_review_result": "not_applicable", "errors": [], "final_status": "failed", "reviews": []}
         self.records[block["block_id"]] = record
-        pending: list[dict] = []           # respellings the next review has to prove before the lexicon keeps them
-        limit = cfg.max_corrections if self.corrects else 0
-        for attempt in range(limit + 1):
+        for attempt in range(cfg.max_corrections + 1):
             try:
                 review = await self.review_block(result)
             except SemanticReviewFailed as e:           # this block could not be reviewed: it fails alone, the others go on
@@ -235,20 +241,12 @@ class Reviewer:
             record["errors"] = review["errors"]
             if review["verdict"] == "pass":
                 record["voice_review_result"], record["final_status"] = "pass", "approved"
-                if self.db is not None and self.corrects:
-                    record["learned"] = (LEX.learn(self.db, language, pending, self.case_id)
-                                         + LEX.confirm(self.db, language, self.rules, self.context(result["block"])["tts_text"], self.case_id))
                 break
-            if attempt == limit:
-                record["failure"] = "still failing after the allowed corrections" if self.corrects else "failed the review (it reports only: nothing is corrected)"
+            if attempt == cfg.max_corrections:
+                record["failure"] = "still failing after the allowed corrections"
                 break
-            fixed, applied, respelled = corrected_block(result["block"], review)
-            if review["notation_read_aloud"]:
-                fixed, extra = without_dictionary(fixed, self.rules)
-                applied += extra
+            fixed, applied = corrected_block(result["block"], review)
             record["reviews"][-1]["applied"] = applied
-            if {e["type"] for e in review["errors"]} & set(cfg.learn_types):
-                pending += respelled
             seed += 1                      # a correction that changes nothing in the request is still a new take
             result = await speak(fixed, seed)
             record["voice_attempts"] += 1

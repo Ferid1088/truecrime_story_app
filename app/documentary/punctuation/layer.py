@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass, field
 
 from app.core.ai_config import ai_config
-from app.documentary.reading.words import TAG, Word, tokenize
+from app.documentary.words import TAG, Word, tokenize
 
 
 def punctuation(language: str = "fa") -> set[str]:

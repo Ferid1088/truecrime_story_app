@@ -15,7 +15,7 @@ import unicodedata
 from dataclasses import dataclass
 
 from app.documentary.persian_numbers import value_of
-from app.documentary.reading.words import VOWEL_MARKS
+from app.documentary.words import VOWEL_MARKS
 
 ONES = ["صِفْر", "وَاحِد", "اثْنَان", "ثَلَاثَة", "أَرْبَعَة", "خَمْسَة", "سِتَّة", "سَبْعَة", "ثَمَانِيَة", "تِسْعَة", "عَشَرَة",
         "أَحَدَ عَشَر", "اثْنَا عَشَر", "ثَلَاثَةَ عَشَر", "أَرْبَعَةَ عَشَر", "خَمْسَةَ عَشَر", "سِتَّةَ عَشَر", "سَبْعَةَ عَشَر",

@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
-from app.documentary.reading.ask import ask
+from app.documentary.punctuation.ask import ask
 
 DECISIONS = ("PASS", "REVISE", "UNCERTAIN", "REJECT")
 

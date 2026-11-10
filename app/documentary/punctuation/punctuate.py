@@ -9,8 +9,8 @@ from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.documentary.punctuation.boundary import COHESIVE, REQUIRED, BoundaryDecision
 from app.documentary.punctuation.layer import Edit, Layer, punctuation
-from app.documentary.reading.ask import ask
-from app.documentary.reading.words import TAG
+from app.documentary.punctuation.ask import ask
+from app.documentary.words import TAG
 
 
 def normalized(layer: Layer) -> list[Edit]:

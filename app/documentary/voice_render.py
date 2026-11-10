@@ -31,10 +31,7 @@ from app.core.concurrency import slot
 from app.documentary import audio as A
 from app.documentary import storage
 from app.documentary.spoken_numbers import LanguageNumbers, reader_for
-from app.documentary.spoken_numbers.ar import Numbers as ArabicNumbers
 from app.documentary.asr import ASRUnavailable, compare_transcript, get_asr
-from app.documentary.pronunciation_trace import BlockDictionaries, Trace
-from app.documentary.reading.words import key_of
 from app.documentary.voice_performance import scrub_forbidden
 from app.providers.voice import VoiceProvider, VoiceRequest, get_voice_provider
 
@@ -176,15 +173,14 @@ def select_blocks(blocks: list[dict], max_seconds: float | None) -> list[dict]:
 
 class VoiceRenderer:
     def __init__(self, provider: VoiceProvider | None = None, asr=None,
-                 use_asr: bool = True, listener=None, use_listener: bool = True,
+                 use_asr: bool = True,
                  db=None, budget_case_id: int | None = None,
-                 budget_stage: str | None = None, arbiter=None,
+                 budget_stage: str | None = None,
                  documentary_job_id: int | None = None,
                  budget_pilot_seconds: float | None = None):
         self.cfg = ai_config.voice
         self.loud = ai_config.loudness
         self.asr_cfg = ai_config.asr_check
-        self.pron_cfg = ai_config.pronunciation
         self.provider = provider or get_voice_provider()
         self.db = db
         self.budget_case_id = budget_case_id
@@ -192,23 +188,11 @@ class VoiceRenderer:
         self.documentary_job_id = documentary_job_id
         self.budget_pilot_seconds = budget_pilot_seconds
         self._budget_usage_missing = False
-        self.dictionaries: list[dict] = []        # the film's pronunciation dictionary locators (a prepared language)
-        self.rules: list[dict] = []               # the rules of that dictionary (the plan carries them): each block's text is checked against them
-        self.block_dictionaries: BlockDictionaries | None = None
-        self.trace = Trace(None)                  # what every take was sent with
         self.reviewer = None                      # the semantic audio reviewer (semantic_review.Reviewer) of a reviewed language
-        self.seed_bumps: dict[str, int] = {}      # block -> retakes already made by the reading loop (each is a new seed)
+        self.seed_bumps: dict[str, int] = {}      # block -> retakes already made (each is a new seed)
         self.number_readers: dict[str, LanguageNumbers] = {}
-        self.voicing = None                       # the reading loop's Voicing of a language it covers: the fixed words go to the voice as IPA
-        self.planner = None                       # the risk engine and the intervention planner of that language: what each word is given, and why
         self.narration = False                    # set while the film's narration is rendered: only it gets the language's post speed
         self.asr_error: str | None = None
-        # phoneme listener for the pronunciation loop (loaded when needed)
-        self._listener = listener
-        self._use_listener = use_listener
-        self.listener_error: str | None = None
-        # decides, for a word that stayed wrong, whether the voice or the key was wrong
-        self.arbiter = arbiter
         if asr is not None or not use_asr:
             self.asr = asr
         else:
@@ -226,38 +210,21 @@ class VoiceRenderer:
         base = Path(ai_config.voice.work_dir)
         if not base.is_absolute():
             base = ROOT / base
-        if ai_config.ppie.fresh(language):           # a PPIE narration has a folder of its own: no earlier narration of the version is touched
-            return base / str(case_id) / "audio" / language / f"v{story_version_id}{ai_config.ppie.folder_suffix}"
-        prepared = "_prepared" if language in ai_config.voice.prepared_languages else ""      # the earlier narration of the version stays where it is
         reviewed = ai_config.semantic_review.folder_suffix if language in ai_config.semantic_review.languages else ""
-        return base / str(case_id) / "audio" / language / f"v{story_version_id}{prepared}{reviewed}"
-
-    def save_plan(self, out: Path) -> str | None:
-        """The planner's decisions of this render, next to the narration (the risk of every changed or escalated word, with its evidence)."""
-        if self.planner is None or not self.planner.plans:
-            return None
-        path = out / "pronunciation_plan.json"
-        storage.write_atomic(path, json.dumps(self.planner.report(), ensure_ascii=False, indent=1))
-        return str(path)
+        return base / str(case_id) / "audio" / language / f"v{story_version_id}{reviewed}"
 
     def says_numbers(self, language: str) -> bool:
-        """A language with a number reader of its own in config voice.number_words, except one whose reading engine voices its numbers (Arabic's tashkeel)."""
-        return language in self.cfg.number_words and ai_config.reading.engines.get(language) != "tashkeel"
+        """A language with a number reader of its own in config voice.number_words."""
+        return language in self.cfg.number_words
 
     def check_numbers(self, language: str) -> LanguageNumbers | None:
-        """The reader that puts numbers in words for the speech check (Arabic's without vowel marks, as the check compares bare words)."""
-        if ai_config.reading.engines.get(language) == "tashkeel":
-            return ArabicNumbers(self.cfg.number_words["ar"], ai_config.reading.tashkeel_number_max, vowelled=False)
+        """The reader that puts numbers in words for the speech check."""
         return self.numbers(language) if language in self.cfg.number_words else None
 
     def numbers(self, language: str) -> LanguageNumbers:
         if language not in self.number_readers:
             self.number_readers[language] = reader_for(language, self.cfg.number_words[language], self.cfg.number_max)
         return self.number_readers[language]
-
-    def prepared(self, language: str) -> bool:
-        """Whether the language's requests carry the film's pronunciation dictionary (never for a PPIE language: only the planner prepares its text)."""
-        return language in self.cfg.prepared_languages and not ai_config.ppie.fresh(language)
 
     def out_dir(self, case_id: int, language: str, story_version_id: int) -> Path:
         return self.out_dir_for(case_id, language, story_version_id)
@@ -419,77 +386,23 @@ class VoiceRenderer:
 
     @staticmethod
     def _take_rank(take: dict) -> tuple:
-        wrong = sum(1 for r in take.get("pronunciation") or [] if r.get("ok") is False)
         asr = take.get("asr")
         if not asr:
-            return (wrong, 0, 0.0)
-        return (wrong, 0 if asr["passed"] else 1, asr["word_error_rate"])
-
-    def listener(self):
-        """The phoneme listener, or None (unavailable: recorded once)."""
-        if self._listener is None and self._use_listener and self.listener_error is None:
-            from app.documentary.pronunciation import ListenerUnavailable, get_listener
-            try:
-                self._listener = get_listener()
-            except (ListenerUnavailable, OSError) as e:
-                self.listener_error = str(e)[:300]
-        return self._listener
-
-    async def _listen(self, take: dict, sentences: list[dict], occurrences: list[dict]
-                      ) -> list[dict]:
-        from app.documentary.pronunciation import listen
-
-        lst = self.listener()
-        if lst is None:
-            return []
-        async with slot("asr"):
-            frames = await asyncio.to_thread(lst.frames, take["wav_path"])
-        return listen(frames, take["text"], sentences, occurrences, take["alignment"],
-                      take["trimmed"]["start"], self.pron_cfg)
+            return (0, 0.0)
+        return (0 if asr["passed"] else 1, asr["word_error_rate"])
 
     async def speak_block(self, b: dict, language: str, lang_cfg, settings: dict, seed: int,
-                          blocks_dir: Path, synonyms: bool = True) -> dict:
-        """Takes of one block: a wrong-sounding word gets its next pronunciation fix and
-        the block is spoken again (pronunciation loop); a failed Whisper check gets a take
-        with another seed. The story's blocks and the host's appearances both go through here."""
-        from app.documentary.pronunciation import apply_fixes, risky_occurrences
-
+                          blocks_dir: Path) -> dict:
+        """Takes of one block: a failed Whisper check gets a take with another seed. The story's
+        blocks and the host's appearances both go through here."""
         takes: list[dict] = []
-        prepared = self.prepared(language)                       # edited before the voice: its dictionary goes with every request
         listened = ai_config.listens_after_voice(language)       # one take per block when it is not: nothing is listened to afterwards
-        sentences = [{**x, "tts": scrub_forbidden(x["tts"])} if x.get("tts") else dict(x)
-                     for x in b.get("sentences") or []]
-        # `synonyms=False`: the words are frozen (the host's text); only what the voice is
-        # given may change
-        occurrences = (risky_occurrences(sentences, synonyms)
-                       if self.pron_cfg.enabled and language in self.pron_cfg.languages
-                       and sentences and listened else [])
-        if occurrences and self.listener() is None:
-            occurrences = []
         text = scrub_forbidden(b.get("tts_text") or b["text"])
         if self.says_numbers(language):      # a voice reads digits one by one: it is given the words of the number
             text = self.numbers(language).text(text)
-        planned_rules: list[dict] = []
-        if self.voicing is not None and self.planner is not None:
-            plan = self.planner.plan(b["block_id"], text, self.voicing, allow_dictionary=prepared and bool(self.dictionaries),
-                                     covered=frozenset(key_of(r.get("string_to_replace") or "") for r in self.rules))
-            self.planner.register(plan)
-            text, planned_rules = plan.text, plan.rules
-        elif self.voicing is not None:
-            text = self.voicing.text(b["block_id"], text)
         asr_cfg = self.asr_cfg.for_language(language)
         asr_retakes = asr_cfg.auto_retakes if asr_cfg.mode == "strict" and listened else 0
-        rounds = self.pron_cfg.max_rounds if occurrences else 0
-        fixes: list[dict] = []
-        for attempt in range(1 + asr_retakes + rounds):
-            blk = b
-            if sentences:
-                # what people read follows a synonym fix (never harakat)
-                blk = {**b, "sentences": sentences, "display_text": " ".join(
-                    x.get("display") or x["speech"] for x in sentences)}
-            locators = list(self.dictionaries) if prepared and not b.get("no_dictionary") else []
-            resolution = (await self.block_dictionaries.resolve(b["block_id"], text, b.get("tts_text") or b["text"], planned_rules)
-                          if locators and self.block_dictionaries is not None else None)
+        for attempt in range(1 + asr_retakes):
             req = VoiceRequest(
                 text=text, voice_id=lang_cfg.voice_id,
                 model_id=lang_cfg.model_id, settings=settings,
@@ -497,59 +410,17 @@ class VoiceRenderer:
                 next_text=b.get("next_text") or "",
                 seed=seed, language=language,
                 language_code=lang_cfg.language_code,
-                pronunciation_dictionaries=resolution.locators if resolution else locators,
-                pronunciation_rules=resolution.rules_sent if resolution else [],
             )
-            take = await self._take(blk, req, blocks_dir, language)
-            if resolution is not None:
-                self.trace.record(block_id=b["block_id"], attempt=attempt, text=text, request=req, resolution=resolution, take=take)
-            if occurrences:
-                take["pronunciation"] = await self._listen(take, sentences, occurrences)
+            take = await self._take(b, req, blocks_dir, language)
             take["round"] = attempt
             takes.append(take)
-            wrong = [r for r in take.get("pronunciation") or [] if r.get("ok") is False]
-            if wrong and rounds > 0:
-                sentences, applied = apply_fixes(sentences, occurrences, wrong)
-                if applied:
-                    rounds -= 1
-                    fixes.append({"after_round": attempt, "fixes": applied})
-                    text = " ".join(x.get("tts") or x["speech"] for x in sentences)
-                    continue
             if take["asr"] and not take["asr"]["passed"] and asr_retakes > 0:
                 asr_retakes -= 1
                 seed += 1
                 continue
             break
         best = min(takes, key=self._take_rank)
-        await self._referee(best, sentences, language)
-        return {"block": b, "take": best, "attempts": len(takes), "takes": takes,
-                "fixes": fixes}
-
-    async def _referee(self, take: dict, sentences: list[dict], language: str) -> None:
-        """Words still wrong after the whole ladder go to the referee: when the key was the
-        mistake (the heard sounds are a right reading), the word is judged again against the
-        corrected reading and passes if it matches."""
-        from app.documentary.pronunciation import reading_vowels, vowel_distance
-
-        wrong = [r for r in take.get("pronunciation") or [] if r.get("ok") is False]
-        if not wrong or self.arbiter is None or self.budget_case_id is None:
-            return
-        items = [{"i": k, "sentence": sentences[r["sentence"]]["speech"], "word": r["word"],
-                  "meaning": next((w.get("meaning") for w in sentences[r["sentence"]].get("risky") or []
-                                   if w["w"] == r["word"]), None),
-                  "key_read": r["read"], "heard_phonemes": r.get("heard_ipa", ""),
-                  "form_sent": r.get("form") or r["word"]}
-                 for k, r in enumerate(wrong)]
-        verdicts = await self.arbiter.arbitrate(self.db, self.budget_case_id, language, items)
-        for k, r in enumerate(wrong):
-            v = verdicts.get(k)
-            r["referee"] = v["verdict"] if v else "unanswered"
-            if v and v["verdict"] == "key_wrong":
-                # the vowels the listener already cut out for this word, against the new reading
-                dist, hard = vowel_distance(reading_vowels(v["read"]), r.get("heard") or [])
-                r["referee_read"] = v["read"]
-                if r.get("heard") and hard == 0 and dist <= self.pron_cfg.max_vowel_distance:
-                    r["ok"], r["read"] = True, v["read"]
+        return {"block": b, "take": best, "attempts": len(takes), "takes": takes}
 
     # ------------------------------------------------------------------
     # whole plan
@@ -604,9 +475,6 @@ class VoiceRenderer:
         language = plan["language"]
         self.narration = True
         lang_cfg = self.cfg.for_language(language)
-        if self.prepared(language):
-            self.dictionaries = list(plan.get("pronunciation_dictionary") or [])
-            self.rules = list(plan.get("pronunciation_rules") or [])
         # An explicit style overrides the performance script (A/B tests);
         # otherwise each block uses its own style, else the default.
         for name in {style} | {b.get("style") for b in plan["blocks"]}:
@@ -622,9 +490,6 @@ class VoiceRenderer:
         blocks_dir.mkdir(parents=True, exist_ok=True)
         dest = output_dir or out
         dest.mkdir(parents=True, exist_ok=True)
-        self.block_dictionaries = BlockDictionaries(self.provider, self.rules, self.dictionaries, language=language, case_id=case_id,
-                                                    version_id=story_version_id, folder=out)
-        self.trace = Trace(self.block_dictionaries)
         chosen = select_blocks(plan["blocks"], max_seconds)
 
         async def one_block(b: dict) -> dict:
@@ -641,7 +506,7 @@ class VoiceRenderer:
 
             result = await speak(b, seed)
             if self.reviewer is not None:          # after the voice-repair loop: a model listens to the block
-                result = await self.reviewer.run(result, speak, seed, language)
+                result = await self.reviewer.run(result, speak, seed)
             return result
 
         # All blocks at once: the provider's limit (concurrency
@@ -787,10 +652,6 @@ class VoiceRenderer:
                 block_flags.append("oversize_sentence")
             if b["block_id"] in {h["block_id"] for h in held}:
                 block_flags.append("semantic_review_failed")
-            pron = take.get("pronunciation") or []
-            unresolved = [x for x in pron if x.get("ok") is False]
-            if unresolved:
-                block_flags.append("pronunciation_unresolved")
             flags.extend(f"{b['block_id']}:{f}" for f in block_flags)
             paid = sum(tk["character_cost"] or 0 for tk in r["takes"])
             chars_paid += paid
@@ -805,20 +666,6 @@ class VoiceRenderer:
                 "cache_hit": take["cache_hit"], "characters_paid": paid,
                 "style": block_style(b), "level": b.get("level"),
                 "tts_text": take.get("text") if take.get("text") != b["text"] else None,
-                "pronunciation": None if not pron else {
-                    "words": [{k: x.get(k) for k in ("word", "read", "form", "level", "ok",
-                                                     "expected", "heard", "heard_ipa",
-                                                     "distance", "reason", "at")}
-                              for x in pron],
-                    "rounds": len(r["takes"]),
-                    "fixes": r.get("fixes") or [],
-                    "unresolved": [x["word"] for x in unresolved],
-                    "per_round": [
-                        {"round": tk.get("round"),
-                         "wrong": [x["word"] for x in tk.get("pronunciation") or []
-                                   if x.get("ok") is False]}
-                        for tk in r["takes"]],
-                },
                 "beat_ids": [bt["beat_id"] for bt in b.get("beats") or []],
                 "loudness_lufs": loud["integrated_lufs"],
                 "loudness_deviation_lu": dev,
@@ -834,8 +681,6 @@ class VoiceRenderer:
 
         joins = self.check_joins(language, results, timeline_blocks)
         flags += [f"{j['after']}:{flag}" for j in joins["flagged"] for flag in j["flags"]]
-        trace_info = self.trace.save(dest) if self.trace.entries else None
-        plan_info = self.save_plan(dest)
         manifest = {
             "case_id": case_id, "story_version_id": story_version_id,
             "language": language, "voice_id": lang_cfg.voice_id,
@@ -845,9 +690,6 @@ class VoiceRenderer:
             "provider": self.provider.name,
             "asr": (self.asr.name if self.asr else None),
             "asr_error": self.asr_error,
-            "pronunciation_listener": (getattr(self._listener, "name", None)
-                                       if self._listener else None),
-            "pronunciation_error": self.listener_error,
             "blocks_rendered": len(results),
             "blocks_in_plan": len(plan["blocks"]),
             "duration_seconds": round(total, 3),
@@ -861,8 +703,6 @@ class VoiceRenderer:
                 "block_median_lufs": median,
             },
             "flags": flags,
-            "pronunciation_trace": trace_info,
-            "pronunciation_plan": plan_info,
             "joins": joins,
             "semantic_review_failed": held,
             "dynamic_eq": eq_report,

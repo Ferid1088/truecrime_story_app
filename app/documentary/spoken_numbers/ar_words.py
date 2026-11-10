@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass
 
 from app.documentary import arabic_numbers as AN
-from app.documentary.reading.words import VOWEL_MARKS
+from app.documentary.words import VOWEL_MARKS
 
 EDGES = ".,;:!?؟،؛«»\"'()[]{}…-–—"
 FOLD = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ى": "ي", "ة": "ه", "ؤ": "و", "ئ": "ي"})

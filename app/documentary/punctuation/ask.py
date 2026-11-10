@@ -1,4 +1,4 @@
-"""One model call of the reading loop: tracked and costed, and made again when the provider hiccups."""
+"""One model call of the punctuation layer: tracked and costed, and made again when the provider hiccups."""
 
 from __future__ import annotations
 
@@ -14,15 +14,15 @@ from app.providers.generation.base import GenerationError
 from app.services.tracking import stamp_run, track_run
 
 
-class ReadingFailed(RuntimeError):
-    """The reading loop cannot go on (a model call that keeps failing, or an answer that stays wrong): the stage stops, nothing is voiced."""
+class AskFailed(RuntimeError):
+    """A model call of the punctuation layer keeps failing: the stage stops."""
 
 
 Runner = Callable[[object, str], Awaitable[tuple[dict, object]]]
 
 
 async def ask(db: Session, case_id: int, label: str, payload: dict, role: str, runner: Runner) -> dict:
-    cfg = ai_config.reading
+    cfg = ai_config.semantic_punctuation
     for attempt in range(cfg.call_retries + 1):
         try:
             with track_run(db, case_id, label, input_summary=label) as run:
@@ -31,6 +31,6 @@ async def ask(db: Session, case_id: int, label: str, payload: dict, role: str, r
             return data if isinstance(data, dict) else {}
         except GenerationError as e:
             if attempt == cfg.call_retries:
-                raise ReadingFailed(f"{label} failed: {type(e).__name__}: {e}"[:300]) from e
+                raise AskFailed(f"{label} failed: {type(e).__name__}: {e}"[:300]) from e
             await asyncio.sleep(cfg.retry_pause_s)
     return {}

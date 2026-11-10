@@ -16,7 +16,7 @@ from app.db.models import HostScene, StoryVersion, VoiceBlock, VoiceBlockTake, V
 from app.documentary import host_scenes as HS
 from app.documentary.host import latest_host_segments
 from app.documentary.block_review import service as S
-from app.documentary.reading.words import VOWEL_MARKS
+from app.documentary.words import VOWEL_MARKS
 from app.documentary.voice_render import VoiceRenderer
 from app.providers.voice.base import VoiceRequest
 

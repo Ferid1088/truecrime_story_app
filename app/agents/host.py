@@ -248,8 +248,7 @@ class HostDirector:
                 "pass": verdict["pass"] and len(problems) == len(verdict["problems"])}
 
     # -- real-length repair ----------------------------------------------------
-    async def retime_scene(self, db: Session, scene: HostScene, target_seconds: float,
-                           avoid: Sequence[str] = ()) -> None:
+    async def retime_scene(self, db: Session, scene: HostScene, target_seconds: float) -> None:
         """The real voice of this appearance misses its planned seconds: the writer rewrites the
         dialogue at the length the measured speaking rate needs, from the same cutoff input, and
         the scene (and its stored segment) takes the new text. Bounded by the caller."""
@@ -280,11 +279,7 @@ class HostDirector:
                        - identity_seconds, 1.0)
         target_seconds = target_seconds - identity_seconds
         needed = max(int(round(words * target_seconds / measured)), 1)
-        problems = [{"check": "pronunciation", "quote": ", ".join(avoid),
-                     "fix": "The voice says these words wrongly even with vowel marks. Say the "
-                            "same thing with other words (a synonym or another phrasing); keep "
-                            "names as they are."}] if avoid else []
-        fix = {**wi, "previous_dialogue": body, "problems_to_fix": problems + [{
+        fix = {**wi, "previous_dialogue": body, "problems_to_fix": [{
             "check": "length", "quote": "",
             "fix": (f"This dialogue was spoken in {measured:.1f} s; the appearance must take "
                     f"{target_seconds:.0f} s. Rewrite it with {int(needed * 0.96)} to {int(needed * 1.04) + 1} words: "

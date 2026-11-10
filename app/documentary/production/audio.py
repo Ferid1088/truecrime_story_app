@@ -14,7 +14,7 @@ from app.documentary.voice_render import VoiceRenderer
 
 async def render_documentary_audio(
     plan: dict, *, case_id: int, story_version_id: int, max_seconds=None,
-    style=None, force_block_ids=None, with_music: bool = True,
+    style=None, force_block_ids=None,
     renderer: VoiceRenderer | None = None, mixer: DocumentaryMixer | None = None,
     db: Session | None = None,
 ) -> dict:
@@ -31,9 +31,7 @@ async def render_documentary_audio(
         plan, case_id=case_id, story_version_id=story_version_id,
         max_seconds=max_seconds, style=style, force_block_ids=force_block_ids,
     )
-    if with_music:
-        manifest = await mix_narration(manifest, plan, renderer.out_dir(case_id, plan["language"], story_version_id), mixer=mixer, db=db)
-    return manifest
+    return await mix_narration(manifest, plan, renderer.out_dir(case_id, plan["language"], story_version_id), mixer=mixer, db=db)
 
 
 async def mix_narration(manifest: dict, plan: dict, out, *, mixer: DocumentaryMixer | None = None, db: Session | None = None) -> dict:

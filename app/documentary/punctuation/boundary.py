@@ -1,7 +1,7 @@
 """Where an ezafe is required, forbidden or depends on the context, for every word boundary of a block.
 
 Rules that hold whatever the meaning decide first: the end of a block, digits, punctuation between the words (an ezafe never crosses it), a word
-that never takes an ezafe, a word no ezafe comes before, a verb as the next word (reading/ezafe.py's lists), and an ezafe the text writes itself
+that never takes an ezafe, a word no ezafe comes before, a verb as the next word (punctuation/ezafe.py's lists), and an ezafe the text writes itself
 (a kasra, ۀ, ه‌ی). Every other boundary is EZAFE_CONTEXT_DEPENDENT unless the syntax agent (syntax.py) named the relation; its decision is kept
 with its reason, and an ambiguity it reported stays context-dependent. Nothing is guessed from adjacency.
 
@@ -14,8 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.core.ai_config import ai_config
-from app.documentary.reading.ezafe import EzafeAnalyzer, base_key, written_ezafe
-from app.documentary.reading.words import TAG, Word
+from app.documentary.punctuation.ezafe import EzafeRules, base_key, written_ezafe
+from app.documentary.words import TAG, Word
 
 REQUIRED, FORBIDDEN, CONTEXT, NONE = "EZAFE_REQUIRED", "EZAFE_FORBIDDEN", "EZAFE_CONTEXT_DEPENDENT", "NO_EZAFE_ANALYSIS_NEEDED"
 COHESIVE = "CONSTRUCTION_UNBROKEN"        # a language without an ezafe: the syntax agent says the two words are one construction, no mark may cut it
@@ -60,7 +60,7 @@ def analyze(words: list[Word], gaps: list[str], syntax: dict[int, dict] | None =
         return [BoundaryDecision(w.n, COHESIVE, str(found.get("reason") or "one construction"), "syntax_agent", relation=str(found.get("relation") or ""))
                 if (found := syntax.get(w.n)) and found.get("comma_ok") is False and w.n + 1 < len(words)
                 else BoundaryDecision(w.n, NONE, "this language has no ezafe", "rule") for w in words]
-    rules, syntax, ambiguous = EzafeAnalyzer(), syntax or {}, ambiguous or set()
+    rules, syntax, ambiguous = EzafeRules(), syntax or {}, ambiguous or set()
     out = []
     for w in words:
         nxt = words[w.n + 1] if w.n + 1 < len(words) else None
@@ -77,10 +77,10 @@ def analyze(words: list[Word], gaps: list[str], syntax: dict[int, dict] | None =
         if base_key(w) in rules.never_takes:
             out.append(BoundaryDecision(w.n, NONE, f"{w.plain} never takes an ezafe", "rule"))
             continue
-        if nxt.key in rules.never_before or any(nxt.surface.startswith(p) for p in rules.cfg.verb_prefixes):
+        if nxt.key in rules.never_before or any(nxt.surface.startswith(p) for p in rules.verb_prefixes):
             out.append(BoundaryDecision(w.n, FORBIDDEN, f"no ezafe before {nxt.plain}", "rule"))
             continue
-        if written_ezafe(w, ""):
+        if written_ezafe(w):
             out.append(BoundaryDecision(w.n, REQUIRED, "the text writes the ezafe", "text", spoken_form(w)))
             continue
         found = syntax.get(w.n)
