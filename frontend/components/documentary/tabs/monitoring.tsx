@@ -62,10 +62,10 @@ export function MonitoringTab({
             data-blinking={review.blink}
             onClick={() => {
               try {
-                window.sessionStorage.setItem("pronunciation-view", "voice");
-                window.sessionStorage.setItem("pronunciation-language", review.language);
+                window.sessionStorage.setItem("voice-review-view", "voice");
+                window.sessionStorage.setItem("voice-review-language", review.language);
               } catch { /* the tab opens on its first view */ }
-              onOpenTab("Pronunciation");
+              onOpenTab("Voice Review");
             }}
           >
             {review.blink ? `Voice review is ready (${langLabel(review.language)})` : `Voice review (${langLabel(review.language)})`}

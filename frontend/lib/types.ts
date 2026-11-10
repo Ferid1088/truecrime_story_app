@@ -1515,13 +1515,6 @@ export interface DocumentarySettings {
     string,
     { voice_id: string | null; model_id: string; language_code: string | null; audio_tags: boolean }
   >;
-  /** Listening check of words a voice can misread (Persian homographs). */
-  pronunciation_check: {
-    enabled: boolean;
-    languages: string[];
-    /** Corrected takes per block before a word is flagged for a person. */
-    max_rounds: number;
-  };
   voice_performance: {
     enabled: boolean;
     /** Allowed audio tags per arc level "0".."3". */
@@ -2524,48 +2517,6 @@ export interface MusicTrack {
   created_at: string;
 }
 
-/** How a fix makes the voice say a word as its meaning needs. */
-export type PronunciationFixKind = "vowelled" | "full" | "respell" | "synonym";
-
-/** One risky word judged in a take: its vowels heard vs. the reading the key asks for. */
-export interface PronunciationWord {
-  word: string;
-  /** Reading the meaning needs, in Latin letters (e.g. "molk"). */
-  read: string;
-  /** Form sent to the voice (the word itself until a fix applies). */
-  form: string;
-  /** Fixes applied so far (0 = none). */
-  level: number;
-  /** null: not located in the audio or nothing heard. */
-  ok: boolean | null;
-  expected: string[];
-  heard: string[];
-  heard_ipa: string | null;
-  distance: number | null;
-  reason: string | null;
-  at: [number, number] | null;
-}
-
-export interface PronunciationFix {
-  word: string;
-  read: string;
-  form: string;
-  fix: PronunciationFixKind;
-  level: number;
-  sentence: number;
-}
-
-export interface BlockPronunciation {
-  words: PronunciationWord[];
-  /** Takes of the block (first take plus corrected ones). */
-  rounds: number;
-  /** `after_round`: 0-based take after which the fixes were applied. */
-  fixes: { after_round: number; fixes: PronunciationFix[] }[];
-  /** Words still said wrong after the last take — for a person to check. */
-  unresolved: string[];
-  per_round: { round: number | null; wrong: string[] }[];
-}
-
 export interface VoiceManifestBlock {
   block_id: string;
   section_id: string;
@@ -2589,7 +2540,6 @@ export interface VoiceManifestBlock {
   flags: string[];
   /** Text actually sent to the voice (audio tags, added harakat) when it differs. */
   tts_text?: string | null;
-  pronunciation?: BlockPronunciation | null;
 }
 
 /** Dynamic-EQ report inside the narration manifest (stats only — the
@@ -2678,9 +2628,6 @@ export interface VoiceManifest {
   provider: string;
   asr: string | null;
   asr_error: string | null;
-  /** Phoneme model of the pronunciation check, or null when it did not run. */
-  pronunciation_listener?: string | null;
-  pronunciation_error?: string | null;
   blocks_rendered: number;
   blocks_in_plan: number;
   duration_seconds: number;
@@ -2710,22 +2657,6 @@ export interface SpeechSentence {
   display: string | null;
 }
 
-/** Pronunciation key entry: a word a voice could misread, with the reading its meaning needs. */
-export interface RiskyWord {
-  w: string;
-  /** Latin reading, e.g. "molk". */
-  read: string;
-  meaning: string;
-  /** Minimal harakat (مُلک). */
-  vowelled?: string;
-  /** Full harakat (مُلْک). */
-  full?: string;
-  /** The same word spelled unambiguously. */
-  respell?: string;
-  synonym?: string;
-  synonym_read?: string;
-}
-
 /** A sentence of the voice performance. */
 export interface PerformanceSentence extends SpeechSentence {
   /** Text sent to the voice: [audio tags] and punctuation for timing. */
@@ -2733,8 +2664,6 @@ export interface PerformanceSentence extends SpeechSentence {
   /** Arc level: 0 neutral · 1 unease · 2 dark · 3 climax. */
   level: number;
   directed: boolean;
-  /** Pronunciation key of the sentence (languages with the check). */
-  risky?: RiskyWord[] | null;
 }
 
 export interface PerformanceBeat {
@@ -2765,12 +2694,6 @@ export interface VoicePerformance {
     level_log: string[];
     errors: string[];
     examples: { i: number; issue: string; raw: string | null }[];
-    pronunciation_key?: {
-      sentences: number;
-      risky_words: number;
-      issues: string[];
-      errors: string[];
-    } | null;
   };
   created_at: string;
 }
@@ -3085,8 +3008,6 @@ export interface HostScene {
   voice_checks: {
     tts_text?: string | null;
     asr?: { passed: boolean; word_error_rate: number; heard_text: string } | null;
-    pronunciation?: { word: string; ok: boolean | null; form: string; fix: string | null }[];
-    fixes?: { after_round: number; fixes: { word: string; form: string; fix: string }[] }[];
     attempts?: number;
   };
   avatar_provider: string | null;
@@ -3254,7 +3175,6 @@ export interface ShortQueueItem {
   created_at: string;
   updated_at: string;
 }
-
 
 // ---------------------------------------------------------------------------
 // Language pipeline: one shared English draft, then an independent pipeline per language
@@ -3617,7 +3537,6 @@ export interface MonitoringAppSnapshot {
   providers: MonitoringSnapshot["providers"];
 }
 
-
 /** The pencil portraits of a case: how many the planner needs, which photos, and how far the making has come. */
 export interface DrawingPortrait {
   asset_id: number;
@@ -3650,256 +3569,6 @@ export interface DrawingOverview {
   portraits: DrawingPortrait[];
   ready: number;
   drawing: number;
-}
-
-/** One word of the reading text that the editor and the checker could not settle. */
-export interface ReadingDoubt {
-  id: number;
-  block_id: string;
-  word_n: number;
-  surface: string;
-  sentence: string;
-  question: string;
-  editor_latin: string;
-  checker_latin: string;
-  status: "open" | "answered";
-  answer_latin: string | null;
-}
-
-/** GET /api/documentary/versions/{id}/reading-doubts */
-export interface ReadingDoubts {
-  version_id: number;
-  language: string;
-  open: number;
-  answered: number;
-  doubts: ReadingDoubt[];
-}
-
-export interface ReadingAnswer {
-  id: number;
-  choice: "editor" | "checker" | "custom";
-  latin?: string;
-  everywhere: boolean;
-}
-
-
-/** One entry of the pronunciation memory (GET /api/documentary/pronunciation/entries). */
-export interface PronunciationEntry {
-  id: number;
-  language: string;
-  surface: string;
-  surface_key: string;
-  sense: string;
-  scope: "context" | "global";
-  prev_word: string;
-  next_word: string;
-  status: "candidate" | "legacy_unverified" | "human_approved" | "auto_verified" | "unresolved" | "rejected" | "uncertain" | "contested";
-  source: "human" | "agent" | "legacy";
-  expected_irab: string;
-  approved_pronunciation: string | null;
-  approved_ipa: string | null;
-  observed_wrong: string;
-  sentence: string;
-  reviewer: string | null;
-  approved_at: string | null;
-  version: number;
-  origin: string;
-  sources: { table: string; id: number; source: string; kind: string; latin?: string; reading?: string; hits?: number; created_at: string | null }[];
-  different_readings: { from: string; reading: string }[];
-}
-
-export interface PronunciationEntries {
-  counts: Record<string, number>;
-  entries: PronunciationEntry[];
-}
-
-export interface PronunciationWord {
-  text: string;
-  start: number;
-  end: number;
-}
-
-export interface PronunciationOccurrence {
-  block_id: string | null;
-  form: "exact" | "other written form";
-  written: string;
-  start: number;
-  end: number;
-  hit: number;
-  words: PronunciationWord[];
-}
-
-export interface PronunciationOccurrences {
-  audio_url: string | null;
-  total: number;
-  occurrences: PronunciationOccurrence[];
-}
-
-export interface PronunciationHistoryItem {
-  version: number;
-  actor: string;
-  reason: string;
-  at: string;
-  state: Record<string, unknown>;
-}
-
-export interface PronunciationApprove {
-  pronunciation: string;
-  reviewer: string;
-  scope: "context" | "global";
-  ipa?: string;
-  supersede?: boolean;
-  reason?: string;
-}
-
-export interface PhoneticCandidate {
-  key: string;
-  irab: string;
-  ipa: string;
-}
-
-export interface PhoneticOpinion {
-  kind: "agent" | "recognizer" | "human";
-  actor: string;
-  choice: string;
-  confidence: number;
-}
-
-export interface PhoneticSample {
-  id: number;
-  surface: string;
-  sentence: string;
-  category: string;
-  source: string;
-  speaker: string;
-  speed: string;
-  status: "unlabeled" | "agent_consensus" | "disputed" | "human_verified" | "unclear";
-  candidates: PhoneticCandidate[];
-  purpose: "validation" | "known_problem" | "defective_recording";
-  blind: boolean;
-  expected_key: string | null;
-  intended_key: string | null;
-  consensus_key: string | null;
-  human_key: string | null;
-  case_id: number | null;
-  block_id: string | null;
-  opinions: PhoneticOpinion[];
-}
-
-export interface PhoneticReport {
-  counts: Record<string, number>;
-  total: number;
-  by_category: Record<string, number>;
-  by_source: Record<string, number>;
-  human_verified: number;
-  against_human_labels: Record<string, { clips: number; right: number; unclear: number; accuracy: number | null }>;
-  consensus_checked_by_a_person: { clips: number; consensus_right: number };
-  enough_for_a_verdict: boolean;
-}
-
-export interface PhoneticListing {
-  samples: PhoneticSample[];
-  report: PhoneticReport;
-}
-
-export interface NarrationPreviewCost {
-  characters_sent: number;
-  requests: number;
-  actual_eur: number;
-  cap_eur: number;
-  spent_before_eur: number;
-  spent_after_eur: number;
-  case_cap_eur: number;
-}
-
-export interface NarrationPreviewSummary {
-  name: string;
-  title: string;
-  case_id: number;
-  language: string;
-  created_at: string;
-  duration_seconds: number;
-  cost: NarrationPreviewCost;
-}
-
-export interface NarrationPreview extends NarrationPreviewSummary {
-  story_version_id: number;
-  voice_id: string;
-  model_id: string;
-  source: string;
-  blocks: { block_id: string; start: number; end: number; text: string; label?: string }[];
-}
-
-export interface PronunciationSignal { name: string; weight: number; evidence: string }
-
-export interface PronunciationReference {
-  surface: string;
-  finglish: string;
-  phonemes: string[];
-  ipa: string;
-  syllables: string[];
-  stress: number;
-  morphology: { text: string; kind: string }[];
-  reference_irab: string | null;
-  added_carrier: boolean;
-  valid: boolean;
-  problems: string[];
-}
-
-export interface PronunciationPlanWord {
-  block_id: string;
-  n: number;
-  word: string;
-  start: number;
-  end: number;
-  sentence: string;
-  finglish: string;
-  reference: PronunciationReference | null;
-  ezafe: { ezafe_type: string; grammatical_relation: string; phonological_class: string; evidence_type: string; expected_reading: string; written: boolean;
-           conflicts: string[]; confidence: number; tts_form: string | null } | null;
-  risk: { level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"; score: number; signals: PronunciationSignal[] };
-  decision: { strategy: string; basis: string; replacement: string | null; validated: boolean; needs_review: boolean; reference_status: string; reference_cause: string };
-  tts_input: string;
-  voice_text?: string;
-  audio: { start: number; end: number } | null;
-  memory: { id: number; surface: string; status: string; trust: string; next_word: string; sense: string; approved_pronunciation: string | null;
-            interventions: { kind: string; replacement: string; status: string; successes: number; failures: number }[] }[];
-  verification: string;
-}
-
-export interface PronunciationPlan {
-  version_id: number;
-  case_id: number;
-  language: string;
-  voice_id: string;
-  model_id: string;
-  fresh?: boolean;
-  audio_url: string | null;
-  counts: Record<string, number>;
-  consistency: { word: string; kind: "name" | "word"; readings: Record<string, string[]>; legitimate: string }[];
-  canonical: { word: string; reading: string; kind: string; scope: string; provenance: string; status: string; note?: string }[];
-  words: PronunciationPlanWord[];
-}
-
-export interface ReadingFamily {
-  word: string;
-  kind: "name" | "word";
-  status: "resolved" | "retained_variant" | "unresolved";
-  rule: string;
-  reading: string;
-  evidence: string;
-  candidates: Record<string, number>;
-  occurrences: number;
-  forms: string[];
-  why_undecided: string;
-  lexicon?: string;
-  evidence_per_candidate?: Record<string, { written_on_the_letters: boolean; blocks: number; contexts: { block: string; sentence: string }[] }>;
-}
-
-export interface ReadingReview {
-  resolved: ReadingFamily[];
-  retained: ReadingFamily[];
-  owner_review: ReadingFamily[];
 }
 
 export interface BlockReviewWord {

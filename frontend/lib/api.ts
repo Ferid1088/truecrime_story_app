@@ -1,20 +1,9 @@
 import type {
-  PronunciationApprove,
-  PronunciationEntries,
-  PhoneticListing,
-  NarrationPreview,
-  NarrationPreviewSummary,
   BlockReview,
   BlockReviewBlock,
   BlockReviewOverview,
   BlockReviewReplace,
   BlockReviewStatus,
-  PronunciationPlan,
-  ReadingReview,
-  PhoneticSample,
-  PronunciationEntry,
-  PronunciationHistoryItem,
-  PronunciationOccurrences,
   DetectivePlan,
   CaseControlEvent,
   CaseControlView,
@@ -145,8 +134,6 @@ import type {
   CaseControlApplyResult,
   CaseControlPreview,
   ShortQueueItem,
-  ReadingAnswer,
-  ReadingDoubts,
 } from "./types";
 
 import { API_BASE } from "./config";
@@ -580,29 +567,6 @@ export const api = {
     post<Omit<HostSectionOutfits, "options">>(`/api/cases/${caseId}/host-section-outfits`, body),
   runHostScene: (id: number, until: "voice" | "avatar") =>
     post<HostScene>(`/api/host-scenes/${id}/run`, { until }),
-  pronunciationEntries: (language: string, status?: string) =>
-    request<PronunciationEntries>(`/api/documentary/pronunciation/entries${query({ language, status })}`),
-  pronunciationOccurrences: (entryId: number, versionId: number) =>
-    request<PronunciationOccurrences>(`/api/documentary/pronunciation/entries/${entryId}/occurrences${query({ version_id: versionId })}`),
-  pronunciationPeaks: (versionId: number, start: number, end: number) =>
-    request<{ peaks: number[] }>(`/api/documentary/pronunciation/clip-peaks${query({ version_id: versionId, start, end })}`),
-  pronunciationHistory: (entryId: number) => request<PronunciationHistoryItem[]>(`/api/documentary/pronunciation/entries/${entryId}/history`),
-  approvePronunciation: (entryId: number, body: PronunciationApprove) =>
-    post<PronunciationEntry>(`/api/documentary/pronunciation/entries/${entryId}/approve`, body),
-  rejectPronunciation: (entryId: number, reviewer: string, reason: string) =>
-    post<PronunciationEntry>(`/api/documentary/pronunciation/entries/${entryId}/reject`, { reviewer, reason }),
-  uncertainPronunciation: (entryId: number, reviewer: string, reason: string) =>
-    post<PronunciationEntry>(`/api/documentary/pronunciation/entries/${entryId}/uncertain`, { reviewer, reason }),
-  readingReview: (versionId: number, language: string) =>
-    request<ReadingReview>(`/api/documentary/versions/${versionId}/reading-review?language=${encodeURIComponent(language)}`, { timeoutMs: 120_000 }),
-  decideReading: (versionId: number, language: string, body: { word: string; reading: string; reviewer: string }) =>
-    request<{ word: string; reading: string; rows_saved: number }>(`/api/documentary/versions/${versionId}/reading-resolutions?language=${encodeURIComponent(language)}`,
-      { method: "POST", body: JSON.stringify(body), timeoutMs: 120_000 }),
-  pronunciationPlan: (versionId: number, language: string) =>
-    request<PronunciationPlan>(`/api/documentary/versions/${versionId}/pronunciation-plan?language=${encodeURIComponent(language)}`),
-  narrationPreviews: () => request<NarrationPreviewSummary[]>("/api/documentary/previews"),
-  narrationPreview: (name: string) => request<NarrationPreview>(`/api/documentary/previews/${encodeURIComponent(name)}`),
-  narrationPreviewAudioUrl: (name: string) => apiFileUrl(`/api/documentary/previews/${encodeURIComponent(name)}/audio`),
   blockReview: (versionId: number) => request<BlockReview>(`/api/documentary/versions/${versionId}/block-review`),
   openBlockReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/block-review/open`),
   editBlock: (versionId: number, blockId: string, body: { text?: string; words: { n: number; surface?: string; finglish?: string }[] }) =>
@@ -638,22 +602,6 @@ export const api = {
     post<BlockReviewBlock>(`/api/documentary/versions/${versionId}/host-voice-review/blocks/${encodeURIComponent(blockId)}/takes/${takeNo}/activate`),
   blockReviewStatus: (caseId: number, language?: string) =>
     request<BlockReviewStatus>(`/api/cases/${caseId}/voice-review-status${language ? `?language=${encodeURIComponent(language)}` : ""}`),
-  phoneticSamples: (language: string, status?: string, category?: string, source?: string) =>
-    request<PhoneticListing>(`/api/documentary/phonetic/samples${query({ language, status, category, source })}`),
-  phoneticAudioUrl: (sampleId: number) => apiFileUrl(`/api/documentary/phonetic/samples/${sampleId}/audio`),
-  phoneticPeaks: (sampleId: number) => request<{ peaks: number[] }>(`/api/documentary/phonetic/samples/${sampleId}/peaks`),
-  labelPhoneticSample: (sampleId: number, choice: string, reviewer: string) =>
-    post<PhoneticSample>(`/api/documentary/phonetic/samples/${sampleId}/label`, { choice, reviewer }),
-  uploadPhoneticSample: (upload: { file: Blob; filename: string; surface: string; sentence: string; candidates: string; category: string; speaker: string; speed: string; language: string }) => {
-    const form = new FormData();
-    form.set("file", upload.file, upload.filename);
-    for (const k of ["surface", "sentence", "candidates", "category", "speaker", "speed", "language"] as const) form.set(k, upload[k]);
-    // Empty headers drop the JSON content type: the browser sets the multipart boundary itself.
-    return request<PhoneticSample>("/api/documentary/phonetic/samples", { method: "POST", body: form, headers: {} });
-  },
-  readingDoubts: (versionId: number) => request<ReadingDoubts>(`/api/documentary/versions/${versionId}/reading-doubts`),
-  answerReadingDoubts: (versionId: number, answers: ReadingAnswer[]) =>
-    post<ReadingDoubts>(`/api/documentary/versions/${versionId}/reading-doubts`, { answers }),
   documentaryOverview: (caseId: number, versionId?: number | null, language?: string | null) =>
     request<DocumentaryOverview>(
       `/api/cases/${caseId}/documentary${query({ version_id: versionId ?? undefined, language: language ?? undefined })}`,

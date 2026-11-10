@@ -4,7 +4,7 @@ import { mockApi } from "./fixtures";
 
 const settings = {
   languages: ["en", "fa"], film_minutes: { min: 45, max: 120 }, pilot_seconds: 120, voices: {}, channels: { en: { name: "ClueVera" } }, avatar_generation: { enabled: true },
-  pronunciation_check: { enabled: false, languages: [], max_rounds: 1 }, voice_performance: { enabled: true, level_tags: {}, level_styles: {} },
+  voice_performance: { enabled: true, level_tags: {}, level_styles: {} },
   concurrency: { llm: 1, vision: 1, elevenlabs_tts: 1, elevenlabs_sound: 1, asr: 1, render: 1, downloads: 1, jobs: 1, languages: 1 },
   render: { width: 1920, height: 1080, fps: 24, audio_sample_rate: 48000, burn_subtitles: true, subtitle_max_chars: 42, subtitle_max_seconds: 7, show_credits: true },
   rights_profiles: { preview: [], publish: [] }, dynamic_eq: {},
@@ -31,7 +31,6 @@ test("a corrected block stays yellow and its corrected word red, a new take is v
   await page.route("**/api/documentary/settings", (r: Route) => r.fulfill(ok(settings)));
   await page.route("**/api/cases/1/documentary", (r: Route) => r.fulfill(ok(overview)));
   await page.route("**/api/cases/1/costs", (r: Route) => r.fulfill(ok(costs)));
-  await page.route("**/api/documentary/pronunciation/entries?**", (r: Route) => r.fulfill(ok({ counts: {}, entries: [] })));
   await page.route("**/api/documentary/versions/7/block-review", (r: Route) => r.fulfill(ok(state())));
   await page.route("**/api/documentary/versions/7/block-review/blocks/FA_B02_g01_01", async (r: Route) => {
     const body = r.request().postDataJSON() as { words: { n: number; surface?: string; finglish?: string }[] };
@@ -57,7 +56,7 @@ test("a corrected block stays yellow and its corrected word red, a new take is v
     await r.fulfill(ok(block2));
   });
 
-  await page.goto("/documentary/1?tab=Pronunciation");
+  await page.goto("/documentary/1?tab=Voice%20Review");
   await page.getByRole("button", { name: "Voice review", exact: true }).click();
   await expect(page.getByTestId("block-review")).toContainText("2 blocks · 0 corrected · 0 to send");
   await expect(page.getByTestId("block-FA_B02_g01_01")).toHaveAttribute("data-edited", "false");
@@ -111,14 +110,13 @@ test("replace in all blocks shows the places first and only then corrects the bl
   await page.route("**/api/documentary/settings", (r: Route) => r.fulfill(ok(settings)));
   await page.route("**/api/cases/1/documentary", (r: Route) => r.fulfill(ok(overview)));
   await page.route("**/api/cases/1/costs", (r: Route) => r.fulfill(ok(costs)));
-  await page.route("**/api/documentary/pronunciation/entries?**", (r: Route) => r.fulfill(ok({ counts: {}, entries: [] })));
   await page.route("**/api/documentary/versions/7/block-review", (r: Route) => r.fulfill(ok(overviewOf(plain))));
   await page.route("**/api/documentary/versions/7/block-review/replace", async (r: Route) => {
     const body = r.request().postDataJSON() as { find: string; replace: string; apply: boolean };
     calls.push(body);
     await r.fulfill(ok(body.apply ? { ...overviewOf(done), applied: true, blocks_found: 2, places_found: 2, matches } : { applied: false, blocks_found: 2, places_found: 2, matches }));
   });
-  await page.goto("/documentary/1?tab=Pronunciation");
+  await page.goto("/documentary/1?tab=Voice%20Review");
   await page.getByRole("button", { name: "Voice review", exact: true }).click();
   await page.getByText("Replace in all blocks").click();
   await expect(page.getByRole("button", { name: "Find the places" })).toBeDisabled();

@@ -219,8 +219,6 @@ function SceneCard({ scene, avatarOn, onChanged }: { scene: HostScene; avatarOn:
 
 function VoiceChecks({ scene }: { scene: HostScene }) {
   const checks = scene.voice_checks;
-  const wrong = (checks.pronunciation ?? []).filter((r) => r.ok === false);
-  const fixed = (checks.fixes ?? []).flatMap((f) => f.fixes);
   return (
     <div className="space-y-1.5 text-xs">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -238,11 +236,7 @@ function VoiceChecks({ scene }: { scene: HostScene }) {
             Whisper {checks.asr.passed ? "ok" : "failed"} · word error {(checks.asr.word_error_rate * 100).toFixed(0)}%
           </Badge>
         )}
-        {fixed.length > 0 && <Badge variant="info">{fixed.length} pronunciation fix(es) applied</Badge>}
       </div>
-      {wrong.length > 0 && (
-        <p className="text-muted-foreground">Still said wrong: {wrong.map((r) => r.word).join(", ")}</p>
-      )}
       {checks.tts_text && (
         <p dir={isRtl(scene.language) ? "rtl" : "ltr"} className="text-muted-foreground">
           Sent to the voice (with added vowel marks; the text above stays as written): {checks.tts_text}

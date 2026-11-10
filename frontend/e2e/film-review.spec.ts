@@ -7,7 +7,6 @@ const settings = {
   film_minutes: { min: 45, max: 120 },
   pilot_seconds: 120,
   voices: {},
-  pronunciation_check: { enabled: false, languages: [], max_rounds: 1 },
   voice_performance: { enabled: true, level_tags: {}, level_styles: {} },
   concurrency: { llm: 1, vision: 1, elevenlabs_tts: 1, elevenlabs_sound: 1, asr: 1, render: 1, downloads: 1, jobs: 1, languages: 1 },
   render: { width: 1920, height: 1080, fps: 24, audio_sample_rate: 48000, burn_subtitles: true, subtitle_max_chars: 42, subtitle_max_seconds: 7, show_credits: true },

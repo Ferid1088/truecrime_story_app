@@ -4,7 +4,7 @@ import { mockApi } from "./fixtures";
 
 const settings = {
   languages: ["en", "fa"], film_minutes: { min: 45, max: 120 }, pilot_seconds: 120, voices: {}, channels: { en: { name: "ClueVera" } }, avatar_generation: { enabled: true },
-  pronunciation_check: { enabled: false, languages: [], max_rounds: 1 }, voice_performance: { enabled: true, level_tags: {}, level_styles: {} },
+  voice_performance: { enabled: true, level_tags: {}, level_styles: {} },
   concurrency: { llm: 1, vision: 1, elevenlabs_tts: 1, elevenlabs_sound: 1, asr: 1, render: 1, downloads: 1, jobs: 1, languages: 1 },
   render: { width: 1920, height: 1080, fps: 24, audio_sample_rate: 48000, burn_subtitles: true, subtitle_max_chars: 42, subtitle_max_seconds: 7, show_credits: true },
   rights_profiles: { preview: [], publish: [] }, dynamic_eq: {},
@@ -28,7 +28,6 @@ test("the host voice review is the voice review of the host's scenes: no approve
   await page.route("**/api/documentary/settings", (r: Route) => r.fulfill(ok(settings)));
   await page.route("**/api/cases/1/documentary", (r: Route) => r.fulfill(ok(overview)));
   await page.route("**/api/cases/1/costs", (r: Route) => r.fulfill(ok(costs)));
-  await page.route("**/api/documentary/pronunciation/entries?**", (r: Route) => r.fulfill(ok({ counts: {}, entries: [] })));
   await page.route("**/api/documentary/versions/7/block-review", (r: Route) => r.fulfill(ok({ exists: false, version_id: 7, can_open: false })));
   await page.route("**/api/documentary/versions/7/host-voice-review", (r: Route) => r.fulfill(ok(state())));
   await page.route("**/api/documentary/versions/7/host-voice-review/blocks/host11", async (r: Route) => {
@@ -45,7 +44,7 @@ test("the host voice review is the voice review of the host's scenes: no approve
     await r.fulfill(ok(block));
   });
 
-  await page.goto("/documentary/1?tab=Pronunciation");
+  await page.goto("/documentary/1?tab=Voice%20Review");
   await page.getByRole("button", { name: "Host voice review" }).click();
   const review = page.getByTestId("block-review");
   await expect(review).toContainText("1 blocks · 0 corrected · 0 to send");
