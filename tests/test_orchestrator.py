@@ -258,7 +258,9 @@ def test_nine_queued_films_are_admitted_one_after_the_other_as_memory_allows(db_
         db.close()
         await asyncio.sleep(0.5)
 
-    g = governor(lambda: HostSample(free_gb=state["free"], total_gb=64.0, load_per_core=0.1, cores=8), clock)
+    settings = ai_config.orchestrator_settings()
+    settings = settings.model_copy(update={"stagger_seconds": 20.0, "host": settings.host.model_copy(update={"job_memory_gb": 1.5})})      # the proof does not move with the live estimate
+    g = Governor(settings, lambda: HostSample(free_gb=state["free"], total_gb=64.0, load_per_core=0.1, cores=8), clock)
 
     async def go():
         w = W.Worker(run_job=fake_run, worker_id="t", poll_seconds=0.02, lease_seconds=3, max_parallel=9, governor=g)
