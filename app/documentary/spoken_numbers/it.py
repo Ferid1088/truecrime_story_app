@@ -70,7 +70,8 @@ ABBREVIATIONS = (
 DOCUMENT_NUMBER = re.compile(
     r"(?P<p>(?:numero|numeri|R\.G\.|RG|sentenza|ordinanza|decreto|procedimento|causa|fascicolo|protocollo)\s+(?:numero\s+)?)"
     r"(?P<n>\d{1,7})/(?P<y>(?:19|20)\d{2})\b")
-EMERGENCY = re.compile(r"(?<![\d.,])(?P<n>11[2-9]|1522|1530)(?![\d]|[.,]\d)")
+US_EMERGENCY = "911"        # the American number is said digit by digit ("nove uno uno") whatever the sentence
+EMERGENCY = re.compile(r"(?<![\d.,])(?P<n>11[2-9]|1522|1530|911)(?![\d]|[.,]\d)")
 PHONE = re.compile(
     r"(?<![\d.,])(?:(?P<mob>3\d{2})(?P<msep>[ -])(?P<mrest>\d{6,7})|(?P<land>0\d{1,3})(?P<lsep>[ /-])(?P<lrest>\d{5,8}))(?!\d)")
 BARE_MOBILE = re.compile(r"(?<![\d.,])(?P<mob>3\d{2})(?P<mrest>\d{6,7})(?!\d)")
@@ -185,7 +186,7 @@ class Numbers(LanguageNumbers):
         def spoken(m: re.Match) -> str:
             number, mode = m["n"], self.opt.emergency_numbers
             near = m.string[max(0, m.start() - self.opt.emergency_context_chars):m.end() + self.opt.emergency_context_chars]
-            if mode == "number_always" or (mode == "digits_in_context" and not EMERGENCY_CONTEXT.search(near)):
+            if mode == "number_always" or (mode == "digits_in_context" and number != US_EMERGENCY and not EMERGENCY_CONTEXT.search(near)):
                 return cardinal(int(number))
             if len(number) == 4:
                 return f"{cardinal(int(number[:2]))} {cardinal(int(number[2:]))}"

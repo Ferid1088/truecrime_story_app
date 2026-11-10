@@ -22,7 +22,8 @@ PLACEHOLDERS = re.compile("(" + re.escape(PLACEHOLDER).replace(re.escape("{}"), 
 THOUSANDS = re.compile(r"\d{1,3}(?:\.\d{3})+")
 ENGLISH_AMOUNT = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d{1,2}")
 MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
-EMERGENCY_NUMBERS = "110|112|114|122|153|155|156|157|177|178|183|184"
+EMERGENCY_NUMBERS = "110|112|911|114|122|153|155|156|157|177|178|183|184"
+US_EMERGENCY = "911"      # the American number is said digit by digit ("dokuz bir bir") whatever the sentence
 EMERGENCY_CONTEXT = re.compile(
     r"alo|acil|numaral|hatt|arayın|aradı|aradığı|arama|aramak|ihbar|çağrı|imdat|itfaiye|ambulans|telefon|\btel\b|numara", re.IGNORECASE)
 CURRENCIES = {
@@ -201,7 +202,8 @@ class Numbers(LanguageNumbers):
         """112, 155, ... said digit by digit ("bir bir iki") when a call word is near; see Options.emergency_numbers."""
         near = m.string[max(0, m.start() - 30):m.start()] + " " + m.string[m.end():m.end() + 25]
         mode = self.opt.emergency_numbers
-        by_digit = mode == "digits_always" or (mode == "digits_in_context" and (m["alo"] or EMERGENCY_CONTEXT.search(near)))
+        by_digit = mode == "digits_always" or (mode == "digits_in_context" and (m["alo"] or EMERGENCY_CONTEXT.search(near))) \
+            or (m["n"] == US_EMERGENCY and mode != "number_always")
         words = digits(m["n"]) if by_digit else cardinal(int(m["n"]))
         return (m["alo"] or "") + self.say(words, m["suf"])
 

@@ -16,7 +16,7 @@ def say(text: str, **options) -> str:
 
 
 CARDINALS = [
-    ("911", "dokuz yüz on bir"), ("1000", "bin"), ("1.000", "bin"), ("1.001", "bin bir"), ("1.100", "bin yüz"), ("100", "yüz"), ("101", "yüz bir"),
+    ("912", "dokuz yüz on iki"), ("1000", "bin"), ("1.000", "bin"), ("1.001", "bin bir"), ("1.100", "bin yüz"), ("100", "yüz"), ("101", "yüz bir"),
     ("111", "yüz on bir"), ("12.345", "on iki bin üç yüz kırk beş"), ("1.000.000", "bir milyon"), ("2.500.000", "iki milyon beş yüz bin"),
     ("1.000.000.000", "bir milyar"), ("3.000.000.000.000", "üç trilyon"), ("0", "sıfır"), ("2007", "iki bin yedi"), ("2026", "iki bin yirmi altı"),
     ("1990", "bin dokuz yüz doksan"), ("1.234.567", "bir milyon iki yüz otuz dört bin beş yüz altmış yedi"),
@@ -24,7 +24,7 @@ CARDINALS = [
 SUFFIXES = [
     ("2007'de", "iki bin yedide"), ("2023'te", "iki bin yirmi üçte"), ("2024'te", "iki bin yirmi dörtte"), ("2004'e", "iki bin dörde"),
     ("1914'te", "bin dokuz yüz on dörtte"), ("1999'da", "bin dokuz yüz doksan dokuzda"), ("2000'de", "iki binde"), ("1900'de", "bin dokuz yüzde"),
-    ("911'i", "dokuz yüz on biri"), ("3'ü", "üçü"), ("4'e", "dörde"), ("40'a", "kırka"), ("100'e", "yüze"), ("6'yı", "altıyı"), ("6'sı", "altısı"),
+    ("912'yi", "dokuz yüz on ikiyi"), ("911'i", "dokuz bir biri"), ("ABD'de 911'i aradı", "ABD'de dokuz bir biri aradı"), ("3'ü", "üçü"), ("4'e", "dörde"), ("40'a", "kırka"), ("100'e", "yüze"), ("6'yı", "altıyı"), ("6'sı", "altısı"),
     ("5'e", "beşe"), ("10'a", "ona"), ("10'un", "onun"), ("7'yle", "yediyle"), ("5'le", "beşle"), ("3'ten", "üçten"), ("4'ten", "dörtten"),
     ("40'tan", "kırktan"), ("50'den", "elliden"), ("5'inde", "beşinde"), ("4'ünde", "dördünde"), ("7'sinde", "yedisinde"), ("8'de", "sekizde"),
     ("9'u", "dokuzu"), ("12'si", "on ikisi"), ("1990'lar", "bin dokuz yüz doksanlar"), ("1980'lerde", "bin dokuz yüz seksenlerde"),

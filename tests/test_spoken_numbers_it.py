@@ -19,7 +19,7 @@ def say(text: str, **options) -> str:
 
 
 CARDINALS = [
-    ("911", "novecentoundici"), ("1800", "milleottocento"), ("2026", "duemilaventisei"), ("21 anni", "ventun anni"),
+    ("912", "novecentododici"), ("911", "nove uno uno"), ("la chiamata al 911", "la chiamata al nove uno uno"), ("prima del 911", "prima del nove uno uno"), ("1800", "milleottocento"), ("2026", "duemilaventisei"), ("21 anni", "ventun anni"),
     ("31 giorni", "trentun giorni"), ("28", "ventotto"), ("108", "centootto"), ("101", "centouno"), ("23", "ventitré"), ("103", "centotré"),
     ("2000", "duemila"), ("21.000", "ventunomila"), ("1.000.000 di persone", "un milione di persone"),
     ("2.000.000 di euro", "due milioni di euro"), ("1.200.000", "un milione duecentomila"), ("3.000.000.000", "tre miliardi"),

@@ -25,6 +25,7 @@ _HELPLINE = re.compile(rf"(?<![\d,.])(116{SP}000|116{SP}117|3919|3977|3237)(?!\d
 _EMERGENCY = re.compile(
     rf"((?i:\b(?:appel\w*|compos\w*|numéro|joindre|contact\w*|au|le)){SP})(15|17|18|112|114|115|119|191|196)(?![\d,.])"
     rf"(?!{SP}?(?i:ans?|jours?|mois|heures?|minutes?|secondes?|personnes?|euros?|%))")
+_US_EMERGENCY = re.compile(r"(?<![\d,.])911(?!\d|[.,]\d)")      # the American number is said digit by digit ("neuf un un")
 _CALL_CUES = re.compile(r"(?i:appel|compos|numéro|joindre|contact)")
 _POSTAL = re.compile(r"(?<=, )(\d{2})(\d{3})(?=\s[A-ZÉÈ])")
 _AGE = re.compile(r"\b([A-ZÉ][a-zàâçéèêëîïôûù]+) \((\d{1,2})\)")
@@ -128,7 +129,7 @@ class Numbers(CalendarRules, MeasureRules, LanguageNumbers):
                 return match.group()
             return f"{match.group(1)}{W.digits_words(match.group(2))}"
 
-        text = _HELPLINE.sub(helpline, text)
+        text = _US_EMERGENCY.sub(lambda m: W.digits_words(m.group()), _HELPLINE.sub(helpline, text))
         return text if self.opts.emergency_numbers == "number_always" else _EMERGENCY.sub(emergency, text)
 
     def signs(self, text: str) -> str:

@@ -26,9 +26,10 @@ from app.documentary.spoken_numbers.pt_words import (
 
 NUM = r"\d{1,3}(?:\.\d{3})+|\d+"
 BEFORE_NUMBER = r"(?<![\w.,/@#])"
-# Brazilian emergency and public-utility numbers said digit by digit; 911 and 112 are foreign numbers, said as numbers unless the owner asks.
+# Brazilian emergency and public-utility numbers said digit by digit; 112 is a foreign number, said as a number unless the owner asks; the American 911 is said digit by digit ("nove um um") whatever the sentence.
 BRAZILIAN_EMERGENCY = {"136", "180", "181", "188", "190", "191", "192", "193", "197", "199"}
 FOREIGN_EMERGENCY = {"112", "911"}
+US_EMERGENCY = "911"
 EMERGENCY_CONTEXT = {"ligue", "ligou", "ligar", "ligam", "ligaram", "ligando", "ligação", "ligações", "liga", "telefone", "telefonou", "telefonar",
                      "número", "numero", "disque", "discou", "discar", "chamou", "chamar", "chame", "chamada", "chamaram", "emergência", "emergencia",
                      "samu", "pm", "prf", "cvv", "bombeiros", "polícia", "policia", "denúncia", "denuncia", "central", "pelo", "ramal", "atendimento"}
@@ -352,7 +353,8 @@ class Numbers(LanguageNumbers):
         clause = re.split(r"[.;:!?\n]", match.string[max(0, match.start() - 60):match.start()])[-1]
         before = WORD.findall(clause)[-4:]
         in_context = any(word.lower() in EMERGENCY_CONTEXT for word in before)
-        spelled = mode == "digits_always" or (mode == "digits_in_context" and number in BRAZILIAN_EMERGENCY and in_context)
+        spelled = (mode == "digits_always" or (mode == "digits_in_context" and number in BRAZILIAN_EMERGENCY and in_context)
+                   or (number == US_EMERGENCY and mode != "number_always"))
         return digit_words(number) if spelled else match[0]
 
     def roman_after_word(self, match: re.Match) -> str:

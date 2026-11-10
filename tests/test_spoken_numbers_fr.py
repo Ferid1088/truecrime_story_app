@@ -38,7 +38,7 @@ def say(text: str, **options) -> str:
     ("12 bis, rue de la Paix", "douze bis, rue de la Paix"),
     ("06 12 34 56 78", "zéro six, douze, trente-quatre, cinquante-six, soixante-dix-huit"),
     ("+33 6 12 34 56 78", "plus trente-trois, six, douze, trente-quatre, cinquante-six, soixante-dix-huit"),
-    ("appelez le 17", "appelez le dix-sept"), ("le 112", "le cent douze"), ("le 3919", "le trente-neuf dix-neuf"), ("3 coups de feu", "trois coups de feu"),
+    ("appelez le 17", "appelez le dix-sept"), ("le 112", "le cent douze"), ("il a appelé le 911", "il a appelé le neuf un un"), ("quelques heures avant le 911.", "quelques heures avant le neuf un un."), ("le 3919", "le trente-neuf dix-neuf"), ("3 coups de feu", "trois coups de feu"),
     ("25 ans de réclusion criminelle", "vingt-cinq ans de réclusion criminelle"), ("garde à vue de 48 heures", "garde à vue de quarante-huit heures"),
     ("1 victime", "une victime"), ("21 victimes", "vingt et une victimes"), ("24/7", "vingt-quatre heures sur vingt-quatre, sept jours sur sept"),
     ("1 500", "mille cinq cents"), ("1 500", "mille cinq cents"), ("1 500", "mille cinq cents"), ("2021 €", "deux mille vingt et un euros"),
@@ -155,7 +155,7 @@ def test_years_follow_the_year_style_option():
 @pytest.mark.parametrize("mode,text,spoken", [
     ("digits_in_context", "appelez le 17", "appelez le un sept"), ("digits_in_context", "le 17", "le dix-sept"),
     ("digits_always", "le 112", "le un un deux"), ("digits_always", "au 17 mars", "au dix-sept mars"), ("digits_always", "le 17 ans", "le dix-sept ans"),
-    ("number_always", "appelez le 112", "appelez le cent douze"),
+    ("number_always", "appelez le 112", "appelez le cent douze"), ("number_always", "le 911", "le neuf un un"),
 ])
 def test_emergency_numbers_option(mode, text, spoken):
     assert say(text, emergency_numbers=mode) == spoken

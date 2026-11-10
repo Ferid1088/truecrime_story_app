@@ -184,7 +184,7 @@ EMERGENCY_AND_DOCUMENTS = [
     ("PRF no 191", "PRF no um nove um"),
     ("ligue 193 ou 192", "ligue um nove três ou um nove dois"),
     ("Disque 100", "Disque cem"),
-    ("ligou para o 911", "ligou para o novecentos e onze"),
+    ("ligou para o 911", "ligou para o nove um um"), ("horas antes do 911", "horas antes do nove um um"),
     ("o número 112", "o número cento e doze"),
     ("190 centímetros de altura", "cento e noventa centímetros de altura"),
     ("180 dias depois", "cento e oitenta dias depois"),
@@ -343,7 +343,7 @@ def test_a_number_beyond_the_maximum_is_spelled_digit_by_digit():
 @pytest.mark.parametrize(("mode", "written", "spoken"), [
     ("digits_in_context", "ligue 190", "ligue um nove zero"),
     ("digits_in_context", "190 centímetros", "cento e noventa centímetros"),
-    ("digits_in_context", "ligou para o 911", "ligou para o novecentos e onze"),
+    ("digits_in_context", "ligou para o 911", "ligou para o nove um um"),
     ("digits_always", "190 centímetros", "um nove zero centímetros"),
     ("digits_always", "ligou para o 911", "ligou para o nove um um"),
     ("digits_always", "o 112", "o um um dois"),
