@@ -54,8 +54,8 @@ def test_an_empty_balance_answered_with_a_403_moves_but_another_403_never_does()
     empty = error("forbidden", "APIMaster permission/quota failure (403): Insufficient balance for this request. Remaining: $0.0001.")
     assert failure_of(empty, cfg) == "quota" and failure_of(error("forbidden", "x (403): content risk"), cfg) == "forbidden"
     primary, secondary = Fake("apimaster", empty), Fake("apiko")
-    result = asyncio.run(FailoverGenerationProvider(primary, secondary, cfg).generate_text("reading_checker", "s", "u"))
-    assert (result.provider, secondary.calls) == ("apiko", ["reading_checker"])
+    result = asyncio.run(FailoverGenerationProvider(primary, secondary, cfg).generate_text("spoken_writer", "s", "u"))
+    assert (result.provider, secondary.calls) == ("apiko", ["spoken_writer"])
 
 
 @pytest.mark.parametrize("failure", [error("unreachable"), error("timeout"), error("provider_error", "APIMaster error (HTTP 503)"),
@@ -63,8 +63,8 @@ def test_an_empty_balance_answered_with_a_403_moves_but_another_403_never_does()
                                      error("forbidden", "APIMaster permission/quota failure (402): no balance")])
 def test_a_call_moves_to_the_second_gateway_when_the_active_provider_is_not_available(failure):
     primary, secondary = Fake("apimaster", failure), Fake("apiko")
-    result = asyncio.run(FailoverGenerationProvider(primary, secondary, CFG).generate_text("reading_checker", "s", "u"))
-    assert (result.provider, result.fallback_used, secondary.calls) == ("apiko", True, ["reading_checker"])
+    result = asyncio.run(FailoverGenerationProvider(primary, secondary, CFG).generate_text("spoken_writer", "s", "u"))
+    assert (result.provider, result.fallback_used, secondary.calls) == ("apiko", True, ["spoken_writer"])
 
 
 @pytest.mark.parametrize("failure", [error("forbidden", "APIMaster permission/quota failure (403): content risk"), error("invalid_request"),
@@ -174,5 +174,5 @@ def test_an_unpaid_billing_settlement_of_the_first_gateway_moves_the_calls_to_th
                                 "Please restore the original funding balance or contact support.")
     assert failure_of(unpaid, cfg) == "quota"
     primary, secondary = Fake("apimaster", unpaid), Fake("apiko")
-    result = asyncio.run(FailoverGenerationProvider(primary, secondary, cfg).generate_text("reading_checker", "s", "u"))
-    assert (result.provider, secondary.calls) == ("apiko", ["reading_checker"])
+    result = asyncio.run(FailoverGenerationProvider(primary, secondary, cfg).generate_text("spoken_writer", "s", "u"))
+    assert (result.provider, secondary.calls) == ("apiko", ["spoken_writer"])

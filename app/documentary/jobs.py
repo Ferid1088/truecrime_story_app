@@ -115,7 +115,7 @@ def latest_spoken(db: Session, master: StoryVersion, language: str,
         struct = json.loads(v.narrative_structure or "{}")
         if blueprint_id is not None and struct.get("blueprint_id") != blueprint_id:
             continue
-        if ai_config.ppie.fresh(language) and struct.get("prepared"):       # a voice-prepare rewrite of the approved text is never the narration's source
+        if struct.get("prepared"):       # an older rewrite of the approved text for the voice is never the narration's source
             continue
         if whole_film and struct.get("pilot_beat_ids"):
             continue

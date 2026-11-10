@@ -1,8 +1,7 @@
 """Whole numbers in Arabic words ("911" -> "تِسْعُمِئَة وَأَحَدَ عَشَر"), for the voice: a voice reads bare digits one by one. By default a number is a plain
 masculine cardinal in the nominative, the way a narrator reads a figure out ("2026" is "أَلْفَان وَسِتَّة وَعِشْرُون"). A `Form` says when the counted noun is
 feminine (3 to 10 and the units of 11 to 99 reverse their gender: "ثَلَاث سَنَوَات") and when the number stands after a preposition (the oblique case, whose
-dual and tens have another stem: "اثْنَيْن", "عِشْرِين"). The words carry the vowel marks inside the word (the stem) and no case endings: the same style the
-tashkeel reading gives every other word.
+dual and tens have another stem: "اثْنَيْن", "عِشْرِين"). The words carry the vowel marks inside the word (the stem) and no case endings.
 
 From a thousand upward the counted word follows its number: one is the scale alone, two its dual, three to ten the plural, eleven and more the singular. The
 counts of a scale are always masculine (the scale word is). A count of a hundred or more follows its last two digits: 3 to 10 take the plural ("مِئَة وَثَلَاثَة
