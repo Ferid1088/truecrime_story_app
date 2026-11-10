@@ -3,7 +3,7 @@
     "stagger_seconds": 20,
     "host": {
       "min_free_memory_gb": 2.0,
-      "job_memory_gb": 1.5,
+      "job_memory_gb": 2.5,
       "max_load_per_core": 1.5
     },
     "throttle": {
