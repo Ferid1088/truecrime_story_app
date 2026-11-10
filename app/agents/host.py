@@ -52,7 +52,7 @@ from app.documentary.host_planning import fit_plan, inherit, story_seconds, vali
 from app.documentary.host_story import HostStory, load_story
 from app.documentary.identity_line import ends_with_identity, identity_line, strip_identity, with_identity
 from app.providers.generation import get_generation_provider
-from app.providers.generation.base import GenerationError, GenerationResult
+from app.providers.generation.base import GenerationError
 from app.services.tracking import stamp_run, track_run
 
 
