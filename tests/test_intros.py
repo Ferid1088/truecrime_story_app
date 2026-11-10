@@ -172,3 +172,22 @@ def test_the_renderer_plays_the_intro_with_its_sound(channel, tmp_path, monkeypa
     monkeypatch.setattr(IN, "channel_intro", lambda lang: None)
     info = VideoRenderer(160, 90).render({**script, "language": "de"}, tmp_path / "none.mp4")
     assert info["intro"] is None
+
+
+def test_only_the_italian_intro_is_made_again_for_its_new_sound(tmp_path):
+    logo = _logo(tmp_path / "logo.png")
+    plain = IN.fingerprint("keyhole", logo, 160, 90, 10, 48000)
+    assert plain == IN.fingerprint("keyhole", logo, 160, 90, 10, 48000, IN.SOUND_VERSIONS.get("fr", 1)), "the other channels keep their intros"
+    assert plain != IN.fingerprint("keyhole", logo, 160, 90, 10, 48000, IN.SOUND_VERSIONS["it"]), "the Italian intro is made again"
+    assert set(IN.SOUND_VERSIONS) == {"it"}
+
+
+def test_the_italian_intro_sound_is_a_slow_heartbeat_and_a_deep_hit_at_the_logo(tmp_path):
+    logo = _logo(tmp_path / "logo.png")
+    _, _, snd = IN.IntroMaker(logo, 160, 90, 10, 48000, language="it").keyhole()
+    stereo = snd.stereo()
+    assert np.isfinite(stereo).all() and np.abs(stereo).max() <= 0.9
+    sr = 48000
+    rms = lambda a, b: float(np.sqrt(np.mean(stereo[int(a * sr):int(b * sr), 0] ** 2)))      # noqa: E731
+    assert rms(3.6, 4.4) > 2 * rms(0.0, 0.4), "the hit where the logo lands is the loudest moment"
+    assert rms(0.55, 0.75) > rms(0.0, 0.3), "the first heartbeat is heard before the picture is lit"

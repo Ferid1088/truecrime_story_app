@@ -27,7 +27,9 @@ chosen by the producer from previews:
                keyhole and spreads over the logo; a bağlama (long-necked lute,
                paired strings, tremolo) in makam Uşşak over a drone, a low
                davul hit.
-  (keyhole and arch: the other two previews, kept as alternatives.)
+  keyhole      Tracce Nascoste (it) — the keyhole opens on the logo; true-crime tension on a minor second (a drone on A and B-flat, low E-F-E plucks,
+               a cold high cluster), a slow double heartbeat, a deep hit with a metallic ring.
+  (arch: the other preview, the intro of fr.)
 
 Pictures are drawn with numpy/OpenCV, the sound is synthesized (no samples,
 no costs). An intro is rendered once per channel at the film's size into
@@ -55,6 +57,7 @@ from PIL import Image
 from app.core.ai_config import ai_config
 
 VERSION = 1
+SOUND_VERSIONS = {"it": 2}      # a language whose intro sound was made again: only its intro is made again (the others keep their files)
 ROOT = Path(__file__).resolve().parents[2]
 DESIGN_H = 720.0  # the concepts were designed at 1280×720; sizes scale with H
 
@@ -119,10 +122,10 @@ def intro_dir(language: str) -> Path:
     return (base if base.is_absolute() else ROOT / base) / language
 
 
-def fingerprint(concept: str, logo: Path, W: int, H: int, fps: int, sr: int) -> str:
+def fingerprint(concept: str, logo: Path, W: int, H: int, fps: int, sr: int, sound: int = 1) -> str:
     h = hashlib.sha256()
     h.update(logo.read_bytes())
-    h.update(json.dumps([VERSION, concept, W, H, fps, sr]).encode())
+    h.update(json.dumps([VERSION, concept, W, H, fps, sr, *([sound] if sound != 1 else [])]).encode())
     return h.hexdigest()[:16]
 
 
@@ -137,7 +140,7 @@ def ensure_intro(language: str, W: int, H: int, fps: int) -> dict | None:
     out = intro_dir(language)
     tag = f"{W}x{H}"
     meta_path = out / f"intro_{tag}.json"
-    fp = fingerprint(concept, logo, W, H, fps, sr)
+    fp = fingerprint(concept, logo, W, H, fps, sr, SOUND_VERSIONS.get(language, 1))
     with _LOCK:
         if meta_path.exists():
             meta = json.loads(meta_path.read_text())
@@ -352,6 +355,18 @@ class Sound:
         x += self.band(self.rng.normal(0, 1, len(t)), 200, 1400) * np.exp(-t * 38) * 0.45
         self.add(x, at, gain)
 
+    def shimmer(self, freqs, start, end, gain) -> None:
+        """A thin, cold chord of sine tones that swells between `start` and `end` and sinks away."""
+        t = self.t()
+        env = np.interp(t, [0, start, (start + end) / 2, end, self.dur], [0, 0, 1, 0.5, 0])
+        x = sum(np.sin(2 * math.pi * f * t) for f in freqs) * env * (0.8 + 0.2 * np.sin(2 * math.pi * 0.7 * t))
+        self.add(self.band(x, lo=300, hi=3000), 0, gain)
+
+    def sting(self, at, freqs, gain) -> None:
+        """A short metallic hit that rings out (two close tones)."""
+        t = self.t(2.4)
+        self.add(self.band(sum(np.sin(2 * math.pi * f * t) * np.exp(-t * 1.6) for f in freqs), lo=300, hi=4000), at, gain)
+
     def reverb(self, x: np.ndarray, seconds=2.6, wet=0.45) -> np.ndarray:
         """A long, dark plate-like reverb (FFT convolution with a decaying
         noise impulse)."""
@@ -531,16 +546,19 @@ class IntroMaker:
 
         snd = Sound(dur, self.sr)
         if self.language == "it":
-            snd.drone((55.0, 82.41), (0.22, 0.82), 0.18)
-            notes = [(0.55, 220.00), (0.95, 261.63), (1.35, 329.63),
-                     (1.82, 293.66), (2.22, 246.94), (2.66, 220.00),
-                     (3.10, 329.63), (3.55, 293.66), (4.00, 246.94)]
-            bus = sum(snd.mandolin(at, f, 0.72, 0.30) for at, f in notes)
-            snd.add(snd.reverb(bus, 2.5, 0.28), 0, 0.95)
-            snd.click(0.3, 0.18, 1500)
-            snd.whoosh(1.4, 1.7, 260, 2300, 0.09)
-            snd.boom(3.6, f0=92, f1=38, length=1.8, gain=0.65)
-            snd.whoosh(3.85, 1.0, 3000, 9000, 0.05)
+            # true-crime tension on a minor second (A and B-flat beat against each other; low E, F, E; a cold high E-F cluster), a slow
+            # double heartbeat and a deep hit with a metallic ring where the logo lands
+            snd.drone((55.0, 58.27, 82.41), (0.3, 1.0), 0.22)
+            for at, gain in ((0.55, 0.55), (0.88, 0.38), (1.95, 0.5), (2.28, 0.34)):
+                snd.skin_drum(at, 78, 44, 1.0, gain)
+            for at, freq in ((1.0, 82.41), (1.95, 87.31), (2.9, 82.41)):
+                snd.pluck(at, freq, 2.6, 0.5, bright=0.993, body=0.1)
+            snd.shimmer((659.26, 698.46), 1.3, 3.8, 0.05)
+            snd.whoosh(1.9, 1.7, 200, 1600, 0.10)
+            snd.click(0.3, 0.14, 1500)
+            snd.boom(3.6, f0=70, f1=32, length=2.2, gain=0.8)
+            snd.sting(3.6, (1318.5, 1396.9), 0.05)
+            snd.mix = snd.reverb(snd.mix, 2.4, 0.22)
         else:
             snd.drone((55, 82.4), (0.25, 1.0))
             snd.click(0.3, 0.2, 1500)
