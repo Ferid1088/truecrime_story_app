@@ -161,27 +161,6 @@
       "description": "Independently audit one Shorts script.",
       "used_by": "app/shortform/agents.py"
     },
-    "documentary.pronunciation": {
-      "role": "pronunciation_editor",
-      "prompt": "documentary/pronunciation/editor_system",
-      "output": "json",
-      "description": "Readings a voice might get wrong.",
-      "used_by": "app/documentary/pronunciation.py"
-    },
-    "documentary.pronunciation.ar": {
-      "role": "pronunciation_editor",
-      "prompt": "documentary/pronunciation/editor_system_ar",
-      "output": "json",
-      "description": "Readings an Arabic voice might get wrong.",
-      "used_by": "app/documentary/pronunciation.py"
-    },
-    "documentary.pronunciation.arbiter": {
-      "role": "pronunciation_editor",
-      "prompt": "documentary/pronunciation/arbiter_system",
-      "output": "json",
-      "description": "Decides whether the voice or the pronunciation key is wrong for a word that stayed wrong.",
-      "used_by": "app/documentary/pronunciation.py"
-    },
     "documentary.voice_arc": {
       "role": "voice_performance_director",
       "prompt": "documentary/voice_performance/arc_system",
@@ -644,20 +623,6 @@
       "description": "Before the film is directed in a language with its own script: how the narration writes each person and place of the case (full, first and last name).",
       "used_by": "app/documentary/names.py"
     },
-    "documentary.voice_prepare.edit": {
-      "role": "voice_prepare_editor",
-      "prompt": "documentary/voice_prepare/editor_fa_system",
-      "output": "json",
-      "description": "Before a prepared language (Persian) is voiced: each sentence's final text and the pronunciation rules of its risky words.",
-      "used_by": "app/documentary/voice_prepare.py"
-    },
-    "documentary.voice_prepare.check": {
-      "role": "voice_prepare_checker",
-      "prompt": "documentary/voice_prepare/check_fa_system",
-      "output": "json",
-      "description": "Before a prepared language is voiced: whether each beat's final text is faithful to the English source (meaning, names, numbers, facts).",
-      "used_by": "app/documentary/voice_prepare.py"
-    },
     "mvp.overlay_scan": {
       "role": "mvp_overlay_scanner",
       "prompt": "documentary/mvp/overlay_scan_system",
@@ -727,121 +692,6 @@
       "output": "json",
       "description": "After a Persian narration block is voiced (and after its avatar video is made): listens to the audio and judges meaning, dates, numbers, names, pronunciation and delivery against the source text.",
       "used_by": "app/documentary/semantic_review.py"
-    },
-    "documentary.reading.glossary": {
-      "role": "reading_reader",
-      "prompt": "documentary/reading/glossary_system",
-      "output": "json",
-      "description": "Reads a stretch of the Persian narration with the English text and returns the film's name table (people with their parts and titles, places, foreign words, doubts), so that every name is read the same everywhere.",
-      "used_by": "app/documentary/reading/glossary.py"
-    },
-    "documentary.reading.write": {
-      "role": "reading_editor",
-      "prompt": "documentary/reading/write_system",
-      "output": "json",
-      "description": "Writes the reading text of one block: for every numbered word its Latin reading (vowels, ezafe, pause), decided by the meaning of the word in its sentence.",
-      "used_by": "app/documentary/reading/writer.py"
-    },
-    "documentary.reading.check": {
-      "role": "reading_checker",
-      "prompt": "documentary/reading/check_system",
-      "output": "json",
-      "description": "Adversarial check (another model) of the reading text of one block: rejects a word with proof, or doubts.",
-      "used_by": "app/documentary/reading/checker.py"
-    },
-    "documentary.reading.check_blind": {
-      "role": "reading_checker",
-      "prompt": "documentary/reading/write_system",
-      "output": "json",
-      "description": "The independent check of the reading text of one block (blind mode): another model reads the block itself, with the editor's instructions and without the editor's answer; code compares the two readings word by word and sends every difference to the arbiter.",
-      "used_by": "app/documentary/reading/checker.py"
-    },
-    "documentary.reading.arbitrate": {
-      "role": "reading_arbiter",
-      "prompt": "documentary/reading/arbitrate_system",
-      "output": "json",
-      "description": "Decides one word the editor and the checker read differently, or sends it to the owner as a doubt.",
-      "used_by": "app/documentary/reading/checker.py"
-    },
-    "documentary.reading.choose": {
-      "role": "reading_listener",
-      "prompt": "documentary/reading/choose_system",
-      "output": "json",
-      "description": "Listens to the clip of one word of the Persian narration and chooses which of several written readings it was said as.",
-      "used_by": "app/documentary/reading/chooser.py"
-    },
-    "documentary.reading.tashkeel.write": {"role": "reading_editor", "prompt": "documentary/reading/tashkeel_write_system", "output": "json", "description": "Writes the reading text of one block of an Arabic narration: every word with the vowel marks (tashkeel) it is said with in its sentence, names and ambiguous words marked, confidence per word.", "used_by": "app/documentary/reading/tashkeel.py"},
-    "documentary.reading.tashkeel.check": {"role": "reading_checker", "prompt": "documentary/reading/tashkeel_check_system", "output": "json", "description": "Vowelises the unsure words of an Arabic block independently, without seeing the editor's answer; code compares the two word by word.", "used_by": "app/documentary/reading/tashkeel.py"},
-    "documentary.reading.tashkeel.arbitrate": {"role": "reading_arbiter", "prompt": "documentary/reading/tashkeel_arbitrate_system", "output": "json", "description": "Decides between two different vowelisations of one Arabic word in its sentence (a, b, neither with the right one, or unsure).", "used_by": "app/documentary/reading/tashkeel.py"},
-    "documentary.irab.write": {
-      "role": "reading_editor",
-      "prompt": "documentary/irab/write_system",
-      "output": "json",
-      "description": "Vowelizes one block of the Persian narration word by word (irab, and the spoken form where marks are not enough) from the English source and the meaning of each word.",
-      "used_by": "app/documentary/irab/maker.py"
-    },
-    "documentary.irab.check": {
-      "role": "reading_checker",
-      "prompt": "documentary/irab/write_system",
-      "output": "json",
-      "description": "The same task by another model that does not see the first answer: the two are compared word by word.",
-      "used_by": "app/documentary/irab/maker.py"
-    },
-    "documentary.irab.arbitrate": {
-      "role": "reading_arbiter",
-      "prompt": "documentary/irab/arbitrate_system",
-      "output": "json",
-      "description": "Chooses between two vowelizations of a word by the meaning and the grammar of its sentence.",
-      "used_by": "app/documentary/irab/maker.py"
-    },
-    "pronunciation.linguist": {
-      "role": "reading_editor",
-      "prompt": "pronunciation/linguist_system",
-      "output": "json",
-      "description": "Writes the reference irab of a sentence (formal and colloquial Iranian Persian, ezafe, compound verbs, names from memory only).",
-      "used_by": "app/documentary/pronunciation_agents.py"
-    },
-    "pronunciation.risk": {
-      "role": "reading_checker",
-      "prompt": "pronunciation/risk_system",
-      "output": "json",
-      "description": "Decides which words of a sentence need a pronunciation intervention before synthesis, from memory, recorded failures and the sentence.",
-      "used_by": "app/documentary/pronunciation_agents.py"
-    },
-    "pronunciation.intervention": {
-      "role": "reading_editor",
-      "prompt": "pronunciation/intervention_system",
-      "output": "json",
-      "description": "Chooses the least invasive effective way to make the voice say a word as the reference says it (exact-form dictionary rules first).",
-      "used_by": "app/documentary/pronunciation_agents.py"
-    },
-    "pronunciation.audio_observer": {
-      "role": "reading_listener",
-      "prompt": "pronunciation/audio_observer_system",
-      "output": "json",
-      "description": "Establishes from a recording what was said about chosen words; evidence kinds are kept apart from inference.",
-      "used_by": "app/documentary/pronunciation_agents.py"
-    },
-    "pronunciation.prosody": {
-      "role": "reading_listener",
-      "prompt": "pronunciation/prosody_system",
-      "output": "json",
-      "description": "Judges the naturalness of a take independently of pronunciation: flow, rhythm, pauses, emotion, stress, identity, artifacts.",
-      "used_by": "app/documentary/pronunciation_agents.py"
-    },
-    "pronunciation.memory": {
-      "role": "reading_arbiter",
-      "prompt": "pronunciation/memory_system",
-      "output": "json",
-      "description": "Turns a person's corrections and intervention outcomes into durable pronunciation memory without overwriting a human approval.",
-      "used_by": "app/documentary/pronunciation_agents.py"
-    },
-    "pronunciation.qa": {
-      "role": "reading_checker",
-      "prompt": "pronunciation/qa_system",
-      "output": "json",
-      "description": "Independently challenges the conclusions of the other pronunciation agents against the evidence.",
-      "used_by": "app/documentary/pronunciation_agents.py"
     }
   }
 }

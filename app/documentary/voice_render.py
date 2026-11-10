@@ -349,7 +349,7 @@ class VoiceRenderer:
                            if block.get("sentences") else [])
 
         asr = None
-        if self.asr is not None and ai_config.asr_after_voice(language):
+        if self.asr is not None and ai_config.listens_after_voice(language):
             # The check compares what people should hear (no tags, no
             # harakat added for pronunciation) with what Whisper heard.
             heard_text = await self._heard(wav, meta, meta_path, language)

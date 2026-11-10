@@ -273,7 +273,7 @@ def attach_speech(blocks: list[dict], records: list[dict], use_tags: bool
         blk["sentences"] = [
             {"speech": r["speech"], "display": r.get("display"),
              "tts": (r.get("tts") or r["speech"]) if use_tags else r["speech"],
-             "level": r.get("level"), "risky": r.get("risky") or []}
+             "level": r.get("level")}
             for r in recs
         ]
         if use_tags and any(r.get("tts") for r in recs):

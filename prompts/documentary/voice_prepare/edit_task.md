@@ -1,1 +1,0 @@
-TASK: for every sentence of the input return its final Persian text and its pronunciation rules, exactly as your instructions say. Return JSON only, with the key "sentences" and one object for every input sentence.

@@ -1,1 +1,0 @@
-TASK: for every changed sentence of the input say whether it still says what the draft and the English source say, exactly as your instructions say. Return JSON only, with the key "sentences".

@@ -78,10 +78,6 @@ REQUIRED_ROLES = {
     "spoken_writer",
     "spoken_meaning_checker",
     "spoken_style_critic",
-    # Pronunciation key: for words a voice can misread (Persian homographs
-    # like ملک = melk / molk / malek / malak) the reading the MEANING needs
-    # and the harakat that force it — used by the listening check.
-    "pronunciation_editor",
     # Voice performance: ElevenLabs v4 audio tags, emphasis and the
     # narrator's tension arc (neutral -> dark -> slow and plain climaxes, never whispered).
     "voice_performance_director",
@@ -149,17 +145,8 @@ REQUIRED_ROLES = {
     "mvp_person_inspector",
     # Before the film is directed in a language with its own script: how that language's narration writes the names of the case's people and places.
     "name_forms_reader",
-    # Before a prepared language (Persian) is voiced: its final text with the pronunciation rules of the risky words, and the check that the
-    # text is faithful to the English source.
-    "voice_prepare_editor",
-    "voice_prepare_checker",
     # After a Persian block is voiced (and after its avatar video is made): listens to the audio and judges it against the source text.
     "semantic_audio_reviewer",
-    "reading_reader",
-    "reading_editor",
-    "reading_checker",
-    "reading_arbiter",
-    "reading_listener",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",
@@ -1591,14 +1578,11 @@ class ReviewRequiredVoice(BaseModel):
 
 class VoiceConfig(BaseModel):
     provider: str = "elevenlabs"
-    # False: nothing is listened to after the voice: no semantic review of the blocks and no reading loop (phoneme listener, word choice, retakes).
+    # False: nothing is listened to after the voice: no semantic review of the blocks.
     # The narration is what the voice made. Switched off by the owner's decision of 2026-11-03 until the voice process is settled.
     after_voice_review: bool = True
     elevenlabs: ElevenLabsConfig = Field(default_factory=ElevenLabsConfig)
     languages: dict[str, VoiceLanguageConfig] = {}
-    # Languages whose narration is prepared before it is voiced (voice_prepare.py: the text is edited, its pronunciation rules go to a
-    # dictionary of the film) and is voiced exactly once per block: no speech-to-text, no phoneme listener, no retake for a score.
-    prepared_languages: list[str] = []
     # Languages whose narration the owner hears and approves before the film goes on (the picture planning and the render wait for it).
     review_languages: list[str] = []
     # Languages whose host voice has a hand review of its own (blocks.review_kind "host": the host's scenes, no assembling, no approval).
@@ -1879,7 +1863,7 @@ class SpokenConfig(BaseModel):
     # differences (a relative, a place name) do not hold a whole narration back; more than this share does.
     max_meaning_changed_share: float = Field(default=0.05, ge=0.0, le=0.5)
     # The languages whose numbers are written out in words in the spoken version (the writer's prompt says how, a check sends a beat with a digit
-    # back for repair, and a digit left after the repairs fails the version). Persian numbers are read by code later (reading/numbers.py).
+    # back for repair, and a digit left after the repairs fails the version). Persian numbers are read by code later (spoken_numbers/fa.py).
     numbers_as_words: list[str] = []
 
 
@@ -2099,9 +2083,6 @@ class HostConfig(BaseModel):
     spoiler_name_case_languages: list[str] = Field(default_factory=lambda: ["en"])
     # Languages whose host words go through the fact (meaning) check before the voice.
     meaning_check_languages: list[str] = Field(default_factory=list)
-    # Languages whose host words are prepared for the voice like the narration's blocks (documentary/host_voice_text.py): the
-    # reading text where the language has one (Persian's PPIE reading, Arabic's Tashkeel). The words the avatar shows never change.
-    text_preparation: list[str] = Field(default_factory=list)
     # How a word is spelled for the voice of one language, where that language's voice reads it wrongly (the host's name: "Fereydun").
     # Only what the voice is given changes; the words the avatar and the screen show stay.
     voice_respellings: dict[str, dict[str, str]] = Field(default_factory=dict)
@@ -2504,59 +2485,6 @@ class VideoAuditConfig(BaseModel):
     frame_width: int = Field(default=384, ge=160, le=1280)
 
 
-class ReadingConfig(BaseModel):
-    """The reading loop of a spoken language (app/documentary/reading): the reading text (one Latin reading per word) is written and checked before
-    the voice; the voice is then listened to blind and every difference is fixed for the failing words only."""
-
-    # The languages that get the reading text and the reading loop (the others keep their own checks).
-    languages: list[str] = []
-    # How a language's reading text is made: "persian" (a Latin reading per word, ezafe, the film table) or "tashkeel" (Arabic: every word written with its
-    # vowel marks, read in the sentence's context, ambiguous words and names checked blind).
-    engines: dict[str, Literal["persian", "tashkeel"]] = {}
-    # What the voice is given of an Arabic reading: "all" every word with its vowel marks, "flagged" only the words the editor marked ambiguous, a name, or
-    # not sure of.
-    tashkeel_vocalize: Literal["all", "flagged"] = "all"
-    # The largest number an Arabic reading says as a number (app/documentary/arabic_numbers.py); a larger one, or a code with a leading zero, is said digit by digit.
-    tashkeel_number_max: int = Field(default=10**15 - 1, ge=0)
-    # How many blocks the reader takes in one call when it builds the film table (the table of the chunks is merged afterwards).
-    chunk_blocks: int = Field(default=40, ge=1)
-    # Words (plain form) written with ه whose respelling may still write ح for a consonant h at the end, each with the evidence for that word (heard, with the
-    # audio). A word written with ح keeps it without a listing. No rule turns a final ه into ح; the table is empty: no word has that evidence yet.
-    final_h_evidence: dict[str, str] = {}
-    # How many times a failing word is fixed, voiced and listened to again before the problem is only logged.
-    max_rounds: int = Field(default=3, ge=0, le=10)
-    # How many times the editor writes a block again when the code checks (the same words in the same order, the name rules) reject its answer.
-    max_writer_retries: int = Field(default=3, ge=0, le=10)
-    # True: two different persons side by side in the text get a pause between them.
-    pause_between_names: bool = True
-    # Where the reading texts and the records of a film are kept next to its voice.
-    folder: str = "reading"
-    # A model call that fails (the provider's hiccup) is made again this many times, with this pause, before the stage fails.
-    call_retries: int = Field(default=3, ge=0, le=10)
-    retry_pause_s: float = Field(default=5.0, ge=0.0)
-    # How the checker works: "blind" reads the block itself (the editor's instructions, another model, without the editor's answer) and code compares
-    # the two readings word by word, so an assumption of the editor cannot pass by being shown to the checker; "review" judges the editor's answer (cheaper:
-    # it answers only for the words it rejects).
-    checker_mode: Literal["blind", "review"] = "blind"
-    # Which blocks the checker reads: "all" every block; "risk" only a block where the editor itself is unsure of a word (confidence below high, a question, or an
-    # ezafe it holds with low confidence) -- the names and foreign words of the film table are fixed by code and never questioned, so they do not call the checker.
-    # The words of a block that is not checked are still validated by code and every voiced block is listened to afterwards.
-    blind_check: Literal["all", "risk"] = "all"
-    # How many blocks are written and checked at the same time.
-    parallel_blocks: int = Field(default=6, ge=1, le=32)
-    # How many blocks are listened to at the same time.
-    listen_parallel_blocks: int = Field(default=4, ge=1, le=16)
-    # A word is looked at when the phoneme score finds a wrong form of its reading fitting the audio better by this much (the CTC loss difference);
-    # its time window is widened by `fit_edge_s` on each side.
-    # What the voice is given for a word whose reading is fixed: "persian_marks" (the reading in Persian letters with vowel marks: still Persian text)
-    # or "ipa" (/IPA/ between slashes, which the voice sometimes reads aloud as symbols).
-    voice_form: Literal["persian_marks", "ipa"] = "persian_marks"
-    flag_margin: float = Field(default=4.0, ge=0.0)
-    fit_edge_s: float = Field(default=0.06, ge=0.0, le=0.2)
-    # The word choice (chooser.py): the clip of one word is cut with this much sound on each side (seconds) ...
-    clip_edge_s: float = Field(default=0.25, ge=0.0, le=1.0)
-    # ... and the wrong options are made by changing one vowel of the reading to one of the vowels the voice mixes it up with.
-    vowel_confusions: dict[str, list[str]] = {}
 
 
 class SemanticReviewConfig(BaseModel):
@@ -2579,208 +2507,12 @@ class SemanticReviewConfig(BaseModel):
     failed_blocks_wait_for_owner: bool = False
     call_retries: int = Field(default=3, ge=0, le=10)
     retry_pause_s: float = Field(default=5.0, ge=0.0)
-    # A respelling that made a failed block pass is kept in the pronunciation lexicon when the review's error was of one of these types.
-    learn_types: list[str] = []
     # Where the records and the audio of a reviewed language are kept next to the film's voice (a new version folder: earlier voices stay).
     folder_suffix: str = "_reviewed"
 
 
-class PhonemeAlignmentConfig(BaseModel):
-    """Word-level reading of a phoneme recognizer's output (phoneme_alignment.py). A recognizer's timestamps are not word boundaries: the windows come from the
-    voice's own word timeline, phones are given to the word they overlap most, and a word with too little speech or no clear nearest candidate is unclear."""
-
-    tolerance_s: float = Field(ge=0, le=0.5)             # a phone may start this much before or end this much after its word's window
-    min_coverage: float = Field(gt=0, le=1)              # the share of the word's window the recognized phones must cover
-    min_margin: int = Field(ge=1)                        # edits by which the nearest candidate must beat the next one
 
 
-class ProsodyConfig(BaseModel):
-    """The measurable side of prosody (prosody.py): speech and pause timing, energy and a coarse pitch contour of a block, compared between takes. How natural a
-    take sounds is not measured here; a difference counts only beyond twice the difference between takes of the same request (`noise_factor`)."""
-
-    frame_s: float = Field(gt=0)
-    hop_s: float = Field(gt=0)
-    pause_min_s: float = Field(gt=0)
-    silence_db: float
-    f0_min_hz: float = Field(gt=0)
-    f0_max_hz: float = Field(gt=0)
-    voicing_threshold: float = Field(gt=0, lt=1)
-    noise_factor: float = Field(gt=0)
-
-
-class PronunciationRiskConfig(BaseModel):
-    """The pronunciation risk engine and the adaptive TTS planner (pronunciation_risk.py, pronunciation_planner.py). A score is the sum of the weights of
-    the signals found for a word; LOW is not a proof of a right pronunciation. `validate_from_listener` false: a listening model's "heard right" is
-    evidence only and never validates an intervention (only a failure is booked)."""
-
-    enabled: bool = True
-    weights: dict[str, int]
-    medium_from: int = Field(ge=1)
-    high_from: int = Field(ge=1)
-    critical_from: int = Field(ge=1)
-    hazard_letters: list[str]
-    max_changed_fraction: float = Field(gt=0, le=1)
-    max_changed_in_a_row: int = Field(ge=1)
-    # Which form of a word's REFERENCE_IRAB the voice is given when no audio evidence decides: "minimal" (short vowels, shaddas, ezafe) or "complete"
-    # (with every sukun). A default by reasoning (every extra mark is a change to the voice's input); the memory's evidence for a form outranks it.
-    tts_marking: Literal["minimal", "complete"] = "minimal"
-    validate_from_listener: bool = False
-
-    @model_validator(mode="after")
-    def _ordered(self) -> "PronunciationRiskConfig":
-        if not self.medium_from < self.high_from < self.critical_from:
-            raise ValueError("pronunciation_risk: medium_from < high_from < critical_from is required")
-        return self
-
-
-class MorphologyConfig(BaseModel):
-    """What the morphological segmentation (reading/reference.py) knows: the verb prefixes written with a half-space, the plural endings and the enclitics
-    with how many syllables each adds after a consonant (for the rule-based stress). It segments only where the writing shows a boundary (a half-space)
-    and never changes a pronunciation."""
-
-    verb_prefixes: dict[str, Literal["negation", "continuous"]]
-    plural: list[str]
-    enclitics: dict[str, int]
-    # How each written suffix after a half-space is said (the colloquial forms too), to find the stem's reading in an inflected form: a stem is read
-    # the same in all its forms (گلوله / گلوله‌ها / گلوله‌هایی).
-    suffix_readings: dict[str, list[str]] = {}
-
-
-class PPIEConfig(BaseModel):
-    """The languages whose narration is pronounced by PPIE alone, from scratch on every run (reading/fresh.py): the approved spoken version as it is, a
-    new reading of every block, the planner's decisions for this run only. No voice-prepare edit, no dictionary, no lexicon, no pronunciation memory,
-    no stored reading, no owner approval of an earlier run and no listening loop reaches the voice; nothing the run decides is kept for the next one.
-    Their narration goes to a folder of its own (the version's earlier narrations stay as they are)."""
-
-    languages: list[str] = []
-    # The PPIE languages whose blocks still get the speech-to-text check after the voice (a failed check is voiced again with another seed).
-    asr_languages: list[str] = []
-    folder_suffix: str = "_ppie"
-    # The record of a run next to its narration (every risky, changed or escalated word as the voice was given it): read by the owner, never by a run.
-    run_file: str = "ppie_run.json"
-
-    def fresh(self, language: str) -> bool:
-        return language in self.languages
-
-
-class NumberReadingConfig(BaseModel):
-    """How a number written in digits is read for the voice (reading/numbers.py), by the words around it and never by how often a reading occurs: a
-    service number digit by digit, an identifier after one of `digit_cues` digit by digit when it has at least `digit_min_length` digits, a year
-    (after one of `year_cues`, within `year_range`) and every other whole number as a cardinal; an ordinal suffix makes an ordinal. `respelled`: a
-    number word another word is written the same as (نه "no" / "nine") is given in its marked form."""
-
-    digit_by_digit: list[str] = []
-    digit_cues: list[str] = []
-    digit_min_length: int = Field(default=5, ge=2)
-    year_cues: list[str] = []
-    year_range: tuple[int, int] = (1000, 2100)
-    digit_words: list[str] = Field(min_length=10, max_length=10)
-    respelled: dict[str, str] = {}
-    # An ordinal written as digits and a suffix (۱۵ام), and the ordinal of a last number word that is not the word + م.
-    ordinal_suffixes: list[str]
-    ordinal_words: dict[str, str] = {}
-
-
-class HomographsConfig(BaseModel):
-    """Written forms with more than one reading in use (مرد mard / mord): the voice cannot tell from the letters which one is meant."""
-
-    words: dict[str, list[str]]
-    # Words said in more than one right way that the voice cannot tell apart from the letters either (و o / va, خودش khodash / khodesh): a difference
-    # between blocks is not an error.
-    free_variants: dict[str, list[str]] = {}
-
-
-class EzafeConfig(BaseModel):
-    """The Persian ezafe analyzer (reading/ezafe.py): for every word boundary of a block whether an ezafe is said there, -e or -ye by the spoken final sound of
-    the word, the grammatical relation and how sure that is. The word lists are rules that hold whatever the context (a function word never takes an ezafe);
-    everything else comes from the reading agents and the text's own writing, and what the lists and the agents cannot settle stays UNCERTAIN."""
-
-    # Words that never take an ezafe themselves (conjunctions, prepositions that are not nouns, particles, demonstratives, quantifiers).
-    never_takes: list[str]
-    # Words before which no ezafe is said (object marker, conjunctions, particles).
-    never_before: list[str]
-    # A next word starting with one of these (a verb prefix with its half-space) ends the phrase: no ezafe before a verb.
-    verb_prefixes: list[str]
-    # Words that take the next word as their possessor or complement when they carry an ezafe: the relation is named, not guessed.
-    pronouns: list[str]
-    titles: list[str]
-    preposition_nouns: list[str]
-    # Month names: a month followed by a year in digits has no ezafe of its own unless the text writes one or a reading agent is sure (conventions vary).
-    months: list[str]
-    # Two words that are written apart but may be a compound (no ezafe) or a phrase (ezafe): uncertain unless the text writes the ezafe.
-    compound_pairs: list[list[str]]
-    # How sure each kind of evidence is (an estimate, never a proof of what the voice says).
-    confidence: dict[str, float]
-    # An agent's ezafe opinion below this confidence counts as uncertain.
-    uncertain_below: float = Field(default=0.6, ge=0, le=1)
-
-
-class PronunciationAutoConfig(BaseModel):
-    """Autonomous verification of pronunciation entries (pronunciation_auto.py). Off until the phonetic recognizer has passed an independent evaluation on
-    recordings a native speaker labelled: an entry is never approved by linguistic agreement alone, and never because the attempts ran out."""
-
-    enabled: bool = False
-    max_attempts: int = Field(default=3, ge=1, le=3)
-
-
-class IrabConfig(BaseModel):
-    """The second text of a film (documentary/irab): every word vowelized in its sentence by two models and a decision between them."""
-
-    folder: str = "irab"
-    # An answer that breaks a rule (a letter changed, a number without its spoken form) is asked again this many times.
-    max_retries: int = Field(default=3, ge=0, le=10)
-    parallel_blocks: int = Field(default=4, ge=1, le=16)
-    # The disputed words are decided this many at a time.
-    arbitrate_words_per_call: int = Field(default=12, ge=1, le=50)
-
-
-class PronunciationTraceConfig(BaseModel):
-    """The check and the trace of a block's pronunciation dictionary (pronunciation_trace.py).
-
-    trace: every rule is checked against the exact text a block is sent with and everything is recorded; the request is unchanged (the
-    takes already made keep their cache keys). enforce: the block is sent a dictionary made for its final text, with only the rules that match
-    it (a rule that matches a variant of its word is reconciled); a take then has another cache key than one made without."""
-
-    mode: Literal["trace", "enforce"] = "trace"
-    # True: a rule that gives a word as IPA is sent as an alias in Persian letters with vowel marks (Eleven v4 reads IPA aloud as symbols in some
-    # blocks). The IPA is written in the Latin scheme with this table and then in Persian letters; a rule with a symbol not in the table is left out.
-    phoneme_as_alias: bool = False
-    ipa_to_latin: dict[str, str] = {}
-    trace_file: str = "pronunciation_trace.json"
-    block_dictionaries_file: str = "block_dictionaries.json"
-    block_dictionary_name: str = "truecrime-{language}-case-{case_id}-v{version_id}-{fingerprint}"
-    # A dictionary that cannot be made (the provider's hiccup) is tried again this many times, with this pause.
-    create_retries: int = Field(default=3, ge=0, le=10)
-    retry_pause_s: float = Field(default=2.0, ge=0.0)
-    retryable_errors: list[str] = []
-    # The marks that may differ between a rule and the text without being another word, and the spellings that are the same letter.
-    harakat: str = ""
-    yeh_kaf: dict[str, str] = {}
-    digits: dict[str, str] = {}
-    joiner: str = "\u200c"
-
-
-class VoicePrepareConfig(BaseModel):
-    """The preparation of a narration before it is voiced (voice_prepare.py): the editor's chunks, the sanity limits of an edited sentence and
-    the English source given to the editor and the checker."""
-
-    sentences_per_call: int = Field(default=24, ge=4, le=80)
-    check_sentences_per_call: int = Field(default=30, ge=4, le=100)
-    # an edited sentence keeps its content: it may not be much shorter or longer than the draft
-    min_length_ratio: float = Field(default=0.55, gt=0.0, le=1.0)
-    max_length_ratio: float = Field(default=1.7, ge=1.0, le=4.0)
-    source_chars: int = Field(default=7000, ge=500)
-    dictionary_name: str = "truecrime-{language}-case-{case_id}-v{version_id}"
-    # characters an IPA pronunciation of a rule may use (letters of the Latin and IPA blocks, length marks, spaces)
-    ipa_pattern: str = r"^[A-Za-z\u00C0-\u02FF\u0300-\u036F\u1D00-\u1DBF'ˈˌ.\- ]+$"
-    # two readings of the same word that are this similar (0..1) are one reading said twice: the most frequent one is used everywhere
-    same_reading_similarity: float = Field(default=0.6, ge=0.0, le=1.0)
-    # the readings the owner approved (never guessed): {language: {word: {"type": "phoneme" | "alias", "pronunciation": "..."}}}
-    approved_readings: dict[str, dict[str, dict[str, str]]] = Field(default_factory=dict)
-    # a chunk whose answer is missing sentences is asked again this many times
-    chunk_retries: int = Field(default=2, ge=0, le=4)
-    # a sentence that fails a preflight check is sent back to the editor alone, with its problems, this many times
-    repair_rounds: int = Field(default=2, ge=0, le=4)
 
 
 class NamesConfig(BaseModel):
@@ -3996,33 +3728,6 @@ class VoicePerformanceConfig(BaseModel):
         return self.level_styles.get(str(max(0, min(level, 3))))
 
 
-class PronunciationConfig(BaseModel):
-    """Listening check for words a voice can misread (pronunciation loop).
-
-    Whisper writes Persian without short vowels (ملک is melk, molk, malek
-    or malak), so it cannot hear a wrong vowel. A phoneme recognizer
-    (wav2vec2, IPA) listens to every risky word at its exact place in the
-    audio; the vowels heard are compared with the reading the meaning
-    needs (pronunciation key). A wrong word gets harakat (then full
-    harakat, then an unambiguous spelling), the block is spoken again and
-    checked again — up to max_rounds."""
-
-    enabled: bool = True
-    languages: list[str] = ["fa"]
-    phoneme_model: str = "facebook/wav2vec2-xlsr-53-espeak-cv-ft"
-    max_rounds: int = Field(default=3, ge=0, le=6)
-    # seconds of context around a word when reading its phonemes
-    # (the word's own consonants then cut out the neighbours' sounds)
-    pad_seconds: float = Field(default=0.12, ge=0.0, le=0.5)
-    # a vowel heard as another vowel class costs 1.0 (o for a: malk/molk);
-    # close pairs cost less (a/ā, e/i, o/u). A word is wrong when one hard
-    # vowel error occurs or the normalized distance passes this value.
-    max_vowel_distance: float = Field(default=0.6, ge=0.0, le=2.0)
-    # Fixes in order: minimal harakat, full harakat, unambiguous spelling,
-    # last a synonym (changes the subtitles too).
-    fix_order: list[str] = ["vowelled", "full", "respell", "synonym"]
-    # Pronunciation-key sentences per model call.
-    sentences_per_call: int = Field(default=60, ge=5)
 
 
 RESOLUTION_STATUSES = ("SOLVED", "UNSOLVED", "UNKNOWN", "STATUS_UNDER_REVIEW")
@@ -4698,20 +4403,7 @@ class AIConfig(BaseModel):
         default_factory=VisualVerificationConfig)
     video_audit: VideoAuditConfig = Field(default_factory=VideoAuditConfig)
     names: NamesConfig = Field(default_factory=NamesConfig)
-    voice_prepare: VoicePrepareConfig = Field(default_factory=VoicePrepareConfig)
-    pronunciation_trace: PronunciationTraceConfig = Field(default_factory=PronunciationTraceConfig)
-    irab: IrabConfig = Field(default_factory=IrabConfig)
-    phoneme_alignment: PhonemeAlignmentConfig
-    prosody: ProsodyConfig
-    pronunciation_risk: PronunciationRiskConfig
-    ezafe: EzafeConfig
-    morphology: MorphologyConfig
-    homographs: HomographsConfig
-    ppie: PPIEConfig = Field(default_factory=PPIEConfig)
-    number_reading: NumberReadingConfig
-    pronunciation_auto: PronunciationAutoConfig = Field(default_factory=PronunciationAutoConfig)
     semantic_review: SemanticReviewConfig = Field(default_factory=SemanticReviewConfig)
-    reading: ReadingConfig = Field(default_factory=ReadingConfig)
     chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)
     detective_board: DetectiveBoardConfig = Field(default_factory=DetectiveBoardConfig)
     detective_toolkit: DetectiveToolkitConfig = Field(default_factory=DetectiveToolkitConfig)
@@ -4723,7 +4415,6 @@ class AIConfig(BaseModel):
     attention: AttentionConfig = Field(default_factory=AttentionConfig)
     render: RenderConfig = Field(default_factory=RenderConfig)
     voice_performance: VoicePerformanceConfig = Field(default_factory=VoicePerformanceConfig)
-    pronunciation: PronunciationConfig = Field(default_factory=PronunciationConfig)
     concurrency: ConcurrencyConfig = Field(default_factory=ConcurrencyConfig)
     short_form: ShortFormConfig = Field(default_factory=ShortFormConfig)
     documentary_critics: DocumentaryCriticsConfig = Field(
@@ -4979,16 +4670,9 @@ class AIConfig(BaseModel):
         return self.autopilot
 
     def listens_after_voice(self, language: str) -> bool:
-        """Whether a voiced block of this language is listened to by speech-to-text and the pronunciation listener afterwards (retakes, the
-        pronunciation key and its fix ladder). A prepared language is edited before the voice, and a semantically reviewed one is judged by a
-        model that listens to the audio itself, and a PPIE language is never corrected by them: none is listened to by the older checks."""
-        return (language not in self.voice.prepared_languages and language not in self.semantic_review.languages
-                and not self.ppie.fresh(language))
-
-    def asr_after_voice(self, language: str) -> bool:
-        """Whether a voiced block of this language is checked by speech-to-text afterwards: every language that is listened to, and the PPIE languages
-        that keep this check (config ppie.asr_languages)."""
-        return self.listens_after_voice(language) or language in self.ppie.asr_languages
+        """Whether a voiced block of this language is checked by speech-to-text afterwards (with retakes). A semantically reviewed language is judged
+        by a model that listens to the audio itself: the speech-to-text check does not apply to it."""
+        return language not in self.semantic_review.languages
 
     def model_for(self, role: str) -> str:
         """The concrete model ID assigned to a logical role, resolved

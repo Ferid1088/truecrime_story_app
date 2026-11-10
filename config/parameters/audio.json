@@ -160,7 +160,6 @@
     "between_blocks_ms": 200,
     "between_sections_ms": 1400,
     "work_dir": "data/cases",
-    "prepared_languages": [],
     "review_languages": [
       "fa"
     ],
@@ -859,24 +858,6 @@
     ],
     "max_ellipses_per_sentence": 2,
     "breath_per_level": 0.15
-  },
-  "pronunciation": {
-    "enabled": true,
-    "languages": [
-      "fa",
-      "ar"
-    ],
-    "phoneme_model": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
-    "max_rounds": 4,
-    "pad_seconds": 0.12,
-    "max_vowel_distance": 0.6,
-    "fix_order": [
-      "vowelled",
-      "full",
-      "respell",
-      "synonym"
-    ],
-    "sentences_per_call": 60
   },
   "dynamic_eq": {
     "enabled": true,

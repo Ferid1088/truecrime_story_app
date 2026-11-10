@@ -5,7 +5,6 @@ host_firewall, host_story)."""
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
@@ -324,7 +323,7 @@ class HostDirector:
             if not issues:
                 break
             fix = {**fix, "previous_dialogue": text,
-                   "problems_to_fix": fix["problems_to_fix"][:len(problems) + 1] + issues}
+                   "problems_to_fix": fix["problems_to_fix"][:1] + issues}
         else:
             raise RuntimeError(f"the retimed host dialogue fails its checks: {issues[0]['type']}")
         if fixed:

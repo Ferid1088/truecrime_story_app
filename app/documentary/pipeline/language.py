@@ -218,9 +218,6 @@ class LanguageChain:
             finally:
                 pass_turn()
 
-            except BaseException:
-                pass_turn()                  # the next language's turn does not wait for a stage that stopped
-                raise
         await pipe._stage(f"voice:{lang}", reuse_narration if planning or approved else voice)
         try:
             manifest = holder.get("m") or _load_manifest(case.id, version)
