@@ -265,6 +265,9 @@ class PortraitDrawing:
         roi = self.graphite[y0:y1, x0:x1]
         roi[:] = 1 - (1 - roi) * (1 - alpha * (mask.astype(np.float32) / 255.0))
 
+    def at(self, share: float) -> None:
+        """Called before each frame with how far (0 to 1) the drawing is; a style that changes over the drawing's time uses it."""
+
     def image(self) -> np.ndarray:
         """The paper with the graphite drawn so far (BGR)."""
         return np.clip(self.paper * (1 - (self.graphite * self.grain)[..., None] * 0.97), 0, 255).astype(np.uint8)
@@ -302,6 +305,7 @@ class PortraitDrawing:
                     prev = tl.pos[index]
                     index += 1
                 pen[f] = prev if prev is not None else (CW / 2, -40)
+                self.at(now / seconds)
                 proc.stdin.write(self.image().tobytes())
                 if progress and f % (fps * 10) == 0:
                     progress(f / frames)

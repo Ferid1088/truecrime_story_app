@@ -3290,6 +3290,24 @@ class DrawingPencilConfig(BaseModel):
     angle_degrees: float
 
 
+class DrawingColourConfig(BaseModel):
+    """The colour style of the drawing: the strokes take the photo's colour (a little darker and richer, as coloured pencil is) and a soft
+    colour wash fades in over the last `1 - wash_start` of the drawing time, strongest over the middle of the paper."""
+
+    pencil_saturation: float = Field(gt=0.0)
+    pencil_saturation_add: float = Field(ge=0.0)
+    pencil_value: float = Field(gt=0.0, le=1.0)
+    ink_mix: float = Field(ge=0.0, le=1.0)               # how much of the colour a stroke carries against a darker version of itself
+    ink_floor: float = Field(ge=0.0, le=255.0)
+    wash_blur: float = Field(gt=0.0)
+    wash_saturation: float = Field(gt=0.0)
+    wash_value: float = Field(gt=0.0, le=1.0)
+    wash_lift: float = Field(ge=0.0, le=255.0)
+    wash_mask_blur: float = Field(gt=0.0)
+    wash_strength: float = Field(gt=0.0, le=1.0)
+    wash_start: float = Field(ge=0.0, lt=1.0)
+
+
 class DrawingConfig(BaseModel):
     """The pencil drawing of a portrait (config/parameters/drawing.json): one portrait is drawn in `base_seconds` of drawing time
     at normal speed; the planner runs it between `min_speed` and `max_speed`, shows it in a corner window over the pictures
@@ -3317,6 +3335,10 @@ class DrawingConfig(BaseModel):
     grow_seconds: float = Field(gt=0.0)
     fade_seconds: float = Field(gt=0.0)
     pencil: DrawingPencilConfig
+    # "colour": the portraits are drawn in coloured pencil (the photo's colours); "graphite": the grey pencil drawing. A portrait is made once per
+    # photo, for the films of every language, in the style set when it is made.
+    style: Literal["graphite", "colour"]
+    colour: DrawingColourConfig
 
     @model_validator(mode="after")
     def _speeds(self):

@@ -145,3 +145,55 @@ def test_a_film_the_made_portraits_cannot_fill_even_at_the_slowest_speed_does_no
     long_film = [{"kind": "image", "start": 0.0, "end": 6000.0}]
     assert DP.plan_drawing(long_film, [DP.Portrait("A", 1)]).fits is False
     assert DP.plan_drawing(long_film, [DP.Portrait(c, n) for n, c in enumerate("ABCDEFGHI", 1)]).fits is True
+
+
+def colour_photo_file(tmp_path):
+    img = np.full((900, 700, 3), 230, np.uint8)
+    cv2.ellipse(img, (350, 400), (200, 280), 0, 0, 360, (90, 140, 210), -1)            # a head in skin tones (BGR)
+    cv2.circle(img, (270, 340), 28, (40, 30, 20), -1)
+    cv2.circle(img, (430, 340), 28, (40, 30, 20), -1)
+    path = tmp_path / "colour_face.jpg"
+    cv2.imwrite(str(path), img)
+    return path
+
+
+def _saturation(frame) -> float:
+    return float(cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)[..., 1].mean())
+
+
+def test_the_colour_style_draws_in_the_photos_colours_and_the_grey_style_does_not(tmp_path):
+    from app.documentary.drawing.portrait_colour import ColourPortraitDrawing
+
+    photo = colour_photo_file(tmp_path)
+    grey, colour = PD.PortraitDrawing(photo), ColourPortraitDrawing(photo)
+    grey_final = grey.finished(grey.timeline(30.0))
+    colour.at(1.0)
+    colour_final = colour.finished(colour.timeline(30.0))
+    assert _saturation(colour_final) > _saturation(grey_final) + 15, "the colour drawing carries the colour of the photo"
+    colour.at(0.0)
+    colour.graphite[:] = 0
+    assert _saturation(colour.image()) <= _saturation(grey.paper.astype(np.uint8)) + 1, "the colour wash has not started at the first frame"
+
+
+def test_the_wash_comes_in_over_the_end_of_the_drawing_and_the_pencils_path_is_written(tmp_path):
+    from app.documentary.drawing.portrait_colour import ColourPortraitDrawing
+
+    out = tmp_path / "colour"
+    record = ColourPortraitDrawing(colour_photo_file(tmp_path)).render(out, seconds=8.0, fps=5)
+    assert record["frames"] == 41 and np.load(out / "pen.npy").shape == (41, 2)
+    cap = cv2.VideoCapture(str(out / "progress.mp4"))
+    cap.set(cv2.CAP_PROP_POS_FRAMES, 20)
+    middle = cap.read()[1]
+    cap.set(cv2.CAP_PROP_POS_FRAMES, 40)
+    last = cap.read()[1]
+    assert _saturation(last) > _saturation(middle) + 3, "the wash makes the end of the drawing more colourful than its middle"
+
+
+def test_the_style_in_the_config_decides_which_drawing_is_made(monkeypatch):
+    from app.core.ai_config import ai_config
+    from app.documentary.drawing.portrait_colour import ColourPortraitDrawing
+
+    monkeypatch.setattr(ai_config.drawing_settings(), "style", "colour")
+    assert S.drawing_class() is ColourPortraitDrawing
+    monkeypatch.setattr(ai_config.drawing_settings(), "style", "graphite")
+    assert S.drawing_class() is PD.PortraitDrawing

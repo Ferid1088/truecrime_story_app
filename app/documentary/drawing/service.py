@@ -12,6 +12,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.core.ai_config import ai_config
 from app.db.base import SessionLocal
 from app.db.models import VisualAsset, VisualPlan
 from app.documentary import storage
@@ -53,9 +54,17 @@ def _save(asset_id: int, **fields) -> None:
         db.commit()
 
 
+def drawing_class():
+    """The drawing style set in the config: the grey pencil or the coloured pencil."""
+    from app.documentary.drawing.portrait import PortraitDrawing
+    from app.documentary.drawing.portrait_colour import ColourPortraitDrawing
+
+    return ColourPortraitDrawing if ai_config.drawing_settings().style == "colour" else PortraitDrawing
+
+
 def make(asset_id: int) -> None:
     """Make the portrait of one photo (runs in a worker): the progress video and the pencil's path."""
-    from app.documentary.drawing.portrait import PortraitDrawing, write_record
+    from app.documentary.drawing.portrait import write_record
 
     try:
         with SessionLocal() as db:
@@ -63,7 +72,7 @@ def make(asset_id: int) -> None:
             photo, case_id, code = storage.resolve(asset.local_path), asset.case_id, asset.asset_code
         out = folder(case_id, code)
         _save(asset_id, status="drawing", progress=0.0)
-        record = PortraitDrawing(photo).render(out, progress=lambda p: _save(asset_id, status="drawing", progress=round(p, 3)))
+        record = drawing_class()(photo).render(out, progress=lambda p: _save(asset_id, status="drawing", progress=round(p, 3)))
         write_record(out, record)
         _save(asset_id, status="ready", progress=1.0, video=storage.rel(Path(record["video"])), pen=storage.rel(Path(record["pen"])),
               seconds=record["seconds"], fps=record["fps"], frames=record["frames"], error=None)

@@ -23,6 +23,21 @@
     },
     "creation_wait_seconds": 2400.0,
     "poll_seconds": 10.0,
-    "picture_between_gaps_seconds": 15.0
+    "picture_between_gaps_seconds": 15.0,
+    "style": "colour",
+    "colour": {
+      "pencil_saturation": 1.5,
+      "pencil_saturation_add": 25.0,
+      "pencil_value": 0.55,
+      "ink_mix": 0.8,
+      "ink_floor": 90.0,
+      "wash_blur": 7.0,
+      "wash_saturation": 1.25,
+      "wash_value": 0.5,
+      "wash_lift": 135.0,
+      "wash_mask_blur": 25.0,
+      "wash_strength": 0.85,
+      "wash_start": 0.62
+    }
   }
 }
