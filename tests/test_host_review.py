@@ -13,7 +13,6 @@ import pytest
 from test_studio import FakeAvatar, FakeVoice, _nosleep, _renderer, _segments, _with_look
 
 from app.core.ai_config import ai_config
-from app.documentary import semantic_review as SR
 
 pytestmark = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is required")
 
