@@ -197,3 +197,17 @@ def test_the_style_in_the_config_decides_which_drawing_is_made(monkeypatch):
     assert S.drawing_class() is ColourPortraitDrawing
     monkeypatch.setattr(ai_config.drawing_settings(), "style", "graphite")
     assert S.drawing_class() is PD.PortraitDrawing
+
+
+def test_the_faster_colour_image_equals_the_plain_formula(tmp_path):
+    from app.documentary.drawing.portrait_colour import ColourPortraitDrawing
+
+    d = ColourPortraitDrawing(colour_photo_file(tmp_path))
+    timeline = d.timeline(30.0)
+    d.finished(timeline)
+    for share in (0.0, 0.7, 1.0):
+        d.at(share)
+        tint = 1 - d.wash * d.cfg.wash_strength * d.wash_mask * (1 - d.wash_colour / 255.0)
+        stroke = (d.graphite * d.grain)[..., None] * 0.97
+        plain = np.clip(d.paper * tint * (1 - stroke) + d.ink * stroke, 0, 255).astype(np.uint8)
+        assert np.abs(d.image().astype(int) - plain.astype(int)).max() <= 1

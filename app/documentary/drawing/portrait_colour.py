@@ -31,6 +31,7 @@ class ColourPortraitDrawing(PortraitDrawing):
         wash[..., 2] = np.clip(wash[..., 2] * cfg.wash_value + cfg.wash_lift, 0, 255)
         self.wash_colour = cv2.cvtColor(wash.astype(np.uint8), cv2.COLOR_HSV2BGR).astype(np.float32)
         self.wash_mask = cv2.GaussianBlur(np.clip(self.oval * 1.4, 0, 1).astype(np.float32), (0, 0), cfg.wash_mask_blur)[..., None]
+        self.wash_term = (self.wash_mask * (1 - self.wash_colour / 255.0)).astype(np.float32)      # what the wash takes from the paper at full strength
         self.wash = 0.0
 
     @staticmethod
@@ -49,6 +50,6 @@ class ColourPortraitDrawing(PortraitDrawing):
         self.wash = u * u * (3 - 2 * u)
 
     def image(self) -> np.ndarray:
-        tint = 1 - self.wash * self.cfg.wash_strength * self.wash_mask * (1 - self.wash_colour / 255.0)
+        paper = self.paper if self.wash <= 0.0 else self.paper * (1 - (self.wash * self.cfg.wash_strength) * self.wash_term)
         stroke = (self.graphite * self.grain)[..., None] * 0.97
-        return np.clip(self.paper * tint * (1 - stroke) + self.ink * stroke, 0, 255).astype(np.uint8)
+        return np.clip(paper * (1 - stroke) + self.ink * stroke, 0, 255).astype(np.uint8)
