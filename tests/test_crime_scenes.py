@@ -80,3 +80,15 @@ def test_a_scene_the_story_does_not_name_has_no_share():
 def test_an_unknown_kind_becomes_city():
     view = {"case_location": "Troy, Ohio", "facts": [{"claim": "Troy", "locations": ["Troy"]}]}
     assert CS.clean({"scenes": [{"place": "Troy, Ohio", "kind": "weird"}]}, view)[0]["kind"] == "city"
+
+
+def test_a_weak_fact_that_names_the_street_still_reaches_the_finder(db_session, monkeypatch):
+    from app.core.ai_config import ai_config
+    case = _case(db_session)
+    for n in range(6):
+        db_session.add(Fact(case_id=case.id, claim=f"A strong fact without any place {n}.", confidence=0.99, locations_json="[]"))
+    db_session.add(Fact(case_id=case.id, claim="Officers went to the Elm Row house.", confidence=0.1, locations_json=json.dumps(["Elm Row"])))
+    db_session.commit()
+    monkeypatch.setattr(ai_config.zoom().crime_maps, "evidence_facts", 3)
+    claims = [f["claim"] for f in CS.evidence_view(db_session, case)["facts"]]
+    assert "Officers went to the Elm Row house." in claims and len(claims) < 9

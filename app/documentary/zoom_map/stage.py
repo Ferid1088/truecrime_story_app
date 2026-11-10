@@ -10,6 +10,7 @@ import json
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
+from app.core.concurrency import slot
 from app.db.models import Case, VisualPlan
 from app.documentary.visuals.generated import map_chain
 from app.documentary.zoom_map.shot import ZoomMapUnavailable, zoom_asset
@@ -26,7 +27,8 @@ async def render_zoom_maps(db: Session, case: Case, plan_row: VisualPlan, langua
             if s.get("command") != "SHOW_MAP" or not info:
                 continue
             try:
-                a = await zoom_asset(db, case, language, info)
+                async with slot("render"):         # headless Chromium with software GL: as heavy as a film render, so one at a time with them
+                    a = await zoom_asset(db, case, language, info)
             except ZoomMapUnavailable as e:
                 chain = await map_chain(db, case, info["place"])
                 fallbacks.append({"beat": pb["beat_id"], "place": info["place"], "reason": str(e),

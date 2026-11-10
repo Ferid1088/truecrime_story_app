@@ -3554,6 +3554,7 @@ class CrimeMapsConfig(BaseModel):
     carve_min_remaining_seconds: float = Field(gt=0.0)
     opening_beats: int = Field(default=1, ge=0)
     evidence_facts: int = Field(default=120, ge=1)
+    location_facts: int = Field(default=200, ge=0)       # further facts that name a place, whatever their confidence: the street address is often in a weak fact
 
 
 class ZoomMapConfig(BaseModel):

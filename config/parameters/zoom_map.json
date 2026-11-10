@@ -297,7 +297,8 @@
       "min_per_film": 1,
       "carve_min_remaining_seconds": 2.0,
       "opening_beats": 1,
-      "evidence_facts": 120
+      "evidence_facts": 120,
+      "location_facts": 200
     },
     "render": {
       "chromium_args": [

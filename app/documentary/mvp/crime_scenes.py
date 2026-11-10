@@ -40,8 +40,11 @@ def load(db: Session, case_id: int) -> list[CaseCrimeScene]:
 
 def evidence_view(db: Session, case: Case) -> dict:
     """What the finder reads: the case's location, the places the facts mention and the strongest facts with their places."""
-    facts = (db.query(Fact).filter(Fact.case_id == case.id).order_by(Fact.confidence.desc(), Fact.id)
-             .limit(ai_config.zoom().crime_maps.evidence_facts).all())
+    cfg = ai_config.zoom().crime_maps
+    ranked = db.query(Fact).filter(Fact.case_id == case.id).order_by(Fact.confidence.desc(), Fact.id).all()
+    named = [f for f in ranked if json.loads(f.locations_json or "[]")][:cfg.location_facts]       # the street is often named only in a weak fact
+    keep = {f.id for f in ranked[:cfg.evidence_facts]} | {f.id for f in named}
+    facts = [f for f in ranked if f.id in keep]
     counts: dict[str, int] = {}
     items = []
     for f in facts:

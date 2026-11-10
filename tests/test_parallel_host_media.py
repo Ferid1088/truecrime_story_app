@@ -71,3 +71,29 @@ def test_the_voice_stages_of_several_languages_run_one_after_another():
 
     asyncio.run(go())
     assert peak["max"] == 1
+
+
+def test_zoom_map_renders_wait_for_the_render_slot(monkeypatch):
+    import json
+    from types import SimpleNamespace
+
+    from app.documentary.zoom_map import stage
+
+    peak = {"now": 0, "max": 0}
+
+    async def zoom_asset(db, case, language, info):
+        peak["now"] += 1
+        peak["max"] = max(peak["max"], peak["now"])
+        await asyncio.sleep(0.02)
+        peak["now"] -= 1
+        return SimpleNamespace(asset_code="A", spec_json=json.dumps({"variant": "zoom_in", "render_seconds": 1.0, "bytes": 1, "within_budget": True}))
+
+    monkeypatch.setattr(stage, "zoom_asset", zoom_asset)
+    monkeypatch.setattr(stage.ai_config, "zoom_map", SimpleNamespace(enabled=True), raising=False)
+    plan = SimpleNamespace(plan_json=json.dumps({"beats": [{"beat_id": "B1", "shots": [{"command": "SHOW_MAP", "map_zoom": {"place": "X"}}]}]}))
+
+    async def go():
+        await asyncio.gather(*(stage.render_zoom_maps(None, None, plan, "es") for _ in range(4)))
+
+    asyncio.run(go())
+    assert peak["max"] == 1
