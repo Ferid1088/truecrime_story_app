@@ -11,13 +11,13 @@ from app.documentary.spoken_numbers.es_words import digits_words
 EMERGENCY = frozenset({"911", "089", "066", "065"})
 SENTENCE_END = re.compile(r"[.!?¿¡\n]")
 EMERGENCY_CONTEXT = re.compile(r"\b(?:llam\w*|marc\w*|dial\w*|tel[eé]fono|n[uú]mero|l[ií]nea|emergencia\w*|urgencia\w*|denunci\w*|C5|report\w*|avis\w*|"
-                               r"solicit\w*|operador\w*|despachador\w*|centro de atención)\b|\bal\s*$", re.IGNORECASE)
+                               r"solicit\w*|operador\w*|despachador\w*|centro de atención)\b|\b(?:el|del|al)\s*$", re.IGNORECASE)
 EMERGENCY_AFTER = re.compile(r"\s+de\s+(?:emergencias?|denuncias?|urgencias?)\b|\s+(?:anónim\w+)\b")
 
 
 class EmergencyNumbers(Rule):
     """911, 089, 066, 065. Said digit by digit ("nueve uno uno") when the sentence says it is a number to dial ("llamó al 911", "el número 911",
-    "línea 089") and not a count ("911 pesos"); otherwise it is a plain number ("novecientos once"). The option can force either way."""
+    "línea 089", "antes del 911": the number with its article is the service) and not a count ("911 pesos"); otherwise it is a plain number ("novecientos once"). The option can force either way."""
 
     PATTERN = re.compile(rf"(?<![\w{OPEN}.,])(?P<num>{'|'.join(sorted(EMERGENCY))})(?![\w{CLOSE}]|[.,]\d)")
 

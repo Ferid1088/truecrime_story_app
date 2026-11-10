@@ -144,6 +144,8 @@ CODES = [
     ("marcó el 911 y colgó", "marcó el nueve uno uno y colgó"),
     ("el número 911", "el número nueve uno uno"),
     ("3 llamadas al 911", "tres llamadas al nueve uno uno"),
+    ("unas horas antes del 911. No me parece", "unas horas antes del nueve uno uno. No me parece"),
+    ("Después del 911 llegó la policía", "Después del nueve uno uno llegó la policía"),
     ("línea 089", "línea cero ocho nueve"),
     ("la denuncia anónima al 089", "la denuncia anónima al cero ocho nueve"),
     ("911", "novecientos once"),
