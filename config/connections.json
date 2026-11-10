@@ -44,6 +44,23 @@
     "fetch_resolve_dns": true,
     "min_delay_per_domain_s": 1.0,
     "max_fetch_concurrency": 4,
+    "primary_source_queries": {
+      "enabled": true,
+      "languages": ["en"],
+      "extra_fetches": 6,
+      "templates": [
+        {"query": "{case} court records indictment", "purpose": "court_record"},
+        {"query": "{case} court docket case file", "purpose": "court_record"},
+        {"query": "{case} search warrant affidavit", "purpose": "court_record"},
+        {"query": "{case} sentencing hearing court document", "purpose": "court_record"},
+        {"query": "{case} police press release statement", "purpose": "police"},
+        {"query": "{case} prosecutor statement press release", "purpose": "official_record"},
+        {"query": "{case} official report investigation findings", "purpose": "official_record"},
+        {"query": "{case} coroner autopsy report", "purpose": "coroner"},
+        {"query": "{place} police department press release {case}", "purpose": "police"},
+        {"query": "{place} prosecutor office statement {case}", "purpose": "official_record"}
+      ]
+    },
     "bm25_weight": 0.55,
     "dense_weight": 0.45
   },

@@ -82,7 +82,8 @@
   "transcript_chunking": {
     "target_tokens": 700,
     "min_tokens": 150,
-    "max_tokens": 1000
+    "max_tokens": 1000,
+    "normalize_max_segments": 100
   },
   "transcript_quality": {
     "max_segment_noise_ratio": 0.15,

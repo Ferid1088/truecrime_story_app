@@ -239,39 +239,38 @@ async def normalize_transcript(db: Session, video: VideoSource) -> int:
     # Translate in segment batches (each batch = one chunk group) so ids map
     # back deterministically — no freeform text alignment needed.
     by_chunk = transcript_chunks(video, canonical_only=False)
+    batch_size = ai_config.transcript_chunking.normalize_max_segments
     for chunk in by_chunk:
-        segs = [s for s in pending if s.id in set(chunk["segment_ids"])]
-        if not segs:
-            continue
-        system = (
-            prompt("services/transcripts/normalize_transcript")
-        )
-        user = json.dumps(
-            {
-                "items": [
-                    {"id": s.id, "language": s.language, "text": s.text_original}
-                    for s in segs
-                ],
-                "output_schema": {
-                    "translations": [{"id": 1, "text_en": "..."}]
-                },
-            },
-            ensure_ascii=False,
-        )
-        with track_run(
-            db, video.case_id, "Transcript Normalizer",
-            input_summary=f"video={video.id} segments={len(segs)}",
-        ) as run:
-            data, res = await run_agent("transcripts.normalize", gen, user, system=system)
-            stamp_run(run, res, "transcript_normalizer")
-            by_id = {s.id: s for s in segs}
-            done = 0
-            for item in data.get("translations", []):
-                seg = by_id.get(item.get("id"))
-                if seg and item.get("text_en"):
-                    seg.canonical_text_en = item["text_en"]
-                    done += 1
-            updated += done
-            run.output_summary = f"normalized={done}"
+        ids = set(chunk["segment_ids"])
+        chunk_segs = [s for s in pending if s.id in ids]
+        for first in range(0, len(chunk_segs), batch_size):
+            updated += await _normalize_batch(db, gen, video, chunk_segs[first:first + batch_size])
     db.flush()
     return updated
+
+
+async def _normalize_batch(db, gen, video, segs) -> int:
+    """One normalizer call over these caption segments (the ids map the answer back); returns how many were translated."""
+    system = prompt("services/transcripts/normalize_transcript")
+    user = json.dumps(
+        {
+            "items": [{"id": s.id, "language": s.language, "text": s.text_original} for s in segs],
+            "output_schema": {"translations": [{"id": 1, "text_en": "..."}]},
+        },
+        ensure_ascii=False,
+    )
+    with track_run(
+        db, video.case_id, "Transcript Normalizer",
+        input_summary=f"video={video.id} segments={len(segs)}",
+    ) as run:
+        data, res = await run_agent("transcripts.normalize", gen, user, system=system)
+        stamp_run(run, res, "transcript_normalizer")
+        by_id = {s.id: s for s in segs}
+        done = 0
+        for item in data.get("translations", []):
+            seg = by_id.get(item.get("id"))
+            if seg and item.get("text_en"):
+                seg.canonical_text_en = item["text_en"]
+                done += 1
+        run.output_summary = f"normalized={done}"
+    return done

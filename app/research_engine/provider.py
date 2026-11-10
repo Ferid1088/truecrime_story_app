@@ -73,6 +73,7 @@ def _engine_config() -> EngineConfig:
         consecutive_low_novelty_stop=cfg.consecutive_low_novelty_stop,
         max_duration_s=cfg.max_duration_s,
         fetch_quality_floor=cfg.fetch_quality_floor,
+        primary_source_queries=cfg.primary_source_queries,
     )
 
 

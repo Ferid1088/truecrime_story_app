@@ -72,10 +72,14 @@ class FailoverGenerationProvider(GenerationProvider):
             primary, secondary = self._inflight.get(self.primary.name, 0), self._inflight.get(self.secondary.name, 0)
         return (secondary + 1) / share < (primary + 1) / (1.0 - share)
 
-    def _order(self) -> list[GenerationProvider]:
+    def _order(self, cached: bool = False) -> list[GenerationProvider]:
+        """The gateways in the order a call tries them. A call with a cacheable prefix (or a cache key) always tries the first gateway first while it is
+        available: the cache lives on one gateway, so sharing such calls between two gateways makes half of them miss it and pay for the writes."""
         if not self.secondary.is_configured():
             return [self.primary]
         primary_cooling, secondary_cooling = self.cooling(self.primary), self.cooling(self.secondary)
+        if cached and not primary_cooling:
+            return [self.primary, self.secondary]
         if primary_cooling and not secondary_cooling:
             return [self.secondary, self.primary]
         if secondary_cooling or primary_cooling:
@@ -93,7 +97,7 @@ class FailoverGenerationProvider(GenerationProvider):
         return True
 
     async def _call(self, method: str, role, system, user, images, prefix, cache_key):
-        order = self._order()
+        order = self._order(cached=bool(prefix or cache_key))
         discarded: GenerationError | None = None
         for position, gateway in enumerate(order):
             with self._lock:

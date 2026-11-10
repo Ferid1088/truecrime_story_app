@@ -1320,6 +1320,25 @@ class YouTubeResearchConfig(BaseModel):
     classification_rank_bonus: dict[str, float]
 
 
+class PrimarySourceQuery(BaseModel):
+    """One fixed search for primary material: `query` holds {case} (the case title) and optionally {place} (its location; a query with {place} is skipped
+    when the case has none); `purpose` is one of the planner's query purposes."""
+
+    query: str
+    purpose: str
+
+
+class PrimarySourceQueriesConfig(BaseModel):
+    """Searches for court records, police and prosecutor statements and official reports, added to the planner's own queries in round 0 of the languages
+    listed (the facts of a case are mostly secondary: news and videos). They come on top of max_queries_per_language, and `extra_fetches` pages more
+    than max_fetches_per_language may be fetched in those languages, so the primary pages they find are read."""
+
+    enabled: bool = False
+    languages: list[str] = []
+    extra_fetches: int = Field(default=0, ge=0, le=30)
+    templates: list[PrimarySourceQuery] = []
+
+
 class SearchEngineConfig(BaseModel):
     """Brave Search Web API plus the local fetch/ranking pipeline."""
     brave_api_key_env: str = "BRAVE_SEARCH_API_KEY"
@@ -1355,6 +1374,7 @@ class SearchEngineConfig(BaseModel):
     min_delay_per_domain_s: float = Field(ge=0.0, le=30.0, default=1.0)
     max_fetch_concurrency: int = Field(ge=1, le=20, default=4)
     # Internal index (Part 20)
+    primary_source_queries: PrimarySourceQueriesConfig = PrimarySourceQueriesConfig()
     bm25_weight: float = Field(ge=0.0, le=1.0, default=0.55)
     dense_weight: float = Field(ge=0.0, le=1.0, default=0.45)
 
@@ -1371,6 +1391,9 @@ class TranscriptChunkingConfig(BaseModel):
     target_tokens: int = Field(gt=0)
     min_tokens: int = Field(gt=0)
     max_tokens: int = Field(gt=0)
+    # Caption segments are a few words each, so a chunk can hold 200 of them; one normalizer call translates at most this many, because the answer of the
+    # cheap model is cut off above it (the calls with 162-219 segments fell back to the premium model, the ones below 204 did not).
+    normalize_max_segments: int = Field(gt=0)
 
 
 class TranscriptQualityConfig(BaseModel):

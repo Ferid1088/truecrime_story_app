@@ -773,3 +773,68 @@ def test_video_discovery_goes_deep_until_queries_add_nothing_and_never_caps_the_
     assert len(result["videos"]) == 5 * 8
     stop = ai_config.youtube_research.stop_after_empty_queries
     assert len(backend.calls) == 5 + stop
+
+
+# --- primary-source searches -------------------------------------------------
+
+
+def _primary_config(**kw):
+    from app.core.ai_config import PrimarySourceQueriesConfig
+
+    base = {"enabled": True, "languages": ["en"], "extra_fetches": 3,
+            "templates": [{"query": "{case} court records", "purpose": "court_record"},
+                          {"query": "{place} police press release {case}", "purpose": "police"}]}
+    return PrimarySourceQueriesConfig(**{**base, **kw})
+
+
+def test_primary_source_queries_are_written_from_the_case_and_skip_a_place_query_without_a_place():
+    from app.research_engine.planner import QUERY_PURPOSES, primary_source_queries
+
+    with_place = primary_source_queries(_primary_config(), {"title": "Flynn case", "location": "Tipp City"}, "en")
+    without = primary_source_queries(_primary_config(), {"title": "Flynn case"}, "en")
+
+    assert [(q.query, q.purpose, q.priority) for q in with_place] == [
+        ("Flynn case court records", "court_record", 1), ("Tipp City police press release Flynn case", "police", 1)]
+    assert [q.query for q in without] == ["Flynn case court records"]
+    assert all(q.purpose in QUERY_PURPOSES for q in with_place)
+
+
+def test_primary_source_queries_only_run_for_the_languages_named_and_only_when_enabled():
+    from app.research_engine.planner import primary_source_queries
+
+    case = {"title": "Flynn case", "location": "Tipp City"}
+    assert primary_source_queries(_primary_config(), case, "de") == []
+    assert primary_source_queries(_primary_config(enabled=False), case, "en") == []
+    assert primary_source_queries(None, case, "en") == []
+
+
+def test_the_configured_primary_source_queries_use_known_purposes_and_name_the_case():
+    from app.core.ai_config import ai_config
+    from app.research_engine.planner import QUERY_PURPOSES
+
+    cfg = ai_config.search_engine.primary_source_queries
+    assert cfg.enabled and cfg.languages == ["en"] and cfg.templates
+    assert all(t.purpose in QUERY_PURPOSES and "{case}" in t.query for t in cfg.templates)
+
+
+def test_the_primary_source_searches_come_on_top_of_the_query_limit_and_are_fetched():
+    backend = FakeBackend([{"url": "https://court.example/docket"}])
+    orch = _orchestrator(backend, outcome=_ok_outcome(), plans=[[_pq("planned one", "en"), _pq("planned two", "en")]],
+                         max_rounds_per_language=1, max_queries_per_language=2, max_fetches_per_language=1,
+                         primary_source_queries=_primary_config(extra_fetches=2))
+
+    result = asyncio.run(orch.research_case({"title": "Flynn case", "location": "Tipp City"}, ["en"]))
+
+    asked = [q for q, _lang in backend.calls]
+    assert asked == ["planned one", "planned two", "Flynn case court records", "Tipp City police press release Flynn case"]
+    assert result["language_stats"]["en"]["queries"] == 4
+
+
+def test_without_the_primary_source_config_the_query_limit_holds():
+    backend = FakeBackend([{"url": "https://a.example/a"}])
+    orch = _orchestrator(backend, outcome=_ok_outcome(), plans=[[_pq("one", "en"), _pq("two", "en"), _pq("three", "en")]],
+                         max_rounds_per_language=1, max_queries_per_language=2)
+
+    asyncio.run(orch.research_case({"title": "Flynn case"}, ["en"]))
+
+    assert [q for q, _lang in backend.calls] == ["one", "two"]

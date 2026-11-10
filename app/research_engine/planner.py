@@ -132,6 +132,25 @@ class ResearchQueryPlanner:
         return queries[:6]
 
 
+def primary_source_queries(config, case_context: dict, language: str) -> list[PlannedQuery]:
+    """The fixed searches for primary material (court records, police and prosecutor statements, official reports) of config
+    search_engine.primary_source_queries, for the languages it names: no model call, the case title (and its place) written into each template."""
+    if config is None or not config.enabled or language not in config.languages:
+        return []
+    case = shorten_query((case_context.get("title") or "").strip())
+    place = (case_context.get("location") or "").strip()
+    if not case:
+        return []
+    queries = []
+    for template in config.templates:
+        if "{place}" in template.query and not place:
+            continue
+        queries.append(PlannedQuery(
+            query=shorten_query(template.query.format(case=case, place=place)), language=language, purpose=template.purpose,
+            priority=1, expected_source_types=["official"], round=0))
+    return queries
+
+
 _RERANK_SYSTEM = prompt("research_engine/planner/rerank_system")
 
 

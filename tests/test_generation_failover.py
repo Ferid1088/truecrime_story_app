@@ -176,3 +176,24 @@ def test_an_unpaid_billing_settlement_of_the_first_gateway_moves_the_calls_to_th
     primary, secondary = Fake("apimaster", unpaid), Fake("apiko")
     result = asyncio.run(FailoverGenerationProvider(primary, secondary, cfg).generate_text("spoken_writer", "s", "u"))
     assert (result.provider, secondary.calls) == ("apiko", ["spoken_writer"])
+
+
+def test_a_call_with_a_cacheable_prefix_stays_on_the_first_gateway_while_the_share_sends_other_calls_to_the_second():
+    cfg = CFG.model_copy(update={"secondary_share": 1.0})
+    primary, secondary = Fake("apimaster"), Fake("apiko")
+    provider = FailoverGenerationProvider(primary, secondary, cfg)
+
+    cached = asyncio.run(provider.generate_text("reading_checker", "s", "u", prefix="stable facts", cache_key="case1"))
+    plain = asyncio.run(provider.generate_text("reading_checker", "s", "u"))
+
+    assert cached.provider == "apimaster" and plain.provider == "apiko"
+
+
+def test_a_cached_call_moves_to_the_second_gateway_when_the_first_is_not_available():
+    cfg = CFG.model_copy(update={"secondary_share": 0.0})
+    primary = Fake("apimaster", error("rate_limited"))
+    secondary = Fake("apiko")
+
+    result = asyncio.run(FailoverGenerationProvider(primary, secondary, cfg).generate_text("reading_checker", "s", "u", prefix="stable", cache_key="case1"))
+
+    assert result.provider == "apiko"

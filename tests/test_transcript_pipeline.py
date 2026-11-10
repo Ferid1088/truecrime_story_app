@@ -1450,3 +1450,30 @@ def test_regional_caption_tag_is_stored_as_the_base_language(db_session):
     assert (v.language, src.language) == ("en", "en")
     assert v.segments[0].language == "en"
     assert v.segments[0].canonical_text_en == "The family disappeared."
+
+
+def test_a_normalizer_call_never_holds_more_segments_than_the_cheap_model_can_answer(db_session, monkeypatch):
+    from app.core.ai_config import ai_config
+    from app.services.transcripts import normalize_transcript
+
+    sizes = []
+    fake = FakeGen()
+
+    def _norm(system, user):
+        items = json.loads(user)["items"]
+        sizes.append(len(items))
+        return {"translations": [{"id": i["id"], "text_en": "EN"} for i in items]}
+
+    fake.structured["transcript_normalizer"] = _norm
+    _patch_gen(monkeypatch, fake)
+    monkeypatch.setattr(ai_config.transcript_chunking, "normalize_max_segments", 3)
+    monkeypatch.setattr(ai_config.transcript_chunking, "target_tokens", 100000)
+    case = _mk_case(db_session)
+    v = _mk_video(db_session, case, language="de")
+    for n in range(8):
+        _mk_segment(db_session, v, n, f"Satz {n}", language="de")
+
+    updated = asyncio.run(normalize_transcript(db_session, v))
+
+    assert updated == 8 and sizes == [3, 3, 2], "one chunk of 8 segments is asked in batches of at most 3"
+    assert ai_config.transcript_chunking.__class__.model_fields["normalize_max_segments"].is_required()

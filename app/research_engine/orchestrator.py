@@ -32,6 +32,7 @@ from app.research_engine.planner import (
     ResearchAssembler,
     ResultReranker,
     accumulate_telemetry,
+    primary_source_queries,
 )
 from app.research_engine.ranking import (
     needs_llm_rerank,
@@ -66,6 +67,7 @@ class EngineConfig:
     consecutive_low_novelty_stop: int = 2
     max_duration_s: float = 600.0
     fetch_quality_floor: float = 0.15
+    primary_source_queries: object = None      # config search_engine.primary_source_queries
 
 
 @dataclass
@@ -220,12 +222,13 @@ class ResearchOrchestrator:
         }
         prev_queries: list[str] = []
         low_novelty_streak = 0
+        extra_queries = extra_fetches = 0        # the primary-source searches come on top of the limits (config search_engine.primary_source_queries)
 
         for round_i in range(self.cfg.max_rounds_per_language):
             if time.monotonic() - started > self.cfg.max_duration_s:
                 stats["stop_reason"] = "max_duration"
                 break
-            remaining_q = self.cfg.max_queries_per_language - stats["queries"]
+            remaining_q = self.cfg.max_queries_per_language + extra_queries - stats["queries"]
             if remaining_q <= 0:
                 stats["stop_reason"] = "max_queries"
                 break
@@ -245,6 +248,11 @@ class ResearchOrchestrator:
                     log.warning("query planning crashed for %s: %s", lang, e)
                     planned = self.planner._fallback_queries(
                         case_context, lang, round_i)
+            if round_i == 0:
+                primary = [pq for pq in primary_source_queries(self.cfg.primary_source_queries, case_context, lang) if pq.query not in prev_queries]
+                planned = planned + primary
+                extra_queries = len(primary)
+                extra_fetches = self.cfg.primary_source_queries.extra_fetches if primary else 0
             if not planned:
                 stats["stop_reason"] = stats.get("stop_reason") or "planner_empty"
                 break
@@ -252,7 +260,7 @@ class ResearchOrchestrator:
             new_this_round = 0
             search_failed = False
             for pq in planned:
-                if stats["queries"] >= self.cfg.max_queries_per_language:
+                if stats["queries"] >= self.cfg.max_queries_per_language + extra_queries:
                     break
                 q_idx = len(queries_out)
                 queries_out.append({
@@ -301,9 +309,9 @@ class ResearchOrchestrator:
                 new_this_round += await self._process_results(
                     raw, q_idx, lang, case_context, seen_canonical,
                     families, tel, results_out, sources_out, stats,
-                    fetched_budget=lambda: self.cfg.max_fetches_per_language - stats["fetch_calls"],
+                    fetched_budget=lambda: self.cfg.max_fetches_per_language + extra_fetches - stats["fetch_calls"],
                     progress=progress, safety=case_context["_safety"])
-                if stats["fetch_calls"] >= self.cfg.max_fetches_per_language:
+                if stats["fetch_calls"] >= self.cfg.max_fetches_per_language + extra_fetches:
                     break
 
             if search_failed:
