@@ -1,6 +1,8 @@
 """The Arabic number reader (spoken_numbers/ar.py): the words a narrator says for the digits of a text. The words are plain Modern Standard Arabic (no vowel marks);
 the rules and the sources behind the expected strings are in docs/spoken_numbers_ar.md. Words of the text keep their own spelling; only numbers are rewritten."""
 
+import re
+
 import pytest
 
 from app.documentary.spoken_numbers.ar import Numbers, Options
@@ -164,6 +166,23 @@ def test_digits_no_rule_understands_are_still_said_as_numbers():
     assert say("1.2.3") == "واحد.اثنان.ثلاثة"
 
 
+@pytest.mark.parametrize("text, expected", [
+    ("9-1-1", "تسعة واحد واحد"), ("اتصل على 9-1-1 فورا", "اتصل على تسعة واحد واحد فورا"),
+    ("استمعت الهيئة إلى مكالمة 911", "استمعت الهيئة إلى مكالمة تسعة واحد واحد"), ("اتصل بـ 997 أو 998", "اتصل بـ تسعة تسعة سبعة أو تسعة تسعة ثمانية"),
+    ("خط الطوارئ 104", "خط الطوارئ واحد صفر أربعة"), ("اتصل بالرقم 19", "اتصل بالرقم تسعة عشر"),
+])
+def test_codes_and_emergency_numbers_of_the_calls_people_make(text, expected):
+    assert say(text) == expected
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("5 نقاط مئوية", "خمس نقاط مئوية"), ("7 جلسات", "سبع جلسات"), ("3 تهم", "ثلاث تهم"), ("9 مدن", "تسع مدن"), ("4 حالات", "أربع حالات"),
+    ("3 تريليون دولار", "ثلاثة تريليونات دولار"), ("2 تريليون", "تريليونان"), ("1000000000000", "تريليون"),
+])
+def test_feminine_nouns_of_the_news_and_the_trillion(text, expected):
+    assert say(text) == expected
+
+
 def test_the_words_of_a_number_carry_no_vowel_marks_and_the_marks_of_the_story_are_kept():
     assert say("في 13 نوفمبر 2007 قَالَ") == "في الثالث عشر من نوفمبر عام ألفين وسبعة قَالَ"
 
@@ -201,3 +220,23 @@ def test_an_unknown_option_value_is_refused():
 def test_the_output_never_keeps_digits_of_a_converted_number():
     text = "في 13/11/2007 الساعة 23:45 دفع $5.50 و 3.5% من 1,234 و 25°C و 1/2 و +966 50 123 4567 و 10-15 عاماً و 1990-1995 و الـ35 و 007"
     assert not any(c.isdigit() for c in say(text))
+
+
+SAMPLES = ["في 13 نوفمبر 2007 قال إن 3.5% من 1,234 شخصا", "الساعة 23:45 دفع $5.50 و 25°C", "اتصل بـ 911 و +966 50 123 4567", "عمره 35 عاماً في القرن 20",
+           "1990-1995 و 1/2 و 10-15 عاما", "A1 و COVID-19 و 5G و https://example.com/page2", "لا أرقام هنا", ""]
+
+
+@pytest.mark.parametrize("text", ["لا أرقام هنا، ولا فواصل: «نص» بلا أرقام.", "قَالَ الشَّاهِدُ كَلِمَةً", "", "A1 و COVID-19 و https://example.com/page2"])
+def test_a_text_without_a_number_to_say_comes_out_as_it_went_in(text):
+    assert say(text) == text
+
+
+@pytest.mark.parametrize("text", SAMPLES)
+def test_reading_the_output_again_changes_nothing(text):
+    once = say(text)
+    assert say(once) == once
+
+
+@pytest.mark.parametrize("text", SAMPLES[:6])
+def test_the_output_has_no_vowel_marks_on_the_words_it_says(text):
+    assert not re.search("[ً-ٰٟ]", re.sub("عاماً", "", say(text)))

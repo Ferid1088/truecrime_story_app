@@ -55,8 +55,9 @@ YEAR_RANGE = re.compile(START + r"(?P<a>\d{4})\s*[-–—]\s*(?P<b>\d{4}|\d{2})"
 RANGE = re.compile(START + "(?P<a>" + NUM + ")" + END + r"\s*[-–—]\s*" + START + "(?P<b>" + NUM + ")" + END)
 SCORE = re.compile(START + r"(?P<a>\d{1,2})\s*:\s*(?P<b>\d{1,2})" + END)
 ARTICLE_ORDINAL = re.compile(f"(?<![{LETTER}])ال" + r"\s?(?P<n>\d{1,2})" + END)
+DIGIT_CHAIN = re.compile(START + r"\d(?:-\d){2,}" + END)
 ROMAN = re.compile(r"(?<![A-Za-z\d])(?P<r>[IVXLCDM]{1,8})(?![A-Za-z\d])")
-NUMBER = re.compile(r"(?P<neg>(?<![\w}])-(?=\d))?" + START + "(?P<n>" + NUM + ")" + END)
+NUMBER = re.compile(r"(?P<neg>(?<![\w}" + SPAN_CLOSE + r"])-(?=\d))?" + START + "(?P<n>" + NUM + ")" + END)
 LEFTOVER = re.compile(r"(?<![{\d])\d+(?![\d}])")
 PLACEHOLDER = re.compile(r"\{(\d+)\}")
 
@@ -132,7 +133,7 @@ class Numbers(LanguageNumbers):
     def __init__(self, options: dict, max_value: int):
         super().__init__(options, max_value)
         self.opts = Options.model_validate(options)
-        self.stages = [self.numeric_dates, self.phones, self.written_dates, self.times, self.currency, self.percent, self.scaled, self.eras, self.units,
+        self.stages = [self.numeric_dates, self.phones, self.digit_chains, self.written_dates, self.times, self.currency, self.percent, self.scaled, self.eras, self.units,
                        self.fractions, self.year_ranges, self.ranges, self.scores, self.article_ordinals, self.roman, self.plain, self.leftovers]
 
     def text(self, text: str) -> str:
@@ -255,6 +256,10 @@ class Numbers(LanguageNumbers):
             groups = " ، ".join(AN.digit_by_digit(g) for g in re.findall(r"\d+", body))
             return self.say(("زائد " if plus else "") + groups)
         return PHONE.sub(sub, text)
+
+    def digit_chains(self, text: str) -> str:
+        """Single digits joined by hyphens ("9-1-1") are a spelled-out code: said digit by digit, never as a range."""
+        return DIGIT_CHAIN.sub(lambda m: self.say(AN.digit_by_digit(m.group())), text)
 
     def clock(self, h24: int, minute: int, oblique: bool) -> str:
         h12 = h24 % 12 or 12
@@ -442,7 +447,8 @@ class Numbers(LanguageNumbers):
         if mode == "digits_always":
             return whole in W.EMERGENCY_NUMBERS
         labelled = bool(before) and before[-1] in W.NUMBER_LABELS and whole in W.EMERGENCY_NUMBERS
-        named = bool(before) and (before[-1] in W.EMERGENCY_SERVICES or bool(W.EMERGENCY_VERBS & set(before)))
+        listed = len(before) >= 2 and before[-1] in W.CONJUNCTIONS and before[-2] in W.EMERGENCY_NUMBERS      # "997 أو 998": the second number of a list of codes
+        named = bool(before) and (before[-1] in W.EMERGENCY_SERVICES or bool(W.EMERGENCY_VERBS & set(before)) or listed)
         return labelled or (named and around.next_word() not in W.NOUNS)
 
     def plain(self, text: str) -> str:

@@ -32,7 +32,7 @@ HUNDRED_DUAL_OBLIQUE = "مئتين"
 HUNDRED_AS_FIRST_OF_PAIR = "مئتا"          # 200 before a scale: مئتا ألف
 HUNDRED_AS_FIRST_OF_PAIR_OBLIQUE = "مئتي"
 # (size, singular, dual, plural for three to ten, oblique dual)
-SCALES = [(10**12, "ترليون", "ترليونان", "ترليونات", "ترليونين"),
+SCALES = [(10**12, "تريليون", "تريليونان", "تريليونات", "تريليونين"),
           (10**9, "مليار", "ملياران", "مليارات", "مليارين"),
           (10**6, "مليون", "مليونان", "ملايين", "مليونين"),
           (10**3, "ألف", "ألفان", "آلاف", "ألفين")]
