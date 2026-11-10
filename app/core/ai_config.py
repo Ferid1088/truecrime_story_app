@@ -4192,6 +4192,9 @@ class ConcurrencyConfig(BaseModel):
     asr: int = Field(default=1, ge=1, le=8)
     # The ffmpeg music mix under a narration is CPU-bound: one at a time, however many films are voiced side by side.
     mix: int = Field(default=1, ge=1, le=8)
+    # Voice stages (the whole narration of one language: speech, listening checks, mix) running at the same time in this process: one on a machine that can
+    # voice one film while it renders another. The host's memory and load are checked by the orchestrator before a job starts (config orchestrator.host).
+    voice_stage: int = Field(default=1, ge=1, le=4)
     render: int = Field(default=2, ge=1, le=8)
     downloads: int = Field(default=4, ge=1, le=32)
     # Documentary jobs running at the same time at most, worker-wide — including the

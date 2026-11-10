@@ -63,6 +63,7 @@
     "elevenlabs_sound": 2,
     "asr": 1,
     "mix": 1,
+    "voice_stage": 1,
     "render": 1,
     "downloads": 4,
     "jobs": 5

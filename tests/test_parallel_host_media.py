@@ -48,3 +48,26 @@ def test_a_chain_that_stops_stops_its_host_media(monkeypatch):
     else:
         raise AssertionError("the failure must reach the caller")
     assert seen["task"].cancelled()
+
+
+def test_only_one_voice_stage_and_one_render_run_at_a_time_and_the_limits_come_from_config():
+    from app.core.concurrency import limit_size
+
+    assert limit_size("voice_stage") == 1 and limit_size("render") == 1
+
+
+def test_the_voice_stages_of_several_languages_run_one_after_another():
+    peak = {"now": 0, "max": 0}
+
+    async def voice_stage():
+        async with concurrency.slot("voice_stage"):
+            peak["now"] += 1
+            peak["max"] = max(peak["max"], peak["now"])
+            await asyncio.sleep(0.02)
+            peak["now"] -= 1
+
+    async def go():
+        await asyncio.gather(*(voice_stage() for _ in range(5)))
+
+    asyncio.run(go())
+    assert peak["max"] == 1

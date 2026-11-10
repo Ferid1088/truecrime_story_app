@@ -197,7 +197,8 @@ class LanguageChain:
             turn = sh.music_turns[sh.languages.index(lang)]
             await turn.wait()
             try:
-                return await render_voice()
+                async with slot("voice_stage"):          # one narration is voiced at a time, however many languages are in the run
+                    return await render_voice()
             finally:
                 pass_turn()
 
