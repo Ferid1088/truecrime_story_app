@@ -63,7 +63,7 @@ def _patch_voice(monkeypatch, durations):
     """_step_voice that 'speaks' the next duration; returns the list of voiced durations."""
     voiced = []
 
-    async def step_voice(db, s, renderer=None, editor=None):
+    async def step_voice(db, s, renderer=None):
         s.voice_seconds = durations.pop(0)
         voiced.append(s.voice_seconds)
         return {}
@@ -79,7 +79,7 @@ def test_a_voice_off_the_plan_by_more_than_ten_percent_is_rewritten_and_voiced_a
     voiced = _patch_voice(monkeypatch, [40.0, 29.0])       # planned 30: 33 % over, then 3 % under
     asked = []
 
-    async def retimer(db, s, target, avoid=()):
+    async def retimer(db, s, target):
         asked.append(target)
 
     scene = _scene(None, 30.0)
@@ -93,7 +93,7 @@ def test_a_voice_within_ten_percent_is_kept_as_it_is(monkeypatch):
     voiced = _patch_voice(monkeypatch, [32.9])             # 9.7 % over
     asked = []
 
-    async def retimer(db, s, target, avoid=()):
+    async def retimer(db, s, target):
         asked.append(target)
 
     asyncio.run(HS._voice_within_plan(None, _scene(None, 30.0), None, retimer))
@@ -107,7 +107,7 @@ def test_the_rewrite_is_bounded_and_a_voice_over_the_hard_cap_fails(monkeypatch)
     voiced = _patch_voice(monkeypatch, [40.0] * (limit + 1))
     asked = []
 
-    async def retimer(db, s, target, avoid=()):
+    async def retimer(db, s, target):
         asked.append(target)
 
     scene = _scene(None, 30.0)
@@ -204,7 +204,7 @@ def test_the_stage_director_runs_after_the_voice_and_a_failure_is_recorded_on_th
                             voice_sha256="v" * 64)
     order = []
 
-    async def voice(db, s, renderer, retimer, editor):
+    async def voice(db, s, renderer, retimer):
         order.append("voice")
         return {}
 
@@ -271,30 +271,6 @@ def test_heygen_create_video_sends_motion_prompt_and_expressiveness_only_when_gi
                                   expressiveness="low", engine="avatar_iii"))
     assert bodies[2]["engine"] == {"type": "avatar_iii"}
     assert "motion_prompt" not in bodies[2] and "expressiveness" not in bodies[2]
-
-
-def test_a_word_the_voice_still_says_wrong_makes_the_writer_use_other_words(monkeypatch):
-    import asyncio
-
-    asked = []
-
-    async def step_voice(db, s, renderer=None, editor=None):
-        s.voice_seconds = voiced_seconds.pop(0)
-        s.voice_checks_json = json.dumps({"flags": flags.pop(0)})
-        return {}
-
-    voiced_seconds, flags = [29.0, 29.5], [["pronunciation_unresolved:فاصله", "asr_check_failed"], []]
-    monkeypatch.setattr(HS, "_step_voice", step_voice)
-    monkeypatch.setattr(HS, "_record_real_seconds", lambda db, s: None)
-
-    async def retimer(db, s, target, avoid=()):
-        asked.append(list(avoid))
-
-    scene = _scene(None, 30.0)
-    asyncio.run(HS._voice_within_plan(None, scene, None, retimer))
-    assert asked == [["فاصله"]]                          # on the plan, but a word is wrong
-    assert voiced_seconds == [] and HS.unresolved_words(scene) == []
-    assert "avoid" in json.loads(scene.history_json)[0]["detail"]
 
 
 def test_a_scene_is_redone_with_a_new_direction_and_a_new_video_and_keeps_its_history(db_session):

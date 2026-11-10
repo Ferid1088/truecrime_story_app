@@ -51,7 +51,7 @@ def narration(db_session, tmp_path, monkeypatch):
     monkeypatch.setattr(S, "performance_for_version", lambda db, v: plan)
     monkeypatch.setattr(ai_config.voice, "review_languages", ["fa"])
     voice = Voice()
-    asyncio.run(VoiceRenderer(provider=voice, use_asr=False, use_listener=False).render(plan, case_id=case.id, story_version_id=version.id))
+    asyncio.run(VoiceRenderer(provider=voice, use_asr=False).render(plan, case_id=case.id, story_version_id=version.id))
     yield db_session, case, version, voice
     review = S.get_review(db_session, version)
     if review is not None:

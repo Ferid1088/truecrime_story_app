@@ -215,7 +215,7 @@ async def send_block(db: Session, review: VoiceReview, block_id: str, provider=N
     rules = alias_rules(db, block, text)
     host = review.kind == "host"
     renderer = VoiceRenderer(provider=provider or default_provider(), db=db, budget_case_id=review.case_id, budget_stage=f"tts:{'host:' if host else ''}{review.language}",
-                             use_asr=False, use_listener=False)
+                             use_asr=False)
     renderer.narration = not host        # a take of the film's narration: it gets the language's post speed (1.1 for Persian) like every other block; the host's gets it when it is made the scene's voice
     locators = list(base.get("pronunciation_dictionaries") or [])
     if rules:
@@ -308,7 +308,7 @@ async def assemble(db: Session, review: VoiceReview) -> dict:
     version = db.get(StoryVersion, review.story_version_id)
     fixed = {b.block_id: request_of(json.loads(active_take(db, b).request_json)) for b in blocks_of(db, review)}
     plan = performance_for_version(db, version)
-    renderer = VoiceRenderer(provider=NoVoice(), db=db, budget_case_id=review.case_id, budget_stage=f"tts:{review.language}", use_asr=False, use_listener=False)
+    renderer = VoiceRenderer(provider=NoVoice(), db=db, budget_case_id=review.case_id, budget_stage=f"tts:{review.language}", use_asr=False)
     manifest = await renderer.render(plan, case_id=review.case_id, story_version_id=version.id, fixed_requests=fixed, output_dir=reviewed_folder(version))
     review.assembled_sha256 = sha256_of(reviewed_folder(version) / "narration.mp3")
     review.assembled_takes_json = json.dumps({**active_takes(db, review), SETTINGS_KEY: assembly_settings(review.language)})

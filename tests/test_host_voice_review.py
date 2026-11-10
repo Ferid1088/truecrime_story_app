@@ -201,7 +201,7 @@ def test_a_voice_the_person_chose_is_not_rewritten_or_voiced_again_to_fit_the_pl
     db.commit()
     asked, calls, text_before = [], voice.calls, scene.text
 
-    async def retimer(db_, scene_, seconds, avoid):
+    async def retimer(db_, scene_, seconds):
         asked.append(seconds)
 
     asyncio.run(HS._voice_within_plan(db, scene, _renderer(voice), retimer))

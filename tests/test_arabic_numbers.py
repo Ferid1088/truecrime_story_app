@@ -1,14 +1,12 @@
-"""Arabic gets the numbers layer Persian has: the voice is given the words of a number, never its digits (it read "911" as 9, 1, 1)."""
+"""Arabic numbers: the voice is given the words of a number, never its digits (it read "911" as 9, 1, 1)."""
 
 import pytest
 
 from app.core.ai_config import ai_config
 from app.documentary import arabic_numbers as AN
-from app.documentary.reading.tashkeel import TashkeelResult, TashkeelVoicing, VocalWord
-from app.documentary.reading.words import tokenize
 from app.documentary.spoken_numbers.ar import Numbers
 
-BIG = ai_config.reading.tashkeel_number_max
+BIG = ai_config.voice.number_max
 
 
 @pytest.mark.parametrize("n, plain", [
@@ -61,27 +59,3 @@ def test_a_count_of_a_hundred_or_more_before_a_scale_follows_its_last_two_digits
                                                            (12, False, True, "اثني عشر"), (12, True, False, "اثنتا عشرة"), (200, False, True, "مئتين")])
 def test_a_cardinal_takes_the_gender_and_the_case_it_is_given(n, feminine, oblique, plain):
     assert AN.bare(AN.to_words(n, AN.Form(feminine=feminine, oblique=oblique))) == plain
-
-
-def _voicing(text):
-    words = tokenize(text)
-    readings = [VocalWord(w.n, w.plain) for w in words]
-    return TashkeelVoicing(TashkeelResult(readings={"B1": readings}))
-
-
-def test_the_voice_is_given_the_words_of_a_number_and_the_rest_of_the_block_as_before():
-    text = "وصل اتصال إلى 911 في فبراير 2026."
-    voiced = _voicing(text).text("B1", text)
-    assert "911" not in voiced and "2026" not in voiced
-    assert AN.bare(voiced) == "وصل اتصال إلى تسعمئة وأحد عشر في فبراير ألفين وستة وعشرين."
-
-
-def test_an_emergency_number_named_as_one_is_given_to_the_voice_digit_by_digit():
-    text = "اتصل برقم الطوارئ 911."
-    assert AN.bare(_voicing(text).text("B1", text)) == "اتصل برقم الطوارئ تسعة واحد واحد."
-
-
-def test_the_story_text_keeps_its_digits():
-    text = "رقم 911"
-    _voicing(text).text("B1", text)
-    assert text == "رقم 911"
