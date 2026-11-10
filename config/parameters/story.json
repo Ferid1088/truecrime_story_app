@@ -325,7 +325,9 @@
           "mvp_candidate_verifier",
           "mvp_second_verifier"
         ],
-        "strict": false
+        "strict": false,
+        "same_model_allowed": true,
+        "owner_decision": "Owner decision 2026-11-10: the picture verifier runs on Gemini Flash, the model that plans the needs, because the owner checks the pictures himself and the verifier mainly enriches them with a description and attributes; it saves about 60-68% of the verification cost. A replay of 300 pictures found Flash rejecting where Sonnet rejects (99%) and never rejecting a picture Sonnet approved."
       },
       {
         "name": "language_pipeline",

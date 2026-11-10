@@ -10,7 +10,7 @@ every picture); then the media kind; where it was found (title, caption, page, s
 entity_list [{key, name, type, period, description?, not_this?}] - the things the film needs.
 
 ANSWER THESE QUESTIONS SEPARATELY
-1. depicts: one plain sentence on what is actually visible.
+1. depicts: one or two plain sentences on what is actually visible, with its attributes: how many people, their hair, clothing, expression and position, objects, setting, any readable text, and whether it is a photo, a video still or a split image. Describe people by how they look, never by name: who they are is decided in `matches`, not here.
 2. matches: for EVERY entity in entity_list that this picture could serve, give
    {"entity": key, "relation": "exact|context|unrelated|uncertain", "signal": "the identifying
    signal for exact/context (empty otherwise)", "reason": "..."}.

@@ -114,7 +114,7 @@
         "detective_design_director": "premium",
         "detective_film_reviewer": "writer",
         "mvp_query_planner": "research_intelligence",
-        "mvp_candidate_verifier": "premium",
+        "mvp_candidate_verifier": "cheap",
         "mvp_second_verifier": "sol",
         "mvp_segment_scout": "cheap",
         "mvp_moment_picker": "writer",
@@ -386,8 +386,7 @@
     },
     "mvp_candidate_verifier": {
       "temperature": 0.0,
-      "max_tokens": 4000,
-      "reasoning_effort": "medium"
+      "max_tokens": 4000
     },
     "mvp_second_verifier": {
       "temperature": 0.0,
