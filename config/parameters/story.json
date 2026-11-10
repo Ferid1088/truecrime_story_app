@@ -269,7 +269,9 @@
           "visual_accuracy_critic",
           "production_critic"
         ],
-        "strict": true
+        "strict": true,
+        "same_model_allowed": true,
+        "owner_decision": "Owner decision 2026-11-10: the shot-list director runs on Gemini Flash like the critics, to save about 55-60% of its cost (about EUR 22 per case); the owner checks the film himself. A replay of 82 real director calls gave 0 invalid answers and 0 rule breaks, 62.6% the same slot choice as Sonnet (Sonnet against itself: 71.8%) and about 10% more empty slots."
       },
       {
         "name": "documentary_host",
