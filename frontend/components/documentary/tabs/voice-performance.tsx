@@ -9,7 +9,6 @@ import type {
   BlueprintBeat,
   PerformanceBeat,
   PerformanceSentence,
-  RiskyWord,
   VoicePerformance,
 } from "@/lib/types";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
@@ -102,11 +101,6 @@ export function VoicePerformanceTab({ settings, overview, refreshKey, language, 
           pilotBeats={pilotBeats}
           pilotSeconds={settings.pilot_seconds}
           audioTags={settings.voices[language]?.audio_tags ?? false}
-          pronunciation={
-            settings.pronunciation_check.enabled && settings.pronunciation_check.languages.includes(language)
-              ? { maxRounds: settings.pronunciation_check.max_rounds }
-              : null
-          }
         />
       )}
     </div>
@@ -120,7 +114,6 @@ function PerformancePanel({
   pilotBeats,
   pilotSeconds,
   audioTags,
-  pronunciation,
 }: {
   versionId: number;
   language: string;
@@ -128,8 +121,6 @@ function PerformancePanel({
   pilotBeats: string[] | null;
   pilotSeconds: number;
   audioTags: boolean;
-  /** Set when this language gets the pronunciation check. */
-  pronunciation: { maxRounds: number } | null;
 }) {
   const ids = useId();
   const [tick, setTick] = useState(0);
@@ -252,7 +243,6 @@ function PerformancePanel({
         <InlineAlert tone="error">Could not refresh the voice performance: {perfState.error}</InlineAlert>
       )}
 
-      {pronunciation && perf && <PronunciationKeyCard perf={perf} maxRounds={pronunciation.maxRounds} />}
 
       {listBeats ? (
         <SentenceList
@@ -426,101 +416,6 @@ function ArcCard({
   );
 }
 
-function PronunciationKeyCard({ perf, maxRounds }: { perf: VoicePerformance; maxRounds: number }) {
-  const sentences = perf.performance.beats.flatMap((b) => b.paragraphs.flat());
-  const keyed = sentences.filter((s) => s.risky != null);
-  const riskyWords = keyed.reduce((n, s) => n + (s.risky?.length ?? 0), 0);
-  const lastRun = perf.validation.pronunciation_key ?? null;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Pronunciation key</CardTitle>
-        <span className="text-xs text-muted-foreground">words a voice could misread</span>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="max-w-3xl text-xs leading-5 text-muted-foreground">
-          Persian script leaves most short vowels unwritten: <span lang="fa" dir="rtl">ملک</span> can be melk,
-          molk, malek or malak. For each such word the key records the reading the sentence&apos;s
-          meaning needs. After recording, a phoneme listener checks those words; a word said wrong
-          gets harakat (then full harakat, then an unambiguous spelling) and the block is spoken
-          again — up to {maxRounds} corrected take{maxRounds === 1 ? "" : "s"}. Results are in the
-          Voice tab.
-        </p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <Metric label="Sentences keyed" value={`${keyed.length}/${sentences.length}`} />
-          <Metric label="Risky words" value={riskyWords} />
-          <Metric
-            label="Key issues (last run)"
-            value={lastRun ? lastRun.issues.length : "—"}
-            tone={lastRun?.issues.length ? "danger" : undefined}
-          />
-        </div>
-        {lastRun && lastRun.issues.length > 0 && (
-          <ul className="flex flex-wrap gap-1.5" aria-label="Pronunciation key issues">
-            {lastRun.issues.map((issue, i) => {
-              const [code, word] = issue.split(":");
-              return (
-                <li key={i}>
-                  <Badge variant="warning">
-                    {humanize(code)}
-                    {word && (
-                      <span lang="fa" dir="rtl">
-                        {word}
-                      </span>
-                    )}
-                  </Badge>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {lastRun && lastRun.errors.length > 0 && (
-          <InlineAlert tone="error">
-            <p className="font-medium">Some sentences could not be keyed:</p>
-            <ul className="mt-1 space-y-0.5">
-              {lastRun.errors.map((e, i) => (
-                <li key={i} className="break-words">
-                  {e}
-                </li>
-              ))}
-            </ul>
-          </InlineAlert>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-/** Word → the reading its meaning needs; the vowelled form in the tooltip. */
-function RiskyChip({ word, language }: { word: RiskyWord; language: string }) {
-  const forms = [
-    word.vowelled && `harakat ${word.vowelled}`,
-    word.full && `full harakat ${word.full}`,
-    word.respell && `spelling ${word.respell}`,
-    word.synonym && `synonym ${word.synonym}${word.synonym_read ? ` (${word.synonym_read})` : ""}`,
-  ].filter(Boolean);
-  return (
-    <span
-      dir="ltr"
-      title={forms.length ? forms.join(" · ") : undefined}
-      className="inline-flex items-center gap-1 rounded border border-amber-500/25 bg-amber-500/10 px-1.5 text-[11px] leading-5"
-    >
-      <span lang={language} dir="rtl" className="font-medium">
-        {word.w}
-      </span>
-      <span aria-hidden className="text-muted-foreground">
-        →
-      </span>
-      <span lang={`${language}-Latn`} className="font-mono">
-        {word.read}
-      </span>
-      {word.meaning && <span className="text-muted-foreground">· {word.meaning}</span>}
-      {forms.length > 0 && <span className="sr-only">({forms.join(", ")})</span>}
-    </span>
-  );
-}
-
 function SentenceRow({ sentence, language }: { sentence: PerformanceSentence; language: string }) {
   const voiceText = sentence.directed && sentence.tts ? sentence.tts : sentence.speech;
   return (
@@ -536,19 +431,6 @@ function SentenceRow({ sentence, language }: { sentence: PerformanceSentence; la
         <p lang={language} dir={isRtl(language) ? "rtl" : "ltr"} className="break-words">
           <TtsText text={voiceText} />
         </p>
-        {sentence.risky && sentence.risky.length > 0 && (
-          <ul
-            dir={isRtl(language) ? "rtl" : "ltr"}
-            aria-label="Pronunciation key"
-            className="mt-0.5 flex flex-wrap gap-1"
-          >
-            {sentence.risky.map((w, i) => (
-              <li key={`${w.w}-${i}`}>
-                <RiskyChip word={w} language={language} />
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
     </li>
   );

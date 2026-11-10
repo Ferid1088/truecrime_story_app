@@ -34,7 +34,7 @@ def test_the_old_review_routes_and_screen_are_gone():
     assert len(paths) > 200 and not any("ppie-review" in p for p in paths)
     api = (ROOT / "frontend/lib/api.ts").read_text(encoding="utf-8")
     assert "ppie-review" not in api and "ppieReview" not in api
-    screen = (ROOT / "frontend/components/documentary/tabs/pronunciation-review.tsx").read_text(encoding="utf-8")
+    screen = (ROOT / "frontend/components/documentary/tabs/voice-review.tsx").read_text(encoding="utf-8")
     assert "Audio review" not in screen and "AudioReview" not in screen
     assert not (ROOT / "frontend/components/documentary/tabs/audio-review.tsx").exists()
     json.loads((ROOT / "config/parameters/documentary.json").read_text(encoding="utf-8"))
@@ -47,7 +47,7 @@ def test_the_hand_review_is_in_its_place_and_nothing_old_is_left_in_the_code():
     for wanted in ("/api/documentary/versions/{version_id}/block-review", "/api/documentary/versions/{version_id}/block-review/send-all",
                    "/api/documentary/versions/{version_id}/block-review/assemble", "/api/cases/{case_id}/voice-review-status"):
         assert wanted in paths, wanted
-    screen = (ROOT / "frontend/components/documentary/tabs/pronunciation-review.tsx").read_text(encoding="utf-8")
+    screen = (ROOT / "frontend/components/documentary/tabs/voice-review.tsx").read_text(encoding="utf-8")
     assert "Voice review" in screen and "BlockReview" in screen
     assert "voice-review-shortcut" in (ROOT / "frontend/components/documentary/tabs/monitoring.tsx").read_text(encoding="utf-8")
     for path in [*(ROOT / "app").rglob("*.py"), *(ROOT / "scripts").glob("*.py"), *(ROOT / "frontend/components").rglob("*.tsx"), *(ROOT / "frontend/lib").glob("*.ts")]:

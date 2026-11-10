@@ -12,7 +12,6 @@ from test_studio import FakeVoice, _renderer, _segments
 from app.core.ai_config import ai_config
 from app.db.models import HostScene, VoiceBlock, VoiceBlockTake, VoiceBlockWord, VoiceReview
 from app.documentary import host_scenes as HS
-from app.documentary import storage
 from app.documentary.block_review import edits as E
 from app.documentary.block_review import host_review as HR
 from app.documentary.block_review import service as S
@@ -201,7 +200,7 @@ def test_a_voice_the_person_chose_is_not_rewritten_or_voiced_again_to_fit_the_pl
     db.commit()
     asked, calls, text_before = [], voice.calls, scene.text
 
-    async def retimer(db_, scene_, seconds, avoid):
+    async def retimer(db_, scene_, seconds):
         asked.append(seconds)
 
     asyncio.run(HS._voice_within_plan(db, scene, _renderer(voice), retimer))

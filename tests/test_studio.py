@@ -295,7 +295,7 @@ def _renderer(voice):
     """The checks of the voice step with a fake voice and no Whisper / phoneme model."""
     from app.documentary.voice_render import VoiceRenderer
 
-    return VoiceRenderer(provider=voice, use_asr=False, use_listener=False)
+    return VoiceRenderer(provider=voice, use_asr=False)
 
 
 class FakeVoice:

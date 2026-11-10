@@ -28,7 +28,7 @@ PHASE5_ROOTS = {
     "unused_visual_metadata": "visual_asset",
 }
 CONFIG_SOURCES = {
-    "language_profile", "pronunciation_voice", "channel_identity_logo",
+    "language_profile", "channel_identity_logo",
     "intro_design", "agent_model_routing", "music_history_library",
     "logo_bytes", "typed_config_documentary", "typed_config_render",
     "typed_config_chapters", "typed_config_visual", "typed_config_voice",
@@ -36,7 +36,6 @@ CONFIG_SOURCES = {
 }
 CONFIG_SECTIONS = {
     "language_profile": {"language_profile"},
-    "pronunciation_voice": {"pronunciation_voice"},
     "channel_identity_logo": {"channel_identity"},
     "intro_design": {"intro_design"},
     "agent_model_routing": {"documentary"},

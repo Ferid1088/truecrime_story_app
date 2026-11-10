@@ -89,19 +89,17 @@ class HeyGenClosingRenderer:
 
     async def _voice(self, db: Session, language: str, sentences: list[str],
                      case_id: int) -> tuple[Path, float]:
-        from app.documentary.pronunciation import PronunciationEditor
         from app.documentary.voice_render import VoiceRenderer
 
         vcfg = ai_config.voice.languages[language]
         settings = ai_config.voice.settings_for(ai_config.host.voice_style, language)
-        renderer = VoiceRenderer(db=db, budget_case_id=case_id, budget_stage=f"tts:closing:{language}",
-                                 arbiter=PronunciationEditor())
+        renderer = VoiceRenderer(db=db, budget_case_id=case_id, budget_stage=f"tts:closing:{language}")
         block = {"block_id": f"closing-{language}", "text": " ".join(sentences), "beats": [],
-                 "sentences": [{"speech": s, "display": s, "tts": s, "level": None, "risky": []}
+                 "sentences": [{"speech": s, "display": s, "tts": s, "level": None}
                                for s in sentences]}
         takes = Path(tempfile.mkdtemp(prefix="closing_takes_"))
         result = await renderer.speak_block(block, language, vcfg, settings, ai_config.voice.seed,
-                                            takes, synonyms=False)
+                                            takes)
         take = result["take"]
         out = takes / "closing.mp3"
         shutil.copyfile(take["raw_path"], out)

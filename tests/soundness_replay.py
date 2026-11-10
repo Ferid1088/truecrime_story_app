@@ -41,7 +41,6 @@ from app.services.soundness import predicted_change_keys
 # perturbation touches.
 CONFIG_SECTIONS = {
     "language_profile": {"language_profile"},
-    "pronunciation_voice": {"pronunciation_voice"},
     "channel_identity_logo": {"channel_identity"},
     "intro_design": {"intro_design"},
     "agent_model_routing": {"documentary"},
@@ -185,7 +184,6 @@ PHASE5_TYPES = {
     "host_plan": ("host_plan", None),
     "naming": ("naming", None),
     "language_profile": (None, None),
-    "pronunciation_voice": (None, None),
     "channel_identity_logo": (None, None),
     "intro_design": (None, None),
     "agent_model_routing": (None, None),
@@ -631,8 +629,6 @@ def install_phase5(monkeypatch):
     def config_edit(name):
         if name == "language_profile":
             ai_config.spoken.max_sentence_words["en"] += 1
-        elif name == "pronunciation_voice":
-            ai_config.pronunciation.pad_seconds += 0.01
         elif name == "channel_identity_logo":
             ai_config.channels["en"].name += " soundness"
         elif name == "logo_bytes":
@@ -666,7 +662,6 @@ def install_phase5(monkeypatch):
 
     if source in {
         "language_profile",
-        "pronunciation_voice",
         "channel_identity_logo",
         "logo_bytes",
         "intro_design",

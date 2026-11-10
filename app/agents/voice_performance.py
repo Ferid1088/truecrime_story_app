@@ -15,7 +15,6 @@ from app.documentary.voice_performance import (
     ARC_SYSTEM,
     LEVEL_NAMES,
     TAG,
-    _beat_sources,
     _tag_counts,
     director_system,
     enforce_levels,
@@ -121,13 +120,9 @@ class VoicePerformanceDirector:
                         "level": (old or {}).get("level", arc[b["id"]]["level"]),
                         "tts": (old or {}).get("tts"), "directed": bool(old),
                         "raw": (old or {}).get("raw"),
-                        "risky": (old or {}).get("risky"),
                     })
         todo = [r for r in records if r["beat_id"] in wanted and not r["directed"]]
-        pcfg = ai_config.pronunciation
-        needs_key = pcfg.enabled and language in pcfg.languages and any(
-            r["directed"] and r.get("risky") is None for r in records)
-        if prev is not None and not todo and not needs_key and prev.status != "failed":
+        if prev is not None and not todo and prev.status != "failed":
             return prev  # everything asked for is directed already
         size = self.cfg.sentences_per_call
         chunks: list[list[dict]] = []
@@ -175,23 +170,6 @@ class VoicePerformanceDirector:
                     examples.append({"i": r["i"], "issue": pr, "raw": r.get("raw")})
         thinned = thin_tags([r for r in records if r["directed"]], self.cfg)
 
-        # 4. pronunciation key: the words a voice could misread, with the
-        #    reading the meaning needs (used by the listening loop)
-        pron_report = None
-        if pcfg.enabled and language in pcfg.languages and ai_config.listens_after_voice(language):       # a prepared or semantically reviewed language has no pronunciation key
-            from app.documentary.pronunciation import PronunciationEditor
-
-            need = [r for r in records if r["directed"] and r.get("risky") is None]
-            if need:
-                sources = _beat_sources(db, version, blueprint)
-                keyed, pron_report = await PronunciationEditor().annotate(
-                    db, case.id, language,
-                    [{"i": r["i"], "beat_id": r["beat_id"], "text": r["speech"],
-                      "source": sources.get(r["beat_id"], "")} for r in need])
-                for r in need:
-                    if r["i"] in keyed:
-                        r["risky"] = keyed[r["i"]]
-
         beats_out = []
         for b in bp_beats:
             paras: list[list[dict]] = []
@@ -199,7 +177,7 @@ class VoicePerformanceDirector:
                 while len(paras) <= r["p"]:
                     paras.append([])
                 paras[r["p"]].append({k: r[k] for k in (
-                    "speech", "display", "tts", "level", "directed", "raw", "risky")})
+                    "speech", "display", "tts", "level", "directed", "raw")})
             beats_out.append({"beat_id": b["id"], "arc_level": arc[b["id"]]["level"],
                               "arc_peak": arc[b["id"]]["peak"], "paragraphs": paras})
         directed = [r for r in records if r["directed"]]
@@ -216,7 +194,7 @@ class VoicePerformanceDirector:
                 "incident_beat": incident, "incident_sentence": incident_i,
                 "beats": beats_out, "stats": stats}
         validation = {"arc_log": arc_log, "level_log": level_log, "errors": errors,
-                      "examples": examples, "pronunciation_key": pron_report}
+                      "examples": examples}
         row = VoicePerformance(
             case_id=case.id, story_version_id=version.id, language=language,
             version=(prev.version + 1) if prev else 1,

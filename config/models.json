@@ -9,20 +9,10 @@
         "embedding": "bge-m3",
         "sol": "gpt-6.1-sol",
         "luna": "gpt-5.6-luna",
-        "audio_listener": "gemini-3.8-flash",
-        "reading_listener": "gemini-4-argon",
-        "reading_premium": "claude-sonnet-5-5"
+        "audio_listener": "gemini-3.8-flash"
       },
       "capabilities": {
         "gemini-3.8-flash": {
-          "structured_output": true,
-          "tool_calling": true,
-          "web_search": "none",
-          "web_fetch": "none",
-          "vision": true,
-          "audio_input": true
-        },
-        "gemini-4-argon": {
           "structured_output": true,
           "tool_calling": true,
           "web_search": "none",
@@ -97,7 +87,6 @@
         "visual_accuracy_critic": "writer",
         "production_critic": "writer",
         "voice_performance_director": "writer",
-        "pronunciation_editor": "sol",
         "case_status_verifier": "premium",
         "host_director": "sol",
         "host_angle": "premium",
@@ -136,19 +125,12 @@
         "mvp_picture_describer": "sol",
         "mvp_person_inspector": "premium",
         "name_forms_reader": "premium",
-        "voice_prepare_editor": "premium",
-        "voice_prepare_checker": "premium",
         "mvp_timing_classifier": "premium",
         "mvp_scene_director": "premium",
         "detective_text_analyser": "writer",
         "detective_card_maker": "writer",
         "detective_card_inspector": "writer",
-        "semantic_audio_reviewer": "audio_listener",
-        "reading_reader": "reading_premium",
-        "reading_editor": "reading_premium",
-        "reading_checker": "sol",
-        "reading_arbiter": "reading_premium",
-        "reading_listener": "reading_listener"
+        "semantic_audio_reviewer": "audio_listener"
       },
       "fallbacks": {
         "cheap": [
@@ -277,11 +259,6 @@
     "voice_performance_director": {
       "temperature": 0.5,
       "max_tokens": 32000
-    },
-    "pronunciation_editor": {
-      "temperature": 0.0,
-      "max_tokens": 16000,
-      "reasoning_effort": "medium"
     },
     "case_status_verifier": {
       "temperature": 0.0,
@@ -453,14 +430,6 @@
       "temperature": 0.0,
       "max_tokens": 8000
     },
-    "voice_prepare_editor": {
-      "temperature": 0.2,
-      "max_tokens": 16000
-    },
-    "voice_prepare_checker": {
-      "temperature": 0.0,
-      "max_tokens": 10000
-    },
     "mvp_picture_describer": {
       "temperature": 0.0,
       "max_tokens": 2000
@@ -489,26 +458,6 @@
       "send_reasoning_effort": true
     },
     "semantic_audio_reviewer": {
-      "temperature": 0.0,
-      "max_tokens": 6000
-    },
-    "reading_reader": {
-      "temperature": 0.0,
-      "max_tokens": 16000
-    },
-    "reading_editor": {
-      "temperature": 0.1,
-      "max_tokens": 16000
-    },
-    "reading_checker": {
-      "temperature": 0.0,
-      "max_tokens": 8000
-    },
-    "reading_arbiter": {
-      "temperature": 0.0,
-      "max_tokens": 2000
-    },
-    "reading_listener": {
       "temperature": 0.0,
       "max_tokens": 6000
     }

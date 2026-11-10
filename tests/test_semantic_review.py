@@ -19,8 +19,6 @@ pytestmark = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is re
 @pytest.fixture(autouse=True)
 def config(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
-    monkeypatch.setattr(ai_config.voice, "prepared_languages", [])
-    monkeypatch.setattr(ai_config.ppie, "languages", [])           # the review with its corrections, as it stays for a language PPIE does not voice
     monkeypatch.setattr(ai_config.semantic_review, "languages", ["fa"])
     monkeypatch.setattr(ai_config.semantic_review, "delivery_tags", ["[calm]", "[serious]"])
     monkeypatch.setattr(SR, "track_run", lambda *a, **k: contextlib.nullcontext(object()))
@@ -39,7 +37,7 @@ def error(severity="critical", kind="name"):
 
 def block(texts=("اشلی آمد.", "او رفت.")):
     return {"block_id": "FA_B01_01", "section_id": "B01", "text": " ".join(texts), "previous_text": "قبل", "next_text": "بعد",
-            "sentences": [{"speech": t, "display": t, "tts": t, "level": None, "risky": []} for t in texts]}
+            "sentences": [{"speech": t, "display": t, "tts": t, "level": None} for t in texts]}
 
 
 # ---------------------------------------------------------------------------
@@ -70,17 +68,17 @@ def test_dates_numbers_urls_and_paths_are_protected_items():
 def test_a_correction_changes_what_the_voice_is_given_and_never_what_people_read():
     review = SR.normalise(raw("fail", [error()], corrected_pronunciation_rules=[{"surface": "اشلی", "replacement": "اَشْلی"}],
                               corrected_delivery_instruction="[calm]"))
-    fixed, applied, respelled = SR.corrected_block(block(), review)
+    fixed, applied = SR.corrected_block(block(), review)
     assert fixed["sentences"][0]["tts"] == "[calm] اَشْلی آمد." and fixed["sentences"][1]["tts"] == "او رفت."
     assert [s["display"] for s in fixed["sentences"]] == ["اشلی آمد.", "او رفت."] and [s["speech"] for s in fixed["sentences"]] == ["اشلی آمد.", "او رفت."]
-    assert fixed["tts_text"] == "[calm] اَشْلی آمد. او رفت." and applied == ["respelled اشلی", "tag [calm]"] and respelled == [{"surface": "اشلی", "replacement": "اَشْلی"}]
+    assert fixed["tts_text"] == "[calm] اَشْلی آمد. او رفت." and applied == ["respelled اشلی", "tag [calm]"]
 
 
 def test_a_corrected_text_is_taken_only_with_the_sentences_of_the_block():
     same = SR.normalise(raw("fail", [error()], corrected_text="اَشْلی آمد. او رفت."))
     assert SR.corrected_block(block(), same)[0]["sentences"][0]["tts"] == "اَشْلی آمد."
     other = SR.normalise(raw("fail", [error()], corrected_text="فقط یک جمله."))
-    fixed, applied, _ = SR.corrected_block(block(), other)
+    fixed, applied = SR.corrected_block(block(), other)
     assert fixed["sentences"][0]["tts"] == "اشلی آمد." and applied == ["text ignored: its sentences are not those of the block"]
 
 
@@ -174,15 +172,12 @@ def test_the_render_keeps_every_record_and_does_not_assemble_the_film_when_a_blo
 
 
 def test_a_reviewed_language_is_not_listened_to_by_the_older_checks_and_the_others_still_are(monkeypatch):
-    monkeypatch.setattr(ai_config.voice, "prepared_languages", [])
     assert ai_config.listens_after_voice("fa") is False and ai_config.listens_after_voice("ar") is True and ai_config.listens_after_voice("en") is True
     monkeypatch.setattr(ai_config.semantic_review, "languages", [])
     assert ai_config.listens_after_voice("fa") is True
-    monkeypatch.setattr(ai_config.voice, "prepared_languages", ["fa"])
-    assert ai_config.listens_after_voice("fa") is False
 
 
-def test_a_reviewed_language_is_voiced_once_per_block_without_speech_to_text_or_the_pronunciation_loop(tmp_path):
+def test_a_reviewed_language_is_voiced_once_per_block_without_speech_to_text(tmp_path):
     from test_voice_render import FakeTTS, _block
 
     from app.documentary.voice_render import VoiceRenderer
@@ -198,33 +193,6 @@ def test_a_reviewed_language_is_voiced_once_per_block_without_speech_to_text_or_
     plan = {"language": "fa", "blocks": [_block("FA_a_01", "B01", "The house was empty and every room had been scrubbed clean.")]}
     asyncio.run(renderer.render(plan, case_id=7, story_version_id=4))
     assert len(tts.requests) == 1
-
-
-def test_a_voice_that_reads_the_pronunciation_notation_aloud_gets_the_block_without_the_dictionary_and_then_without_tags():
-    review = SR.normalise(raw("fail", [{"type": "pronunciation", "severity": "major", "expected": "فوریه", "heard": "اسلش اف ای وی اسلش", "reason": "read as symbols"}]))
-    assert review["notation_read_aloud"] is True and SR.normalise(raw())["notation_read_aloud"] is False
-    rules = [{"string_to_replace": "کالب", "type": "alias", "alias": "کالِبْ"}, {"string_to_replace": "فوریه", "type": "phoneme", "alphabet": "ipa", "phoneme": "fevrije"}]
-    blk = block(("[calm] کالب در فوریه آمد.", "او رفت."))
-    fixed, applied = SR.without_dictionary(blk, rules)
-    assert fixed["no_dictionary"] is True and fixed["sentences"][0]["tts"] == "[calm] کالِبْ در فوریه آمد." and applied == ["without the dictionary", "respelled کالب"]
-    assert [s["display"] for s in fixed["sentences"]] == ["[calm] کالب در فوریه آمد.", "او رفت."], "what people read is not touched"
-    again, applied = SR.without_dictionary(fixed, rules)
-    assert again["sentences"][0]["tts"] == "کالِبْ در فوریه آمد." and "without audio tags" in applied
-
-
-def test_a_block_marked_without_the_dictionary_is_sent_without_it(tmp_path, monkeypatch):
-    from test_voice_render import FakeTTS, _block
-
-    from app.documentary.voice_render import VoiceRenderer
-
-    monkeypatch.setattr(ai_config.voice, "prepared_languages", ["fa"])
-    tts = FakeTTS()
-    renderer = VoiceRenderer(provider=tts, use_asr=False, use_listener=False)
-    renderer.dictionaries = [{"pronunciation_dictionary_id": "D", "version_id": "V"}]
-    plain = _block("FA_a_01", "B01", "The house was empty and every room had been scrubbed clean.")
-    asyncio.run(renderer.speak_block(plain, "fa", ai_config.voice.for_language("en"), {}, 1, tmp_path / "t1"))
-    asyncio.run(renderer.speak_block({**plain, "no_dictionary": True}, "fa", ai_config.voice.for_language("en"), {}, 1, tmp_path / "t2"))
-    assert [r.pronunciation_dictionaries for r in tts.requests] == [renderer.dictionaries, []]
 
 
 def test_the_reviewer_has_its_own_model_route_without_a_fallback_to_a_model_that_cannot_hear():
@@ -293,14 +261,6 @@ def test_when_the_owner_is_the_gate_a_failed_block_is_flagged_and_listed_and_the
     assert [b["block_id"] for b in state["failed_blocks"]] == ["FA_a_01"] and not state["approved"]
     with pytest.raises(AwaitingVoiceReview, match="1 blocks did not pass the listening review: FA_a_01"):
         VRV.guard(version, "fa")
-
-
-def test_a_missing_or_wrong_ezafe_fails_the_block_and_is_never_rewritten_into_another_word():
-    review = SR.normalise(raw(ezafe_missing=[{"phrase": "X Y", "head": "X", "heard": "x-eye y"}]))
-    assert review["verdict"] == "fail" and review["errors"][0]["reason"] == "the ezafe after X is not said"
-    fixed, applied, respelled = SR.corrected_block(block(("X Y بود.", "او رفت.")), review)
-    assert [s["tts"] for s in fixed["sentences"]] == ["X Y بود.", "او رفت."] and respelled == [], "nothing is rewritten: the app makes another take"
-
 
 
 # ---------------------------------------------------------------------------

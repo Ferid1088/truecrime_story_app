@@ -1,4 +1,4 @@
-"""The pronunciation loop (Persian homographs), the voice
+"""The voice
 performance director (ElevenLabs v3 audio tags + tension arc), tag-aware
 voice rendering and subtitles, and parallel execution (limits, batches,
 partial jobs).
@@ -12,13 +12,11 @@ import pytest
 
 from app.core.ai_config import ai_config
 from app.core.concurrency import gather_limited, limiter, slot, usage
-from app.documentary import pronunciation as PR
 from app.documentary import spoken as SP
 from app.documentary import voice_performance as VP
 from app.documentary.asr import compare_transcript, persian_tokens
 from app.documentary.performance import attach_speech, build_directed_performance
 from app.documentary.production.script import display_words, sentence_subtitles
-from pathlib import Path
 from app.documentary.voice_render import (
     VoiceRenderer, beat_times, sentence_times, words_from_alignment,
 )
@@ -27,12 +25,6 @@ from app.providers.voice import VoiceRequest
 from test_spoken_audio import SpokenGen, _good_plan, _with_blueprint
 
 PERSIAN = re.compile(r"[؀-ۿ]")
-
-
-@pytest.fixture(autouse=True)
-def legacy_path(monkeypatch):
-    """These tests check the older listening checks and the film dictionary, kept for the languages PPIE does not voice: PPIE is off here."""
-    monkeypatch.setattr(ai_config.ppie, "languages", [])
 
 
 def _res(role):
@@ -417,7 +409,6 @@ def test_voice_render_sends_tags_checks_display_and_runs_in_parallel(tmp_path, m
     from test_voice_render import FakeASR, FakeTTS
 
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
-    monkeypatch.setattr(ai_config.voice, "prepared_languages", [])       # the checks run for a language that is not prepared before it is voiced
     monkeypatch.setattr(ai_config.semantic_review, "languages", [])
     tts = FakeTTS()
     active = {"now": 0, "max": 0}
@@ -584,115 +575,3 @@ def test_cuts_vary_and_land_on_sentences():
     gaps = [b - a for a, b in zip([0.0] + cuts, cuts + [64.0])]
     assert min(gaps) >= ai_config.visual_direction.min_cut_seconds
     assert len({round(g) for g in gaps}) > 1
-
-
-# ---------------------------------------------------------------------------
-# pronunciation loop (Persian homographs)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("read, heard, ok", [
-    ("molk", "n m o l k k e", True),          # realm, said right
-    ("molk", "n m a l k k e", False),         # said "malk"
-    ("melk", "i n m eː l k", True),
-    ("malak", "m e l k", False),              # angel said as "melk"
-    ("jannat", "dʒ a n n aː t", True),
-    ("jannat", "dʒ e n n a t", False),        # the classic "jennat"
-    ("andaam", "a n d o m e", True),          # ā is heard as o: fine
-    ("andaam", "e n d o m", False),           # "endam"
-    ("gel", "t u ɡ e l ɡ iː", True),          # neighbours cut away
-    ("gel", "ɡ o l", False),                  # mud said as "gol" (flower)
-    ("shokr", "ʃ o k r", True),
-    ("mohr", "m u h", True),                  # o/u are close
-])
-def test_listening_judges_vowels_by_meaning(read, heard, ok):
-    assert PR.judge(read, heard.split())["ok"] is ok
-
-
-def test_reading_and_harakat_must_agree():
-    assert PR.harakat_agree("مُلک", "molk") and not PR.harakat_agree("مِلک", "molk")
-    assert PR.harakat_agree("گِلِ", "gel")  # ezafe kasra at the end
-    words, issues = PR.validate_key("مهر مادری هیچ‌وقت تموم نمی‌شه.", [
-        {"w": "مادری", "read": "maaderi", "vowelled": "مادَری"},       # contradicts itself
-        {"w": "مهر", "read": "mehr", "vowelled": "مِهر", "full": "مِهْر",
-         "synonym": "محبت", "synonym_read": "mohabbat"},
-        {"w": "خانه", "read": "khaane", "vowelled": "خانه"},            # not in sentence
-        {"w": "مهر", "read": "مهر", "vowelled": "مِهر"},                  # not Latin
-    ])
-    assert [w["w"] for w in words] == ["مهر"] and words[0]["synonym"] == "محبت"
-    assert {i.split(":")[0] for i in issues} == {"key_inconsistent", "not_in_sentence",
-                                                  "bad_reading"}
-    # a "respelling" that is another word is not a respelling
-    w2, _ = PR.validate_key("تو قصه‌ها، ملک نگهبان بچه‌هاست.", [
-        {"w": "ملک", "read": "malak", "vowelled": "مَلَک", "respell": "فرشته"}])
-    assert "respell" not in w2[0]
-
-
-def test_fixes_escalate_harakat_then_synonym():
-    sentences = [{"speech": "پاش تو گل گیر کرد.", "display": "پاش تو گل گیر کرد.",
-                  "tts": "[calm] پاش تو گل گیر کرد.",
-                  "risky": [{"w": "گل", "read": "gel", "vowelled": "گِل", "full": "گِل",
-                             "synonym": "لجن", "synonym_read": "lajan"}]}]
-    occ = PR.risky_occurrences(sentences)
-    assert [f["kind"] for f in occ[0]["forms"]] == ["vowelled", "synonym"]  # no duplicate
-    wrong = [{"sentence": 0, "word": "گل"}]
-    s1, a1 = PR.apply_fixes(sentences, occ, wrong)
-    assert s1[0]["tts"] == "[calm] پاش تو گِل گیر کرد."
-    assert s1[0]["display"] == "پاش تو گل گیر کرد."  # harakat never reach subtitles
-    s2, a2 = PR.apply_fixes(s1, occ, wrong)
-    assert a2[0]["fix"] == "synonym" and s2[0]["display"] == "پاش تو لجن گیر کرد."
-    assert occ[0]["read"] == "lajan"
-    assert PR.apply_fixes(s2, occ, wrong)[1] == []  # nothing left to try
-    # harakat in the text never hide the word
-    assert PR.find_word("این مُلک بود", "ملک") == (4, 8)
-    assert PR.find_word("این ملکه بود", "ملک") is None
-
-
-class _Listener:
-    """Hears 'malk' until the word carries a damma (مُلک)."""
-    name = "fake_phonemes"
-
-    def __init__(self):
-        self.calls = 0
-
-    def frames(self, wav_path):
-        self.calls += 1
-        meta = json.loads(next(Path(wav_path).parent.glob(
-            f"*__{Path(wav_path).stem.split('__')[-1]}.json")).read_text())
-        fixed = "مُلک" in meta["text"]
-        toks = ["p", "a", "d", "e", "ʃ", "ɑ", "h", "m", "o" if fixed else "a", "l", "k"]
-        # spread over the take
-        return [(t, 0.1 * i, 0.1 * i + 0.1) for i, t in enumerate(toks)]
-
-
-def test_voice_render_fixes_a_misread_word_and_checks_again(tmp_path, monkeypatch):
-    from pathlib import Path as _P  # noqa: F401
-
-    from test_voice_render import FakeASR, FakeTTS
-
-    monkeypatch.setattr(ai_config.voice, "prepared_languages", [])       # the pronunciation loop runs for a language that is not prepared
-    monkeypatch.setattr(ai_config.semantic_review, "languages", [])
-
-    monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
-    monkeypatch.setattr(PR, "span_times", lambda al, text, span, t0: (0.65, 1.15))
-    text = "پادشاه بر این ملک حکومت کرد."
-    block = {
-        "block_id": "FA_B01_01", "section_id": "B01", "text": text, "word_count": 6,
-        "est_seconds": 3.0, "style": "v3_neutral",
-        "beats": [{"beat_id": "B01", "start_char": 0, "end_char": len(text)}],
-        "sentences": [{"speech": text, "display": text, "tts": text, "level": 0,
-                       "risky": [{"w": "ملک", "read": "molk", "vowelled": "مُلک",
-                                  "full": "مُلْک"}]}],
-    }
-    tts, lst = FakeTTS(), _Listener()
-    m = asyncio.run(VoiceRenderer(provider=tts, asr=FakeASR(), listener=lst).render(
-        {"language": "fa", "blocks": [block]}, case_id=1, story_version_id=3))
-    b = m["blocks"][0]
-    assert [r.text for r in tts.requests] == [text, text.replace("ملک", "مُلک")]
-    p = b["pronunciation"]
-    assert p["per_round"] == [{"round": 0, "wrong": ["ملک"]}, {"round": 1, "wrong": []}]
-    assert p["fixes"][0]["fixes"][0]["form"] == "مُلک" and not p["unresolved"]
-    assert b["tts_text"] == text.replace("ملک", "مُلک")
-    assert b["asr"]["passed"]  # Whisper is compared with the text without harakat
-    assert m["timeline"]["sentences"][0]["display"] == text
-    assert "pronunciation_unresolved" not in " ".join(m["flags"])

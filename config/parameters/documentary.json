@@ -488,7 +488,6 @@
       "min_length_variation": 0.3
     },
     "max_writer_repairs": 5,
-    "text_preparation": ["fa", "ar", "en", "de"],
     "voice_respellings": {"de": {"Fereidoun": "Fereydun"}, "en": {"Fereidoun": "Fereydun"}},
     "angle_repairs": 2,
     "angle_min_quote_words": 4,
@@ -812,130 +811,6 @@
     "learning_min_published_shorts": 30,
     "learning_min_episodes": 5
   },
-  "phoneme_alignment": {
-    "tolerance_s": 0.06,
-    "min_coverage": 0.5,
-    "min_margin": 1
-  },
-  "prosody": {
-    "frame_s": 0.025,
-    "hop_s": 0.01,
-    "pause_min_s": 0.25,
-    "silence_db": -45.0,
-    "f0_min_hz": 70.0,
-    "f0_max_hz": 400.0,
-    "voicing_threshold": 0.45,
-    "noise_factor": 2.0
-  },
-  "pronunciation_risk": {
-    "enabled": true,
-    "weights": {
-      "reading_doubt": 3,
-      "low_confidence": 3,
-      "medium_confidence": 1,
-      "code_override": 1,
-      "name_or_foreign": 2,
-      "colloquial": 1,
-      "ezafe_unwritten": 1,
-      "ezafe_uncertain": 2,
-      "ezafe_conflict": 3,
-      "ezafe_phonology": 2,
-      "homograph": 2,
-      "reference_unaligned": 1,
-      "reading_inconsistent": 1,
-      "hazard_letter": 2,
-      "final_consonant_h": 2,
-      "earlier_failure": 2,
-      "intervention_failed": 3,
-      "heard_wrong_by_listener": 3,
-      "acoustic_mismatch": 5,
-      "acoustic_match": -3
-    },
-    "medium_from": 2,
-    "high_from": 4,
-    "critical_from": 7,
-    "hazard_letters": ["ع", "ء", "ئ", "ؤ", "ة"],
-    "max_changed_fraction": 0.2,
-    "max_changed_in_a_row": 2,
-    "tts_marking": "minimal",
-    "validate_from_listener": false
-  },
-  "morphology": {
-    "verb_prefixes": {"نمی": "negation", "می": "continuous"},
-    "plural": ["های", "ها"],
-    "enclitics": {"مون": 1, "تون": 1, "شون": 1, "مان": 1, "تان": 1, "شان": 1, "ام": 1, "ات": 1, "اش": 1, "ای": 1, "ایم": 1, "اید": 1, "اند": 1, "است": 1, "ست": 1, "م": 0, "ت": 0, "ش": 0, "ه": 0, "ی": 0},
-    "suffix_readings": {"ها": ["hā", "ā"], "های": ["hāye", "āye", "hāy", "āy", "hā", "ā"], "هایی": ["hāyi", "āyi"], "هاش": ["hāsh", "āsh"], "هاشون": ["hāshun", "āshun"], "ش": ["esh", "ash", "sh"], "اش": ["esh", "ash", "sh"], "شون": ["eshun", "ashun", "shun"], "مون": ["emun", "amun", "mun"], "تون": ["etun", "atun", "tun"], "ای": ["yi", "i"], "ی": ["i", "ye"]}
-  },
-  "ppie": {
-    "languages": ["fa", "ar"],
-    "asr_languages": ["ar"],
-    "folder_suffix": "_ppie",
-    "run_file": "ppie_run.json"
-  },
-  "number_reading": {
-    "digit_by_digit": [],
-    "digit_cues": ["شماره", "شماره‌ی", "شمارهٔ", "تلفن", "کد", "پلاک"],
-    "digit_min_length": 5,
-    "year_cues": ["سال", "ژانویه", "فوریه", "فوریهٔ", "فوریه‌ی", "مارس", "آوریل", "مه", "مِه", "ژوئن", "ژوئیه", "اوت", "سپتامبر", "سپتامبرِ", "اکتبر", "نوامبر", "دسامبر"],
-    "year_range": [1000, 2100],
-    "digit_words": ["صفر", "یک", "دو", "سه", "چهار", "پنج", "شش", "هفت", "هشت", "نُه"],
-    "respelled": {"نه": "نُه"},
-    "ordinal_suffixes": ["مین", "ام", "م"],
-    "ordinal_words": {"یک": "یکم", "سه": "سوم", "سی": "سی‌ام"}
-  },
-  "homographs": {
-    "words": {"مرد": ["mard", "mord"], "گل": ["gol", "gel"], "علم": ["alam", "elm"], "کرد": ["kard", "kord"], "ملک": ["melk", "malek", "molk"], "شکر": ["shekar", "shokr"], "سر": ["sar", "serr"], "کشتی": ["kashti", "koshti"], "کشت": ["kesht", "kosht", "kasht"], "حس": ["hes", "hess"], "پر": ["por", "par"], "خرد": ["kherad", "khord", "kharad"], "سم": ["sam", "som"], "دین": ["din", "deyn"], "مهر": ["mehr", "mohr"], "نه": ["na", "noh"], "کی": ["ki", "key"], "رو": ["ro", "ru"], "تو": ["tu", "to"], "دور": ["dur", "dowr"]},
-    "free_variants": {"و": ["o", "va"], "خودش": ["khodash", "khodesh"], "سراغ": ["sorāgh", "sarāgh"], "توی": ["tu", "tuye"], "روی": ["ru", "ruye"]}
-  },
-  "ezafe": {
-    "never_takes": ["و", "که", "را", "از", "به", "با", "یا", "اگه", "اگر", "ولی", "اما", "چون", "نه", "هم", "این", "اون", "آن", "همین", "همون", "همان", "هر", "چند", "یه", "یک", "خیلی", "چه", "چی", "تا"],
-    "never_before": ["را", "رو", "و", "که", "یا", "تا", "اگه", "اگر", "ولی", "اما", "چون"],
-    "verb_prefixes": ["می‌", "نمی‌"],
-    "pronouns": ["من", "تو", "او", "اون", "ما", "شما", "اونا", "آنها", "ایشان", "خودم", "خودت", "خودش", "خودمون", "خودتون", "خودشون", "خودمان", "خودتان", "خودشان"],
-    "titles": ["آقای", "آقا", "خانم", "قاضی", "دکتر", "کارآگاه", "افسر", "سرگرد", "سروان", "ستوان", "گروهبان", "مأمور", "وکیل", "دادستان", "پروفسور", "مهندس", "کلانتر", "معاون"],
-    "preposition_nouns": ["روی", "زیر", "پشت", "جلوی", "کنار", "توی", "برای", "بالای", "پایین", "وسط", "داخل", "بیرون", "نزدیک", "پیش", "طرف", "سمت", "بعد", "قبل", "دنبال", "بین", "مثل", "درباره", "به‌خاطر", "بخاطر", "علیه", "مقابل"],
-    "months": ["ژانویه", "فوریه", "مارس", "آوریل", "مه", "می", "ژوئن", "ژوئیه", "جولای", "اوت", "آگوست", "سپتامبر", "اکتبر", "نوامبر", "دسامبر", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"],
-    "compound_pairs": [["پدر", "بزرگ"], ["مادر", "بزرگ"], ["تخت", "خواب"], ["صاحب", "خانه"], ["صاحب", "خونه"]],
-    "confidence": {"rule":  0.95,  "orthography":  0.95,  "agents_agree":  0.9,  "high":  0.8,  "medium":  0.6,  "low":  0.35,  "conflict":  0.4,  "uncertain":  0.3},
-    "uncertain_below": 0.6
-  },
-  "pronunciation_auto": {
-    "enabled": false,
-    "max_attempts": 3
-  },
-  "irab": {
-    "folder": "irab",
-    "max_retries": 3,
-    "parallel_blocks": 4,
-    "arbitrate_words_per_call": 12
-  },
-  "pronunciation_trace": {
-    "mode": "enforce",
-    "phoneme_as_alias": true,
-    "ipa_to_latin": {"tʃ": "ch", "dʒ": "j", "ʃ": "sh", "ʒ": "zh", "x": "kh", "χ": "kh", "ɢ": "gh", "ɣ": "gh", "q": "gh", "ɡ": "g", "g": "g", "ɾ": "r", "r": "r", "ɹ": "r", "j": "y", "y": "y", "ʔ": "'", "ɦ": "h", "h": "h", "ɑː": "ā", "ɑ": "ā", "ɒː": "ā", "ɒ": "ā", "æ": "a", "a": "a", "eː": "e", "e": "e", "ɛ": "e", "oː": "o", "o": "o", "uː": "u", "u": "u", "iː": "i", "i": "i", "ŋ": "ng", "b": "b", "p": "p", "t": "t", "d": "d", "k": "k", "f": "f", "s": "s", "z": "z", "l": "l", "m": "m", "n": "n", "v": "v", "ː": "", "ˈ": "", "ˌ": "", "·": "", "‿": ""},
-    "trace_file": "pronunciation_trace.json",
-    "block_dictionaries_file": "block_dictionaries.json",
-    "block_dictionary_name": "truecrime-{language}-case-{case_id}-v{version_id}-{fingerprint}",
-    "create_retries": 3,
-    "retry_pause_s": 2.0,
-    "retryable_errors": ["rate_limited", "provider_error", "timeout", "unreachable"],
-    "harakat": "ًٌٍَُِّْٰ",
-    "yeh_kaf": {"ي": "ی", "ى": "ی", "ك": "ک"},
-    "digits": {"٠": "۰", "١": "۱", "٢": "۲", "٣": "۳", "٤": "۴", "٥": "۵", "٦": "۶", "٧": "۷", "٨": "۸", "٩": "۹"},
-    "joiner": "\u200c"
-  },
-  "voice_prepare": {
-    "sentences_per_call": 24,
-    "min_length_ratio": 0.55,
-    "max_length_ratio": 1.7,
-    "source_chars": 7000,
-    "dictionary_name": "truecrime-{language}-case-{case_id}-v{version_id}",
-    "approved_readings": {},
-    "chunk_retries": 2,
-    "same_reading_similarity": 0.6,
-    "repair_rounds": 2,
-    "check_sentences_per_call": 30
-  },
   "semantic_review": {
     "languages": [
       "fa"
@@ -951,42 +826,9 @@
     ],
     "min_confidence": 0.5,
     "folder_suffix": "_reviewed",
-    "learn_types": [
-      "name",
-      "pronunciation"
-    ],
     "avatar_max_regenerations": 2,
     "call_retries": 3,
     "retry_pause_s": 5.0,
     "failed_blocks_wait_for_owner": true
-  },
-  "reading": {
-    "languages": [
-      "fa",
-      "ar"
-    ],
-    "engines": {
-      "fa": "persian",
-      "ar": "tashkeel"
-    },
-    "tashkeel_vocalize": "all",
-    "tashkeel_number_max": 999999999999999,
-    "chunk_blocks": 40,
-    "max_rounds": 3,
-    "max_writer_retries": 3,
-    "checker_mode": "blind",
-    "blind_check": "risk",
-    "pause_between_names": true,
-    "folder": "reading",
-    "call_retries": 3,
-    "retry_pause_s": 5.0,
-    "parallel_blocks": 6,
-    "listen_parallel_blocks": 4,
-    "voice_form": "persian_marks",
-    "final_h_evidence": {},
-    "flag_margin": 4.0,
-    "fit_edge_s": 0.06,
-    "clip_edge_s": 0.25,
-    "vowel_confusions": {"a": ["e", "o"], "e": ["a", "o", "i"], "o": ["a", "e", "u"], "u": ["o"], "i": ["e"], "ā": ["a"]}
   }
 }

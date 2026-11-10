@@ -24,7 +24,7 @@ def render(tmp_path, monkeypatch, language="fa"):
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
     p = plan()
     p["language"] = language
-    return asyncio.run(VoiceRenderer(provider=FakeTTS(), use_asr=False, use_listener=False).render(p, case_id=1, story_version_id=1))
+    return asyncio.run(VoiceRenderer(provider=FakeTTS(), use_asr=False).render(p, case_id=1, story_version_id=1))
 
 
 def test_the_silence_of_a_join_is_the_configured_one_inside_a_beat_and_between_beats_and_a_breath(tmp_path, monkeypatch):

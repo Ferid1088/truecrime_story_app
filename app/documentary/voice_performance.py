@@ -372,26 +372,6 @@ def performance_records(row: VoicePerformance | None) -> dict[str, list[list[dic
     return {b["beat_id"]: b["paragraphs"] for b in data.get("beats") or []}
 
 
-def _beat_sources(db: Session, version: StoryVersion, blueprint: dict) -> dict[str, str]:
-    """English source text of every beat (what the meaning is checked
-    against)."""
-    try:
-        from app.documentary.blueprint import version_sections
-        from app.documentary.spoken import beat_sections
-
-        struct = json.loads(version.narrative_structure or "{}")
-        master = db.get(StoryVersion, struct.get("source_version_id") or version.master_version_id)
-        if master is None:
-            return {}
-        from app.db.models import EditorialBlueprint
-
-        row = db.get(EditorialBlueprint, struct.get("blueprint_id") or -1)
-        bp = json.loads(row.blueprint_json or "{}") if row else blueprint
-        return {s["id"]: s["text"] for s in beat_sections(version_sections(master), bp)}
-    except Exception:  # meaning context is a help, never a blocker
-        return {}
-
-
 def _tag_counts(records: list[dict]) -> dict[str, int]:
     out: dict[str, int] = {}
     for r in records:

@@ -957,7 +957,6 @@ def documentary_env(tmp_path, monkeypatch):
         "app.documentary.visuals.generated",
         "app.agents.critics",
         "app.agents.voice_performance",
-        "app.documentary.pronunciation",
         "app.agents.host",
         "app.agents.chapters",
     ):

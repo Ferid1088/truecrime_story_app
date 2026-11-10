@@ -16,7 +16,7 @@ from app.db.models import StoryVersion, VoiceBlock, VoiceBlockTake, VoiceReview
 from app.documentary import voice_review as VRV
 from app.documentary.block_review import edits as E
 from app.documentary.block_review import service as S
-from app.documentary.reading.words import tokenize
+from app.documentary.words import tokenize
 from app.documentary.voice_render import VoiceRenderer
 
 router = APIRouter()

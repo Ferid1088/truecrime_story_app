@@ -115,7 +115,7 @@ def latest_spoken(db: Session, master: StoryVersion, language: str,
         struct = json.loads(v.narrative_structure or "{}")
         if blueprint_id is not None and struct.get("blueprint_id") != blueprint_id:
             continue
-        if ai_config.ppie.fresh(language) and struct.get("prepared"):       # a voice-prepare rewrite of the approved text is never the narration's source
+        if struct.get("prepared"):       # an older rewrite of the approved text for the voice is never the narration's source
             continue
         if whole_film and struct.get("pilot_beat_ids"):
             continue
@@ -466,21 +466,10 @@ class DocumentaryPipeline(StageRunner):
                         f"spoken version not approved after {outcome.attempts - 1} redo(s): "
                         + ", ".join(map(str, outcome.reasons)))
                 v = current
-                prepared = None
-                if lang in ai_config.voice.prepared_languages and not ai_config.ppie.fresh(lang):       # edited, checked and given its pronunciation rules before it is voiced (never a PPIE language: its approved text is voiced as it is)
-                    from app.documentary import voice_prepare as VP
-
-                    before = v
-                    v = await VP.prepare_version(db, case, v, lang)
-                    made = json.loads(v.narrative_structure or "{}").get("prepared") or {}
-                    prepared = {"from_version_id": before.id if v.id != before.id else None, "rules": len(made.get("rules") or []),
-                                "decided_by_the_editor": len(made.get("decided_by_the_editor") or []),
-                                "low_confidence": [d["surface"] for d in made.get("decided_by_the_editor") or [] if d.get("confidence") == "low"],
-                                "reused": v.id == before.id}
                 gates = json.loads(v.critic_notes or "{}").get("quality_gates") or {}
                 return {"version_id": v.id, "status": v.status, "verdict": "approved",
                         "redos": len(history), "rejected_before": history,
-                        "failures": gates.get("failures", []), **({"prepared": prepared} if prepared else {})}
+                        "failures": gates.get("failures", [])}
 
             try:
                 d = await self._stage(f"spoken:{lang}", make_spoken)

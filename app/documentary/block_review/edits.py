@@ -5,7 +5,7 @@ from __future__ import annotations
 import difflib
 from dataclasses import dataclass
 
-from app.documentary.reading.words import tokenize
+from app.documentary.words import tokenize
 
 
 @dataclass(frozen=True)

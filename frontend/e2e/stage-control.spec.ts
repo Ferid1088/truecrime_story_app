@@ -43,7 +43,7 @@ async function mockStageControlApi(page: import("@playwright/test").Page, staleA
     if (path === "/api/cases/1" && method === "GET") return json(fixtures.caseDetail);
     if (path === "/api/documentary/settings") return json({
       languages: [...PRODUCTION_LANGUAGES], film_minutes: { min: 45, max: 120 }, pilot_seconds: 60,
-      voices: {}, pronunciation_check: { enabled: false, languages: [], max_rounds: 1 },
+      voices: {},
       voice_performance: { enabled: false, level_tags: {}, level_styles: {} },
       concurrency: { llm: 1, vision: 1, elevenlabs_tts: 1, elevenlabs_sound: 1, asr: 1, render: 1, downloads: 1, jobs: 1, languages: 1 },
       styles: {}, render: { profile: "preview", width: 1280, height: 720, fps: 25, crf: 23, preset: "fast", burn_subtitles: true, subtitle_max_chars: 42, subtitle_max_seconds: 6, show_credits: true },

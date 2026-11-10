@@ -40,8 +40,8 @@ class FakeReviewer:
         self.voice, self.avatar = voice, list(avatar)
         self.runs, self.listened = [], []
 
-    async def run(self, result, speak, seed, language="fa"):
-        self.runs.append((result["block"].get("source_text"), language))
+    async def run(self, result, speak, seed):
+        self.runs.append(result["block"].get("source_text"))
         errors = [] if self.voice == "approved" else [verdict("fail")["errors"][0]]
         result["semantic_review"] = {"block_id": result["block"]["block_id"], "voice_attempts": 1, "semantic_review_attempts": 1,
                                      "voice_review_result": "pass" if self.voice == "approved" else "fail", "avatar_review_result": "not_applicable",
@@ -87,7 +87,7 @@ def checks(scene):
 def test_the_host_voice_is_listened_to_with_its_own_words_as_the_source_and_the_record_is_kept(db_session, scene):
     reviewer = FakeReviewer()
     run(db_session, scene, "voice", reviewer, FakeVoice())
-    assert reviewer.runs == [(scene.text, "de")] and scene.status == "voice_ready"
+    assert reviewer.runs == [scene.text] and scene.status == "voice_ready"
     record = checks(scene)["semantic_review"]
     assert record["final_status"] == "approved" and record["voice_review_result"] == "pass" and record["avatar_review_result"] == "not_applicable"
 

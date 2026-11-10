@@ -22,8 +22,7 @@ import { MonitoringTab } from "./tabs/monitoring";
 import { BlueprintTab } from "./tabs/blueprint";
 import { LanguagesTab } from "./tabs/languages";
 import { VoiceTab } from "./tabs/voice";
-import { ReadingReviewTab } from "./tabs/reading-review";
-import { PronunciationReviewTab } from "./tabs/pronunciation-review";
+import { VoiceReviewTab } from "./tabs/voice-review";
 import { VoicePerformanceTab } from "./tabs/voice-performance";
 import { HostTab } from "./tabs/host";
 import { VisualLibraryTab } from "./tabs/visual-library";
@@ -41,8 +40,7 @@ const TABS = [
   "Blueprint",
   "Language Versions",
   "Voice Performance",
-  "Reading Review",
-  "Pronunciation",
+  "Voice Review",
   "Voice",
   "Host",
   "Visual Planner",
@@ -203,8 +201,7 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
         {tab === "Blueprint" && <BlueprintTab {...common} />}
         {tab === "Language Versions" && <LanguagesTab {...common} />}
         {tab === "Voice Performance" && <VoicePerformanceTab {...languageProps} />}
-        {tab === "Reading Review" && <ReadingReviewTab {...languageProps} />}
-        {tab === "Pronunciation" && <PronunciationReviewTab {...languageProps} />}
+        {tab === "Voice Review" && <VoiceReviewTab {...languageProps} />}
         {tab === "Voice" && <VoiceTab {...languageProps} />}
         {tab === "Host" && <HostTab {...languageProps} />}
         {tab === "Visual Planner" && <PlannerTab {...common} />}

@@ -136,7 +136,6 @@ class LanguageChain:
         async def render_voice():
             from app.documentary import semantic_review as SR
             from app.documentary.production.audio import render_documentary_audio
-            from app.documentary.pronunciation import PronunciationEditor
             from app.documentary.voice_render import VoiceRenderer
 
             paid = pipe.result.setdefault("tts_characters", {})
@@ -145,47 +144,16 @@ class LanguageChain:
                     "narration budget reached "
                     f"({ai_config.documentary.max_tts_characters_per_job} characters)")
             plan = performance_for_version(db, version)
-            if lang in ai_config.voice.prepared_languages and not ai_config.ppie.fresh(lang):           # the film's pronunciation dictionary goes with every block
-                from app.documentary import voice_prepare as VP
-
-                plan["pronunciation_dictionary"] = await VP.ensure_dictionary(db, version, lang)
-                plan["pronunciation_rules"] = VP.sent_rules(version)                  # the rules of that dictionary: each block's final text is checked against them
             renderer = VoiceRenderer(db=db, budget_case_id=case.id,
                                      budget_stage=f"tts:{lang}",
-                                     use_asr=ai_config.asr_after_voice(lang),       # a prepared, semantically reviewed or PPIE language is not listened to by the pronunciation checks (only ppie.asr_languages keep the speech-to-text check)
-                                     use_listener=ai_config.listens_after_voice(lang),
-                                     arbiter=PronunciationEditor() if ai_config.listens_after_voice(lang) else None,
+                                     use_asr=ai_config.listens_after_voice(lang),       # a semantically reviewed language is judged by a model that listens, not by the speech-to-text check
                                      documentary_job_id=job.id,
                                      budget_pilot_seconds=pilot_seconds if pilot else None)
-            from app.documentary.reading import stage as RS
-
-            fresh = ai_config.ppie.fresh(lang)              # PPIE alone: this run's readings and decisions, nothing of an earlier run
-            if RS.required(lang):           # the words the owner has fixed go to the voice as IPA
-                items, read = holder.pop("reading", None) or await RS.result(db, case, version, lang)
-                renderer.voicing = await RS.voicing_of(db, lang, read, items)
-                if ai_config.pronunciation_risk.enabled and RS.engine(lang) == "persian":      # what each word is given follows its risk and the memory (Persian's risk engine)
-                    from app.documentary.pronunciation_planner import Planner
-
-                    voice = ai_config.voice.for_language(lang)
-                    renderer.planner = Planner(db, lang, voice.voice_id, voice.model_id)
             if ai_config.voice.after_voice_review and SR.required(lang):           # after the voice-repair loop of each block, a model listens to it and judges it against the source
-                from app.documentary import voice_prepare as VP
-
-                renderer.reviewer = SR.Reviewer(db, case.id, VP.english_sources(db, version), VP.tones_of(db, version),
-                                                [] if fresh else VP.sent_rules(version), corrects=not fresh)
-            listened = ai_config.voice.after_voice_review and RS.required(lang) and not pilot and not fresh          # the narration of a language with a reading text is listened to before the music is mixed
+                renderer.reviewer = SR.Reviewer(db, case.id, SR.english_sources(db, version), SR.tones_of(db, version))
             m = await render_documentary_audio(
                 plan, case_id=case.id, story_version_id=version.id,
-                max_seconds=pilot_seconds if pilot else None, db=db, renderer=renderer, with_music=not listened)
-            if fresh and renderer.planner is not None:
-                from app.documentary import pronunciation_explain as PE
-
-                PE.save_run(db, version, lang, plan, renderer.planner, renderer.voicing, renderer.out_dir(case.id, lang, version.id))
-            if listened:
-                from app.documentary.production.audio import mix_narration
-
-                folder = renderer.out_dir(case.id, lang, version.id)
-                m = await mix_narration(await RS.listen_and_fix(db, case, version, lang, renderer, plan, m, folder), plan, folder, db=db)
+                max_seconds=pilot_seconds if pilot else None, db=db, renderer=renderer)
             holder["m"] = m
             paid[lang] = int(m.get("characters_paid") or 0)
             out = {"seconds": m.get("duration_seconds"),
@@ -201,11 +169,10 @@ class LanguageChain:
                        "music_library_identity", []),
                    "selection_reasons": (m.get("mix") or {}).get(
                        "selection_reasons", [])}
-            # the listening check (speech-to-text, pronunciation) is the
-            # narration's auditor: takes it still rejects after the retakes are
-            # reported, never silently kept
+            # the speech-to-text check is the narration's auditor: takes it still
+            # rejects after the retakes are reported, never silently kept
             failed = [f for f in m.get("flags") or []
-                      if f.endswith((":asr_check_failed", ":pronunciation_unresolved"))]
+                      if f.endswith(":asr_check_failed")]
             if failed:
                 out["degraded"] = (f"{len(failed)} narration block(s) failed the listening "
                                    "check after retakes: " + ", ".join(failed[:6]))
@@ -251,18 +218,6 @@ class LanguageChain:
             finally:
                 pass_turn()
 
-        from app.documentary.reading import stage as RS
-
-        async def reading():
-            holder["reading"] = await RS.result(db, case, version, lang)          # the voice of this run is given these readings, not a stored copy
-            return RS.summary(*holder["reading"], lang)
-
-        if not planning and not approved and RS.required(lang):           # the text is read before anything is voiced; doubts wait for the owner
-            try:
-                await pipe._stage(f"reading:{lang}", reading)
-            except BaseException:
-                pass_turn()                  # the next language's turn does not wait for a stage that stopped
-                raise
         await pipe._stage(f"voice:{lang}", reuse_narration if planning or approved else voice)
         try:
             manifest = holder.get("m") or _load_manifest(case.id, version)

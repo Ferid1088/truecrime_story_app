@@ -195,39 +195,16 @@ def _sentences(text: str) -> list[str]:
     return [x for x in _SENTENCE_END.split(" ".join(text.split())) if x]
 
 
-def voice_flags(take: dict, listener_missing: bool, asr_missing: bool) -> list[str]:
+def voice_flags(take: dict, asr_missing: bool) -> list[str]:
     """What a person has to look at in a voiced appearance: a Whisper check that failed after
-    the retake, words still said wrong after the fixes, a check that could not run."""
+    the retake, a check that could not run."""
     flags = []
     asr = take.get("asr")
     if asr and not asr["passed"]:
         flags.append("asr_check_failed")
-    flags += [f"pronunciation_unresolved:{r['word']}"
-              for r in take.get("pronunciation") or [] if r.get("ok") is False]
-    if listener_missing:
-        flags.append("listener_unavailable")
     if asr_missing:
         flags.append("asr_unavailable")
     return flags
-
-
-async def _pronunciation_key(db: Session, scene: HostScene, sentences: list[str], editor) -> dict:
-    """The words of the appearance a voice could misread, with the reading the meaning needs
-    (the same key as for the story's sentences). Kept per text, so a retake does not ask again."""
-    checks = _loads(scene.voice_checks_json, {})
-    key = checks.get("key") or {}
-    if key.get("text_sha256") == scene.text_sha256:
-        return {int(i): w for i, w in key["words"].items()}
-    from app.documentary.pronunciation import PronunciationEditor
-
-    items = [{"i": i, "beat_id": scene.host_segment_id, "text": t, "source": scene.text}
-             for i, t in enumerate(sentences)]
-    keyed, report = await (editor or PronunciationEditor()).annotate(
-        db, scene.case_id, scene.language, items)
-    checks["key"] = {"text_sha256": scene.text_sha256, "words": {str(i): w for i, w in keyed.items()},
-                     "report": report}
-    scene.voice_checks_json = json.dumps(checks, ensure_ascii=False)
-    return keyed
 
 
 def required_voice(language: str, settings: dict) -> float:
@@ -287,10 +264,9 @@ def store_voice(scene: HostScene, take: dict, settings: dict, tempo: float, dict
         scene.status = "voice_ready"
 
 
-async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None, reviewer=None) -> dict | None:
+async def _step_voice(db: Session, scene: HostScene, renderer=None, reviewer=None) -> dict | None:
     """ElevenLabs audio of exactly the frozen text, in the host's own style, through the same
-    checks as the story's blocks: Whisper on the plain text, the pronunciation key and listening
-    with the fix ladder (harakat only in the text sent to the voice), flags for a person.
+    checks as the story's blocks: Whisper on the plain text, flags for a person.
     Reused when the saved file still matches text, voice, model and settings."""
     from app.documentary.voice_render import VoiceRenderer
 
@@ -301,57 +277,37 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None,
     # the host speaks in its own style (host.voice_style), not the narration's
     settings = ai_config.voice.settings_for(ai_config.host.voice_style, scene.language)
     tempo = required_voice(scene.language, settings)          # before anything is created or paid
-    prepared = scene.language in ai_config.voice.prepared_languages and not ai_config.ppie.fresh(scene.language)
     listened = ai_config.listens_after_voice(scene.language)
-    dictionaries = []
-    if prepared:         # the host says the same names as the narration: the film's pronunciation dictionary goes with its voice too
-        from app.db.models import StoryVersion
-        from app.documentary import voice_prepare as VP
-
-        version = db.get(StoryVersion, scene.story_version_id)
-        dictionaries = await VP.ensure_dictionary(db, version, scene.language) if version is not None else []
     p = storage.resolve(scene.voice_path) if scene.voice_path else None
     if (p is not None and p.exists() and meta.get("text_sha256") == scene.text_sha256
             and meta.get("voice_id") == scene.voice_id and meta.get("model_id") == vcfg.model_id
-            and meta.get("settings") == settings and meta.get("post_speed", 1.0) == tempo and (meta.get("dictionaries", []) == dictionaries or meta.get("reviewed"))
+            and meta.get("settings") == settings and meta.get("post_speed", 1.0) == tempo
             and _sha(p.read_bytes()) == scene.voice_sha256
             and "flags" in _loads(scene.voice_checks_json, {})):
-        return {"skipped": "saved audio matches the text, voice, settings and dictionary"}
-    from app.documentary.pronunciation import PronunciationEditor
-
+        return {"skipped": "saved audio matches the text, voice and settings"}
     renderer = renderer or VoiceRenderer(db=db, budget_case_id=scene.case_id,
                                          budget_stage=f"tts:host:{scene.language}",
-                                         use_asr=listened, use_listener=listened,        # a prepared or semantically reviewed language is not listened to afterwards
-                                         arbiter=PronunciationEditor() if listened else None)
-    renderer.dictionaries = dictionaries
-    prepared_text = await HVT.prepare(db, scene, renderer)          # the reading of the language: only what the voice is given changes
+                                         use_asr=listened)        # a semantically reviewed language is not listened to afterwards
+    prepared_text = HVT.prepare(scene)          # only what the voice is given changes
     sentences = _sentences(scene.text)
-    pron = ai_config.pronunciation
-    keyed = (await _pronunciation_key(db, scene, sentences, editor)
-             if pron.enabled and scene.language in pron.languages and listened else {})
     d = scene_dir(scene)
     block = {"block_id": f"host{scene.id}", "text": " ".join(sentences), "beats": [], **({"tts_text": prepared_text} if prepared_text is not None else {}),
-             "sentences": [{"speech": t, "display": t, "tts": t, "level": None,
-                            "risky": keyed.get(i, [])} for i, t in enumerate(sentences)]}
+             "sentences": [{"speech": t, "display": t, "tts": t, "level": None} for t in sentences]}
     result = await renderer.speak_block(block, scene.language, vcfg, settings,
-                                        ai_config.voice.seed, d / "takes",
-                                        synonyms=False)
+                                        ai_config.voice.seed, d / "takes")
     if SR.required(scene.language):          # the listening review of the host voice: nothing goes to the avatar before it has passed
         result = await _review_host_voice(db, scene, renderer, block, result, (vcfg, settings, d / "takes"), reviewer)
     take = result["take"]
-    store_voice(scene, take, settings, tempo, dictionaries)
+    store_voice(scene, take, settings, tempo, [])
     checks = _loads(scene.voice_checks_json, {})
     checks.update({
         "tts_text": take["text"] if take["text"] != block["text"] else None,
         "asr": None if not take.get("asr") else {
             k: take["asr"].get(k) for k in ("passed", "word_error_rate", "failures", "heard_text")},
-        "pronunciation": take.get("pronunciation") or [],
-        "fixes": result["fixes"], "attempts": result["attempts"],
+        "attempts": result["attempts"],
         **({"semantic_review": result["semantic_review"]} if result.get("semantic_review") else {}),
         "asr_engine": renderer.asr.name if renderer.asr else None,
-        "listener": getattr(renderer._listener, "name", None) if renderer._listener else None,
-        "flags": voice_flags(take, bool(keyed) and renderer._listener is None,
-                             renderer.asr is None)})
+        "flags": voice_flags(take, renderer.asr is None)})
     scene.voice_checks_json = json.dumps(checks, ensure_ascii=False)
     return None
 
@@ -359,12 +315,7 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None,
 def _host_reviewer(db: Session, scene: HostScene, reviewer):
     if reviewer is not None:
         return reviewer
-    from app.documentary import voice_prepare as VP
-
-    if ai_config.ppie.fresh(scene.language):          # it reports only: no correction of what the voice is given, nothing kept in the lexicon
-        return SR.Reviewer(db, scene.case_id, {}, {}, [], corrects=False)
-    version = db.get(StoryVersion, scene.story_version_id)
-    return SR.Reviewer(db, scene.case_id, {}, {}, VP.sent_rules(version) if version is not None else [])
+    return SR.Reviewer(db, scene.case_id, {}, {})
 
 
 async def _review_host_voice(db: Session, scene: HostScene, renderer, block: dict, result: dict, how: tuple, reviewer) -> dict:
@@ -374,9 +325,9 @@ async def _review_host_voice(db: Session, scene: HostScene, renderer, block: dic
     block["source_text"] = scene.text
 
     async def speak(blk: dict, seed: int) -> dict:
-        return await renderer.speak_block(blk, scene.language, vcfg, settings, seed, takes, synonyms=False)
+        return await renderer.speak_block(blk, scene.language, vcfg, settings, seed, takes)
 
-    result = await _host_reviewer(db, scene, reviewer).run(result, speak, ai_config.voice.seed, scene.language)
+    result = await _host_reviewer(db, scene, reviewer).run(result, speak, ai_config.voice.seed)
     record = result["semantic_review"]
     if record["final_status"] != "approved":
         checks = _loads(scene.voice_checks_json, {})
@@ -399,7 +350,7 @@ async def _review_avatar_audio(db: Session, scene: HostScene, reviewer) -> bool 
     checks = _loads(scene.voice_checks_json, {})
     sentences = _sentences(scene.text)
     block = {"block_id": f"host{scene.id}-avatar", "text": scene.text, "source_text": scene.text, "tts_text": checks.get("tts_text") or scene.text,
-             "sentences": [{"speech": t, "display": t, "tts": t, "level": None, "risky": []} for t in sentences]}
+             "sentences": [{"speech": t, "display": t, "tts": t, "level": None} for t in sentences]}
     record = checks.setdefault("semantic_review", {"block_id": f"host{scene.id}", "final_status": "approved"})
     last = (record.get("avatar_reviews") or [{}])[-1]
     if last.get("generation") == (scene.provider_generation or 0) and last.get("verdict") == "pass":
@@ -597,35 +548,24 @@ def deviation(seconds: float | None, planned: float | None) -> float:
     return abs(seconds - planned) / planned
 
 
-def unresolved_words(scene: HostScene) -> list[str]:
-    """Words the voice still says wrong after the whole fix ladder (from the saved checks)."""
-    return [f.split(":", 1)[1] for f in _loads(scene.voice_checks_json, {}).get("flags", [])
-            if f.startswith("pronunciation_unresolved:")]
-
-
 async def _voice_within_plan(db: Session, scene: HostScene, renderer, retimer,
-                             editor=None, reviewer=None) -> dict | None:
+                             reviewer=None) -> dict | None:
     """Synthesize and check, measure the REAL seconds, and have the text rewritten (bounded) and
-    voiced again when the voice misses the planned seconds by more than host.duration_tolerance
-    or still says a word wrong after the vowel-mark ladder: the host's own words cannot be
-    swapped for a synonym, so the writer says the same thing in other words. A voice still over
+    voiced again when the voice misses the planned seconds by more than host.duration_tolerance. A voice still over
     the appearance's hard cap after that fails the scene. A voice a person chose in the host voice review (`reviewed`) is the exception: the person's ear
     decides, so its words are not rewritten and it is not voiced again to fit the planned seconds (the hard cap still holds)."""
     extra = {"reviewer": reviewer} if reviewer is not None else {}
-    r = await _step_voice(db, scene, renderer=renderer, editor=editor, **extra)
+    r = await _step_voice(db, scene, renderer=renderer, **extra)
     attempts = 0
     tolerance = ai_config.host.duration_tolerance
-    while ((deviation(scene.voice_seconds, scene.planned_duration) > tolerance
-            or unresolved_words(scene))
+    while (deviation(scene.voice_seconds, scene.planned_duration) > tolerance
            and retimer is not None and attempts < ai_config.host.max_retime_attempts
            and not _loads(scene.voice_meta_json, {}).get("reviewed")):          # a voice a person ticked in the host voice review is never rewritten to fit the time
         attempts += 1
-        avoid = unresolved_words(scene)
         _log(scene, "voice", "retime", {"seconds": scene.voice_seconds,
-                                        "planned": scene.planned_duration, "attempt": attempts,
-                                        **({"avoid": avoid} if avoid else {})})
-        await retimer(db, scene, scene.planned_duration, avoid)
-        r = await _step_voice(db, scene, renderer=renderer, editor=editor, **extra)
+                                        "planned": scene.planned_duration, "attempt": attempts})
+        await retimer(db, scene, scene.planned_duration)
+        r = await _step_voice(db, scene, renderer=renderer, **extra)
     if (scene.voice_seconds or 0) > scene_cap(scene.position):
         raise HostTooLong(f"the host voice is {scene.voice_seconds}s, over the "
                           f"{scene_cap(scene.position)}s cap for a {scene.position} appearance")
@@ -650,7 +590,7 @@ def _record_real_seconds(db: Session, scene: HostScene) -> None:
 
 async def run_scene(db: Session, scene: HostScene, until: str = "voice",
                     renderer=None, avatar_provider=None, sleep=asyncio.sleep,
-                    retimer=None, director=None, editor=None, reviewer=None) -> HostScene:
+                    retimer=None, director=None, reviewer=None) -> HostScene:
     """Run the scene's steps up to `until` ("voice" or "avatar"), starting
     from the first one whose saved result is missing. Each step commits its
     result before the next begins; a failure is recorded and re-raised."""
@@ -660,7 +600,7 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
     db.commit()
     step = "voice"
     try:
-        r = await _voice_within_plan(db, scene, renderer, retimer, editor, **({"reviewer": reviewer} if reviewer is not None else {}))
+        r = await _voice_within_plan(db, scene, renderer, retimer, **({"reviewer": reviewer} if reviewer is not None else {}))
         _done(scene, "voice", db, r, {"voice_sha256": (scene.voice_sha256 or "")[:16],
                                       "seconds": scene.voice_seconds})
         if director is not None and not scene.direction_json:

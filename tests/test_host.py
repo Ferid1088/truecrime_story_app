@@ -866,23 +866,6 @@ def test_a_retimed_text_that_loses_the_direct_address_is_repaired_inside_the_ret
     assert "you" in scene.text.lower()
 
 
-def test_retiming_can_ask_the_writer_to_avoid_words_the_voice_says_wrong(
-        db_session, isolated_host_history, monkeypatch):
-    from app.agents.host import HostDirector
-
-    case, master, _ = _plan_story(db_session)
-    gen = HostGen()
-    monkeypatch.setattr("app.agents.host.get_generation_provider", lambda: gen)
-    plan_row = asyncio.run(HostDirector().create_plan(db_session, case, None, master))
-    row, scene = _scene_of(db_session, case, master, plan_row, "S2", 17.0)
-    gen.writer = lambda d: say(d["segment"]["target_words"], 49, d["language"])
-    calls = len(gen.calls)
-    asyncio.run(HostDirector().retime_scene(db_session, scene, 17.0, ["kettle"]))
-    problems = gen.calls[calls][1]["problems_to_fix"]
-    assert problems[0]["check"] == "pronunciation" and problems[0]["quote"] == "kettle"
-    assert "other words" in problems[0]["fix"] and problems[1]["check"] == "length"
-
-
 def test_a_retimed_text_that_leaks_or_does_not_change_is_refused(
         db_session, isolated_host_history, monkeypatch):
     from app.agents.host import HostDirector

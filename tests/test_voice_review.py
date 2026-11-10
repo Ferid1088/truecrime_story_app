@@ -17,7 +17,6 @@ from app.documentary.pipeline.errors import AwaitingVoiceReview
 def work_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
     monkeypatch.setattr(ai_config.voice, "review_languages", ["fa"])
-    monkeypatch.setattr(ai_config.voice, "prepared_languages", ["fa"])
 
 
 @pytest.fixture
