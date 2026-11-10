@@ -97,3 +97,15 @@ def test_zoom_map_renders_wait_for_the_render_slot(monkeypatch):
 
     asyncio.run(go())
     assert peak["max"] == 1
+
+
+def test_the_review_finds_the_film_in_the_saved_render_record_when_the_render_stage_did_not_run():
+    import json
+    from types import SimpleNamespace
+
+    from app.documentary import storage
+    from app.documentary.pipeline.language import saved_render_path
+
+    ps = SimpleNamespace(render_json=json.dumps({"path": "data/cases/15/renders/tr/full_v341_1.mp4"}))
+    assert saved_render_path(ps) == storage.ROOT / "data/cases/15/renders/tr/full_v341_1.mp4"
+    assert saved_render_path(SimpleNamespace(render_json=None)) is None

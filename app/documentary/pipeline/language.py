@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from pathlib import Path
 
 from app.core.ai_config import ai_config
 from app.core.concurrency import slot
@@ -16,6 +17,12 @@ from app.documentary.mvp import coverage as CV
 from app.documentary.performance import performance_for_version
 from app.documentary.pipeline.base import record_warning
 from app.documentary.pipeline.errors import AwaitingPictureReview, LanguageFailed
+
+
+def saved_render_path(ps) -> Path | None:
+    """The film of a production script as its saved render record names it: a job that is picked up again after its render stage
+    finished does not run that stage, so the review reads the film from here."""
+    return storage.resolve(json.loads(ps.render_json or "{}").get("path"))
 
 
 class LanguageChain:
@@ -390,8 +397,9 @@ class LanguageChain:
         async def mvp_review():
             db.refresh(ps)
             coverage = json.loads(ps.audit_json or "{}")
-            probe = await asyncio.to_thread(CV.probe_file, holder["render_path"])
-            out = MVP.stage_review(db, case, lang, ps.id, holder["render_path"], coverage, probe)
+            film = holder.get("render_path") or saved_render_path(ps)
+            probe = await asyncio.to_thread(CV.probe_file, film)
+            out = MVP.stage_review(db, case, lang, ps.id, film, coverage, probe)
             return {**out, "file": probe,
                     **({"degraded": "; ".join(out["blocking"])} if out["blocking"] else {})}
 
