@@ -4,6 +4,9 @@ import type {
   BlockReviewOverview,
   BlockReviewReplace,
   BlockReviewStatus,
+  CoverItem,
+  CoversOverview,
+  CoversSummary,
   DetectivePlan,
   CaseControlEvent,
   CaseControlView,
@@ -606,6 +609,15 @@ export const api = {
       `/api/documentary/versions/${versionId}/host-voice-review/send-all`, { method: "POST", body: "{}", timeoutMs: 1_800_000 }),
   activateHostTake: (versionId: number, blockId: string, takeNo: number) =>
     post<BlockReviewBlock>(`/api/documentary/versions/${versionId}/host-voice-review/blocks/${encodeURIComponent(blockId)}/takes/${takeNo}/activate`),
+  coversSummary: (caseId: number) => request<CoversSummary>(`/api/cases/${caseId}/covers/summary`),
+  covers: (caseId: number, language: string) => request<CoversOverview>(`/api/cases/${caseId}/covers/${language}`),
+  proposeCovers: (caseId: number, language: string) =>
+    request<CoversOverview>(`/api/cases/${caseId}/covers/${language}/propose`, { method: "POST", body: "{}", timeoutMs: 600_000 }),
+  changeCover: (caseId: number, language: string, key: string, body: { title?: string; scene_code?: string; clear_scene?: boolean }) =>
+    put<CoverItem>(`/api/cases/${caseId}/covers/${language}/${key}`, body),
+  previewCover: (caseId: number, language: string, key: string) => post<CoverItem>(`/api/cases/${caseId}/covers/${language}/${key}/preview`),
+  approveCover: (caseId: number, language: string, key: string) => post<CoverItem>(`/api/cases/${caseId}/covers/${language}/${key}/approve`),
+  skipCover: (caseId: number, language: string, key: string) => post<CoverItem>(`/api/cases/${caseId}/covers/${language}/${key}/skip`),
   openingReview: (versionId: number) => request<BlockReview>(`/api/documentary/versions/${versionId}/opening-voice-review`),
   openOpeningReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/opening-voice-review/open`),
   editOpeningBlock: (versionId: number, blockId: string, body: { text?: string; words: { n: number; surface?: string; finglish?: string }[] }) =>

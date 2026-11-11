@@ -3663,3 +3663,45 @@ export interface BlockReviewReplaceMatch {
 
 export type BlockReviewReplace = { applied: false; blocks_found: number; places_found: number; matches: BlockReviewReplaceMatch[] } |
   (BlockReviewOverview & { applied: true; blocks_found: number; places_found: number; matches: BlockReviewReplaceMatch[] });
+
+export type CoverStatus = "proposed" | "open" | "approved" | "skipped";
+
+export interface CoverItem {
+  id: number;
+  key: string;
+  kind: "long" | "short";
+  version: number;
+  source: "agent" | "owner";
+  status: CoverStatus;
+  title: string;
+  scene_code: string | null;
+  confidence: number | null;
+  reason: string;
+  validation: { issues?: { type: string; fix?: string }[]; suggested_scene?: string | null };
+  preview_url: string | null;
+  approved_url: string | null;
+  problems?: string[];
+}
+
+export interface CoverCandidate {
+  code: string;
+  kind: string;
+  what: string;
+  image_url: string;
+}
+
+export interface CoversOverview {
+  case_id: number;
+  language: string;
+  theme: string;
+  expected: number;
+  covers: CoverItem[];
+  candidates: CoverCandidate[];
+  platform_cover_ways: Record<string, string>;
+  safe_zones: string;
+}
+
+export interface CoversSummary {
+  expected_per_language: number;
+  languages: Record<string, { proposed: number; open: number; approved: number; skipped: number; missing: number }>;
+}
