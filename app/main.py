@@ -106,6 +106,7 @@ from app.documentary.block_review.api import router as block_review_router  # no
 from app.documentary.block_review.host_api import router as host_voice_review_router  # noqa: E402
 from app.documentary.block_review.clip_api import router as clip_voice_review_router  # noqa: E402
 from app.documentary.block_review.opening_api import router as opening_voice_review_router  # noqa: E402
+from app.covers.api import router as covers_router  # noqa: E402
 from app.documentary.detective.api import router as detective_router  # noqa: E402
 from app.documentary.drawing.api import router as drawing_router  # noqa: E402
 from app.documentary.monitoring import router as monitoring_router  # noqa: E402
@@ -140,6 +141,7 @@ for _router in (
     host_voice_review_router,
     opening_voice_review_router,
     clip_voice_review_router,
+    covers_router,
     system.router,
     costs.router,
     controls.router,

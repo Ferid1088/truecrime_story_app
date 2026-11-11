@@ -12,7 +12,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.db.models import Case
+from app.db.models import Case, CoverProposal
 from app.documentary import outfits as OF
 from app.documentary import storage
 from app.covers import avatar as AV
@@ -48,6 +48,24 @@ def film_avatar(db: Session, case_id: int, language: str) -> tuple[str, Path]:
     raise AV.AvatarError(f"the outfit {chosen.name} has no image")
 
 
+def portrait_for(kind: str, avatar_image: Path):
+    """The avatar's portrait cut to the shape of the cover's avatar box."""
+    cfg = ai_config.covers_settings()
+    box, size = cfg.layout[kind]["avatar"], cfg.formats[kind]
+    return AV.portrait(avatar_image, box["width"] * size.width / (box["height"] * size.height), box["face_widths"])
+
+
+def render_cover(db: Session, case: Case, language: str, row: CoverProposal, out: Path, *, scale: float) -> dict:
+    """One cover drawn from a proposal row (its title and its scene; the scene must still be one the film shows). The same drawing as make_covers."""
+    if not row.title or not row.scene_code:
+        raise C.CoverError("the cover needs a title and a scene")
+    scene = next((o for o in SC.candidates(db, case, language) if o["code"] == row.scene_code), None)
+    if scene is None:
+        raise SC.SceneMissing(f"{row.scene_code} is not a scene the {language} film shows")
+    _outfit, avatar_image = film_avatar(db, case.id, language)
+    return C.compose(row.kind, language, scene["path"], portrait_for(row.kind, avatar_image), storage.ROOT / ai_config.channels[language].logo, row.title, out, scale=scale)
+
+
 def make_covers(db: Session, case: Case, language: str, long_title: str, short_titles: dict[str, str], *, scale: float = 1.0) -> dict:
     """The long cover and one cover for each short clip (`short_titles` maps a clip key to its title; at most `shorts_per_episode`). Raises when a title is
     refused, no scene or no avatar can be found; nothing is written then."""
@@ -61,10 +79,7 @@ def make_covers(db: Session, case: Case, language: str, long_title: str, short_t
     logo = storage.ROOT / ai_config.channels[language].logo
     scenes = SC.pick(SC.candidates(db, case, language), 1 + len(short_titles))
     folder = covers_dir(case.id, language)
-    portraits = {"long": AV.portrait(avatar_image, cfg.layout["long"]["avatar"]["width"] * cfg.formats["long"].width / (cfg.layout["long"]["avatar"]["height"] * cfg.formats["long"].height),
-                                     cfg.layout["long"]["avatar"]["face_widths"]),
-                 "short": AV.portrait(avatar_image, cfg.layout["short"]["avatar"]["width"] * cfg.formats["short"].width / (cfg.layout["short"]["avatar"]["height"] * cfg.formats["short"].height),
-                                      cfg.layout["short"]["avatar"]["face_widths"])}
+    portraits = {kind: portrait_for(kind, avatar_image) for kind in ("long", "short")}
     items = [("long", "long", long_title, scenes[0])] + [("short", f"short_{key}", text, scenes[i + 1]) for i, (key, text) in enumerate(sorted(short_titles.items()))]
     made = {}
     for kind, name, text, scene in items:

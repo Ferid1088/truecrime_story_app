@@ -353,7 +353,9 @@
       "reason_max_words": 40,
       "description_chars": 200,
       "max_candidates": 30,
-      "knowledge": "before_payoff"
+      "knowledge": "before_payoff",
+      "preview_scale": 0.25,
+      "thumb_px": 420
     }
   }
 }
