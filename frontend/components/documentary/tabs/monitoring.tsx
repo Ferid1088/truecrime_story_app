@@ -65,7 +65,7 @@ export function MonitoringTab({
                 window.sessionStorage.setItem("voice-review-view", "voice");
                 window.sessionStorage.setItem("voice-review-language", review.language);
               } catch { /* the tab opens on its first view */ }
-              onOpenTab("Voice Review");
+              onOpenTab(review.language === "fa" ? "Farsi review" : "Voice Review");
             }}
           >
             {review.blink ? `Voice review is ready (${langLabel(review.language)})` : `Voice review (${langLabel(review.language)})`}

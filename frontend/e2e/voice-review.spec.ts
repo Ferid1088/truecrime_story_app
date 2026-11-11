@@ -56,8 +56,8 @@ test("a corrected block stays yellow and its corrected word red, a new take is v
     await r.fulfill(ok(block2));
   });
 
-  await page.goto("/documentary/1?tab=Voice%20Review");
-  await page.getByRole("button", { name: "Voice review", exact: true }).click();
+  await page.goto("/documentary/1?tab=Farsi%20review");
+  await page.getByRole("button", { name: "Long film voice", exact: true }).click();
   await expect(page.getByTestId("block-review")).toContainText("2 blocks · 0 corrected · 0 to send");
   await expect(page.getByTestId("block-FA_B02_g01_01")).toHaveAttribute("data-edited", "false");
 
@@ -116,8 +116,8 @@ test("replace in all blocks shows the places first and only then corrects the bl
     calls.push(body);
     await r.fulfill(ok(body.apply ? { ...overviewOf(done), applied: true, blocks_found: 2, places_found: 2, matches } : { applied: false, blocks_found: 2, places_found: 2, matches }));
   });
-  await page.goto("/documentary/1?tab=Voice%20Review");
-  await page.getByRole("button", { name: "Voice review", exact: true }).click();
+  await page.goto("/documentary/1?tab=Farsi%20review");
+  await page.getByRole("button", { name: "Long film voice", exact: true }).click();
   await page.getByText("Replace in all blocks").click();
   await expect(page.getByRole("button", { name: "Find the places" })).toBeDisabled();
   await page.getByLabel("Words to find").fill("نُه یک یک");

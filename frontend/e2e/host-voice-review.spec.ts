@@ -44,8 +44,8 @@ test("the host voice review is the voice review of the host's scenes: no approve
     await r.fulfill(ok(block));
   });
 
-  await page.goto("/documentary/1?tab=Voice%20Review");
-  await page.getByRole("button", { name: "Host voice review" }).click();
+  await page.goto("/documentary/1?tab=Farsi%20review");
+  await page.getByRole("button", { name: "Host voice" }).click();
   const review = page.getByTestId("block-review");
   await expect(review).toContainText("1 blocks · 0 corrected · 0 to send");
   await expect(page.getByTestId("review-state")).toHaveText("host voice");
@@ -64,6 +64,6 @@ test("the host voice review is the voice review of the host's scenes: no approve
   await page.getByLabel("Use take 1 of host11").click();
   await expect(card.locator("li[data-active=true]")).toContainText("take 1");
 
-  await page.getByRole("button", { name: "Voice review", exact: true }).click();
+  await page.getByRole("button", { name: "Long film voice", exact: true }).click();
   await expect(page.getByText("No voice review yet")).toBeVisible();
 });
