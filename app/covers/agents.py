@@ -94,7 +94,7 @@ class CoverPlanner:
             scene = suggested if status == "proposed" else None          # an uncertain scene is only a suggestion: the cover stays open
             rows.append(CoverProposal(
                 case_id=case.id, language=language, cover_key=key, kind="long" if key == "long" else "short", version=(earlier[key].version + 1) if key in earlier else 1,
-                source="agent", status=status, title=item["title"], scene_code=scene, confidence=item["confidence"], reason=item["reason"],
+                source="agent", status=status, title=item["title"], scene_code=scene, confidence=item["confidence"] if suggested else None, reason=item["reason"],
                 validation_json=json.dumps({"issues": issues, "repair_iterations": repairs, "suggested_scene": suggested, "candidates": [o["code"] for o in options]},
                                            ensure_ascii=False), generation_model=model))
         db.add_all(rows)

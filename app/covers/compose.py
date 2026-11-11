@@ -228,7 +228,7 @@ def compose(kind: str, language: str, scene: Path, portrait: Image.Image, logo: 
 
     scene_cfg = layout["scene"]
     box = (round(_place(scene_cfg, rtl) * width), round(scene_cfg["y"] * height), round(scene_cfg["width"] * width), round(scene_cfg["height"] * height))
-    pointer = (title_x + box_w if not rtl else title_x, title_y + line_h * len(lines) - line_h / 2)
+    pointer = (title_x + box_w / 2, title_y + line_h * len(lines)) if centred else (title_x + box_w if not rtl else title_x, title_y + line_h * len(lines) - line_h / 2)
     with Image.open(scene) as picture:
         _signature(theme, canvas, picture.copy(), box, pointer)
     elements["scene"] = list(box)

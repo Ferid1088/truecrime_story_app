@@ -298,27 +298,28 @@
     "layout": {
       "long": {
         "margin": 0.045,
-        "logo_height": 0.15,
+        "logo_height": 0.13,
         "title": {
           "x": 0.045,
-          "y": 0.12,
+          "y": 0.22,
           "width": 0.4,
-          "size": 0.115,
+          "size": 0.1,
           "max_lines": 2
         },
         "scene": {
           "x": 0.47,
-          "y": 0.08,
+          "y": 0.13,
           "width": 0.5,
-          "height": 0.84
+          "height": 0.74
         },
         "avatar": {
           "x": 0.045,
-          "y": 0.4,
-          "width": 0.2,
-          "height": 0.44,
+          "y": 0.48,
+          "width": 0.17,
+          "height": 0.36,
           "face_widths": 2.8
-        }
+        },
+        "logo_top": 0.06
       },
       "short": {
         "margin": 0.0556,
@@ -326,16 +327,16 @@
         "logo_height": 0.07,
         "title": {
           "x": 0.0556,
-          "y": 0.215,
+          "y": 0.22,
           "width": 0.89,
-          "size": 0.05,
+          "size": 0.045,
           "max_lines": 3
         },
         "scene": {
           "x": 0.08,
-          "y": 0.34,
+          "y": 0.39,
           "width": 0.84,
-          "height": 0.4
+          "height": 0.34
         },
         "avatar": {
           "x": 0.5,
