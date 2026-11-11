@@ -62,6 +62,18 @@ def book_track(db: Session, track: MusicTrack, case_id: int) -> ProviderCall | N
         cost_source=source)
 
 
+def book_opening(db: Session, case_id: int, key: str, seconds: float) -> ProviderCall:
+    """The estimated generation cost of the music of a film's opening block, once per track (keyed by the file's key)."""
+    request_id = f"music_opening:{key}"
+    existing = db.query(ProviderCall).filter(ProviderCall.stage == STAGE, ProviderCall.request_id == request_id).first()
+    if existing is not None:
+        return existing
+    price, source = _rate()
+    return BudgetService(db).record(
+        case_id=case_id, stage=STAGE, model=MODEL, units=round(seconds, 3), cost_eur=round(seconds / 60.0 * price, 6),
+        estimated=True, request_id=request_id, cost_source=source)
+
+
 def book_host_led(db: Session, track: HostLedMusicTrack, case_id: int) -> ProviderCall | None:
     """The estimated generation cost of a host-led music track, once per track (keyed by the
     provider's generation id). Booked against the first case that uses it — the track is made
