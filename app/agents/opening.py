@@ -9,10 +9,9 @@ from sqlalchemy.orm import Session
 
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
-from app.core.prompts import prompt
 from app.db.models import Case, EditorialBlueprint, FilmOpening, StoryVersion
 from app.documentary import opening_block as OB
-from app.documentary.host import _pack
+from app.documentary.host import _pack, voiced_prompt
 from app.documentary.host_firewall import open_questions, visible_facts
 from app.documentary.host_story import HostStory, load_story
 from app.providers.generation import get_generation_provider
@@ -67,7 +66,7 @@ class OpeningWriter:
             "later_titles": [a.title for a in story.hidden(self.cfg.knowledge_acts)], "quotes": quotes_of(told),
             "limits": {"hook_max_words": OB.hook_max_words(language, self.cfg), "context_min_words": OB.context_limits(language, self.cfg)[0],
                        "context_max_words": OB.context_limits(language, self.cfg)[1], "candidates": self.cfg.hook_candidates}}
-        system = prompt("documentary/opening/director_system")
+        system = voiced_prompt("documentary/opening/director_system", language)
         raw, res = await self._json(db, case.id, "Opening Director", "opening_director", system, payload)
         opening, problems = OB.parse_master(raw, self.cfg)
         issues = problems + (OB.opening_issues(opening, story, language, self.cfg) if not problems else [])
@@ -93,7 +92,7 @@ class OpeningWriter:
             "english_opening": {"hook": english.get("hook"), "context": english.get("context")},
             "story_first_act": self._first_act(story),
             "names": [list(e.spellings) for e in story.entities]}
-        system = prompt("documentary/opening/native_system")
+        system = voiced_prompt("documentary/opening/native_system", language)
         raw, res = await self._json(db, case.id, f"Opening Native Writer ({language})", "opening_native_writer", system, payload)
         opening = OB.parse_native(raw, english)
         issues = OB.opening_issues(opening, story, language, self.cfg)

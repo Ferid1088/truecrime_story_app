@@ -282,6 +282,13 @@ def punctuation_for_the_voice(language: str) -> str:
         "you are also the punctuation editor of this language", "your words are voiced as they are written, so set the punctuation too")
 
 
+def voiced_prompt(name: str, language: str) -> str:
+    """A writer's prompt for words the avatar speaks (the opening block, the short clips): the prompt, then the punctuation rules of the language's voice director, the
+    same part the host's writer gets, so the commas and marks are set while writing and no agent edits them afterwards."""
+    rules = punctuation_for_the_voice(language)
+    return prompt(name) + (f"\n\n{rules}" if rules else "")
+
+
 def angle_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
     return prompt("documentary/host/angle_system_prompt").format(persona_prompt=persona_prompt(cfg or ai_config.host))
 

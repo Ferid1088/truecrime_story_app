@@ -10,10 +10,9 @@ from sqlalchemy.orm import Session
 from app.agents.opening import quotes_of
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
-from app.core.prompts import prompt
 from app.db.models import Case, ShortClip, StoryVersion
 from app.documentary.blueprint import latest_blueprint
-from app.documentary.host import _pack
+from app.documentary.host import _pack, voiced_prompt
 from app.documentary.host_firewall import open_questions, visible_facts
 from app.documentary.host_story import HostStory, load_story
 from app.providers.generation import get_generation_provider
@@ -75,7 +74,7 @@ class ClipPlanner:
             "acts_you_may_use": [{"act": a.id, "title": a.title, "narration": a.text} for a in told],
             "facts_you_may_use": visible_facts(story, cutoff), "answer_acts": [a.title for a in story.hidden(cutoff)],
             "quotes": [q for a in told for q in quotes_of(a.text)][:30], "limits": self._limits(language)}
-        system = prompt("shortform/clip_director")
+        system = voiced_prompt("shortform/clip_director", language)
         raw, res = await self._json(db, case.id, "Short Clip Director", "short_clip_director", system, payload)
         clips = C.parse_clips(raw)[:self.cfg.max_clips]
         problems, repairs = self._problems(clips, story, language), 0
@@ -97,7 +96,7 @@ class ClipPlanner:
             "language": language, "case": story.case_title, "limits": self._limits(language),
             "english_clips": [{k: c.get(k) for k in ("clip_key", "angle", "idea", *C.TEXT_PARTS)} for c in english],
             "story": " ".join(told.split()[:250]), "names": [list(e.spellings) for e in story.entities]}
-        system = prompt("shortform/clip_native")
+        system = voiced_prompt("shortform/clip_native", language)
         raw, res = await self._json(db, case.id, f"Short Clip Native Writer ({language})", "short_clip_native_writer", system, payload)
 
         def own(raw_: dict) -> list[dict]:
