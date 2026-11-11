@@ -307,10 +307,10 @@
         "logo_height": 0.07,
         "title": {
           "x": 0.0556,
-          "y": 0.22,
+          "y": 0.23,
           "width": 0.89,
-          "size": 0.045,
-          "max_lines": 3
+          "size": 0.065,
+          "max_lines": 2
         },
         "avatar": {
           "x": 0.5,
