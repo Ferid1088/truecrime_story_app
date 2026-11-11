@@ -166,6 +166,9 @@
     "host_review_languages": [
       "fa"
     ],
+    "opening_review_languages": [
+      "fa"
+    ],
     "post_speed": {
       "fa": 1.1,
       "ar": 1.05,

@@ -8,10 +8,10 @@ import { EmptyState } from "@/components/state";
 import { BlockReview } from "./block-review";
 import { LanguagePicker, type LanguageTabProps } from "../shared";
 
-/** The owner's voice review: listen to the narration (and the host's voice) block by block, correct a block and rebuild it. */
+/** The owner's voice review: listen to the narration (and the host's voice and the film's opening) block by block, correct a block and rebuild it. */
 export function VoiceReviewTab({ settings, overview, language, onLanguageChange }: LanguageTabProps) {
   const versionId = overview.languages[language]?.version_id ?? null;
-  const [view, setView] = useState<"voice" | "host">("voice");
+  const [view, setView] = useState<"voice" | "host" | "opening">("voice");
 
   // The Monitoring shortcut names the language whose narration waits for the voice review (asked for once).
   useEffect(() => {
@@ -41,9 +41,11 @@ export function VoiceReviewTab({ settings, overview, language, onLanguageChange 
           <div className="flex gap-2" role="tablist" aria-label="View">
             <Button size="sm" variant={view === "voice" ? "default" : "secondary"} onClick={() => setView("voice")}>Voice review</Button>
             {language === "fa" && <Button size="sm" variant={view === "host" ? "default" : "secondary"} onClick={() => setView("host")}>Host voice review</Button>}
+            {language === "fa" && <Button size="sm" variant={view === "opening" ? "default" : "secondary"} onClick={() => setView("opening")}>Opening review</Button>}
           </div>
           {view === "voice" && (versionId != null ? <BlockReview key={versionId} versionId={versionId} /> : <EmptyState title="No narration yet" description="The voice review opens when this language has a narration." />)}
           {view === "host" && language === "fa" && (versionId != null ? <BlockReview key={`host-${versionId}`} versionId={versionId} kind="host" /> : <EmptyState title="No narration yet" description="The host voice review opens when this language has a narration." />)}
+          {view === "opening" && language === "fa" && (versionId != null ? <BlockReview key={`opening-${versionId}`} versionId={versionId} kind="opening" /> : <EmptyState title="No narration yet" description="The opening review opens when this language has a narration." />)}
         </CardContent>
       </Card>
     </div>

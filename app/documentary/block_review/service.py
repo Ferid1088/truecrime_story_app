@@ -195,6 +195,20 @@ def needs_sending(db: Session, block: VoiceBlock) -> bool:
 
 # --- voicing a corrected block -----------------------------------------------------------------------------------------------------------
 
+def adapter_of(kind: str):
+    """The module of a review of the host's or the opening's blocks (their takes go into the scene's or the opening's own folder and a ticked take is applied
+    to it); None for the narration's review."""
+    if kind == "host":
+        from app.documentary.block_review import host_review
+
+        return host_review
+    if kind == "opening":
+        from app.documentary.block_review import opening_review
+
+        return opening_review
+    return None
+
+
 def alias_rules(db: Session, block: VoiceBlock, text: str) -> list[dict]:
     """The alias rules of a block: each corrected word that has a finglish is replaced by it (ElevenLabs reads the alias instead of the word)."""
     return [{"string_to_replace": w.surface, "type": "alias", "alias": w.finglish}
@@ -213,8 +227,9 @@ async def send_block(db: Session, review: VoiceReview, block_id: str, provider=N
     base = json.loads(takes[0].request_json)
     text = block.draft_text if block.draft_text is not None else block.voice_text
     rules = alias_rules(db, block, text)
-    host = review.kind == "host"
-    renderer = VoiceRenderer(provider=provider or default_provider(), db=db, budget_case_id=review.case_id, budget_stage=f"tts:{'host:' if host else ''}{review.language}",
+    adapter = adapter_of(review.kind)
+    host = adapter is not None
+    renderer = VoiceRenderer(provider=provider or default_provider(), db=db, budget_case_id=review.case_id, budget_stage=f"tts:{review.kind + ':' if host else ''}{review.language}",
                              use_asr=False)
     renderer.narration = not host        # a take of the film's narration: it gets the language's post speed (1.1 for Persian) like every other block; the host's gets it when it is made the scene's voice
     locators = list(base.get("pronunciation_dictionaries") or [])
@@ -224,13 +239,11 @@ async def send_block(db: Session, review: VoiceReview, block_id: str, provider=N
     seed = max(json.loads(t.request_json)["seed"] for t in takes) + 1
     req = request_of({**base, "text": text, "seed": seed, "pronunciation_dictionaries": locators})
     if host:
-        from app.documentary.block_review import host_review as HR
-
-        HR.required(review.language, req.settings)
+        adapter.required(review.language, req.settings)
     else:
         required_settings(review.language, req.settings)          # before anything is created or paid: speed, stability and post speed are the required ones
     version = db.get(StoryVersion, review.story_version_id)
-    folder = HR.takes_dir(db, block) if host else narration_folder(version) / "blocks"
+    folder = adapter.takes_dir(db, block) if host else narration_folder(version) / "blocks"
     take = await renderer._take({"block_id": block_id, "text": text, "beats": [], "sentences": []}, req, folder, review.language)
     characters = take.get("character_cost")
     price = float(load_pricing()["tts"][req.model_id]["eur_per_1m_characters"])
@@ -245,7 +258,7 @@ async def send_block(db: Session, review: VoiceReview, block_id: str, provider=N
         w.pending = False
     review.status = "open"
     if host:
-        HR.apply(db, block, row)
+        adapter.apply(db, block, row)
     db.commit()
     return row
 
@@ -261,10 +274,8 @@ def activate(db: Session, review: VoiceReview, block_id: str, take_no: int) -> V
         t.active = t.id == chosen.id
     block.voice_text = chosen.text_sent
     review.status = "open"
-    if review.kind == "host":
-        from app.documentary.block_review import host_review as HR
-
-        HR.apply(db, block, chosen)
+    if (adapter := adapter_of(review.kind)) is not None:
+        adapter.apply(db, block, chosen)
     db.commit()
     return chosen
 

@@ -104,6 +104,7 @@ from app.orchestration.api import router as orchestrator_router  # noqa: E402
 from app.documentary.api import router as documentary_router  # noqa: E402
 from app.documentary.block_review.api import router as block_review_router  # noqa: E402
 from app.documentary.block_review.host_api import router as host_voice_review_router  # noqa: E402
+from app.documentary.block_review.opening_api import router as opening_voice_review_router  # noqa: E402
 from app.documentary.detective.api import router as detective_router  # noqa: E402
 from app.documentary.drawing.api import router as drawing_router  # noqa: E402
 from app.documentary.monitoring import router as monitoring_router  # noqa: E402
@@ -136,6 +137,7 @@ for _router in (
     orchestrator_router,
     block_review_router,
     host_voice_review_router,
+    opening_voice_review_router,
     system.router,
     costs.router,
     controls.router,

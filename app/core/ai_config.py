@@ -1612,6 +1612,8 @@ class VoiceConfig(BaseModel):
     review_languages: list[str] = []
     # Languages whose host voice has a hand review of its own (blocks.review_kind "host": the host's scenes, no assembling, no approval).
     host_review_languages: list[str] = []
+    # The languages whose film opening block (hook and context text) the owner corrects by hand, text and voice, like the host's (block_review/opening_review.py).
+    opening_review_languages: list[str] = []
     # The finished narration of a language is played this much faster (pitch kept) after the provider made it: the provider's own speed stops at 1.2.
     post_speed: dict[str, float] = {}
     # Languages whose pauses between the blocks are played as much faster as their voice (the gap is its planned length divided by the post speed).

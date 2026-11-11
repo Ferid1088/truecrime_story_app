@@ -307,6 +307,12 @@ export const api = {
   archiveCase: (id: number) => post<{ archived: boolean }>(`/api/cases/${id}/archive`),
   unarchiveCase: (id: number) => post<{ archived: boolean }>(`/api/cases/${id}/unarchive`),
   shortFormCases: () => request<ShortFormCaseItem[]>("/api/short-form/cases"),
+  shortFormReleasePlan: (caseId: number) =>
+    request<unknown>(`/api/short-form/${caseId}/release-plan`),
+  saveShortFormReleasePlan: (caseId: number, payload: { included_candidate_ids: number[]; start_date?: string }) =>
+    post<unknown>(`/api/short-form/${caseId}/release-plan`, payload),
+  approveShortFormReleasePlan: (caseId: number, planId: number) =>
+    post<unknown>(`/api/short-form/${caseId}/release-plan/${planId}/approve`),
   setShortPublished: (renderId: number, published: boolean) =>
     post<{ case_archived: boolean }>(`/api/short-form/renders/${renderId}/published`, { published }),
   /** 409 (see `duplicateConflict`) when the case already exists — `force` creates it anyway. */
@@ -600,6 +606,20 @@ export const api = {
       `/api/documentary/versions/${versionId}/host-voice-review/send-all`, { method: "POST", body: "{}", timeoutMs: 1_800_000 }),
   activateHostTake: (versionId: number, blockId: string, takeNo: number) =>
     post<BlockReviewBlock>(`/api/documentary/versions/${versionId}/host-voice-review/blocks/${encodeURIComponent(blockId)}/takes/${takeNo}/activate`),
+  openingReview: (versionId: number) => request<BlockReview>(`/api/documentary/versions/${versionId}/opening-voice-review`),
+  openOpeningReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/opening-voice-review/open`),
+  editOpeningBlock: (versionId: number, blockId: string, body: { text?: string; words: { n: number; surface?: string; finglish?: string }[] }) =>
+    put<BlockReviewBlock>(`/api/documentary/versions/${versionId}/opening-voice-review/blocks/${encodeURIComponent(blockId)}`, body),
+  sendOpeningBlock: (versionId: number, blockId: string, again = false) =>
+    request<BlockReviewBlock>(`/api/documentary/versions/${versionId}/opening-voice-review/blocks/${encodeURIComponent(blockId)}/send`,
+      { method: "POST", body: JSON.stringify({ again }), timeoutMs: 600_000 }),
+  replaceInOpeningBlocks: (versionId: number, body: { find: string; replace: string; apply: boolean }) =>
+    post<BlockReviewReplace>(`/api/documentary/versions/${versionId}/opening-voice-review/replace`, body),
+  sendAllOpeningBlocks: (versionId: number) =>
+    request<BlockReviewOverview & { sent: string[]; failed: { block_id: string; error: string }[] }>(
+      `/api/documentary/versions/${versionId}/opening-voice-review/send-all`, { method: "POST", body: "{}", timeoutMs: 1_800_000 }),
+  activateOpeningTake: (versionId: number, blockId: string, takeNo: number) =>
+    post<BlockReviewBlock>(`/api/documentary/versions/${versionId}/opening-voice-review/blocks/${encodeURIComponent(blockId)}/takes/${takeNo}/activate`),
   blockReviewStatus: (caseId: number, language?: string) =>
     request<BlockReviewStatus>(`/api/cases/${caseId}/voice-review-status${language ? `?language=${encodeURIComponent(language)}` : ""}`),
   documentaryOverview: (caseId: number, versionId?: number | null, language?: string | null) =>
