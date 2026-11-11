@@ -13,8 +13,8 @@ def _s(i, position, seconds, planned=None):
 
 
 def test_real_seconds_within_caps_pass_with_a_share_warning_in_a_pilot():
-    r = HS.real_time_report([_s(1, "opening", 70), _s(2, "mid", 40)], 420)
-    assert r["host_seconds"] == 110 and not r["errors"]
+    r = HS.real_time_report([_s(1, "opening", 18), _s(2, "mid", 40)], 420)
+    assert r["host_seconds"] == 58 and not r["errors"]
     assert [w["code"] for w in r["warnings"]] == ["host_share_too_high"]
 
 
@@ -25,7 +25,7 @@ def test_over_cap_appearances_and_total_are_errors():
 
 
 def test_share_is_an_error_only_for_a_film_of_600_seconds_or_more():
-    long_film = HS.real_time_report([_s(1, "opening", 100)], 800)
+    long_film = HS.real_time_report([_s(1, "final", 100)], 800)
     assert [e["code"] for e in long_film["errors"]] == ["host_share_too_high"]
 
 

@@ -32,6 +32,7 @@ from app.documentary.host_planning import (
     story_seconds,
     validate_host_plan,
 )
+from app.documentary.identity_line import strip_identity
 from app.documentary.host_story import (
     HostEntity,
     split_acts,
@@ -344,12 +345,19 @@ def test_host_time_caps_and_share():
     assert "outro_is_off" in codes(rep["errors"])
 
 
+def test_the_opening_is_a_short_transition_after_the_hook_and_the_context():
+    """The writer's part of S1 is 10 to 20 s (about 18 s with the fixed identity line), not a minute."""
+    spec = ai_config.host.roles["opening"]
+    assert (spec.min_seconds, spec.base_seconds, spec.max_seconds) == (10, 14, 20)
+    assert 10 <= appearance_seconds(story(), "opening", 0) <= 20
+
+
 def test_seconds_follow_role_act_weight_and_place_in_the_film():
     s = story()
     opening = appearance_seconds(s, "opening", 0)
     outro = appearance_seconds(s, "outro", 6)
     transition = appearance_seconds(s, "transition", 2)
-    assert transition < outro and transition < opening        # transitions are short
+    assert opening < transition < outro        # the opening is the shortest, transitions are short
     # the heavier the act before it, the longer the same role speaks
     after_heavy = appearance_seconds(s, "reflection", 3)      # act3: 2000 words
     after_light = appearance_seconds(s, "reflection", 1)      # act1: 1200 words
@@ -681,7 +689,7 @@ def test_host_director_plans_the_structure_once_and_writes_every_language(
     assert out[3]["placement"].startswith("Outro")
     for seg, planned in zip(out, segs, strict=False):
         lo, hi = word_range(planned["target_seconds"], "en")
-        assert lo <= len(seg["avatar_dialogue"].split()) <= hi
+        assert lo <= len(strip_identity(seg["avatar_dialogue"], "en").split()) <= hi       # the fixed identity line is not the writer's
         assert seg["target_seconds"] == planned["target_seconds"]
     notes = db_session.query(HostMemory).filter_by(case_id=case.id).all()
     assert [(m.kind, m.origin) for m in notes] == [("open_question", "host_plan")]
