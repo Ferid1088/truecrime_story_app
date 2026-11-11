@@ -60,6 +60,17 @@ def test_black_stretch_unapproved_asset_and_long_still_block_review(db_session):
     assert report["weak_sentence_count"] == 1 and report["requirements"]["uncovered"] == 1
 
 
+def test_the_dark_gap_of_the_opening_block_is_no_black_stretch_and_not_part_of_the_duration(db_session):
+    plan = _plan(db_session)
+    gap = {**shot(8, 10, kind="black"), "intentional_gap": True}
+    script = {"duration": 10.0, "shots": [shot(0, 8), gap]}
+    report = C.measure(script, plan, db_session, [{"start": 0, "end": 7, "display": "x"}])
+    assert report["longest_black"] == 0 and report["black_seconds"] == 0 and report["temporal_coverage"] == 1.0 and report["opening_gap_seconds"] == 2.0
+    assert C.verdict(report)["review_ready"] is True
+    unmeant = C.measure({"duration": 10.0, "shots": [shot(0, 8), shot(8, 10, kind="black")]}, plan, db_session, [])
+    assert unmeant["longest_black"] == 2.0 and not C.verdict(unmeant)["review_ready"]
+
+
 def test_shortage_requirements_block_publication_only(db_session):
     plan = _plan(db_session)
     req = db_session.query(MvpRequirement).filter_by(visual_plan_id=plan.id).one()

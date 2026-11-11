@@ -138,3 +138,22 @@ def test_a_native_writer_writes_the_opening_again_from_the_english_one(db_sessio
     assert native.kind == "native" and native.master_opening_id == english.id and native.language == "de"
     assert json.loads(native.opening_json)["music"] == json.loads(english.opening_json)["music"]
     assert db_session.query(FilmOpening).filter(FilmOpening.case_id == case.id).count() == 2
+
+
+def test_the_host_writer_is_told_what_the_opening_block_already_said(db_session, isolated_host_history, monkeypatch):
+    from test_host import HostGen
+
+    from app.agents.host import HostDirector
+
+    case, master, _ = _plan_story(db_session)
+    gen = HostGen()
+    monkeypatch.setattr("app.agents.host.get_generation_provider", lambda: gen)
+    director = HostDirector()
+    row = asyncio.run(director.create_plan(db_session, case, None, master))
+    db_session.add(FilmOpening(case_id=case.id, language="en", kind="master", story_version_id=master.id, status="valid",
+                               opening_json=json.dumps({"hook": "Someone locked the door.", "context": "Nobody explains it."})))
+    db_session.commit()
+    asyncio.run(director.write(db_session, case, master, row))
+    first = next(d for r, d in gen.calls if r == "host_writer" and d["segment"]["id"] == "S1")
+    assert first["earlier_in_this_film"] == ["Someone locked the door. Nobody explains it."]
+    assert OB.said_before(db_session, case.id, "de") == []

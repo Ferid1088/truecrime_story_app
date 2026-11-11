@@ -26,7 +26,8 @@
     },
     "pictures": {
       "max": 6,
-      "min_hold_seconds": 2.0
+      "min_hold_seconds": 2.0,
+      "from_seconds": 30
     }
   }
 }

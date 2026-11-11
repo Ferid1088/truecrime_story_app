@@ -19,6 +19,7 @@ from app.db.models import (
     HostSegments,
     StoryVersion,
 )
+from app.documentary import host_angle as HA
 from app.documentary.host import (
     _memory_index,
     _pack,
@@ -46,11 +47,16 @@ from app.documentary.host import (
     writer_input,
     writer_system_prompt,
 )
-from app.documentary import host_angle as HA
 from app.documentary.host_firewall import reveal_issues
 from app.documentary.host_planning import fit_plan, inherit, story_seconds, validate_host_plan
 from app.documentary.host_story import HostStory, load_story
-from app.documentary.identity_line import ends_with_identity, identity_line, strip_identity, with_identity
+from app.documentary.identity_line import (
+    ends_with_identity,
+    identity_line,
+    strip_identity,
+    with_identity,
+)
+from app.documentary.opening_block import said_before
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
 from app.services.tracking import stamp_run, track_run
@@ -187,7 +193,7 @@ class HostDirector:
         res = None
         plan["segments"] = self._placed(db, case, plan_row, story)
         for seg in plan["segments"]:
-            earlier = [w["dialogue"] for w in written.values() if w["dialogue"]]
+            earlier = said_before(db, case.id, language) + [w["dialogue"] for w in written.values() if w["dialogue"]]      # the opening block comes first in the film
             angle = await self._angle(db, case, story, seg, language, arch_mem, list(angles.values()))
             angles[seg["id"]] = angle
             wi = writer_input(story, seg, language, arch_mem, recent, earlier, self.cfg, angle)
@@ -286,9 +292,9 @@ class HostDirector:
         arch_mem = _memory_index(archive(db, case.id), memories(db, case.id))
         recent = recent_segments(db, case.id, scene.language)
         segments = json.loads(seg_row.segments_json or "[]")
-        earlier = [s["avatar_dialogue"] for s in segments
-                   if s["segment_id"] != scene.host_segment_id and s.get("avatar_dialogue")
-                   and s["cutoff"] <= seg["cutoff"]]
+        earlier = said_before(db, case.id, scene.language) + [s["avatar_dialogue"] for s in segments
+                                                              if s["segment_id"] != scene.host_segment_id and s.get("avatar_dialogue")
+                                                              and s["cutoff"] <= seg["cutoff"]]
         wi = writer_input(story, seg, scene.language, arch_mem, recent, earlier, self.cfg)
         # the fixed identity line closing an opening is never rewritten: only the words before it
         # are, to the seconds left for them

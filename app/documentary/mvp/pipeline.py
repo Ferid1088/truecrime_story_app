@@ -551,8 +551,9 @@ def stage_review(db: Session, case: Case, language: str, production_script_id: i
     """Record the rendered file and move to owner review only if every technical check passed."""
     cfg = ai_config.mvp().coverage
     problems = list(coverage.get("blocking") or [])
-    if file_probe["black_seconds"] > cfg.max_black_frame_seconds * 4:
-        problems.append(f"{file_probe['black_seconds']}s of black frames in the file")
+    black = file_probe["black_seconds"] - float(coverage.get("opening_gap_seconds") or 0.0)          # the opening block's dark gap is meant
+    if black > cfg.max_black_frame_seconds * 4:
+        problems.append(f"{round(black, 2)}s of black frames in the file")
     if file_probe["frozen_stretches"]:
         problems.append(f"{len(file_probe['frozen_stretches'])} frozen stretch(es) in the file")
     if not file_probe.get("audio_codec"):

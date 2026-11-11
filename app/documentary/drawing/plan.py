@@ -56,6 +56,8 @@ def intervals_of(shots: list[dict]) -> list[Interval]:
         else:
             ordered.append(shot)
     for shot in ordered:
+        if shot.get("opening_block"):                          # the portrait comes after the first strong moment: not over the opening block
+            continue
         if shot.get("kind") in ("image", "video"):
             out.append(Interval(shot["start"], shot["end"], "window"))
         elif (shot.get("bare") or shot.get("kind") == "black") and shot["end"] - shot["start"] >= cfg.gap_full_seconds:

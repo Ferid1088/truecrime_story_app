@@ -277,6 +277,17 @@ def test_a_film_that_passed_the_checks_is_approved_at_once_unless_its_language_i
     assert persian["state"] == "AWAITING_OWNER_REVIEW"
 
 
+def test_the_dark_gap_of_the_opening_block_is_not_counted_as_black_frames_of_the_file(db_session, tmp_path):
+    case = Case(canonical_title="Review gap", slug=f"rp-{uuid4().hex[:8]}", language="en")
+    db_session.add(case)
+    db_session.commit()
+    film, _, probe = _review_inputs(tmp_path)
+    probe["black_seconds"] = 2.1
+    meant = P.stage_review(db_session, case, "de", 1, film, {"blocking": [], "opening_gap_seconds": 2.0}, probe)
+    other = P.stage_review(db_session, case, "fr", 1, film, {"blocking": []}, probe)
+    assert meant["state"] == "APPROVED" and other["state"] == "PRODUCING"
+
+
 def test_a_film_the_checks_held_back_is_not_approved_whatever_its_language(db_session, tmp_path):
     case = Case(canonical_title="Review gate held", slug=f"rh-{uuid4().hex[:8]}", language="en")
     db_session.add(case)

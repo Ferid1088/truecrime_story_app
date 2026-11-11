@@ -13,6 +13,7 @@ Stages (each idempotent — a re-run resumes and reuses what exists):
   mvp_needs          Main Visual Planner: visual requirements per beat from the reveal graph
   mvp_verify         library candidates for each requirement, judged on five separate decisions
   mvp_research       bounded search rounds (1 + 2) for the requirements still unmet
+  opening:<lang>     the film's first seconds (hook, context text, music, dark gap): the English opening once, then this language's own, with its voice
   host:<lang>        the host's dialogue, natively per language (starts next to the narration, as soon as the version exists)
   performance:<lang> narrator arc + ElevenLabs v4 audio tags and the punctuation of every sentence (voice director)
   voice:<lang>       narration + music mix (pilot: first N seconds)

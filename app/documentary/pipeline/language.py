@@ -136,7 +136,13 @@ class LanguageChain:
 
             return await MVP.stage_host(db, case, version, lang, until="voice")
 
+        async def opening():
+            from app.documentary.pipeline.opening import make_opening
+
+            return await make_opening(db, case, lang, version)
+
         async def host_media():
+            await pipe._optional(f"opening:{lang}", opening)          # the host's writer reads what the opening says: nothing of it is said twice
             await pipe._optional(f"host:{lang}", host)
             if voices_first:
                 await pipe._stage(f"host_voice:{lang}", mvp_host_voice)

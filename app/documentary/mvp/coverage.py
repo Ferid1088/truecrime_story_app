@@ -43,9 +43,10 @@ def _overlap(a0: float, a1: float, b0: float, b1: float) -> float:
 def measure(script: dict, plan: VisualPlan, db: Session, sentences: list[dict]) -> dict:
     """Everything the review needs to know about the picture track of one compiled script."""
     shots = script.get("shots") or []
-    duration = float(script.get("duration") or 0.0)
+    gap_seconds = sum(s["end"] - s["start"] for s in shots if s.get("intentional_gap"))          # the opening block's dark, silent gap is meant: it is no black stretch
+    duration = float(script.get("duration") or 0.0) - gap_seconds
     full = [(g["start"], g["end"]) for g in (script.get("drawing") or {}).get("segments") or [] if g.get("mode") == "full"]
-    black_runs = _runs(shots, {"black"})
+    black_runs = _runs([s for s in shots if not s.get("intentional_gap")], {"black"})
     # a gap the pencil drawing fills the whole screen of is covered; what is left black is the rest of the run (short gaps the
     # neighbouring pictures cover, and the fades)
     drawn = [sum(_overlap(a, b, f0, f1) for f0, f1 in full) for a, b in black_runs]
@@ -77,7 +78,7 @@ def measure(script: dict, plan: VisualPlan, db: Session, sentences: list[dict]) 
         if seen / span < 0.5:
             weak.append({"start": round(sent["start"], 2), "text": (sent.get("display") or "")[:80]})
     return {
-        "duration": round(duration, 2), "covered_seconds": round(covered, 2),
+        "duration": round(duration, 2), "opening_gap_seconds": round(gap_seconds, 2), "covered_seconds": round(covered, 2),
         "temporal_coverage": round(covered / duration, 4) if duration else 0.0,
         "black_seconds": round(sum(left), 2),
         "longest_black": round(longest_black, 2), "long_stills": long_stills,

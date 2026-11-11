@@ -72,7 +72,7 @@ def problems(shots: list[dict], duration: float | None = None, host: list[dict] 
     end = duration if duration is not None else ordered[-1]["end"] if ordered else 0.0
     found += [f"{s['end'] - s['start']:.1f}s of black at {s['start']:.1f}s is neither covered by its neighbours nor drawn"
               for s in ordered if s["kind"] == "black" and EPS < s["end"] - s["start"] < gap and s["start"] > 0.5 and s["end"] < end - 0.5
-              and not s.get("left_black")]
+              and not s.get("left_black") and not s.get("intentional_gap")]
     found += [f"a shot fades up from black at {b['end']:.1f}s right after a gap" for b, s in zip(ordered, ordered[1:], strict=False)
               if b["kind"] == "black" and s.get("transition_in") == "FADE_BLACK"]
     return found

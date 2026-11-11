@@ -36,6 +36,11 @@ def test_the_drawing_is_on_screen_over_pictures_and_in_gaps_of_eight_seconds_or_
 
 
 
+def test_the_drawing_is_not_over_the_pictures_of_the_opening_block():
+    shots = [{**pic(0, 20), "opening_block": True}, gap(20, 22), pic(22, 40)]
+    assert [(i.start, i.end, i.mode) for i in DP.intervals_of(shots)] == [(22, 40, "window")]
+
+
 def test_the_number_of_portraits_and_the_speed_make_every_drawing_finish_by_the_end_nearest_to_normal_speed():
     pool = [DP.Portrait(f"P{n}", n) for n in range(1, 10)]
     plan = DP.plan_drawing(film(), pool)

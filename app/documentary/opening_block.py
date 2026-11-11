@@ -154,6 +154,15 @@ def latest_opening(db: Session, case_id: int, language: str, story_version_id: i
     return q.order_by(FilmOpening.id.desc()).first()
 
 
+def said_before(db: Session, case_id: int, language: str) -> list[str]:
+    """What the opening block says in this language, as text the host's writer must not repeat (nothing when the language has no valid block)."""
+    row = latest_opening(db, case_id, language)
+    if row is None or row.status != "valid":
+        return []
+    opening = json.loads(row.opening_json or "{}")
+    return [f"{opening.get('hook', '')} {opening.get('context', '')}".strip()]
+
+
 def opening_dict(row: FilmOpening) -> dict:
     return {"id": row.id, "case_id": row.case_id, "language": row.language, "kind": row.kind, "status": row.status, "version": row.version,
             **json.loads(row.opening_json or "{}"), "media": json.loads(row.media_json or "{}"), "validation": json.loads(row.validation_json or "{}")}

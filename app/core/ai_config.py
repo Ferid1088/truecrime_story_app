@@ -3390,8 +3390,12 @@ class OpeningMusicConfig(BaseModel):
 
 
 class OpeningPicturesConfig(BaseModel):
+    """The pictures of the block are photos of the film's first act (so they give nothing away), taken from the film's own shots that start `from_seconds` or later
+    after the story begins (not the ones shown right after the block), at most `max`, each held at least `min_hold_seconds`."""
+
     max: int = Field(ge=1)
     min_hold_seconds: float = Field(gt=0.0)
+    from_seconds: float = Field(ge=0.0)
 
 
 class OpeningBlockConfig(BaseModel):

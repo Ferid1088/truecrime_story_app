@@ -1470,6 +1470,7 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     from app.documentary.detective_board import board_cards_for, latest_board_plan
     from app.documentary.intros import intro_seconds
     from app.documentary.production import host_timeline as HT
+    from app.documentary.production import opening_timeline as OPT
 
     host = HT.host_items(db, version)
     # Owner decision 2026-10-22: a draft never needs the avatar (A2) — it is required only at
@@ -1524,6 +1525,10 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
             storage.production_dir(version.case_id, language) / f"audio_with_host_v{version.id}.wav",
             storage.resolve)
         script["audio"] = {"path": storage.rel(spliced), "with_host": True}
+    block = OPT.opening_item(db, version.case_id, language)
+    if block:       # the opening block (hook, context text, dark gap) comes first; the host's opening and the story follow it
+        script = OPT.insert_opening(script, block)
+        script["audio"] = OPT.with_opening_audio(script, block, storage.production_dir(version.case_id, language) / f"audio_with_opening_v{version.id}.wav")
     script["avatar_used"] = bool(host)      # A2/A3: the one flag "draft, no avatar" is read from
     script = await OUTRO.apply(db, script, version.case_id, language, version.id)     # after the last word: the music goes on, the logo fades in
     from app.documentary.render.logo import windows_of
