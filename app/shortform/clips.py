@@ -75,7 +75,7 @@ def clip_issues(clip: dict, story: HostStory, language: str, cfg: ShortClipsConf
         if digits := digits_left(text, language):
             issues.append({"type": "numbers_as_digits", "part": part, "quote": ", ".join(digits[:4]), "fix": "Write numbers as words."})
         if latin := latin_left(text, language):
-            issues.append({"type": "foreign_script", "part": part, "quote": ", ".join(latin[:4]), "fix": "Write every word in the language's own script: translate or transliterate names, no Latin letters."})
+            issues.append({"type": "foreign_script", "part": part, "quote": ", ".join(latin[:4]), "fix": f"The word {latin[0]!r} is written in Latin letters and is not a word of this language: delete it and say that thought in ordinary words of the language, or write the sentence another way. No Latin letters anywhere."})
         for issue in reveal_issues(story, cutoff, text):
             issues.append({**issue, "part": part, "fix": "This uses something the story answers or reveals later: leave the answer to the full film."})
     if len([s for s in _SENTENCE_END.split(str(clip["hook"])) if s.strip()]) > 1:

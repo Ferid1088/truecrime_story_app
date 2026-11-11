@@ -81,7 +81,7 @@ def opening_issues(opening: dict, story: HostStory, language: str, cfg: OpeningB
         if digits := digits_left(text, language):
             issues.append({"type": "numbers_as_digits", "part": label, "quote": ", ".join(digits[:4]), "fix": "Write numbers as words."})
         if latin := latin_left(text, language):
-            issues.append({"type": "foreign_script", "part": label, "quote": ", ".join(latin[:4]), "fix": "Write every word in the language's own script: translate or transliterate names, no Latin letters."})
+            issues.append({"type": "foreign_script", "part": label, "quote": ", ".join(latin[:4]), "fix": f"The word {latin[0]!r} is written in Latin letters and is not a word of this language: delete it and say that thought in ordinary words of the language, or write the sentence another way. No Latin letters anywhere."})
         for issue in reveal_issues(story, cfg.knowledge_acts, text):
             issues.append({**issue, "part": label})
     if story.acts and cfg.knowledge_acts:
