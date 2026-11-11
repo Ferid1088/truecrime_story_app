@@ -47,35 +47,39 @@ def _sha(*parts: object) -> str:
     return hashlib.sha256(json.dumps(parts, sort_keys=True, default=str, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
-async def voice_part(db: Session, case_id: int, language: str, part: str, text: str, renderer: VoiceRenderer | None = None) -> dict:
-    """The voice of one part (hook or context): the text spoken in the language's voice at the block's settings and local speed. Reused when the saved file
-    was made from the same text, voice and settings."""
+async def voice_part(db: Session, case_id: int, language: str, part: str, text: str, renderer: VoiceRenderer | None = None, *, folder: Path | None = None,
+                     block_id: str | None = None) -> dict:
+    """The voice of one part (hook or context; the short clips use it for their parts with their own `folder` and `block_id`): the text spoken in the language's
+    voice at the block's settings and local speed. Reused when the saved file was made from the same text, voice and settings."""
     vcfg = ai_config.voice.languages.get(language)
     if vcfg is None:
         raise OpeningMediaError(f"no voice configured for {language}")
     settings, tempo = OB.voice_settings_for(language), OB.post_speed_for(language)
-    d = opening_dir(case_id, language)
+    d = folder or opening_dir(case_id, language)
+    stem = block_id or part
     key = _sha(text, vcfg.voice_id, vcfg.model_id, settings, tempo)[:16]
-    path, sidecar = d / f"voice_{part}_{key}.mp3", d / f"voice_{part}_{key}.json"
+    path, sidecar = d / f"voice_{stem}_{key}.mp3", d / f"voice_{stem}_{key}.json"
     if path.exists() and sidecar.exists():
         return {**json.loads(sidecar.read_text(encoding="utf-8")), "path": storage.rel(path), "reused": True}
     renderer = renderer or VoiceRenderer(db=db, budget_case_id=case_id, budget_stage=f"tts:opening:{language}",
                                          use_asr=ai_config.listens_after_voice(language))
     sentences = _sentences(text)
-    block = {"block_id": f"opening_{part}", "text": " ".join(sentences), "beats": [],
+    block = {"block_id": block_id or f"opening_{part}", "text": " ".join(sentences), "beats": [],
              "sentences": [{"speech": s, "display": s, "tts": s, "level": None} for s in sentences]}
     result = await renderer.speak_block(block, language, vcfg, settings, ai_config.voice.seed, d / "takes")
     take = result["take"]
-    return {**store_voice(case_id, language, part, text, Path(take["raw_path"]), take["alignment"], take), "reused": False}
+    return {**store_voice(case_id, language, part, text, Path(take["raw_path"]), take["alignment"], take, folder=folder, stem=stem), "reused": False}
 
 
-def store_voice(case_id: int, language: str, part: str, text: str, raw: Path, alignment: dict, take: dict) -> dict:
+def store_voice(case_id: int, language: str, part: str, text: str, raw: Path, alignment: dict, take: dict, *, folder: Path | None = None,
+                stem: str | None = None) -> dict:
     """A take as the part's voice: at the block's local speed, saved with a sidecar (the file the film's audio is made from)."""
     vcfg = ai_config.voice.languages[language]
     settings, tempo = OB.voice_settings_for(language), OB.post_speed_for(language)
-    d = opening_dir(case_id, language)
+    d = folder or opening_dir(case_id, language)
     key = _sha(text, vcfg.voice_id, vcfg.model_id, settings, tempo)[:16]
-    path, sidecar = d / f"voice_{part}_{key}.mp3", d / f"voice_{part}_{key}.json"
+    name = stem or part
+    path, sidecar = d / f"voice_{name}_{key}.mp3", d / f"voice_{name}_{key}.json"
     audio, al = sped_up(raw.read_bytes(), tempo, alignment)
     storage.write_atomic(path, audio)
     meta = {"text": text, "tts_text": take.get("text"), "seconds": round(max(al["ends"]), 3), "settings": settings, "post_speed": tempo, "voice_id": vcfg.voice_id,

@@ -3391,6 +3391,8 @@ class ShortClipsConfig(BaseModel):
     knowledge: Literal["before_payoff"]
     segments: dict[str, ShortClipSegmentConfig]
     word_tolerance: float = Field(gt=0.0, lt=1.0)
+    # A hook is spoken for at least this many seconds (the words of the language that fill them): three words are too little for the first thing a viewer hears.
+    hook_min_seconds: float = Field(gt=0.0)
     hook_max_words: int = Field(ge=3)
     cta_max_words: int = Field(ge=3)
 

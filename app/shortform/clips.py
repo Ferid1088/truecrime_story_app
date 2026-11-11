@@ -36,7 +36,8 @@ def words_for(part: str, language: str, cfg: ShortClipsConfig | None = None) -> 
     cfg = cfg or ai_config.short_clips_settings()
     words = cfg.segments[part].seconds * ai_config.host.words_per_minute.get(language, ai_config.host.words_per_minute["en"]) / 60
     if part == "hook":
-        return 2, max(3, round(cfg.hook_max_words * _scale(language)))
+        per_second = ai_config.host.words_per_minute.get(language, ai_config.host.words_per_minute["en"]) / 60
+        return max(2, round(cfg.hook_min_seconds * per_second)), max(3, round(cfg.hook_max_words * _scale(language)))
     return max(1, int(words * (1 - cfg.word_tolerance))), int(words * (1 + cfg.word_tolerance)) + 1
 
 

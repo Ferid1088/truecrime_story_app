@@ -139,3 +139,10 @@ def test_a_clip_that_speaks_to_the_viewer_formally_is_refused():
     formal = clip(reaction="Das ist nur seine Version. Worauf achten Sie zuerst?", cta="Sehen Sie die ganze Geschichte.")
     assert "formal_address" in codes(C.clip_issues(formal, story("de"), "de"))
     assert "formal_address" not in codes(C.clip_issues(clip(), story(), "en"))
+
+
+def test_a_hook_of_three_words_is_too_short_in_persian_and_english_but_not_in_slow_turkish():
+    assert C.words_for("hook", "fa")[0] == 4 and C.words_for("hook", "en")[0] == 4 and C.words_for("hook", "tr")[0] == 3
+    short = clip(hook="سگ‌ها بیدارم کردن")
+    assert "hook_length" in codes(C.clip_issues(short, story("fa"), "fa"))
+    assert "hook_length" not in codes(C.clip_issues(clip(), story(), "en"))
