@@ -147,6 +147,20 @@
       "description": "Short native-language detective-board card titles.",
       "used_by": "app/agents/detective_board.py"
     },
+    "short_clip_director": {
+      "role": "short_clip_director",
+      "prompt": null,
+      "output": "json",
+      "description": "Plans the short clips of a film from its English spoken text: up to five clips, each with its own angle and a script of about 25 seconds in four parts.",
+      "used_by": "app/shortform/clip_agents.py"
+    },
+    "short_clip_native_writer": {
+      "role": "short_clip_native_writer",
+      "prompt": null,
+      "output": "json",
+      "description": "Writes the short clips of one language again in it from the English clips (not a translation).",
+      "used_by": "app/shortform/clip_agents.py"
+    },
     "shorts.write": {
       "role": "chapter_writer",
       "prompt": "shortform/writer",

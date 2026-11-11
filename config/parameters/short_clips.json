@@ -1,0 +1,20 @@
+{
+  "short_clips": {
+    "enabled": true,
+    "max_clips": 5,
+    "min_clips": 3,
+    "angles": ["question", "evidence", "contradiction", "human_detail", "turning_point"],
+    "target_seconds": 25,
+    "repairs": 2,
+    "knowledge": "before_payoff",
+    "segments": {
+      "hook": {"seconds": 2.0, "avatar": true},
+      "context": {"seconds": 3.0, "avatar": false},
+      "detail": {"seconds": 13.0, "avatar": false},
+      "reaction": {"seconds": 7.0, "avatar": true}
+    },
+    "word_tolerance": 0.25,
+    "hook_max_words": 9,
+    "cta_max_words": 14
+  }
+}

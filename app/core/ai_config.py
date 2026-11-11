@@ -93,6 +93,8 @@ REQUIRED_ROLES = {
     "host_angle",
     "opening_director",
     "opening_native_writer",
+    "short_clip_director",
+    "short_clip_native_writer",
     "host_writer",
     "host_writer_fa_ar",
     "host_critic",
@@ -3368,6 +3370,41 @@ class OutroMusicConfig(BaseModel):
     fallback_mood: str
 
 
+class ShortClipSegmentConfig(BaseModel):
+    """One part of a short clip: its length in seconds (the words of a language that fill it follow the language's speaking rate) and whether the avatar speaks it."""
+
+    seconds: float = Field(gt=0.0)
+    avatar: bool
+
+
+class ShortClipsConfig(BaseModel):
+    """The short clips of a film (config/parameters/short_clips.json): up to `max_clips` (at least `min_clips`), each with another one of the `angles`, a script of
+    `target_seconds` in four parts (`segments`: the hook, the context, the detail the pictures show, the avatar's reaction with the invitation). A script
+    the checks refuse is written again `repairs` times. `knowledge` is what a clip may tell: "before_payoff" = only what the acts before the story's answer have told."""
+
+    enabled: bool
+    max_clips: int = Field(ge=1, le=5)
+    min_clips: int = Field(ge=1, le=5)
+    angles: list[str]
+    target_seconds: float = Field(gt=0.0)
+    repairs: int = Field(ge=0, le=5)
+    knowledge: Literal["before_payoff"]
+    segments: dict[str, ShortClipSegmentConfig]
+    word_tolerance: float = Field(gt=0.0, lt=1.0)
+    hook_max_words: int = Field(ge=3)
+    cta_max_words: int = Field(ge=3)
+
+    @model_validator(mode="after")
+    def _parts(self):
+        if set(self.segments) != {"hook", "context", "detail", "reaction"}:
+            raise ValueError("short_clips: the segments are hook, context, detail and reaction")
+        if abs(sum(s.seconds for s in self.segments.values()) - self.target_seconds) > 0.01:
+            raise ValueError("short_clips: the segments must add up to target_seconds")
+        if self.min_clips > self.max_clips or len(self.angles) < self.max_clips:
+            raise ValueError("short_clips: min_clips <= max_clips <= the number of angles")
+        return self
+
+
 class OpeningVoiceConfig(BaseModel):
     """How the opening block is voiced: the language's own settings (`style`, as the narration uses them) with the local speed made `post_speed_factor` times faster
     (never above `post_speed_max`; `post_speed_extra` adds to it for a language) and, when the stability is `stability_threshold` or more, `stability_drop` lower."""
@@ -4508,6 +4545,7 @@ class AIConfig(BaseModel):
     branding: BrandingConfig | None = None
     drawing: DrawingConfig | None = None
     opening_block: OpeningBlockConfig | None = None
+    short_clips: ShortClipsConfig | None = None
     outro: OutroConfig | None = None
     monitoring: MonitoringConfig | None = None
     main_visual_planner: MainVisualPlannerConfig | None = None
@@ -4734,6 +4772,12 @@ class AIConfig(BaseModel):
         if self.outro is None:
             raise RuntimeError("config/parameters/outro.json is missing")
         return self.outro
+
+    def short_clips_settings(self) -> ShortClipsConfig:
+        """The short clips of a film (config/parameters/short_clips.json)."""
+        if self.short_clips is None:
+            raise RuntimeError("config/parameters/short_clips.json is missing")
+        return self.short_clips
 
     def opening_block_settings(self) -> OpeningBlockConfig:
         """The film's opening block (config/parameters/opening_block.json)."""

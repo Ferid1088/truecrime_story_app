@@ -2434,6 +2434,29 @@ class FilmOpening(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class ShortClip(Base):
+    """One short clip of a case in one language (config/parameters/short_clips.json): its idea, its script in four parts and what was made from it. The English row
+    (kind "master") is planned from the English spoken text; every other language has a row (kind "native") that its own writer wrote again from the English
+    one. `clip_key` (C1 to C5) is the same in every language, so the languages of one idea belong together."""
+
+    __tablename__ = "short_clips"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20), index=True)
+    clip_key: Mapped[str] = mapped_column(String(10), index=True)
+    kind: Mapped[str] = mapped_column(String(10), default="master")
+    story_version_id: Mapped[int | None] = mapped_column(ForeignKey("story_versions.id"), nullable=True, index=True)
+    master_clip_id: Mapped[int | None] = mapped_column(ForeignKey("short_clips.id"), nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    script_json: Mapped[str] = mapped_column(Text, default="{}")
+    media_json: Mapped[str] = mapped_column(Text, default="{}")
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
 class HostMemory(Base):
     """What the host remembers across episodes: opinions, reactions,
     corrections, unresolved questions and recurring themes — each tied to
