@@ -213,6 +213,12 @@ def assemble(hook: Path, context: Path, music: Path | None, hook_seconds: float,
     return {**timings, "seconds": round(A.probe_duration(out), 3)}
 
 
+def stale_voices(texts: dict[str, str], voices: dict[str, dict]) -> list[str]:
+    """The parts whose saved voice was not made from the text the part has now (a text written again, edited or replaced after the voice was made); a voice
+    that a review corrected keeps its corrected words as the part's text, so it matches."""
+    return [part for part, text in texts.items() if (voices.get(part) or {}).get("text") != text]
+
+
 async def make_media(db: Session, case_id: int, row: FilmOpening, master: FilmOpening, renderer: VoiceRenderer | None = None,
                      library: MusicLibrary | None = None) -> dict:
     """Voice, music and the assembled audio of one opening row (the English row is its own master; a native row hears the film's music). The result is kept in the row's media_json."""

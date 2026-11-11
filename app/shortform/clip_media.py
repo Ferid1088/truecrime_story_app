@@ -47,6 +47,8 @@ async def voice_clip(db: Session, row: ShortClip, renderer: VoiceRenderer | None
     for part in PARTS:
         voice[part] = await OM.voice_part(db, row.case_id, row.language, part, script[part], renderer, folder=folder, block_id=block_id(row.clip_key, part))
     media = json.loads(row.media_json or "{}")
+    if stale := OM.stale_voices({p: script[p] for p in PARTS}, voice):
+        raise OM.OpeningMediaError(f"the voice of {', '.join(stale)} was not made from the clip's text")
     media["voice"] = voice
     media["voice_seconds"] = round(sum(v["seconds"] for v in voice.values()), 3)
     row.media_json = json.dumps(media, ensure_ascii=False)

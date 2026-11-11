@@ -52,7 +52,10 @@ def row_of(db: Session, version: StoryVersion) -> FilmOpening | None:
     """The language's opening row of this version that has its voice (the block the film is built from)."""
     row = (db.query(FilmOpening).filter(FilmOpening.case_id == version.case_id, FilmOpening.language == version.language,
                                         FilmOpening.story_version_id == version.id).order_by(FilmOpening.id.desc()).first())
-    return row if row is not None and (json.loads(row.media_json or "{}").get("hook")) else None
+    if row is None or not (media := json.loads(row.media_json or "{}")).get("hook"):
+        return None
+    opening = json.loads(row.opening_json or "{}")
+    return None if OM.stale_voices({"hook": opening.get("hook"), "context": opening.get("context")}, media) else row
 
 
 def row_of_block(db: Session, block: VoiceBlock) -> FilmOpening:

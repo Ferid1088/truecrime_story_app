@@ -91,7 +91,7 @@ def test_the_film_takes_only_a_valid_block_whose_audio_is_unchanged(db_session, 
     case, master, _ = _plan_story(db_session)
     wav = tmp_path / "block.wav"
     wav.write_bytes(b"RIFFaudio")
-    media = {"audio": {"path": str(wav), "sha256": hashlib.sha256(wav.read_bytes()).hexdigest(), "total": 23.0, "context": [4.0, 21.0], "hook": [0.0, 3.0]}}
+    media = {"hook": {"text": GOOD_HOOK}, "context": {"text": GOOD_CONTEXT}, "audio": {"path": str(wav), "sha256": hashlib.sha256(wav.read_bytes()).hexdigest(), "total": 23.0, "context": [4.0, 21.0], "hook": [0.0, 3.0]}}
     row = FilmOpening(case_id=case.id, language="en", kind="master", story_version_id=master.id, status="valid",
                       opening_json=json.dumps({"hook": GOOD_HOOK, "context": GOOD_CONTEXT}), media_json=json.dumps(media))
     db_session.add(row)
@@ -100,6 +100,10 @@ def test_the_film_takes_only_a_valid_block_whose_audio_is_unchanged(db_session, 
     wav.write_bytes(b"changed")
     assert OT.opening_item(db_session, case.id, "en") is None          # the audio changed since it was made
     wav.write_bytes(b"RIFFaudio")
+    row.opening_json = json.dumps({"hook": "A new hook, written again.", "context": GOOD_CONTEXT})
+    db_session.commit()
+    assert OT.opening_item(db_session, case.id, "en") is None          # the voice says the older text
+    row.opening_json = json.dumps({"hook": GOOD_HOOK, "context": GOOD_CONTEXT})
     row.status = "needs_review"
     db_session.commit()
     assert OT.opening_item(db_session, case.id, "en") is None

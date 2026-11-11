@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.core.media_tools import ffmpeg_bin, ffprobe_bin
+from app.documentary import opening_media as OM
 from app.documentary import storage
 from app.documentary.opening_block import latest_opening
 from app.documentary.production.host_timeline import _shift
@@ -34,6 +35,8 @@ def opening_item(db: Session, case_id: int, language: str) -> dict | None:
     if path is None or not path.exists() or hashlib.sha256(path.read_bytes()).hexdigest() != audio.get("sha256"):
         return None
     opening = json.loads(row.opening_json or "{}")
+    if OM.stale_voices({"hook": opening.get("hook"), "context": opening.get("context")}, media):
+        return None                                  # the voice says an older text: the block waits until it is voiced again
     return {"opening_id": row.id, "audio": audio["path"], "seconds": float(audio["total"]), "speech_end": float(audio["context"][1]),
             "hook_end": float(audio["hook"][1]), "pictures": media.get("pictures") or [], "text": {"hook": opening.get("hook"), "context": opening.get("context")}}
 

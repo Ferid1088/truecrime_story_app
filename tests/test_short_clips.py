@@ -146,3 +146,10 @@ def test_a_hook_of_three_words_is_too_short_in_persian_and_english_but_not_in_sl
     short = clip(hook="سگ‌ها بیدارم کردن")
     assert "hook_length" in codes(C.clip_issues(short, story("fa"), "fa"))
     assert "hook_length" not in codes(C.clip_issues(clip(), story(), "en"))
+
+
+def test_a_latin_word_in_a_persian_or_arabic_clip_is_refused_but_not_in_english_or_in_a_tag():
+    latin = clip(detail=said(34).replace("door", "sage", 1))
+    assert "foreign_script" in codes(C.clip_issues(latin, story("fa"), "fa")) and "foreign_script" in codes(C.clip_issues(latin, story("ar"), "ar"))
+    assert "foreign_script" not in codes(C.clip_issues(latin, story(), "en"))
+    assert not C.latin_left("[calm] سلام", "fa")

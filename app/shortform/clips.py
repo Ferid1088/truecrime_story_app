@@ -15,7 +15,7 @@ from app.db.models import ShortClip
 from app.documentary.host import _SENTENCE_END
 from app.documentary.host_firewall import reveal_issues
 from app.documentary.host_story import HostStory
-from app.documentary.spoken import digits_left
+from app.documentary.spoken import digits_left, latin_left
 
 TEXT_PARTS = ("hook", "context", "detail", "reaction", "cta")
 _URL = re.compile(r"https?://|www\.", re.IGNORECASE)
@@ -74,6 +74,8 @@ def clip_issues(clip: dict, story: HostStory, language: str, cfg: ShortClipsConf
             issues.append({"type": "formal_address", "part": part, "quote": found, "fix": "Speak to the viewer informally, as a friend does (the host never says 'Sie' or the formal you of the language)."})
         if digits := digits_left(text, language):
             issues.append({"type": "numbers_as_digits", "part": part, "quote": ", ".join(digits[:4]), "fix": "Write numbers as words."})
+        if latin := latin_left(text, language):
+            issues.append({"type": "foreign_script", "part": part, "quote": ", ".join(latin[:4]), "fix": "Write every word in the language's own script: translate or transliterate names, no Latin letters."})
         for issue in reveal_issues(story, cutoff, text):
             issues.append({**issue, "part": part, "fix": "This uses something the story answers or reveals later: leave the answer to the full film."})
     if len([s for s in _SENTENCE_END.split(str(clip["hook"])) if s.strip()]) > 1:

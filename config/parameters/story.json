@@ -406,6 +406,10 @@
       "en",
       "de",
       "ar"
+    ],
+    "own_script_only": [
+      "fa",
+      "ar"
     ]
   },
   "opening": {

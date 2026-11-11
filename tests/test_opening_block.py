@@ -176,3 +176,12 @@ def test_the_host_writer_is_told_what_the_opening_block_already_said(db_session,
     first = next(d for r, d in gen.calls if r == "host_writer" and d["segment"]["id"] == "S1")
     assert first["earlier_in_this_film"] == ["Someone locked the door. Nobody explains it."]
     assert OB.said_before(db_session, case.id, "de") == []
+
+
+def test_a_latin_word_in_a_persian_opening_is_refused_and_a_voice_of_an_older_text_is_stale():
+    from app.documentary import opening_media as OM
+    issues = OB.opening_issues({"hook": "سلام", "context": "این یک متن است sage"}, story("fa"), "fa")
+    assert any(i["type"] == "foreign_script" and i["quote"] == "sage" for i in issues)
+    voices = {"hook": {"text": "old"}, "context": {"text": "same"}}
+    assert OM.stale_voices({"hook": "new", "context": "same"}, voices) == ["hook"] and OM.stale_voices({"hook": "old", "context": "same"}, voices) == []
+    assert OM.stale_voices({"hook": "x"}, {}) == ["hook"]

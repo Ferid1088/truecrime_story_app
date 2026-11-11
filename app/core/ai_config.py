@@ -1897,6 +1897,8 @@ class SpokenConfig(BaseModel):
     # The languages whose numbers are written out in words in the spoken version (the writer's prompt says how, a check sends a beat with a digit
     # back for repair, and a digit left after the repairs fails the version). Persian numbers are read by code later (spoken_numbers/fa.py).
     numbers_as_words: list[str] = []
+    # The languages whose spoken text is written only in their own script (Persian, Arabic): a Latin word in it (an untranslated name) is sent back for repair.
+    own_script_only: list[str] = []
 
 
 class ChannelConfig(BaseModel):

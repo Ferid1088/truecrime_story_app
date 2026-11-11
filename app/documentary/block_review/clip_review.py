@@ -49,7 +49,7 @@ def split_block(block: VoiceBlock) -> tuple[str, str]:
 def rows_of(db: Session, version: StoryVersion) -> list[ShortClip]:
     """The newest valid version of each clip of this version's language that has its voices, in the order of the clips."""
     rows = [r for r in C.clips_of(db, version.case_id, version.language or "") if r.story_version_id == version.id and json.loads(r.media_json or "{}").get("voice")]
-    return rows
+    return [r for r in rows if not OM.stale_voices({p: json.loads(r.script_json)[p] for p in CM.PARTS}, json.loads(r.media_json)["voice"])]
 
 
 def parts_of(db: Session, version: StoryVersion) -> list[tuple[str, dict, str]]:

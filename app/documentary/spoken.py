@@ -217,6 +217,17 @@ def digits_left(text: str, language: str) -> list[str]:
     return list(dict.fromkeys(m.group().strip(EDGE) for m in DIGIT_TOKEN.finditer(spoken)))
 
 
+LATIN_WORD = re.compile(r"[A-Za-z]+")
+
+
+def latin_left(text: str, language: str) -> list[str]:
+    """The Latin-letter words left in a text of a language that is written only in its own script (config spoken.own_script_only): none for another."""
+    if language not in ai_config.spoken.own_script_only:
+        return []
+    spoken = re.sub(r"\[[^\[\]]*\]", " ", text or "")           # a tag ([calm]) is not spoken
+    return list(dict.fromkeys(LATIN_WORD.findall(spoken)))
+
+
 def numbers_rule(language: str) -> str:
     """The writer's rule for numbers in a language whose numbers are written out in words ("" for another)."""
     return prompt(f"documentary/spoken/numbers_{language}") + "\n\n" if language in ai_config.spoken.numbers_as_words else ""

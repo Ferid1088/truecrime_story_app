@@ -17,7 +17,7 @@ from app.db.models import FilmOpening
 from app.documentary.host import _SENTENCE_END
 from app.documentary.host_firewall import reveal_issues
 from app.documentary.host_story import HostStory, words_of
-from app.documentary.spoken import digits_left
+from app.documentary.spoken import digits_left, latin_left
 
 HOOK_KINDS = ("quote", "moment", "question")
 _HOOK_SENTENCE_END = re.compile(r"(?<=[.!?؟…])[\"”»’“]*\s+")          # a sentence ends on its mark, even when a closing quotation mark follows it
@@ -80,6 +80,8 @@ def opening_issues(opening: dict, story: HostStory, language: str, cfg: OpeningB
             issues.append({"type": "greeting", "part": label, "fix": "No greeting, no 'welcome', no 'today we': start with the case itself."})
         if digits := digits_left(text, language):
             issues.append({"type": "numbers_as_digits", "part": label, "quote": ", ".join(digits[:4]), "fix": "Write numbers as words."})
+        if latin := latin_left(text, language):
+            issues.append({"type": "foreign_script", "part": label, "quote": ", ".join(latin[:4]), "fix": "Write every word in the language's own script: translate or transliterate names, no Latin letters."})
         for issue in reveal_issues(story, cfg.knowledge_acts, text):
             issues.append({**issue, "part": label})
     if story.acts and cfg.knowledge_acts:
