@@ -278,6 +278,8 @@
         "authors": [
           "host_director",
           "host_angle",
+          "opening_director",
+          "opening_native_writer",
           "host_writer",
           "host_writer_fa_ar"
         ],

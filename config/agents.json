@@ -231,6 +231,20 @@
       "description": "Host plan.",
       "used_by": "app/agents/host.py"
     },
+    "opening_director": {
+      "role": "opening_director",
+      "prompt": "documentary/opening/director_system",
+      "output": "json",
+      "description": "The film's first seconds, from the English story: weighs hook candidates and picks one, writes the context text that follows it, and briefs the music that begins directly after the hook.",
+      "used_by": "app/agents/opening.py"
+    },
+    "opening_native_writer": {
+      "role": "opening_native_writer",
+      "prompt": "documentary/opening/native_system",
+      "output": "json",
+      "description": "Writes the opening block again in one language from the English opening and that language's own story (not a translation).",
+      "used_by": "app/agents/opening.py"
+    },
     "host_angle": {
       "role": "host_angle",
       "prompt": null,

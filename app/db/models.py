@@ -2412,6 +2412,28 @@ class HostSegments(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class FilmOpening(Base):
+    """The first seconds of a film: the hook, the context text and the music brief. The English row (kind "master") is made by the opening director from the
+    English story; every other language has a row (kind "native") that its own writer wrote again, in that language, from the master and from the language's own
+    story. `media_json` holds what was made from it (the voice and music files and their seconds)."""
+
+    __tablename__ = "film_openings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20), index=True)
+    kind: Mapped[str] = mapped_column(String(10), default="master")
+    story_version_id: Mapped[int | None] = mapped_column(ForeignKey("story_versions.id"), nullable=True, index=True)
+    master_opening_id: Mapped[int | None] = mapped_column(ForeignKey("film_openings.id"), nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    opening_json: Mapped[str] = mapped_column(Text, default="{}")
+    media_json: Mapped[str] = mapped_column(Text, default="{}")
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
 class HostMemory(Base):
     """What the host remembers across episodes: opinions, reactions,
     corrections, unresolved questions and recurring themes — each tied to

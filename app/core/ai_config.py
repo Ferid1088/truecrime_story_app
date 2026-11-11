@@ -91,6 +91,8 @@ REQUIRED_ROLES = {
     # of facts, memories, repetition and the persona (critic).
     "host_director",
     "host_angle",
+    "opening_director",
+    "opening_native_writer",
     "host_writer",
     "host_writer_fa_ar",
     "host_critic",
@@ -3364,6 +3366,59 @@ class OutroMusicConfig(BaseModel):
     fallback_mood: str
 
 
+class OpeningVoiceConfig(BaseModel):
+    """How the opening block is voiced: the language's own settings (`style`, as the narration uses them) with the local speed made `post_speed_factor` times faster
+    (never above `post_speed_max`; `post_speed_extra` adds to it for a language) and, when the stability is `stability_threshold` or more, `stability_drop` lower."""
+
+    style: str
+    post_speed_factor: float = Field(gt=0.0)
+    post_speed_max: float = Field(gt=0.0)
+    post_speed_extra: dict[str, float] = Field(default_factory=dict)
+    stability_threshold: float = Field(ge=0.0, le=1.0)
+    stability_drop: float = Field(ge=0.0, le=1.0)
+
+
+class OpeningMusicConfig(BaseModel):
+    """The music of the opening block starts directly after the first statement (the hook). `volume` is its level under the voice, `duck` how much it gives way
+    while the voice speaks, `fade_out_seconds` its end before the dark gap; `generated_seconds` is the length of the track that is generated for it."""
+
+    volume: float = Field(gt=0.0, le=1.0)
+    duck: float = Field(ge=0.0, le=1.0)
+    fade_out_seconds: float = Field(ge=0.0)
+    generated_seconds: float = Field(gt=0.0)
+    mood_fallback: str
+
+
+class OpeningPicturesConfig(BaseModel):
+    max: int = Field(ge=1)
+    min_hold_seconds: float = Field(gt=0.0)
+
+
+class OpeningBlockConfig(BaseModel):
+    """The film's first seconds (config/parameters/opening_block.json): a hook (the first statement, at most `hook_max_words`; the director weighs
+    `hook_candidates` of them), `hook_pause_seconds` of pause with the music beginning, the context text, then `gap_seconds` of darkness and silence before the
+    host's opening. The text may use only what the first `knowledge_acts` acts have told; a text the checks refuse is written again `repairs` times."""
+
+    enabled: bool
+    hook_max_words: int = Field(ge=3)
+    hook_candidates: int = Field(ge=1, le=8)
+    context_min_words: int = Field(ge=1)
+    context_max_words: int = Field(ge=1)
+    knowledge_acts: int = Field(ge=0)
+    repairs: int = Field(ge=0, le=5)
+    hook_pause_seconds: float = Field(ge=0.0)
+    gap_seconds: float = Field(ge=0.0)
+    voice: OpeningVoiceConfig
+    music: OpeningMusicConfig
+    pictures: OpeningPicturesConfig
+
+    @model_validator(mode="after")
+    def _words(self):
+        if self.context_min_words > self.context_max_words:
+            raise ValueError("opening_block: context_min_words must not exceed context_max_words")
+        return self
+
+
 class OutroConfig(BaseModel):
     """The end of the film (config/parameters/outro.json): a deep, reflective music starts `lead_seconds` before the avatar's last word, quiet
     (`start_db`) and rising so that it never covers the voice (`speech_db` where the avatar ends), grows to `full_db` over `rise_seconds`
@@ -4446,6 +4501,7 @@ class AIConfig(BaseModel):
     graphics: GraphicsConfig | None = None
     branding: BrandingConfig | None = None
     drawing: DrawingConfig | None = None
+    opening_block: OpeningBlockConfig | None = None
     outro: OutroConfig | None = None
     monitoring: MonitoringConfig | None = None
     main_visual_planner: MainVisualPlannerConfig | None = None
@@ -4672,6 +4728,12 @@ class AIConfig(BaseModel):
         if self.outro is None:
             raise RuntimeError("config/parameters/outro.json is missing")
         return self.outro
+
+    def opening_block_settings(self) -> OpeningBlockConfig:
+        """The film's opening block (config/parameters/opening_block.json)."""
+        if self.opening_block is None:
+            raise RuntimeError("config/parameters/opening_block.json is missing")
+        return self.opening_block
 
     def drawing_settings(self) -> DrawingConfig:
         """The pencil drawing's settings (config/parameters/drawing.json)."""

@@ -90,6 +90,8 @@
         "case_status_verifier": "premium",
         "host_director": "sol",
         "host_angle": "premium",
+        "opening_director": "premium",
+        "opening_native_writer": "premium",
         "host_writer": "premium",
         "host_writer_fa_ar": "premium",
         "host_critic": "writer",
@@ -270,6 +272,16 @@
       "reasoning_effort": "medium"
     },
     "host_angle": {
+      "temperature": 0.7,
+      "max_tokens": 6000,
+      "reasoning_effort": "medium"
+    },
+    "opening_director": {
+      "temperature": 0.7,
+      "max_tokens": 8000,
+      "reasoning_effort": "medium"
+    },
+    "opening_native_writer": {
       "temperature": 0.7,
       "max_tokens": 6000,
       "reasoning_effort": "medium"
