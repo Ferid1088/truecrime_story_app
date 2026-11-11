@@ -206,6 +206,10 @@ def adapter_of(kind: str):
         from app.documentary.block_review import opening_review
 
         return opening_review
+    if kind == "clips":
+        from app.documentary.block_review import clip_review
+
+        return clip_review
     return None
 
 

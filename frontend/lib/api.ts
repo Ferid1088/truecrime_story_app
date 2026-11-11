@@ -620,6 +620,20 @@ export const api = {
       `/api/documentary/versions/${versionId}/opening-voice-review/send-all`, { method: "POST", body: "{}", timeoutMs: 1_800_000 }),
   activateOpeningTake: (versionId: number, blockId: string, takeNo: number) =>
     post<BlockReviewBlock>(`/api/documentary/versions/${versionId}/opening-voice-review/blocks/${encodeURIComponent(blockId)}/takes/${takeNo}/activate`),
+  clipsReview: (versionId: number) => request<BlockReview>(`/api/documentary/versions/${versionId}/clip-voice-review`),
+  openClipsReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/clip-voice-review/open`),
+  editClipsBlock: (versionId: number, blockId: string, body: { text?: string; words: { n: number; surface?: string; finglish?: string }[] }) =>
+    put<BlockReviewBlock>(`/api/documentary/versions/${versionId}/clip-voice-review/blocks/${encodeURIComponent(blockId)}`, body),
+  sendClipsBlock: (versionId: number, blockId: string, again = false) =>
+    request<BlockReviewBlock>(`/api/documentary/versions/${versionId}/clip-voice-review/blocks/${encodeURIComponent(blockId)}/send`,
+      { method: "POST", body: JSON.stringify({ again }), timeoutMs: 600_000 }),
+  replaceInClipsBlocks: (versionId: number, body: { find: string; replace: string; apply: boolean }) =>
+    post<BlockReviewReplace>(`/api/documentary/versions/${versionId}/clip-voice-review/replace`, body),
+  sendAllClipsBlocks: (versionId: number) =>
+    request<BlockReviewOverview & { sent: string[]; failed: { block_id: string; error: string }[] }>(
+      `/api/documentary/versions/${versionId}/clip-voice-review/send-all`, { method: "POST", body: "{}", timeoutMs: 1_800_000 }),
+  activateClipsTake: (versionId: number, blockId: string, takeNo: number) =>
+    post<BlockReviewBlock>(`/api/documentary/versions/${versionId}/clip-voice-review/blocks/${encodeURIComponent(blockId)}/takes/${takeNo}/activate`),
   blockReviewStatus: (caseId: number, language?: string) =>
     request<BlockReviewStatus>(`/api/cases/${caseId}/voice-review-status${language ? `?language=${encodeURIComponent(language)}` : ""}`),
   documentaryOverview: (caseId: number, versionId?: number | null, language?: string | null) =>

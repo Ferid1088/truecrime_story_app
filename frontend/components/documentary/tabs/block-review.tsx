@@ -20,7 +20,7 @@ const apiBase = (url: string) => apiFileUrl(url);
 export function BlockReview({ versionId, kind = "narration" }: { versionId: number; kind?: ReviewKind }) {
   const calls = reviewCalls(kind);
   const host = kind !== "narration";          // the host's and the opening's reviews have nothing to assemble or approve
-  const what = kind === "opening" ? "opening" : "host voice";
+  const what = kind === "opening" ? "opening" : kind === "clips" ? "clips" : "host voice";
   const state = useApi(() => calls.get(versionId), [versionId, kind]);
   const [local, setReview] = useState<BlockReviewOverview | null>(null);          // what the person changed here; before that, what the server sent
   const review = local ?? (state.data?.exists ? state.data : null);
@@ -109,7 +109,7 @@ export function BlockReview({ versionId, kind = "narration" }: { versionId: numb
     return (
       <EmptyState
         title={host ? `No ${what} review yet` : "No voice review yet"}
-        description={can ? (host ? `The ${what === "opening" ? "opening block has" : "host has"} a voice. Open the review to listen to each ${what === "opening" ? "part (the hook and the text after it)" : "appearance"} and correct it by hand. Nothing is voiced or paid by opening it.` : "The narration is made. Open the review to listen to its blocks and correct them by hand. Nothing is voiced or paid by opening it.") : (host ? `This version has no ${what} yet.` : "The narration of this version is not made yet.")}
+        description={can ? (host ? `The ${what === "opening" ? "opening block has" : what === "clips" ? "clips have" : "host has"} a voice. Open the review to listen to each ${what === "opening" ? "part (the hook and the text after it)" : what === "clips" ? "part of each clip (hook, context, detail, reaction, invitation)" : "appearance"} and correct it by hand. Nothing is voiced or paid by opening it.` : "The narration is made. Open the review to listen to its blocks and correct them by hand. Nothing is voiced or paid by opening it.") : (host ? `This version has no ${what} yet.` : "The narration of this version is not made yet.")}
         action={can ? <Button onClick={() => act("open", () => calls.open(versionId), () => "Review opened.")} disabled={busy !== null}>{host ? `Open ${what} review` : "Open voice review"}</Button> : undefined}
       />
     );
@@ -154,7 +154,7 @@ export function BlockReview({ versionId, kind = "narration" }: { versionId: numb
         {note && <p role="status" className="text-sm text-emerald-700">{note}</p>}
         {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
         <p className="text-xs text-muted-foreground">
-          {kind === "opening" ? "A take you tick is the opening's voice at once and the opening's audio is made again from it. Approving the film's voice is done in Voice review only." : host ? "A take you tick is the host's voice at once and the avatar is made again from it. Approving the film's voice is done in Voice review only." : "No film is rendered before you approve the narration."}
+          {kind === "clips" ? "A take you tick is that part's voice at once and its words are the clip's words. Approving the film's voice is done in Voice review only." : kind === "opening" ? "A take you tick is the opening's voice at once and the opening's audio is made again from it. Approving the film's voice is done in Voice review only." : host ? "A take you tick is the host's voice at once and the avatar is made again from it. Approving the film's voice is done in Voice review only." : "No film is rendered before you approve the narration."}
         </p>
       </div>
       <ReplaceInBlocks versionId={versionId} kind={kind} language={review.language} onApplied={(r) => setReview(r)} />
