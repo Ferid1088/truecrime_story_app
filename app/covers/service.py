@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.covers import avatar as AV
 from app.covers import compose as C
-from app.db.models import Case, CoverImage, CoverProposal
+from app.db.models import Case, CoverImage, CoverProposal, HostScene
 from app.documentary import outfits as OF
 from app.documentary import storage
 from app.thumbnails import hosts as H
@@ -32,11 +32,19 @@ def standing_pose(outfit: str) -> H.HostAsset:
     raise AV.AvatarError(f"the outfit {outfit} has none of the standing poses {ai_config.covers_settings().avatar['poses']}")
 
 
+def film_outfit(db: Session, case_id: int, language: str):
+    """The outfit the language's film wears: the one of its first host scene that has a video (the outfit can differ from the one marked as selected), else the selected one."""
+    scene = (db.query(HostScene).filter(HostScene.case_id == case_id, HostScene.language == language, HostScene.avatar_video_path.isnot(None))
+             .order_by(HostScene.id).first())
+    outfit = OF.scene_outfit(db, scene) if scene is not None else None
+    return outfit or OF.selected_outfit(db, case_id, language)
+
+
 def film_avatar(db: Session, case_id: int, language: str) -> tuple[str, Path]:
-    """The outfit the language's film wears (the one selected for it) and the image of the avatar in it."""
-    chosen = OF.selected_outfit(db, case_id, language)
+    """The outfit the language's film wears and the image of the avatar in it."""
+    chosen = film_outfit(db, case_id, language)
     if chosen is None:
-        raise AV.AvatarError(f"no outfit is selected for the {language} film: choose the avatar's outfit first")
+        raise AV.AvatarError(f"the {language} film has no outfit: choose the avatar's outfit first")
     if chosen.outfit_ref:
         return chosen.outfit_ref, standing_pose(chosen.outfit_ref).path
     if chosen.reference_image_path:
