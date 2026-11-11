@@ -4,6 +4,7 @@ did not pass its checks leaves the film without it."""
 import asyncio
 import json
 
+import pytest
 from test_host import _plan_story, _version
 from test_opening_block import GOOD_CONTEXT, GOOD_HOOK, OpeningGen
 
@@ -11,6 +12,15 @@ from app.agents.opening import OpeningWriter
 from app.core.ai_config import ai_config
 from app.db.models import FilmOpening
 from app.documentary.pipeline import opening as STAGE
+
+
+def fake_pictures(monkeypatch, made=None, fail=None):
+    async def ensure_pictures(db, case_id, master, provider=None):
+        if fail is not None:
+            raise fail
+        (made if made is not None else []).append(master.id)
+        return [{"scene": "s", "path": "p.png", "image_id": 1}]
+    monkeypatch.setattr(STAGE.OM, "ensure_pictures", ensure_pictures)
 
 
 def fake_media(calls):
@@ -28,6 +38,8 @@ def test_the_english_opening_is_made_once_for_every_language_that_asks_at_the_sa
     gen, made = OpeningGen(), []
     monkeypatch.setattr("app.agents.opening.get_generation_provider", lambda: gen)
     monkeypatch.setattr(STAGE.OM, "make_media", fake_media(made))
+    painted = []
+    fake_pictures(monkeypatch, painted)
 
     async def both():
         writer = OpeningWriter()
@@ -38,6 +50,7 @@ def test_the_english_opening_is_made_once_for_every_language_that_asks_at_the_sa
     assert en_result["hook"] == GOOD_HOOK and en_result["seconds"] == 23.0 and de_result["status"] == "valid"
     assert sorted(made) == sorted([("en", "master", made[0][2]), ("de", "native", made[0][2])])
     assert db_session.query(FilmOpening).filter(FilmOpening.case_id == case.id).count() == 2
+    assert len(painted) == 2 and len(set(painted)) == 1               # both languages ask for the pictures of the one English master
 
 
 def test_a_second_run_uses_the_openings_that_exist(db_session, monkeypatch):
@@ -45,6 +58,7 @@ def test_a_second_run_uses_the_openings_that_exist(db_session, monkeypatch):
     gen = OpeningGen()
     monkeypatch.setattr("app.agents.opening.get_generation_provider", lambda: gen)
     monkeypatch.setattr(STAGE.OM, "make_media", fake_media([]))
+    fake_pictures(monkeypatch)
     asyncio.run(STAGE.make_opening(db_session, case, "en", master))
     asyncio.run(STAGE.make_opening(db_session, case, "en", master))
     assert [r for r, _ in gen.calls].count("opening_director") == 1
@@ -55,6 +69,7 @@ def test_an_english_opening_that_failed_its_checks_leaves_every_film_without_a_b
     gen, made = OpeningGen(hooks=["Hello and welcome to the channel."]), []
     monkeypatch.setattr("app.agents.opening.get_generation_provider", lambda: gen)
     monkeypatch.setattr(STAGE.OM, "make_media", fake_media(made))
+    fake_pictures(monkeypatch)
     out = asyncio.run(STAGE.make_opening(db_session, case, "en", master))
     assert "did not pass its checks" in out["degraded"] and made == []
 
@@ -88,3 +103,18 @@ def test_the_film_takes_only_a_valid_block_whose_audio_is_unchanged(db_session, 
     row.status = "needs_review"
     db_session.commit()
     assert OT.opening_item(db_session, case.id, "en") is None
+
+
+def test_a_picture_that_could_not_be_painted_does_not_stop_the_film_but_a_spent_budget_does(db_session, monkeypatch):
+    from app.services.budget import BudgetStopped
+
+    case, master, _ = _plan_story(db_session)
+    gen, made = OpeningGen(), []
+    monkeypatch.setattr("app.agents.opening.get_generation_provider", lambda: gen)
+    monkeypatch.setattr(STAGE.OM, "make_media", fake_media(made))
+    fake_pictures(monkeypatch, fail=RuntimeError("3 attempts failed"))
+    out = asyncio.run(STAGE.make_opening(db_session, case, "en", master))
+    assert "could not be made" in out["pictures_degraded"] and out["status"] == "valid" and len(made) == 1
+    fake_pictures(monkeypatch, fail=BudgetStopped(case.id, "image:opening", "case budget reached"))
+    with pytest.raises(BudgetStopped):
+        asyncio.run(STAGE.make_opening(db_session, case, "en", master))

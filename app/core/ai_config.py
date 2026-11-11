@@ -3480,12 +3480,15 @@ class OpeningMusicConfig(BaseModel):
 
 
 class OpeningPicturesConfig(BaseModel):
-    """The pictures of the block are photos of the film's first act (so they give nothing away), taken from the film's own shots that start `from_seconds` or later
-    after the story begins (not the ones shown right after the block), at most `max`, each held at least `min_hold_seconds`."""
+    """The pictures of the block: `count` mystery pictures the image model paints from the director's scene descriptions (`scene_min_words` to `scene_max_words` words each,
+    in the `style`), made once for the film and shown in every language, each held at least `min_hold_seconds`."""
 
-    max: int = Field(ge=1)
+    count: int = Field(ge=1, le=4)
     min_hold_seconds: float = Field(gt=0.0)
-    from_seconds: float = Field(ge=0.0)
+    style: str
+    scene_min_words: int = Field(ge=1)
+    scene_max_words: int = Field(ge=1)
+    ledger_stage: str
 
 
 class OpeningBlockConfig(BaseModel):

@@ -13,7 +13,9 @@
       "style": "v3_neutral",
       "post_speed_factor": 1.1,
       "post_speed_max": 1.2,
-      "post_speed_extra": {"tr": 0.1},
+      "post_speed_extra": {
+        "tr": 0.1
+      },
       "stability_threshold": 0.4,
       "stability_drop": 0.2
     },
@@ -25,9 +27,12 @@
       "mood_fallback": "tension"
     },
     "pictures": {
-      "max": 6,
+      "count": 2,
       "min_hold_seconds": 2.0,
-      "from_seconds": 30
+      "style": "Cinematic photoreal mystery still for a true-crime documentary: cold teal-blue night tones, deep shadows, drifting mist, one single warm light source, ominous and quiet. Wide 16:9 frame. Absolutely no text, no letters, no logo, no people, no faces, no bodies, no weapons, no blood.",
+      "scene_min_words": 8,
+      "scene_max_words": 40,
+      "ledger_stage": "image:opening"
     }
   }
 }

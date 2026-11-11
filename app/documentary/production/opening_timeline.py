@@ -1,5 +1,5 @@
 """The opening block in the film's timeline: the hook, the pause, the context text and the dark, silent gap come first; the host's opening (or the logo), the
-story and everything else move later by the block's length. The block's own pictures are photos of the film's first act; the gap is a black screen."""
+story and everything else move later by the block's length. The block's own pictures are the mystery pictures painted once for the film (the same in every language); the gap is a black screen."""
 
 from __future__ import annotations
 
@@ -35,28 +35,21 @@ def opening_item(db: Session, case_id: int, language: str) -> dict | None:
         return None
     opening = json.loads(row.opening_json or "{}")
     return {"opening_id": row.id, "audio": audio["path"], "seconds": float(audio["total"]), "speech_end": float(audio["context"][1]),
-            "hook_end": float(audio["hook"][1]), "text": {"hook": opening.get("hook"), "context": opening.get("context")}}
+            "hook_end": float(audio["hook"][1]), "pictures": media.get("pictures") or [], "text": {"hook": opening.get("hook"), "context": opening.get("context")}}
 
 
-def pictures_for(script: dict, speech_end: float) -> list[dict]:
-    """The photos of the block: the film's own picture shots that start `from_seconds` or later after the story begins, one shot for each different picture, in order."""
-    cfg = ai_config.opening_block_settings().pictures
-    story_start = max((float(s["end"]) for s in script["shots"] if s.get("kind") == "intro" or s.get("host_position") == "opening"), default=0.0)
-    chosen, seen = [], set()
-    for s in sorted(script["shots"], key=lambda s: s["start"]):
-        if s.get("kind") != "image" or not s.get("asset_id") or s["asset_id"] in seen or s["start"] < story_start + cfg.from_seconds:
-            continue
-        seen.add(s["asset_id"])
-        chosen.append(s)
-    count = min(len(chosen), cfg.max, max(int(speech_end // (cfg.min_hold_seconds * 2)), 1))
-    return chosen[:count]
+def picture_shot(picture: dict) -> dict:
+    """The film's shot fields of one painted picture of the block (it is no library asset: nothing to credit, no rights to check)."""
+    return {"kind": "image", "command": "NEW_IMAGE", "asset_id": None, "path": picture["path"], "type": "generated", "role": "illustration", "width": 1536, "height": 1024, "focus": None,
+            "crop": None, "highlight": None, "marker": None, "rights": "owned", "credit": None, "credit_due": False, "credit_on_screen": False, "subject_type": None, "tier": 5,
+            "entity_type": None, "entities": []}
 
 
 def insert_opening(script: dict, item: dict) -> dict:
     """The block at the start of the film: every later time moves by the block's seconds."""
     script = copy.deepcopy(script)
     d, speech_end = float(item["seconds"]), float(item["speech_end"])
-    pictures = pictures_for(script, speech_end)
+    pictures = [p for p in item.get("pictures") or [] if storage.resolve(p["path"]).exists()]
     for key in ("shots", "beats", "voice", "subtitles", "overlays", "silences", "sentence_entities", "board"):
         _shift(script.get(key) or [], 0.0, d)
     _shift(script.get("music") or [], 0.0, d, keys=("start",))
@@ -67,10 +60,9 @@ def insert_opening(script: dict, item: dict) -> dict:
     if pictures:
         edges = [round(speech_end * i / len(pictures), 3) for i in range(len(pictures) + 1)]
         for n, s in enumerate(pictures):
-            shot = {k: v for k, v in s.items() if k not in ("index", "id", "usage", "alternatives", "fill_reason", "held_reason")}
-            shot.update({"beat_id": None, "start": edges[n], "end": edges[n + 1], "command": "NEW_IMAGE", "motion": "SLOW_PUSH", "speed": 1.0,
-                         "transition_in": "FADE_BLACK" if n == 0 else "CROSSFADE", "why": "a picture of the film's first act under the opening block",
-                         "opening_block": True})
+            shot = picture_shot(s)
+            shot.update({"beat_id": None, "start": edges[n], "end": edges[n + 1], "motion": "SLOW_PUSH", "speed": 1.0, "transition_in": "FADE_BLACK" if n == 0 else "CROSSFADE",
+                         "why": "a mystery picture painted for the opening block", "opening_block": True})
             block.append(shot)
     else:
         block.append({"kind": "black", "command": "BLACK_SCREEN", "motion": "NONE", "speed": 1.0, "start": 0.0, "end": round(speech_end, 3),

@@ -105,3 +105,28 @@ def test_a_saved_voice_is_not_paid_for_again(db_session, tmp_path, monkeypatch):
     again = asyncio.run(OM.voice_part(db_session, 1, "en", "hook", "Someone locked the door.", renderer))
     changed = asyncio.run(OM.voice_part(db_session, 1, "en", "hook", "Someone locked another door.", renderer))
     assert first["reused"] is False and again["reused"] is True and len(renderer.calls) == 2 and changed["path"] != first["path"]
+
+
+def test_the_pictures_are_painted_once_for_the_film_and_every_language_shows_the_same_ones(db_session, tmp_path, monkeypatch):
+    from test_cover_images import FakeImages, good
+
+    monkeypatch.setattr(storage, "cases_root", lambda: tmp_path / "cases")
+    case, master_version, _ = _plan_story(db_session)
+    scenes = ["A brick house at night in snow with its garage door standing wide open and a warm beam on the driveway.",
+              "A long empty hallway in a quiet house at night with one bedroom door ajar and a faint cool glow at its end."]
+    opening = {"hook": "Someone locked the door.", "context": "A lantern in the hall. Nobody explains it.", "music": {"mood": "tension", "prompt": "slow cello drone"}, "scenes": scenes}
+    en = FilmOpening(case_id=case.id, language="en", kind="master", story_version_id=master_version.id, status="valid", opening_json=json.dumps(opening))
+    fa = FilmOpening(case_id=case.id, language="fa", kind="native", story_version_id=master_version.id, status="valid", opening_json=json.dumps(opening))
+    db_session.add_all([en, fa])
+    db_session.commit()
+    provider = FakeImages([good(), good()])
+    made = asyncio.run(OM.ensure_pictures(db_session, case.id, en, provider))
+    assert [p["scene"] for p in made] == scenes and all(storage.resolve(p["path"]).exists() for p in made) and len(provider.calls) == 2
+    assert scenes[0] in provider.calls[0][1] and ai_config.opening_block_settings().pictures.style in provider.calls[0][1] and provider.calls[0][2] == "1536x1024"
+    assert [c.stage for c in db_session.query(ProviderCall).filter(ProviderCall.case_id == case.id, ProviderCall.stage == "image:opening").all()] == ["image:opening"] * 2
+    again = asyncio.run(OM.ensure_pictures(db_session, case.id, en, provider))
+    assert again == made and len(provider.calls) == 2                                              # a picture that exists is not paid for again
+    renderer, library = FakeRenderer(tmp_path), FakeLibrary(tmp_path)
+    media_en = asyncio.run(OM.make_media(db_session, case.id, en, en, renderer, library))
+    media_fa = asyncio.run(OM.make_media(db_session, case.id, fa, en, renderer, library))
+    assert media_en["pictures"] == media_fa["pictures"] == made and json.loads(fa.media_json)["pictures"] == made

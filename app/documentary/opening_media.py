@@ -137,6 +137,40 @@ async def ensure_music(db: Session, case_id: int, master: dict, library: MusicLi
     return {"path": storage.rel(path), "prompt": prompt, "seconds": cfg.music.generated_seconds, "characters_paid": paid}
 
 
+def pictures_prompt(scene: str) -> str:
+    """What the image model is told for one of the block's pictures: the scene in the configured mystery style."""
+    return f"{scene.strip().rstrip('.')}. {ai_config.opening_block_settings().pictures.style}"
+
+
+async def ensure_pictures(db: Session, case_id: int, master: FilmOpening, provider=None) -> list[dict]:
+    """The block's pictures, painted once for the film from the English opening's scenes (every language shows the same ones) and booked in the ledger as estimates.
+    Kept in the master row; a picture whose file and scene are unchanged is not paid for again. Returns [{scene, path, image_id}] (empty when the image model gave none:
+    the block then shows a black screen under its words)."""
+    from app.covers import images as IM
+    from app.db.models import Case
+
+    cfg = ai_config.opening_block_settings().pictures
+    scenes = json.loads(master.opening_json or "{}").get("scenes") or []
+    async with _music_lock(f"pictures:{master.id}"):
+        media = json.loads(master.media_json or "{}")
+        known = {p["scene"]: p for p in media.get("pictures") or [] if storage.resolve(p["path"]).exists()}
+        case = db.get(Case, case_id)
+        made = []
+        for n, scene in enumerate(scenes[:cfg.count]):
+            if scene in known:
+                made.append(known[scene])
+                continue
+            folder = storage.case_dir(case_id) / "opening" / "pictures"
+            folder.mkdir(parents=True, exist_ok=True)
+            record = await IM.paint(db, case, "en", f"opening{n + 1}", master.id, pictures_prompt(scene), ai_config.covers_settings().scene_image["sizes"]["long"], folder, f"opening_{master.id}_{n + 1}",
+                                    cfg.ledger_stage, provider)
+            made.append({"scene": scene, "path": record.file_path, "image_id": record.id})
+        media["pictures"] = made
+        master.media_json = json.dumps(media, ensure_ascii=False)
+        db.commit()
+        return made
+
+
 def assemble_command(hook: Path, context: Path, music: Path | None, hook_seconds: float, context_seconds: float, out: Path,
                      cfg: OpeningBlockConfig | None = None, sample_rate: int | None = None) -> tuple[list[str], dict]:
     """ffmpeg command and timings of the block's audio: the hook, the pause, the context text and the dark gap; the music starts when the hook ends, gives
@@ -192,7 +226,8 @@ async def make_media(db: Session, case_id: int, row: FilmOpening, master: FilmOp
     timings = await asyncio.to_thread(
         assemble, storage.resolve(hook["path"]), storage.resolve(context["path"]), storage.resolve(music["path"]) if music else None,
         hook["seconds"], context["seconds"], out, cfg)
-    media = {"hook": hook, "context": context, "music": music, "audio": {"path": storage.rel(out), "sha256": hashlib.sha256(out.read_bytes()).hexdigest(), **timings}}
+    pictures = json.loads(master.media_json or "{}").get("pictures") or []
+    media = {"hook": hook, "context": context, "music": music, "pictures": pictures, "audio": {"path": storage.rel(out), "sha256": hashlib.sha256(out.read_bytes()).hexdigest(), **timings}}
     row.media_json = json.dumps(media, ensure_ascii=False)
     db.commit()
     return media

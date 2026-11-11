@@ -53,41 +53,50 @@ def image_dir(case_id: int, language: str):
     return d
 
 
-async def make_image(db: Session, case: Case, language: str, row: CoverProposal, provider: APIMasterImageProvider | None = None, *, again: bool = False) -> CoverImage:
-    """The scene picture of a cover row: the one it has (unless `again`), else a new one. Stops before the call when the case's budget is spent; a failed call is
-    tried again up to `scene_image.attempts` times, each attempt recorded. Raises ImageProviderError when every attempt failed."""
+async def paint(db: Session, case: Case, language: str, key: str, proposal_id: int | None, prompt: str, size: str, folder, stem: str, stage: str,
+                provider: APIMasterImageProvider | None = None) -> CoverImage:
+    """One picture from the image model, tried again up to `scene_image.attempts` times: every attempt recorded in `cover_images` (the covers' pictures and the opening
+    block's), a picture that came back saved to `folder`/`stem`.png and booked in the ledger under `stage` as an estimate. The budget is checked before every call.
+    Raises ImageProviderError when every attempt failed."""
     cfg = ai_config.covers_settings().scene_image
     if not cfg["enabled"]:
-        raise ImageProviderError("the image model is switched off for covers")
+        raise ImageProviderError("the image model is switched off")
+    provider = provider or APIMasterImageProvider()
+    model = cfg["model"]
+    budget, last_error = BudgetService(db), "no attempt was made"
+    for attempt in range(1, cfg["attempts"] + 1):
+        budget.check(case.id, stage)
+        result = await provider.generate(model, prompt, size, cfg["timeout_s"])
+        usd, tokens = priced(result.usage, model)
+        record = CoverImage(case_id=case.id, language=language, cover_key=key, proposal_id=proposal_id, attempt=attempt, model=model, size=size, prompt=prompt,
+                            ok=result.ok, error=result.error, duration_ms=result.duration_ms, request_id=result.request_id, **tokens)
+        db.add(record)
+        db.flush()
+        if result.ok:
+            path = folder / f"{stem}_{record.id}.png"
+            storage.write_atomic(path, result.content)
+            record.file_path = storage.rel(path)
+            call = budget.record(case_id=case.id, stage=stage, model=model, units=1, cost_usd=usd, tokens_in=result.usage.get("input_tokens"), tokens_out=result.usage.get("output_tokens"),
+                                 estimated=True, duration_ms=result.duration_ms, request_id=f"cover_image:{record.id}", cost_source="assumed-unverified")
+            record.cost_usd, record.cost_eur, record.cost_source, record.provider_call_id = usd, call.cost_eur, "assumed-unverified", call.id
+            db.commit()
+            return record
+        last_error = result.error or "the image model returned no image"
+        db.commit()
+    raise ImageProviderError(f"{cfg['attempts']} attempts failed: {last_error}")
+
+
+async def make_image(db: Session, case: Case, language: str, row: CoverProposal, provider: APIMasterImageProvider | None = None, *, again: bool = False) -> CoverImage:
+    """The scene picture of a cover row: the one it has (unless `again`), else a new one. Raises ImageProviderError when every attempt failed."""
+    cfg = ai_config.covers_settings().scene_image
     if row.image_id and not again:
         return db.get(CoverImage, row.image_id)
     if not row.scene_prompt.strip():
         raise C.CoverError("the cover has no scene description")
     if problems := scene_issues(row.scene_prompt):
         raise C.CoverError(problems[0])
-    provider = provider or APIMasterImageProvider()
-    prompt = prompt_for(language, row.kind, row.scene_prompt)
-    size, model = cfg["sizes"][row.kind], cfg["model"]
-    budget, last_error = BudgetService(db), "no attempt was made"
-    for attempt in range(1, cfg["attempts"] + 1):
-        budget.check(case.id, cfg["ledger_stage"])
-        result = await provider.generate(model, prompt, size, cfg["timeout_s"])
-        usd, tokens = priced(result.usage, model)
-        record = CoverImage(case_id=case.id, language=language, cover_key=row.cover_key, proposal_id=row.id, attempt=attempt, model=model, size=size, prompt=prompt,
-                            ok=result.ok, error=result.error, duration_ms=result.duration_ms, request_id=result.request_id, **tokens)
-        db.add(record)
-        db.flush()
-        if result.ok:
-            path = image_dir(case.id, language) / f"{row.cover_key}_{row.id}_{record.id}.png"
-            storage.write_atomic(path, result.content)
-            record.file_path = storage.rel(path)
-            call = budget.record(case_id=case.id, stage=cfg["ledger_stage"], model=model, units=1, cost_usd=usd, tokens_in=result.usage.get("input_tokens"),
-                                 tokens_out=result.usage.get("output_tokens"), estimated=True, duration_ms=result.duration_ms, request_id=f"cover_image:{record.id}",
-                                 cost_source="assumed-unverified")
-            record.cost_usd, record.cost_eur, record.cost_source, record.provider_call_id = usd, call.cost_eur, "assumed-unverified", call.id
-            row.image_id = record.id
-            db.commit()
-            return record
-        last_error = result.error or "the image model returned no image"
-        db.commit()
-    raise ImageProviderError(f"{cfg['attempts']} attempts failed: {last_error}")
+    record = await paint(db, case, language, row.cover_key, row.id, prompt_for(language, row.kind, row.scene_prompt), cfg["sizes"][row.kind], image_dir(case.id, language),
+                         f"{row.cover_key}_{row.id}", cfg["ledger_stage"], provider)
+    row.image_id = record.id
+    db.commit()
+    return record

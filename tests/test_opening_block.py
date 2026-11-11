@@ -74,12 +74,25 @@ def test_the_music_prompt_is_instrumental_and_has_a_fallback():
     assert ai_config.opening_block_settings().music.mood_fallback in OB.music_prompt({})
 
 
+SCENES = ["A suburban brick house at night in fresh snow, its garage door standing wide open and spilling a narrow beam of warm light across the dark driveway.",
+          "A long empty hallway inside a quiet house at night, one bedroom door ajar at the far end with a faint cool glow and long shadows on the floorboards."]
+
+
 def test_the_directors_answer_must_name_a_hook_among_its_candidates():
-    raw = {"candidates": [{"text": "a", "kind": "quote"}, {"text": "b", "kind": "moment"}], "chosen": 5, "context": "c"}
+    raw = {"candidates": [{"text": "a", "kind": "quote"}, {"text": "b", "kind": "moment"}], "chosen": 5, "context": "c", "scenes": SCENES}
     _, problems = OB.parse_master(raw)
     assert "no_chosen_hook" in codes(problems)
     opening, problems = OB.parse_master({**raw, "chosen": 1, "music": {"mood": "Dread", "prompt": "p"}})
-    assert opening["hook"] == "b" and not problems and opening["music"]["mood"] == "dread"
+    assert opening["hook"] == "b" and not problems and opening["music"]["mood"] == "dread" and opening["scenes"] == SCENES
+
+
+def test_the_scenes_of_the_pictures_are_two_symbolic_places_without_a_person_a_victim_or_a_weapon():
+    raw = {"candidates": [{"text": "a", "kind": "quote"}, {"text": "b", "kind": "moment"}], "chosen": 1, "context": "c"}
+    assert "scene_count" in codes(OB.parse_master({**raw, "scenes": SCENES[:1]})[1])
+    assert "scene_length" in codes(OB.parse_master({**raw, "scenes": ["a door", SCENES[1]]})[1])
+    refused = OB.parse_master({**raw, "scenes": [SCENES[0], "A man with a pistol standing in the dark hallway of a quiet house at night, waiting."]})[1]
+    assert codes(refused) == {"scene_not_symbolic"}
+    assert OB.parse_native({"hook": "h", "context": "c"}, {"scenes": SCENES, "music": {}})["scenes"] == SCENES                  # a native row shows the English pictures
 
 
 def test_quotes_are_what_is_said_between_marks():
@@ -102,7 +115,7 @@ class OpeningGen:
         context = self.contexts.pop(0) if len(self.contexts) > 1 else self.contexts[0]
         if role == "opening_director":
             return {"candidates": [{"text": "other", "kind": "moment", "why": "w"}, {"text": hook, "kind": "quote", "why": "w"}], "chosen": 1,
-                    "context": context, "music": {"mood": "tension", "prompt": "low cello drone"}}, res
+                    "context": context, "music": {"mood": "tension", "prompt": "low cello drone"}, "scenes": SCENES}, res
         return {"hook": hook, "context": context}, res
 
 

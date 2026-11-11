@@ -95,6 +95,21 @@ def opening_issues(opening: dict, story: HostStory, language: str, cfg: OpeningB
     return issues
 
 
+def scene_problems(scenes: list[str], cfg: OpeningBlockConfig) -> list[dict]:
+    """What is wrong with the scene descriptions of the block's pictures: not the configured number, too short or too long, or a person, victim or weapon in one."""
+    from app.covers.images import scene_issues
+
+    pictures = cfg.pictures
+    problems: list[dict] = []
+    if len(scenes) != pictures.count:
+        problems.append({"type": "scene_count", "words": len(scenes), "fix": f"Give exactly {pictures.count} scene descriptions."})
+    for i, scene in enumerate(scenes):
+        if not pictures.scene_min_words <= len(scene.split()) <= pictures.scene_max_words:
+            problems.append({"type": "scene_length", "part": f"scene {i + 1}", "fix": f"A scene has {pictures.scene_min_words} to {pictures.scene_max_words} words."})
+        problems += [{"type": "scene_not_symbolic", "part": f"scene {i + 1}", "fix": p} for p in scene_issues(scene)]
+    return problems
+
+
 def parse_master(raw: dict, cfg: OpeningBlockConfig | None = None) -> tuple[dict, list[dict]]:
     """The director's answer as an opening: the hook it chose among its candidates, the context text and the music brief; with the problems of the
     answer itself (a missing candidate, a choice that is no candidate, a hook of an unknown kind)."""
@@ -113,8 +128,10 @@ def parse_master(raw: dict, cfg: OpeningBlockConfig | None = None) -> tuple[dict
         hook = str(candidates[chosen]["text"]).strip()
     else:
         problems.append({"type": "no_chosen_hook", "fix": "Name the index of the hook you choose among your candidates."})
+    scenes = [str(x).strip() for x in (raw.get("scenes") or []) if str(x).strip()] if isinstance(raw.get("scenes"), list) else []
+    problems += scene_problems(scenes, cfg)
     music = raw.get("music") if isinstance(raw.get("music"), dict) else {}
-    opening = {"hook": hook, "context": str(raw.get("context") or "").strip(),
+    opening = {"scenes": scenes, "hook": hook, "context": str(raw.get("context") or "").strip(),
                "candidates": [{"text": str(c["text"]).strip(), "kind": c.get("kind"), "why": str(c.get("why") or "")} for c in candidates],
                "chosen": chosen if isinstance(chosen, int) else None,
                "music": {"mood": str(music.get("mood") or cfg.music.mood_fallback).strip().lower(), "prompt": str(music.get("prompt") or "").strip()}}
@@ -122,8 +139,8 @@ def parse_master(raw: dict, cfg: OpeningBlockConfig | None = None) -> tuple[dict
 
 
 def parse_native(raw: dict, master: dict) -> dict:
-    """A native writer's answer: its own hook and context; the music brief and the candidates stay the English opening's."""
-    return {"hook": str(raw.get("hook") or "").strip(), "context": str(raw.get("context") or "").strip(), "music": master.get("music") or {}}
+    """A native writer's answer: its own hook and context; the music brief, the candidates and the scenes of the pictures stay the English opening's."""
+    return {"hook": str(raw.get("hook") or "").strip(), "context": str(raw.get("context") or "").strip(), "music": master.get("music") or {}, "scenes": master.get("scenes") or []}
 
 
 def post_speed_for(language: str, cfg: OpeningBlockConfig | None = None) -> float:

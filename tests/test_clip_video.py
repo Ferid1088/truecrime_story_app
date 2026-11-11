@@ -98,3 +98,11 @@ def test_a_failing_ffmpeg_command_is_reported(tmp_path):
 def test_the_words_of_a_take_are_found_from_its_character_times():
     al = {"characters": list("Hi there, you"), "starts": [i * 0.1 for i in range(13)], "ends": [i * 0.1 + 0.1 for i in range(13)]}
     assert OM.word_times(al) == [["Hi", 0.0, 0.2], ["there,", 0.3, 0.9], ["you", 1.0, 1.3]]
+
+
+def test_a_turkish_caption_keeps_the_dotted_capital(tmp_path):
+    from app.covers.compose import display_title
+
+    assert display_title("izler ışık", "tr") == "İZLER IŞIK"
+    size = CV.caption_image("izler ışık", "tr", tmp_path / "c.png", ai_config.short_clips_settings().video)
+    assert size[0] == ai_config.short_clips_settings().video.width and (tmp_path / "c.png").exists()

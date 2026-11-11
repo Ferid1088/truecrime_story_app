@@ -65,7 +65,8 @@ class OpeningWriter:
             "story_first_act": told, "facts_you_may_use": visible_facts(story, self.cfg.knowledge_acts),
             "later_titles": [a.title for a in story.hidden(self.cfg.knowledge_acts)], "quotes": quotes_of(told),
             "limits": {"hook_max_words": OB.hook_max_words(language, self.cfg), "context_min_words": OB.context_limits(language, self.cfg)[0],
-                       "context_max_words": OB.context_limits(language, self.cfg)[1], "candidates": self.cfg.hook_candidates}}
+                       "context_max_words": OB.context_limits(language, self.cfg)[1], "candidates": self.cfg.hook_candidates, "pictures": self.cfg.pictures.count,
+                       "scene_min_words": self.cfg.pictures.scene_min_words, "scene_max_words": self.cfg.pictures.scene_max_words}}
         system = voiced_prompt("documentary/opening/director_system", language)
         raw, res = await self._json(db, case.id, "Opening Director", "opening_director", system, payload)
         opening, problems = OB.parse_master(raw, self.cfg)

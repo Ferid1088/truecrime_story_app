@@ -15,6 +15,7 @@ from PIL import Image, ImageDraw
 
 from app.core.ai_config import ClipVideoConfig, ai_config
 from app.core.media_tools import ffmpeg_bin
+from app.covers.compose import display_title
 from app.documentary.visuals import typography as TY
 
 ORDER = ("hook", "context", "detail", "reaction", "cta")
@@ -76,7 +77,7 @@ def caption_image(text: str, language: str, path: Path, cfg: ClipVideoConfig | N
     c = cfg.caption
     size = round(c.size * cfg.height)
     font = TY.font(language, "sans", "bold", size)
-    lines = TY.wrap(text.upper() if language not in ("fa", "ar") else text, font, language, round(c.max_width * cfg.width))
+    lines = TY.wrap(display_title(text, language), font, language, round(c.max_width * cfg.width))
     line_h = round(size * 1.25)
     height = line_h * len(lines) + size
     image = Image.new("RGBA", (cfg.width, height), (0, 0, 0, 0))

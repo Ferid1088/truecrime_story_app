@@ -14,6 +14,7 @@ from app.core.ai_config import ai_config
 from app.db.models import Case, FilmOpening, StoryVersion
 from app.documentary import opening_media as OM
 from app.documentary.blueprint import latest_blueprint
+from app.services.budget import BudgetStopped
 
 _LOCKS: dict[tuple[int, int], asyncio.Lock] = {}
 
@@ -68,6 +69,13 @@ async def make_opening(db: Session, case: Case, language: str, version: StoryVer
         if row.status != "valid":
             return {"degraded": f"the {language} opening did not pass its checks: " + json.dumps(json.loads(row.validation_json).get("issues"), ensure_ascii=False)[:300],
                     "opening_id": row.id}
+    degraded = None
+    try:
+        await OM.ensure_pictures(db, case.id, master)
+    except BudgetStopped:
+        raise
+    except Exception as e:  # noqa: BLE001 -- no picture must not stop the film: the block shows a black screen under its words, and the stage says so
+        degraded = f"the opening's pictures could not be made: {e}"[:300]
     media = await OM.make_media(db, case.id, row, master)
-    return {"opening_id": row.id, "status": row.status, "seconds": media["audio"]["total"], "hook": json.loads(row.opening_json)["hook"],
-            "music_prompt": media["music"]["prompt"]}
+    return {**({"pictures_degraded": degraded} if degraded else {}), "pictures": len(media.get("pictures") or []), "opening_id": row.id, "status": row.status,
+            "seconds": media["audio"]["total"], "hook": json.loads(row.opening_json)["hook"], "music_prompt": media["music"]["prompt"]}
