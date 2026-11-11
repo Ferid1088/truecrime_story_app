@@ -29,11 +29,12 @@ class OpeningMediaError(RuntimeError):
     pass
 
 
-_LOCKS: dict[str, asyncio.Lock] = {}
+_LOCKS: dict[tuple[int, str], asyncio.Lock] = {}
 
 
 def _music_lock(key: str) -> asyncio.Lock:
-    return _LOCKS.setdefault(key, asyncio.Lock())
+    """One lock for each music file in the running event loop (a lock belongs to the loop it is used in)."""
+    return _LOCKS.setdefault((id(asyncio.get_running_loop()), key), asyncio.Lock())
 
 
 def opening_dir(case_id: int, language: str) -> Path:
@@ -65,13 +66,36 @@ async def voice_part(db: Session, case_id: int, language: str, part: str, text: 
              "sentences": [{"speech": s, "display": s, "tts": s, "level": None} for s in sentences]}
     result = await renderer.speak_block(block, language, vcfg, settings, ai_config.voice.seed, d / "takes")
     take = result["take"]
-    audio, alignment = sped_up(Path(take["raw_path"]).read_bytes(), tempo, take["alignment"])
+    return {**store_voice(case_id, language, part, text, Path(take["raw_path"]), take["alignment"], take), "reused": False}
+
+
+def store_voice(case_id: int, language: str, part: str, text: str, raw: Path, alignment: dict, take: dict) -> dict:
+    """A take as the part's voice: at the block's local speed, saved with a sidecar (the file the film's audio is made from)."""
+    vcfg = ai_config.voice.languages[language]
+    settings, tempo = OB.voice_settings_for(language), OB.post_speed_for(language)
+    d = opening_dir(case_id, language)
+    key = _sha(text, vcfg.voice_id, vcfg.model_id, settings, tempo)[:16]
+    path, sidecar = d / f"voice_{part}_{key}.mp3", d / f"voice_{part}_{key}.json"
+    audio, al = sped_up(raw.read_bytes(), tempo, alignment)
     storage.write_atomic(path, audio)
-    seconds = round(max(alignment["ends"]), 3)
-    meta = {"text": text, "seconds": seconds, "settings": settings, "post_speed": tempo, "voice_id": vcfg.voice_id,
+    meta = {"text": text, "tts_text": take.get("text"), "seconds": round(max(al["ends"]), 3), "settings": settings, "post_speed": tempo, "voice_id": vcfg.voice_id,
             "character_cost": take.get("character_cost"), "request_id": take.get("request_id")}
     storage.write_atomic(sidecar, json.dumps(meta, ensure_ascii=False))
-    return {**meta, "path": storage.rel(path), "reused": False}
+    return {**meta, "path": storage.rel(path)}
+
+
+def reassemble(db: Session, row: FilmOpening) -> dict:
+    """The block's audio made again from the parts the row has now (after a part's voice was replaced in the review); returns the new audio record."""
+    media = json.loads(row.media_json or "{}")
+    cfg = ai_config.opening_block_settings()
+    hook, context, music = media["hook"], media["context"], media.get("music")
+    out = opening_dir(row.case_id, row.language) / f"opening_{_sha(hook['path'], context['path'], music['path'] if music else None, cfg.model_dump())[:12]}.wav"
+    timings = assemble(storage.resolve(hook["path"]), storage.resolve(context["path"]), storage.resolve(music["path"]) if music else None,
+                       hook["seconds"], context["seconds"], out, cfg)
+    media["audio"] = {"path": storage.rel(out), "sha256": hashlib.sha256(out.read_bytes()).hexdigest(), **timings}
+    row.media_json = json.dumps(media, ensure_ascii=False)
+    db.commit()
+    return media["audio"]
 
 
 async def ensure_music(db: Session, case_id: int, master: dict, library: MusicLibrary | None = None) -> dict:

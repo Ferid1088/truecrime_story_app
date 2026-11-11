@@ -691,6 +691,13 @@ class PipelineGen:
                 "verdicts": [{"key": k, "ok": True} for k in data["texts"]],
                 "_mock_request_sha256": fingerprint,
             }, self._res(role)
+        if role == "opening_director":
+            return {"candidates": [{"text": "A door stood open that night.", "kind": "moment", "why": "w"}, {"text": "Nobody heard a single sound.", "kind": "moment", "why": "w"}],
+                    "chosen": 0, "context": "Something in that house was wrong. Very wrong. The people who lived there told two different stories about the same hours, and nobody could say why.",
+                    "music": {"mood": "tension", "prompt": "slow low drone"}, "_mock_request_sha256": fingerprint}, self._res(role)
+        if role == "opening_native_writer":
+            return {"hook": "A door stood open that night.", "context": "Something in that house was wrong. Very wrong. The people who lived there told two different stories about the same hours, and nobody could say why.",
+                    "_mock_request_sha256": fingerprint}, self._res(role)
         if role.endswith("_critic"):
             return {
                 "score": 80,
@@ -988,6 +995,7 @@ def documentary_env(tmp_path, monkeypatch):
         "app.documentary.production.audio.DocumentaryMixer",
         lambda: DocumentaryMixer(MusicLibrary(provider=FakeSound())),
     )
+    monkeypatch.setattr("app.documentary.opening_media.MusicLibrary", lambda: MusicLibrary(provider=FakeSound()))      # the opening block's music, from the same fake sound provider
 
     async def fake_research(self, db, case, queries, progress=None, found_during="research", **kw):
         from mock_payload import provider_request

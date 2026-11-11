@@ -94,7 +94,7 @@ def test_a_row_is_voiced_in_its_language_with_one_music_for_the_film(db_session,
     audio = storage.resolve(media_fa["audio"]["path"])
     assert audio.exists() and media_fa["audio"]["seconds"] > media_fa["audio"]["hook"][1] + media_fa["audio"]["gap"][1] - media_fa["audio"]["gap"][0]
     assert json.loads(fa.media_json)["audio"]["sha256"] == media_fa["audio"]["sha256"]
-    booked = db_session.query(ProviderCall).filter(ProviderCall.request_id.like("music_opening:%")).all()
+    booked = db_session.query(ProviderCall).filter(ProviderCall.request_id.like("music_opening:%"), ProviderCall.case_id == case.id).all()
     assert len(booked) == 1 and booked[0].case_id == case.id
 
 

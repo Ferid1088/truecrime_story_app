@@ -15,7 +15,7 @@ from app.db.models import Case, FilmOpening, StoryVersion
 from app.documentary import opening_media as OM
 from app.documentary.blueprint import latest_blueprint
 
-_LOCKS: dict[int, asyncio.Lock] = {}
+_LOCKS: dict[tuple[int, int], asyncio.Lock] = {}
 
 
 def english_version(db: Session, case_id: int) -> StoryVersion | None:
@@ -43,7 +43,7 @@ async def master_opening(db: Session, case: Case, writer: OpeningWriter) -> Film
     english = english_version(db, case.id)
     if english is None:
         return None
-    async with _LOCKS.setdefault(case.id, asyncio.Lock()):
+    async with _LOCKS.setdefault((id(asyncio.get_running_loop()), case.id), asyncio.Lock()):      # a lock belongs to the loop it is used in
         existing = _row_for(db, case.id, "en", "master", english.id)
         if existing is not None:
             return existing
