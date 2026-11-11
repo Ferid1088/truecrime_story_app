@@ -3395,7 +3395,7 @@ class ClipCaptionConfig(BaseModel):
 class ClipMusicConfig(BaseModel):
     """The quiet bed under a clip: it starts when the hook ends, `volume` of full, `duck` lower while the voice speaks, faded in and out; generated once for `generated_seconds`."""
 
-    volume: float = Field(gt=0.0, le=1.0)
+    volume: float = Field(gt=0.0, le=3.0)
     duck: float = Field(ge=0.0, lt=1.0)
     fade_in: float = Field(ge=0.0)
     fade_out: float = Field(ge=0.0)
