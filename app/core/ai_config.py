@@ -3466,6 +3466,57 @@ class OpeningBlockConfig(BaseModel):
         return self
 
 
+class CoverFormatConfig(BaseModel):
+    """One cover image: its size in pixels (and the size of the video it belongs to; the two are not interchangeable), the file's format, quality and size limit."""
+
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    video_width: int = Field(gt=0)
+    video_height: int = Field(gt=0)
+    master_format: Literal["jpeg"]
+    quality: int = Field(ge=40, le=100)
+    max_bytes: int = Field(gt=0)
+    note: str = ""
+
+
+class CoverThemeConfig(BaseModel):
+    """The look of one language's channel, kept from film to film: the `signature` (how the scene is framed), the colours, what it never shows, and the owner's one-shot `prompt`."""
+
+    signature: Literal["spotlight_circle", "copper_path", "octagon_frame", "file_tab", "magnifier", "doorway_arch", "clipped_photo_compass", "offset_planes", "woven_break"]
+    background: str
+    ink: str
+    accent: str
+    rim: str
+    forbidden: list[str]
+    prompt: str
+
+
+class CoversConfig(BaseModel):
+    """The covers of a film (config/parameters/covers.json): one long cover per language and `shorts_per_episode` short covers, each made from a real picture of the
+    film, the avatar of the film's outfit, the channel's logo and a localized title of at most `title.max_words` words, in the language's theme. `safe_zones`
+    and the platform cover ways are marked "to_test" until a real upload has shown them."""
+
+    shorts_per_episode: int = Field(ge=1, le=5)
+    formats: dict[str, CoverFormatConfig]
+    safe_zones: dict
+    platforms: dict[str, dict]
+    title: dict[str, int]
+    scene: dict
+    fallback_image: dict
+    avatar: dict
+    layout: dict[str, dict]
+    min_title_contrast: float = Field(gt=1.0)
+    themes: dict[str, CoverThemeConfig]
+
+    @model_validator(mode="after")
+    def _parts(self):
+        if set(self.formats) != {"long", "short"}:
+            raise ValueError("covers: the formats are long and short")
+        if self.title["min_words"] > self.title["max_words"]:
+            raise ValueError("covers: title.min_words must not exceed title.max_words")
+        return self
+
+
 class OutroConfig(BaseModel):
     """The end of the film (config/parameters/outro.json): a deep, reflective music starts `lead_seconds` before the avatar's last word, quiet
     (`start_db`) and rising so that it never covers the voice (`speech_db` where the avatar ends), grows to `full_db` over `rise_seconds`
@@ -4549,6 +4600,7 @@ class AIConfig(BaseModel):
     branding: BrandingConfig | None = None
     drawing: DrawingConfig | None = None
     opening_block: OpeningBlockConfig | None = None
+    covers: CoversConfig | None = None
     short_clips: ShortClipsConfig | None = None
     outro: OutroConfig | None = None
     monitoring: MonitoringConfig | None = None
@@ -4782,6 +4834,12 @@ class AIConfig(BaseModel):
         if self.short_clips is None:
             raise RuntimeError("config/parameters/short_clips.json is missing")
         return self.short_clips
+
+    def covers_settings(self) -> CoversConfig:
+        """The covers of a film (config/parameters/covers.json)."""
+        if self.covers is None:
+            raise RuntimeError("config/parameters/covers.json is missing")
+        return self.covers
 
     def opening_block_settings(self) -> OpeningBlockConfig:
         """The film's opening block (config/parameters/opening_block.json)."""

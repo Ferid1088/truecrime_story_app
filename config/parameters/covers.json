@@ -1,0 +1,351 @@
+{
+  "covers": {
+    "shorts_per_episode": 5,
+    "formats": {
+      "long": {
+        "width": 3840,
+        "height": 2160,
+        "video_width": 1920,
+        "video_height": 1080,
+        "master_format": "jpeg",
+        "quality": 92,
+        "max_bytes": 2000000,
+        "note": "YouTube: 3840x2160 recommended, 2 MB on mobile, 50 MB on a computer (support.google.com/youtube/answer/72431)"
+      },
+      "short": {
+        "width": 2160,
+        "height": 3840,
+        "video_width": 1080,
+        "video_height": 1920,
+        "master_format": "jpeg",
+        "quality": 92,
+        "max_bytes": 8000000,
+        "note": "YouTube Shorts 2160x3840 recommended; Instagram cover_url JPEG at most 8 MB; Facebook thumbnails edge at most 10 MB"
+      }
+    },
+    "safe_zones": {
+      "status": "to_test",
+      "note": "No platform publishes official safe-zone numbers; these are conservative values from third-party guides and must be checked against a real upload on each platform before they count as final.",
+      "short": {
+        "grid_crop_ratio": [
+          3,
+          4
+        ],
+        "top_fraction": 0.125,
+        "bottom_fraction": 0.1667,
+        "side_fraction": 0.0556,
+        "right_fraction": 0.0833
+      },
+      "long": {
+        "corner_free_fraction": [
+          0.15,
+          0.15
+        ],
+        "corner": "bottom_right",
+        "margin_fraction": 0.045
+      }
+    },
+    "platforms": {
+      "youtube_long": {
+        "cover": "separate_upload",
+        "cover_status": "official",
+        "source": "https://support.google.com/youtube/answer/72431"
+      },
+      "youtube_short": {
+        "cover": "separate_upload_studio_computer_or_api",
+        "cover_status": "official",
+        "source": "https://support.google.com/youtube/answer/72431"
+      },
+      "tiktok": {
+        "cover": "frame_of_the_video",
+        "cover_status": "official_for_api_unverified_for_app",
+        "frame_rule": "the designed cover is frame 0 of the video (video_cover_timestamp_ms 0)",
+        "source": "https://developers.tiktok.com/doc/content-posting-api-reference-direct-post"
+      },
+      "instagram_reel": {
+        "cover": "cover_url_jpeg_9_16",
+        "cover_status": "to_test",
+        "note": "The Help Center's 420x654 guidance and the API's 9:16 cover_url differ; a real upload must show how both crop. Keep the key content in the middle 3:4.",
+        "source": "https://developers.facebook.com/documentation/instagram-platform/instagram-graph-api/reference/ig-user/media"
+      },
+      "facebook_reel": {
+        "cover": "thumbnails_edge_image",
+        "cover_status": "to_test",
+        "note": "Not shown for reels in any official example; test one reel on a scratch Page.",
+        "source": "https://developers.facebook.com/docs/graph-api/reference/video/thumbnails/"
+      },
+      "facebook_long": {
+        "cover": "thumbnails_edge_image",
+        "cover_status": "to_test",
+        "source": "https://developers.facebook.com/docs/graph-api/reference/video/thumbnails/"
+      }
+    },
+    "title": {
+      "min_words": 1,
+      "max_words": 4
+    },
+    "scene": {
+      "prefer": "case_picture_of_the_film",
+      "min_px": [
+        900,
+        600
+      ],
+      "frame_seconds": [
+        1.0,
+        0.5
+      ],
+      "forbidden_kinds": [
+        "victim",
+        "suspect",
+        "person"
+      ],
+      "note": "The scene is a real picture the finished film shows (or a frame of a clip it shows): never an invented evidence, victim, suspect or crime-scene detail.",
+      "person_terms": [
+        "person",
+        "people",
+        "man ",
+        "men ",
+        "woman",
+        "women",
+        "couple",
+        "portrait",
+        "suspect",
+        "victim",
+        "officer",
+        "police officer",
+        "detective",
+        "family",
+        "child",
+        "boy",
+        "girl",
+        "face",
+        "mugshot",
+        "arrest",
+        "body cam",
+        "bodycam",
+        "witness",
+        "neighbor",
+        "wife",
+        "husband",
+        "mother",
+        "father",
+        "son ",
+        "daughter"
+      ]
+    },
+    "fallback_image": {
+      "enabled": false,
+      "model": "gpt-image-2.6-flare",
+      "max_images_per_scene": 1,
+      "note": "A configurable fallback for a scene that no picture of the film can give. Off until the model is verified in the gateway; at most one image per scene, never one per logo or title."
+    },
+    "themes": {
+      "en": {
+        "signature": "spotlight_circle",
+        "background": "#0b1426",
+        "ink": "#f4f6fa",
+        "accent": "#e8191c",
+        "rim": "#cfe3ff",
+        "forbidden": [
+          "maps",
+          "grids",
+          "ornate frames",
+          "faces",
+          "gore",
+          "extra text"
+        ],
+        "prompt": "Create a restrained true-crime thumbnail in midnight navy with one circular cool-white spotlight isolating the clue and a thin signal-red pointer line. Show a slightly open door; the circle catches its narrow gap. Add the ClueVera logo small and the title “THE OPEN DOOR.” No maps, grids, ornate frames, faces, gore, or extra text."
+      },
+      "fa": {
+        "signature": "copper_path",
+        "background": "#0f2a2e",
+        "ink": "#f1e8d4",
+        "accent": "#c8743a",
+        "rim": "#e9a36a",
+        "forbidden": [
+          "octagonal frames",
+          "maps",
+          "grids",
+          "lenses",
+          "faces",
+          "extra text"
+        ],
+        "prompt": "Create a restrained true-crime thumbnail in deep blue-green, ivory, and copper. Its signature is one flowing calligraphic copper path that curves through negative space and vanishes at the clue. Show a dark half-open door; title «درِ باز» in Persian. Add the رد خاموش logo small. No octagonal frames, maps, grids, lenses, faces, or extra text."
+      },
+      "ar": {
+        "signature": "octagon_frame",
+        "background": "#1d1021",
+        "ink": "#f3ead8",
+        "accent": "#2bb5a8",
+        "rim": "#7fd9cf",
+        "forbidden": [
+          "lens circles",
+          "maps",
+          "tiles",
+          "faces",
+          "extra text"
+        ],
+        "prompt": "Create a restrained true-crime thumbnail in plum-black, ivory, and a small turquoise accent. Center one precise eight-sided evidence frame around a half-open door; break one segment of the frame at the door’s light gap. Add the أثر خفي logo small and title «الباب المفتوح» in Arabic. No lens circles, maps, tiles, faces, or extra text."
+      },
+      "de": {
+        "signature": "file_tab",
+        "background": "#e6dcc8",
+        "ink": "#2a2a2a",
+        "accent": "#b5482a",
+        "rim": "#2a2a2a",
+        "forbidden": [
+          "lens",
+          "octagon",
+          "decorative pattern",
+          "faces",
+          "extra text"
+        ],
+        "prompt": "Create a true-crime thumbnail styled as a clean paper case file: charcoal, paper beige, a rectangular file tab, simple floor plan, and one bold rust-red route ending at a half-open door. Add the Fallspur logo small and title “DIE OFFENE TÜR.” No lens, octagon, decorative pattern, faces, or extra text."
+      },
+      "es": {
+        "signature": "magnifier",
+        "background": "#561a2a",
+        "ink": "#f3e6cf",
+        "accent": "#ee6c5a",
+        "rim": "#f3e6cf",
+        "forbidden": [
+          "maps",
+          "grids",
+          "octagons",
+          "faces",
+          "extra text"
+        ],
+        "prompt": "Create a true-crime thumbnail in burgundy, warm cream, and coral. Make an oversized magnifying glass the signature: its lens enlarges the latch and gap of a half-open door. Add the Tras la Pista logo small and title “LA PUERTA ABIERTA.” No maps, grids, octagons, faces, or extra text."
+      },
+      "it": {
+        "signature": "doorway_arch",
+        "background": "#474a2c",
+        "ink": "#e0d8c4",
+        "accent": "#a14a3a",
+        "rim": "#e0d8c4",
+        "forbidden": [
+          "lens",
+          "route map",
+          "tiles",
+          "faces",
+          "extra text"
+        ],
+        "prompt": "Create a cinematic but credible true-crime thumbnail in olive, limestone, and muted brick. Use a tall foreground doorway to frame a second room and a half-open door beyond, with a narrow strip of light. Add the Tracce Nascoste logo small and title “LA PORTA APERTA.” No lens, route map, tiles, faces, or extra text."
+      },
+      "fr": {
+        "signature": "clipped_photo_compass",
+        "background": "#ece9e2",
+        "ink": "#34455c",
+        "accent": "#d8431f",
+        "rim": "#34455c",
+        "forbidden": [
+          "large lens",
+          "route map",
+          "octagon",
+          "decorative pattern",
+          "faces",
+          "extra text"
+        ],
+        "prompt": "Create a quiet investigative editorial thumbnail: pearl paper, slate-blue hairlines, a small vermilion compass arc, and one clipped documentary photo of a half-open door. Add the Pistes Cachées logo small and title “LA PORTE OUVERTE.” No large lens, route map, octagon, decorative pattern, faces, or extra text."
+      },
+      "pt": {
+        "signature": "offset_planes",
+        "background": "#1d5a55",
+        "ink": "#f0e4cc",
+        "accent": "#a8683a",
+        "rim": "#d9c3a0",
+        "forbidden": [
+          "tiles",
+          "maps",
+          "compasses",
+          "lenses",
+          "faces",
+          "extra text"
+        ],
+        "prompt": "True-Crime-Cover für Pistas Ocultas. Drei matte, überlappende Flächen in Atlantikgrün, warmem Sand und gedecktem Kupfer. Eine Fläche ist leicht versetzt und gibt durch einen schmalen Spalt den Blick auf eine halb offene Tür frei. Logo klein, Titel ‚A PORTA ABERTA‘. Klar, ruhig und dokumentarisch; keine Fliesen, Karten, Kompasse, Linsen, Gesichter oder zusätzlichen Texte. Einmal in 16:9 für Long Video, einmal in 9:16 für Shorts."
+      },
+      "tr": {
+        "signature": "woven_break",
+        "background": "#14414f",
+        "ink": "#ebe4d4",
+        "accent": "#b3203f",
+        "rim": "#cfc6b4",
+        "forbidden": [
+          "square tile grids",
+          "lens circles",
+          "maps",
+          "octagons",
+          "faces",
+          "extra text"
+        ],
+        "prompt": "Create a true-crime thumbnail with a tactile, angular woven pattern in petrol blue and stone, interrupted by one carmine path. Show a half-open door in the break in the weave. Add the Gizli İzler logo small and title “AÇIK KAPI.” Avoid square tile grids, lens circles, maps, octagons, faces, and extra text."
+      }
+    },
+    "avatar": {
+      "face_model": "data/models/face_detection_yunet_2023mar.onnx",
+      "face_model_sha256": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+      "face_model_source": "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx (OpenCV Zoo, MIT)",
+      "min_score": 0.6,
+      "host_area_share": 0.6,
+      "note": "The outfit images are the avatar in its studio (no transparent cut-out exists): the portrait is cropped around the host's face and set in the cover as a framed picture. `poses` are the standing poses to try, in order (the pose names differ between the outfits).",
+      "poses": [
+        "front",
+        "stand",
+        "standHand",
+        "standHand2"
+      ]
+    },
+    "layout": {
+      "long": {
+        "margin": 0.045,
+        "logo_height": 0.15,
+        "title": {
+          "x": 0.045,
+          "y": 0.12,
+          "width": 0.4,
+          "size": 0.115,
+          "max_lines": 2
+        },
+        "scene": {
+          "x": 0.47,
+          "y": 0.08,
+          "width": 0.5,
+          "height": 0.84
+        },
+        "avatar": {
+          "x": 0.045,
+          "y": 0.4,
+          "width": 0.2,
+          "height": 0.44,
+          "face_widths": 2.8
+        }
+      },
+      "short": {
+        "margin": 0.0556,
+        "logo_top": 0.135,
+        "logo_height": 0.07,
+        "title": {
+          "x": 0.0556,
+          "y": 0.215,
+          "width": 0.89,
+          "size": 0.05,
+          "max_lines": 3
+        },
+        "scene": {
+          "x": 0.08,
+          "y": 0.34,
+          "width": 0.84,
+          "height": 0.4
+        },
+        "avatar": {
+          "x": 0.5,
+          "y": 0.62,
+          "width": 0.4,
+          "height": 0.21,
+          "face_widths": 2.8
+        }
+      }
+    },
+    "min_title_contrast": 4.5
+  }
+}
