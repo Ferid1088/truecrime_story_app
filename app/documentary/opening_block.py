@@ -62,6 +62,8 @@ def opening_issues(opening: dict, story: HostStory, language: str, cfg: OpeningB
         return [{"type": "empty_hook", "fix": "Write the hook."}]
     if not context:
         return [{"type": "empty_context", "fix": "Write the context text."}]
+    if len([s for s in _SENTENCE_END.split(hook) if s.strip()]) > 1:
+        issues.append({"type": "hook_not_one_statement", "fix": "The hook is ONE statement, one sentence: no narrator's words around it ('he said', 'the man on the phone'), nothing added."})
     limit = hook_max_words(language, cfg)
     if len(hook.split()) > limit:
         issues.append({"type": "hook_too_long", "words": len(hook.split()), "max": limit, "fix": f"The hook has at most {limit} words: one strong statement."})

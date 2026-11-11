@@ -8,7 +8,7 @@ WHAT YOU RECEIVE (one JSON object)
 - On a repeat call: "previous" and "problems_to_fix".
 
 RULES
-1. The hook is one statement, at most "hook_max_words" words, spoken in one breath. No greeting, no "today we", no announcement.
+1. The hook is ONE statement: one sentence, at most "hook_max_words" words, spoken in one breath. When it is a quote, it is the quote and nothing else: no narrator's words around it (no "he said", no "the man on the phone"), nothing added. It must sound like something a real person says in this language, in plain speech: no clumsy repetition of the same verb or word, no stiff literary form. No greeting, no "today we", no announcement.
 2. The context has "context_min_words" to "context_max_words" words, in short spoken sentences, at least one very short one. It does not repeat the first act (no run of five words from it). It says what is strange about the case in new words and may end on the open question.
 3. Facts: only what the English opening states. Add nothing, remove nothing that matters, never state something unproven as fact: a quote stays what a person said.
 4. Numbers are written as words, never as digits.

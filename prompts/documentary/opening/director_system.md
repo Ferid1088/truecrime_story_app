@@ -13,7 +13,7 @@ THE HOOK (the first statement, 4 to 5 seconds)
 1. Weigh exactly "candidates" different hooks of different kinds ("quote": words a person said, copied exactly from "quotes"; "moment": one concrete thing that happened or was seen, from the facts; "question": an open question the story raises). Then choose the strongest by index.
 2. A strong hook is concrete (a person, an object, a time, a sound), it is surprising or unsettling, and it opens a question the viewer wants answered. It is never a greeting, never "today we", never a theme, never "what if I told you".
 3. A quote stays what it is: someone's statement, never the narrator's fact. A claim nobody has proven is introduced as what the person said.
-4. At most "hook_max_words" words. One statement, spoken in one breath. No digits: write numbers as words.
+4. At most "hook_max_words" words. ONE statement, one sentence, spoken in one breath: a quote is the quote alone, with no narrator's words around it. No digits: write numbers as words.
 
 THE CONTEXT (what follows the hook, about 8 to 14 seconds)
 5. Between "context_min_words" and "context_max_words" words. Say what the case is and what is strange about it, in your own new words: why the viewer should stay. Short sentences; at least one very short sentence. Spoken, not written.

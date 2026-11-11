@@ -31,6 +31,12 @@ def test_a_greeting_digits_and_a_later_detail_are_refused():
     assert {"greeting", "numbers_as_digits", "tells_what_comes_later"} <= codes(issues)
 
 
+def test_the_hook_is_one_statement_without_a_narrators_tag():
+    tagged = '"Someone broke into my house and shot my wife." The man on the phone said so.'
+    assert "hook_not_one_statement" in codes(OB.opening_issues({"hook": tagged, "context": GOOD_CONTEXT}, story(), "en"))
+    assert "hook_not_one_statement" not in codes(OB.opening_issues({"hook": GOOD_HOOK, "context": GOOD_CONTEXT}, story(), "en"))
+
+
 def test_the_limits_follow_the_language():
     long_hook = " ".join(["word"] * 40)
     assert "hook_too_long" in codes(OB.opening_issues({"hook": long_hook, "context": GOOD_CONTEXT}, story(), "en"))
