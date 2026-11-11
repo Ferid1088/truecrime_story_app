@@ -346,6 +346,14 @@
         }
       }
     },
-    "min_title_contrast": 4.5
+    "min_title_contrast": 4.5,
+    "proposal": {
+      "min_confidence": 0.6,
+      "repairs": 2,
+      "reason_max_words": 40,
+      "description_chars": 200,
+      "max_candidates": 30,
+      "knowledge": "before_payoff"
+    }
   }
 }

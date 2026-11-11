@@ -95,6 +95,7 @@ REQUIRED_ROLES = {
     "opening_native_writer",
     "short_clip_director",
     "short_clip_native_writer",
+    "cover_planner",
     "host_writer",
     "host_writer_fa_ar",
     "host_critic",
@@ -3503,6 +3504,7 @@ class CoversConfig(BaseModel):
     title: dict[str, int]
     scene: dict
     fallback_image: dict
+    proposal: dict
     avatar: dict
     layout: dict[str, dict]
     min_title_contrast: float = Field(gt=1.0)

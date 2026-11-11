@@ -2457,6 +2457,30 @@ class ShortClip(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class CoverProposal(Base):
+    """The title and the scene of one cover of one language of a case (`cover_key` "long" or a clip key C1 to C5). The newest row of a key is the current one. The
+    cover planner writes a row (source "agent"); the owner's change is a newer row (source "owner"). `status`: proposed (the planner chose a scene it is sure of),
+    open (no scene or too little certainty: the owner chooses), approved, skipped. Nothing is approved by the planner."""
+
+    __tablename__ = "cover_proposals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20), index=True)
+    cover_key: Mapped[str] = mapped_column(String(10), index=True)
+    kind: Mapped[str] = mapped_column(String(10))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    source: Mapped[str] = mapped_column(String(10), default="agent")
+    status: Mapped[str] = mapped_column(String(20), default="proposed", index=True)
+    title: Mapped[str] = mapped_column(String(300), default="")
+    scene_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reason: Mapped[str] = mapped_column(Text, default="")
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
 class HostMemory(Base):
     """What the host remembers across episodes: opinions, reactions,
     corrections, unresolved questions and recurring themes — each tied to

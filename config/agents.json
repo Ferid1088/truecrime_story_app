@@ -720,6 +720,13 @@
       "output": "json",
       "description": "After a Persian narration block is voiced (and after its avatar video is made): listens to the audio and judges meaning, dates, numbers, names, pronunciation and delivery against the source text.",
       "used_by": "app/documentary/semantic_review.py"
+    },
+    "cover_planner": {
+      "role": "cover_planner",
+      "prompt": null,
+      "output": "json",
+      "description": "Writes the title of the film's cover and of each short's cover in one language and chooses for each the scene (a picture the film shows) that fits it, with a reason and its certainty.",
+      "used_by": "app/covers/agents.py"
     }
   }
 }

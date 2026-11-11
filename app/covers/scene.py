@@ -62,6 +62,13 @@ def reject_reason(asset, kind: str, late: set[str]) -> str | None:
     return None
 
 
+def what_it_shows(asset) -> str:
+    """The words that tell the planner what a picture shows (its description, caption or what the verification saw), cut to the configured length."""
+    seen = json.loads(asset.verification_json or "{}").get("depicts")
+    text = " ".join(str(x).strip() for x in (asset.description, asset.caption, seen) if x and str(x).strip())
+    return text[:ai_config.covers_settings().proposal["description_chars"]]
+
+
 def candidates(db: Session, case: Case, language: str) -> list[dict]:
     """The usable scene pictures: {code, kind, path, width, height}, best first (by what they show, then in the order the film shows them)."""
     shown = shown_codes(db, case.id, language)
@@ -71,7 +78,7 @@ def candidates(db: Session, case: Case, language: str) -> list[dict]:
         kind = S.asset_kind(asset)
         if reject_reason(asset, kind, late) is None and asset.local_path and storage.resolve(asset.local_path).exists():
             usable.append({"code": asset.asset_code, "kind": kind, "path": storage.resolve(asset.local_path), "width": asset.width, "height": asset.height,
-                           "order": shown.index(asset.asset_code)})
+                           "order": shown.index(asset.asset_code), "what": what_it_shows(asset)})
     return sorted(usable, key=lambda c: (ai_config.thumbnail.subject_priority.get(c["kind"], 9), c["order"]))
 
 
