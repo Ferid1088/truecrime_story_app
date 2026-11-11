@@ -3666,6 +3666,16 @@ export type BlockReviewReplace = { applied: false; blocks_found: number; places_
 
 export type CoverStatus = "proposed" | "open" | "approved" | "skipped";
 
+export interface CoverImageInfo {
+  id: number;
+  url: string;
+  attempt: number;
+  cost_usd: number | null;
+  cost_eur: number | null;
+  duration_s: number;
+  image_tokens_out: number | null;
+}
+
 export interface CoverItem {
   id: number;
   key: string;
@@ -3674,29 +3684,54 @@ export interface CoverItem {
   source: "agent" | "owner";
   status: CoverStatus;
   title: string;
-  scene_code: string | null;
+  scene_prompt: string;
+  image: CoverImageInfo | null;
   confidence: number | null;
   reason: string;
-  validation: { issues?: { type: string; fix?: string }[]; suggested_scene?: string | null };
+  validation: { issues?: { type: string; fix?: string }[] };
   preview_url: string | null;
   approved_url: string | null;
   problems?: string[];
 }
 
-export interface CoverCandidate {
-  code: string;
-  kind: string;
-  what: string;
-  image_url: string;
+export interface CoverCostRow {
+  id: number;
+  cover_key: string;
+  attempt: number;
+  ok: boolean;
+  error: string | null;
+  text_tokens_in: number | null;
+  image_tokens_in: number | null;
+  text_tokens_out: number | null;
+  image_tokens_out: number | null;
+  cost_usd: number | null;
+  cost_eur: number | null;
+  cost_source: string | null;
+  duration_s: number;
+}
+
+export interface CoverCosts {
+  model: string;
+  attempts: number;
+  pictures: number;
+  failed: number;
+  image_tokens_out: number;
+  text_tokens_in: number;
+  cost_usd: number;
+  cost_eur: number;
+  seconds: number;
+  estimated: boolean;
+  rate_status: string;
+  rows: CoverCostRow[];
 }
 
 export interface CoversOverview {
   case_id: number;
   language: string;
-  theme: string;
+  look: string;
   expected: number;
   covers: CoverItem[];
-  candidates: CoverCandidate[];
+  costs: CoverCosts;
   platform_cover_ways: Record<string, string>;
   safe_zones: string;
 }

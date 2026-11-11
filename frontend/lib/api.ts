@@ -613,8 +613,10 @@ export const api = {
   covers: (caseId: number, language: string) => request<CoversOverview>(`/api/cases/${caseId}/covers/${language}`),
   proposeCovers: (caseId: number, language: string) =>
     request<CoversOverview>(`/api/cases/${caseId}/covers/${language}/propose`, { method: "POST", body: "{}", timeoutMs: 600_000 }),
-  changeCover: (caseId: number, language: string, key: string, body: { title?: string; scene_code?: string; clear_scene?: boolean }) =>
+  changeCover: (caseId: number, language: string, key: string, body: { title?: string; scene?: string }) =>
     put<CoverItem>(`/api/cases/${caseId}/covers/${language}/${key}`, body),
+  makeCoverImage: (caseId: number, language: string, key: string, again = false) =>
+    request<CoverItem>(`/api/cases/${caseId}/covers/${language}/${key}/image`, { method: "POST", body: JSON.stringify({ again }), timeoutMs: 900_000 }),
   previewCover: (caseId: number, language: string, key: string) => post<CoverItem>(`/api/cases/${caseId}/covers/${language}/${key}/preview`),
   approveCover: (caseId: number, language: string, key: string) => post<CoverItem>(`/api/cases/${caseId}/covers/${language}/${key}/approve`),
   skipCover: (caseId: number, language: string, key: string) => post<CoverItem>(`/api/cases/${caseId}/covers/${language}/${key}/skip`),

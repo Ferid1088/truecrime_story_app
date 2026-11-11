@@ -2,30 +2,32 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, apiFileUrl } from "@/lib/api";
-import type { CoverCandidate, CoverItem, CoversOverview, CoversSummary } from "@/lib/types";
+import type { CoverCosts, CoverItem, CoversOverview, CoversSummary } from "@/lib/types";
 import { langLabel } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/state";
 import { LanguagePicker, type LanguageTabProps } from "../shared";
 
 const STATUS_VARIANT = { proposed: "info", open: "warning", approved: "success", skipped: "default" } as const;
 const KEY_LABEL = (key: string) => (key === "long" ? "Film cover (16:9)" : `Short ${key} cover (9:16)`);
+const usd = (value: number | null | undefined) => (value == null ? "not priced" : `$${value.toFixed(4)}`);
 
-/** One cover: its title, its scene among the film's pictures, the preview, and the decision. Nothing is approved before its preview has been looked at. */
-function CoverCard({ caseId, language, cover, candidates, onChanged }: { caseId: number; language: string; cover: CoverItem; candidates: CoverCandidate[]; onChanged: () => void }) {
+/** One cover: its title, the scene description the image model paints, the picture, the preview and the decision. Nothing is approved before its preview has been looked at. */
+function CoverCard({ caseId, language, cover, onChanged }: { caseId: number; language: string; cover: CoverItem; onChanged: () => void }) {
   const [title, setTitle] = useState(cover.title);
-  const [busy, setBusy] = useState(false);
+  const [scene, setScene] = useState(cover.scene_prompt);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
   const rtl = language === "fa" || language === "ar";
   const shown = cover.status === "approved" ? cover.approved_url : cover.preview_url;
-  const suggested = cover.validation.suggested_scene;
 
-  const run = async (call: () => Promise<CoverItem>) => {
-    setBusy(true);
+  const run = async (what: string, call: () => Promise<CoverItem>) => {
+    setBusy(what);
     setError(null);
     try {
       const result = await call();
@@ -34,9 +36,10 @@ function CoverCard({ caseId, language, cover, candidates, onChanged }: { caseId:
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
+  const working = busy != null;
 
   return (
     <Card data-testid={`cover-${cover.key}`}>
@@ -51,35 +54,37 @@ function CoverCard({ caseId, language, cover, candidates, onChanged }: { caseId:
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2">
           <Input value={title} dir={rtl ? "rtl" : "ltr"} onChange={(e) => setTitle(e.target.value)} aria-label={`Title of ${KEY_LABEL(cover.key)}`} className="max-w-sm" />
-          <Button size="sm" variant="secondary" disabled={busy || title.trim() === cover.title} onClick={() => run(() => api.changeCover(caseId, language, cover.key, { title }))}>
+          <Button size="sm" variant="secondary" disabled={working || title.trim() === cover.title} onClick={() => run("title", () => api.changeCover(caseId, language, cover.key, { title }))}>
             Save title
           </Button>
         </div>
-        {cover.reason && <p dir="auto" className="text-xs text-muted-foreground">Why this picture: {cover.reason}</p>}
-        {suggested && cover.scene_code == null && <p className="text-xs text-amber-700 dark:text-amber-400">The planner was unsure about {suggested}: choose a scene yourself.</p>}
+        <div className="space-y-2">
+          <Textarea value={scene} onChange={(e) => setScene(e.target.value)} rows={2} aria-label={`Scene of ${KEY_LABEL(cover.key)}`} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="secondary" disabled={working || scene.trim() === cover.scene_prompt} onClick={() => run("scene", () => api.changeCover(caseId, language, cover.key, { scene }))}>
+              Save scene
+            </Button>
+            <span className="text-xs text-muted-foreground">The image model paints this scene (no people, no weapons). A new scene needs a new picture.</span>
+          </div>
+        </div>
+        {cover.reason && <p dir="auto" className="text-xs text-muted-foreground">Why this scene: {cover.reason}</p>}
         {(cover.validation.issues ?? []).length > 0 && <p className="text-xs text-rose-600">Checks: {(cover.validation.issues ?? []).map((i) => i.type).join(", ")}</p>}
 
-        <div role="radiogroup" aria-label="Scene" className="flex flex-wrap gap-2">
-          {candidates.map((c) => (
-            <button
-              key={c.code}
-              type="button"
-              role="radio"
-              aria-checked={cover.scene_code === c.code}
-              aria-label={`Scene ${c.code}: ${c.what}`}
-              title={c.what}
-              disabled={busy}
-              onClick={() => run(() => api.changeCover(caseId, language, cover.key, { scene_code: c.code }))}
-              className={`h-16 w-24 overflow-hidden rounded border-2 ${cover.scene_code === c.code ? "border-indigo-500" : "border-transparent"}`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={apiFileUrl(c.image_url)} alt={c.what} className="h-full w-full object-cover" />
-            </button>
-          ))}
-          {candidates.length === 0 && <span className="text-xs text-muted-foreground">No picture of this film can be a scene.</span>}
-          {cover.scene_code != null && (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => api.changeCover(caseId, language, cover.key, { clear_scene: true }))}>No scene</Button>
+        <div className="flex flex-wrap items-center gap-3">
+          {cover.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={apiFileUrl(cover.image.url)} alt={`Scene of ${KEY_LABEL(cover.key)}`} className="h-28 rounded border" />
+          ) : (
+            <span className="text-xs text-muted-foreground">No picture yet.</span>
           )}
+          {cover.image && (
+            <span className="text-xs text-muted-foreground" data-testid={`cover-${cover.key}-cost`}>
+              {usd(cover.image.cost_usd)} estimated · {cover.image.image_tokens_out} image tokens · {cover.image.duration_s} s · attempt {cover.image.attempt}
+            </span>
+          )}
+          <Button size="sm" variant="secondary" disabled={working || !cover.scene_prompt} onClick={() => run("image", () => api.makeCoverImage(caseId, language, cover.key, cover.image != null))}>
+            {busy === "image" ? "Painting…" : cover.image ? "Make the picture again (paid)" : "Make the picture (paid)"}
+          </Button>
         </div>
 
         {shown && (
@@ -90,16 +95,43 @@ function CoverCard({ caseId, language, cover, candidates, onChanged }: { caseId:
         {error && <p role="alert" className="text-xs text-rose-600">{error}</p>}
 
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" disabled={busy || !cover.scene_code || !cover.title} onClick={() => run(() => api.previewCover(caseId, language, cover.key))}>Preview</Button>
-          <Button size="sm" disabled={busy || cover.status === "approved" || !cover.preview_url} onClick={() => run(() => api.approveCover(caseId, language, cover.key))}>Approve</Button>
-          <Button size="sm" variant="ghost" disabled={busy || cover.status === "skipped"} onClick={() => run(() => api.skipCover(caseId, language, cover.key))}>Skip</Button>
+          <Button size="sm" variant="secondary" disabled={working || !cover.image || !cover.title} onClick={() => run("preview", () => api.previewCover(caseId, language, cover.key))}>Preview</Button>
+          <Button size="sm" disabled={working || cover.status === "approved" || !cover.preview_url} onClick={() => run("approve", () => api.approveCover(caseId, language, cover.key))}>Approve</Button>
+          <Button size="sm" variant="ghost" disabled={working || cover.status === "skipped"} onClick={() => run("skip", () => api.skipCover(caseId, language, cover.key))}>Skip</Button>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-/** The cover review: for each language the film's cover and one cover for each short, with the planner's title and scene to change, preview, approve or skip. Only approved covers go into the upload plan. */
+/** What the pictures of a language cost so far, from the attempts the app recorded (an estimate: the gateway reports tokens but no price). */
+function CostBook({ costs }: { costs: CoverCosts }) {
+  return (
+    <details className="text-xs" data-testid="cover-costs">
+      <summary className="cursor-pointer">
+        Cost book: {costs.pictures} pictures, {usd(costs.cost_usd)} (≈ €{costs.cost_eur.toFixed(4)}), {costs.image_tokens_out} image tokens, {costs.seconds} s, {costs.failed} failed attempts
+      </summary>
+      <p className="mt-1 text-muted-foreground">
+        Model {costs.model}. Estimated from the output image tokens at the configured rate ({costs.rate_status}); input tokens are recorded but not priced.
+      </p>
+      <table className="mt-1 w-full text-left">
+        <thead>
+          <tr><th>Cover</th><th>Try</th><th>Result</th><th>Text in</th><th>Image in</th><th>Image out</th><th>USD</th><th>Seconds</th></tr>
+        </thead>
+        <tbody>
+          {costs.rows.map((r) => (
+            <tr key={r.id}>
+              <td>{r.cover_key}</td><td>{r.attempt}</td><td>{r.ok ? "ok" : (r.error ?? "failed").slice(0, 40)}</td><td>{r.text_tokens_in ?? "–"}</td><td>{r.image_tokens_in ?? "–"}</td>
+              <td>{r.image_tokens_out ?? "–"}</td><td>{usd(r.cost_usd)}</td><td>{r.duration_s}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
+  );
+}
+
+/** The cover review: for each language the film's cover and one cover for each short, with the planner's title and scene to change, the picture the image model paints, preview, approve or skip. Only approved covers go into the upload plan. */
 export function CoversTab({ caseId, settings, language, onLanguageChange, refreshKey }: LanguageTabProps) {
   const [data, setData] = useState<CoversOverview | null>(null);
   const [summary, setSummary] = useState<CoversSummary | null>(null);
@@ -143,7 +175,7 @@ export function CoversTab({ caseId, settings, language, onLanguageChange, refres
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p className="text-muted-foreground">
-            A film cover and one cover for each short. The planner proposes a title and a picture of the film; nothing is approved until you do it. Only approved covers go into the upload plan.
+            A film cover and one cover for each short. The planner proposes a title and a scene; the image model paints the scene when you press the button (it costs); the logo, title and avatar are added in code. Nothing is approved until you do it. Only approved covers go into the upload plan.
           </p>
           {mine && summary && (
             <p data-testid="covers-counts">
@@ -151,6 +183,7 @@ export function CoversTab({ caseId, settings, language, onLanguageChange, refres
               All languages: {total} approved.
             </p>
           )}
+          {data && <CostBook costs={data.costs} />}
           {data && <p className="text-xs text-amber-700 dark:text-amber-400">Platform cover ways and safe zones are still marked &quot;to test&quot; ({data.safe_zones}): no real upload has confirmed them.</p>}
           <Button size="sm" onClick={propose} disabled={busy}>{busy ? "Planning…" : data && data.covers.length > 0 ? "Plan again" : "Plan the covers"}</Button>
           {error && <p role="alert" className="text-xs text-rose-600">{error}</p>}
@@ -159,7 +192,7 @@ export function CoversTab({ caseId, settings, language, onLanguageChange, refres
       {data && data.covers.length === 0 ? (
         <EmptyState title="No covers planned yet" description="Plan the covers once this language has its short clips." />
       ) : (
-        data?.covers.map((cover) => <CoverCard key={`${cover.key}-${cover.id}`} caseId={caseId} language={language} cover={cover} candidates={data.candidates} onChanged={load} />)
+        data?.covers.map((cover) => <CoverCard key={`${cover.key}-${cover.id}`} caseId={caseId} language={language} cover={cover} onChanged={load} />)
       )}
     </div>
   );
