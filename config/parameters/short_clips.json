@@ -61,12 +61,12 @@
         "stroke_fraction": 0.09
       },
       "music": {
-        "volume": 0.16,
+        "volume": 0.2,
         "duck": 0.55,
         "fade_in": 0.8,
         "fade_out": 1.2,
         "generated_seconds": 22,
-        "prompt": "Instrumental bed for a short true-crime clip: dark, minimal, slow pulsing low synth with a faint tense texture, no melody, no drums that compete with a speaking voice, no vocals"
+        "prompt": "Tense suspense bed for a short true-crime clip: a low pulsing heartbeat-like synth pulse and a faint ticking clock, tight dissonant string tremolo slowly rising, dark and anxious, building unease and dread, never calm or soothing, restrained enough to sit under a speaking voice, no melody, no loud drums, no vocals"
       },
       "pictures_max": 6,
       "crf": 20,
