@@ -1,23 +1,19 @@
-"""The covers of one language of a case: the long cover and the cover of each short clip, with the files and a manifest of what each is made of.
+"""The pieces of a cover: the folder of a language's covers, the avatar of the film's outfit and the drawing of one cover from its proposal.
 
-The avatar is the host of the film's outfit, the scenes are real pictures of the film, the titles are given (2 to 4 words, in the language), the theme is the
-language's. The files are in data/covers/<case>/<language>/ (long.jpg, short_<clip key>.jpg, manifest.json). Which of the platforms' cover ways work is marked
-"to_test" in the configuration and in the manifest until a real upload has shown it."""
+The avatar is the host of the film's outfit, the scene is the picture the image model made for the cover, the title is the cover's (1 to 4 words, in the language)."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.db.models import Case, CoverProposal
-from app.documentary import outfits as OF
-from app.documentary import storage
 from app.covers import avatar as AV
 from app.covers import compose as C
-from app.covers import scene as SC
+from app.db.models import Case, CoverImage, CoverProposal
+from app.documentary import outfits as OF
+from app.documentary import storage
 from app.thumbnails import hosts as H
 
 
@@ -56,36 +52,11 @@ def portrait_for(kind: str, avatar_image: Path):
 
 
 def render_cover(db: Session, case: Case, language: str, row: CoverProposal, out: Path, *, scale: float) -> dict:
-    """One cover drawn from a proposal row (its title and its scene; the scene must still be one the film shows). The same drawing as make_covers."""
-    if not row.title or not row.scene_code:
-        raise C.CoverError("the cover needs a title and a scene")
-    scene = next((o for o in SC.candidates(db, case, language) if o["code"] == row.scene_code), None)
-    if scene is None:
-        raise SC.SceneMissing(f"{row.scene_code} is not a scene the {language} film shows")
+    """One cover drawn from a proposal row: its title over the scene picture made for it."""
+    if not row.title or row.image_id is None:
+        raise C.CoverError("the cover needs a title and its scene picture first")
+    image = db.get(CoverImage, row.image_id)
+    if image is None or not image.file_path:
+        raise C.CoverError("the scene picture of this cover is missing")
     _outfit, avatar_image = film_avatar(db, case.id, language)
-    return C.compose(row.kind, language, scene["path"], portrait_for(row.kind, avatar_image), storage.ROOT / ai_config.channels[language].logo, row.title, out, scale=scale)
-
-
-def make_covers(db: Session, case: Case, language: str, long_title: str, short_titles: dict[str, str], *, scale: float = 1.0) -> dict:
-    """The long cover and one cover for each short clip (`short_titles` maps a clip key to its title; at most `shorts_per_episode`). Raises when a title is
-    refused, no scene or no avatar can be found; nothing is written then."""
-    cfg = ai_config.covers_settings()
-    if len(short_titles) > cfg.shorts_per_episode:
-        raise C.CoverError(f"{len(short_titles)} short covers asked, a film has {cfg.shorts_per_episode} shorts")
-    for text in (long_title, *short_titles.values()):
-        if problems := C.title_issues(text):
-            raise C.CoverError(f"{text!r}: {problems[0]}")
-    outfit, avatar_image = film_avatar(db, case.id, language)
-    logo = storage.ROOT / ai_config.channels[language].logo
-    scenes = SC.pick(SC.candidates(db, case, language), 1 + len(short_titles))
-    folder = covers_dir(case.id, language)
-    portraits = {kind: portrait_for(kind, avatar_image) for kind in ("long", "short")}
-    items = [("long", "long", long_title, scenes[0])] + [("short", f"short_{key}", text, scenes[i + 1]) for i, (key, text) in enumerate(sorted(short_titles.items()))]
-    made = {}
-    for kind, name, text, scene in items:
-        made[name] = {**C.compose(kind, language, scene["path"], portraits[kind], logo, text, folder / f"{name}.jpg", scale=scale), "title": text,
-                      "scene": {k: scene[k] for k in ("code", "kind", "reused")}, "file": storage.rel(folder / f"{name}.jpg")}
-    manifest = {"case_id": case.id, "language": language, "outfit_id": outfit, "avatar_image": storage.rel(avatar_image), "theme": cfg.themes[language].signature, "covers": made,
-                "safe_zones": cfg.safe_zones["status"], "platform_cover_ways": {k: v.get("cover_status") for k, v in cfg.platforms.items()}}
-    storage.write_atomic(folder / "manifest.json", json.dumps(manifest, ensure_ascii=False, indent=1))
-    return manifest
+    return C.compose(row.kind, language, storage.resolve(image.file_path), portrait_for(row.kind, avatar_image), storage.ROOT / ai_config.channels[language].logo, row.title, out, scale=scale)

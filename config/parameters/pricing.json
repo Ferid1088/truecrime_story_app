@@ -161,5 +161,18 @@
     "verified": false,
     "verification_note": "Secondary sources (not ElevenLabs official docs) disagree: USD 0.12-0.30 per minute depending on source and whether sound-generation or Eleven Music v1/v2 is meant. assumed_eur_per_minute uses the high bound (EUR 0.27/min) so bookings never under-report; every row is estimated=true with cost_source=assumed-unverified until a real wallet-balance before/after measurement (same method as heygen.eur_per_minute) sets a verified rate.",
     "source_url": null
+  },
+  "image_models": {
+    "gpt-image-2.6-flare": {
+      "provider_model": "GPT Image 2.6 Flare via the APIMaster gateway (POST /v1/images/generations)",
+      "output_image_usd_per_1m_tokens": 30.0,
+      "text_input_usd_per_1m_tokens": null,
+      "image_input_usd_per_1m_tokens": null,
+      "currency": "USD",
+      "source_url": "owner's message 2026-11-11 (OpenAI price list for GPT Image 2.6 Flare); the gateway's own invoice rate is not confirmed",
+      "last_verified": "2026-11-11",
+      "verification_status": "unverified",
+      "note": "Only the output image tokens are priced; input tokens (text and image) have no confirmed rate, so they are recorded but not priced. Every booking is an estimate (estimated=true, cost_source assumed-unverified) until a real balance before/after measurement confirms the rate."
+    }
   }
 }

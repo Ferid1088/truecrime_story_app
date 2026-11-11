@@ -3483,6 +3483,7 @@ class CoverFormatConfig(BaseModel):
 class CoverThemeConfig(BaseModel):
     """The look of one language's channel, kept from film to film: the `signature` (how the scene is framed), the colours, what it never shows, and the owner's one-shot `prompt`."""
 
+    look: str
     signature: Literal["spotlight_circle", "copper_path", "octagon_frame", "file_tab", "magnifier", "doorway_arch", "clipped_photo_compass", "offset_planes", "woven_break"]
     background: str
     ink: str
@@ -3503,7 +3504,7 @@ class CoversConfig(BaseModel):
     platforms: dict[str, dict]
     title: dict[str, int]
     scene: dict
-    fallback_image: dict
+    scene_image: dict
     proposal: dict
     avatar: dict
     layout: dict[str, dict]

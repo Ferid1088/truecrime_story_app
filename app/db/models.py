@@ -2473,11 +2473,43 @@ class CoverProposal(Base):
     source: Mapped[str] = mapped_column(String(10), default="agent")
     status: Mapped[str] = mapped_column(String(20), default="proposed", index=True)
     title: Mapped[str] = mapped_column(String(300), default="")
-    scene_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    scene_prompt: Mapped[str] = mapped_column(Text, default="")
+    image_id: Mapped[int | None] = mapped_column(ForeignKey("cover_images.id"), nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     reason: Mapped[str] = mapped_column(Text, default="")
     validation_json: Mapped[str] = mapped_column(Text, default="{}")
     generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class CoverImage(Base):
+    """One attempt to make the scene picture of a cover with the image model: the prompt, what the model reported (tokens of text and image, in and out), the runtime,
+    the cost booked in the ledger (an estimate until the gateway's rate is confirmed) and the file. A failed attempt is kept with its error."""
+
+    __tablename__ = "cover_images"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20), index=True)
+    cover_key: Mapped[str] = mapped_column(String(10), index=True)
+    proposal_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    attempt: Mapped[int] = mapped_column(Integer, default=1)
+    model: Mapped[str] = mapped_column(String(100))
+    size: Mapped[str] = mapped_column(String(20))
+    prompt: Mapped[str] = mapped_column(Text, default="")
+    ok: Mapped[bool] = mapped_column(Boolean, default=False)
+    error: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    file_path: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    text_tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    image_tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    text_tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    image_tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cost_eur: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cost_source: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    provider_call_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 

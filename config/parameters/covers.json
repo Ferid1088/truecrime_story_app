@@ -85,22 +85,8 @@
       "max_words": 4
     },
     "scene": {
-      "prefer": "case_picture_of_the_film",
-      "min_px": [
-        900,
-        600
-      ],
-      "frame_seconds": [
-        1.0,
-        0.5
-      ],
-      "forbidden_kinds": [
-        "victim",
-        "suspect",
-        "person"
-      ],
-      "note": "The scene is a real picture the finished film shows (or a frame of a clip it shows): never an invented evidence, victim, suspect or crime-scene detail.",
-      "person_terms": [
+      "source": "generated",
+      "forbidden_terms": [
         "person",
         "people",
         "man ",
@@ -109,35 +95,26 @@
         "women",
         "couple",
         "portrait",
-        "suspect",
+        "face",
+        "faces",
+        "body",
+        "corpse",
         "victim",
-        "officer",
-        "police officer",
-        "detective",
-        "family",
+        "suspect",
+        "blood",
+        "gore",
+        "wound",
+        "weapon",
+        "gun",
+        "pistol",
+        "knife",
         "child",
         "boy",
         "girl",
-        "face",
-        "mugshot",
-        "arrest",
-        "body cam",
-        "bodycam",
-        "witness",
-        "neighbor",
-        "wife",
-        "husband",
-        "mother",
-        "father",
-        "son ",
-        "daughter"
-      ]
-    },
-    "fallback_image": {
-      "enabled": false,
-      "model": "gpt-image-2.6-flare",
-      "max_images_per_scene": 1,
-      "note": "A configurable fallback for a scene that no picture of the film can give. Off until the model is verified in the gateway; at most one image per scene, never one per logo or title."
+        "police officer",
+        "mugshot"
+      ],
+      "note": "The scene is a symbolic picture made by the image model (a door, a lock, a house, an object): never a person, a victim, a suspect, a weapon or a made-up piece of evidence."
     },
     "themes": {
       "en": {
@@ -154,7 +131,8 @@
           "gore",
           "extra text"
         ],
-        "prompt": "Create a restrained true-crime thumbnail in midnight navy with one circular cool-white spotlight isolating the clue and a thin signal-red pointer line. Show a slightly open door; the circle catches its narrow gap. Add the ClueVera logo small and the title “THE OPEN DOOR.” No maps, grids, ornate frames, faces, gore, or extra text."
+        "prompt": "Create a restrained true-crime thumbnail in midnight navy with one circular cool-white spotlight isolating the clue and a thin signal-red pointer line. Show a slightly open door; the circle catches its narrow gap. Add the ClueVera logo small and the title “THE OPEN DOOR.” No maps, grids, ornate frames, faces, gore, or extra text.",
+        "look": "midnight navy with one circular cool-white spotlight isolating the clue; restrained and documentary"
       },
       "fa": {
         "signature": "copper_path",
@@ -170,7 +148,8 @@
           "faces",
           "extra text"
         ],
-        "prompt": "Create a restrained true-crime thumbnail in deep blue-green, ivory, and copper. Its signature is one flowing calligraphic copper path that curves through negative space and vanishes at the clue. Show a dark half-open door; title «درِ باز» in Persian. Add the رد خاموش logo small. No octagonal frames, maps, grids, lenses, faces, or extra text."
+        "prompt": "Create a restrained true-crime thumbnail in deep blue-green, ivory, and copper. Its signature is one flowing calligraphic copper path that curves through negative space and vanishes at the clue. Show a dark half-open door; title «درِ باز» in Persian. Add the رد خاموش logo small. No octagonal frames, maps, grids, lenses, faces, or extra text.",
+        "look": "deep blue-green, ivory and copper; one flowing calligraphic copper path curving through negative space and vanishing at the clue"
       },
       "ar": {
         "signature": "octagon_frame",
@@ -185,7 +164,8 @@
           "faces",
           "extra text"
         ],
-        "prompt": "Create a restrained true-crime thumbnail in plum-black, ivory, and a small turquoise accent. Center one precise eight-sided evidence frame around a half-open door; break one segment of the frame at the door’s light gap. Add the أثر خفي logo small and title «الباب المفتوح» in Arabic. No lens circles, maps, tiles, faces, or extra text."
+        "prompt": "Create a restrained true-crime thumbnail in plum-black, ivory, and a small turquoise accent. Center one precise eight-sided evidence frame around a half-open door; break one segment of the frame at the door’s light gap. Add the أثر خفي logo small and title «الباب المفتوح» in Arabic. No lens circles, maps, tiles, faces, or extra text.",
+        "look": "plum-black and ivory with a small turquoise accent; one precise eight-sided evidence frame around the clue, broken by the light"
       },
       "de": {
         "signature": "file_tab",
@@ -200,7 +180,8 @@
           "faces",
           "extra text"
         ],
-        "prompt": "Create a true-crime thumbnail styled as a clean paper case file: charcoal, paper beige, a rectangular file tab, simple floor plan, and one bold rust-red route ending at a half-open door. Add the Fallspur logo small and title “DIE OFFENE TÜR.” No lens, octagon, decorative pattern, faces, or extra text."
+        "prompt": "Create a true-crime thumbnail styled as a clean paper case file: charcoal, paper beige, a rectangular file tab, simple floor plan, and one bold rust-red route ending at a half-open door. Add the Fallspur logo small and title “DIE OFFENE TÜR.” No lens, octagon, decorative pattern, faces, or extra text.",
+        "look": "a clean paper case file in charcoal, paper beige and rust red: a rectangular file tab, a simple floor plan and one bold rust-red route ending at the clue"
       },
       "es": {
         "signature": "magnifier",
@@ -215,7 +196,8 @@
           "faces",
           "extra text"
         ],
-        "prompt": "Create a true-crime thumbnail in burgundy, warm cream, and coral. Make an oversized magnifying glass the signature: its lens enlarges the latch and gap of a half-open door. Add the Tras la Pista logo small and title “LA PUERTA ABIERTA.” No maps, grids, octagons, faces, or extra text."
+        "prompt": "Create a true-crime thumbnail in burgundy, warm cream, and coral. Make an oversized magnifying glass the signature: its lens enlarges the latch and gap of a half-open door. Add the Tras la Pista logo small and title “LA PUERTA ABIERTA.” No maps, grids, octagons, faces, or extra text.",
+        "look": "burgundy, warm cream and coral; an oversized magnifying glass whose lens enlarges the clue"
       },
       "it": {
         "signature": "doorway_arch",
@@ -230,7 +212,8 @@
           "faces",
           "extra text"
         ],
-        "prompt": "Create a cinematic but credible true-crime thumbnail in olive, limestone, and muted brick. Use a tall foreground doorway to frame a second room and a half-open door beyond, with a narrow strip of light. Add the Tracce Nascoste logo small and title “LA PORTA APERTA.” No lens, route map, tiles, faces, or extra text."
+        "prompt": "Create a cinematic but credible true-crime thumbnail in olive, limestone, and muted brick. Use a tall foreground doorway to frame a second room and a half-open door beyond, with a narrow strip of light. Add the Tracce Nascoste logo small and title “LA PORTA APERTA.” No lens, route map, tiles, faces, or extra text.",
+        "look": "olive, limestone and muted brick; a tall foreground doorway frames the clue in a second room with a narrow strip of light; cinematic but credible"
       },
       "fr": {
         "signature": "clipped_photo_compass",
@@ -246,7 +229,8 @@
           "faces",
           "extra text"
         ],
-        "prompt": "Create a quiet investigative editorial thumbnail: pearl paper, slate-blue hairlines, a small vermilion compass arc, and one clipped documentary photo of a half-open door. Add the Pistes Cachées logo small and title “LA PORTE OUVERTE.” No large lens, route map, octagon, decorative pattern, faces, or extra text."
+        "prompt": "Create a quiet investigative editorial thumbnail: pearl paper, slate-blue hairlines, a small vermilion compass arc, and one clipped documentary photo of a half-open door. Add the Pistes Cachées logo small and title “LA PORTE OUVERTE.” No large lens, route map, octagon, decorative pattern, faces, or extra text.",
+        "look": "pearl paper, slate-blue hairlines and a small vermilion compass arc; a quiet editorial documentary photograph of the clue"
       },
       "pt": {
         "signature": "offset_planes",
@@ -262,7 +246,8 @@
           "faces",
           "extra text"
         ],
-        "prompt": "True-Crime-Cover für Pistas Ocultas. Drei matte, überlappende Flächen in Atlantikgrün, warmem Sand und gedecktem Kupfer. Eine Fläche ist leicht versetzt und gibt durch einen schmalen Spalt den Blick auf eine halb offene Tür frei. Logo klein, Titel ‚A PORTA ABERTA‘. Klar, ruhig und dokumentarisch; keine Fliesen, Karten, Kompasse, Linsen, Gesichter oder zusätzlichen Texte. Einmal in 16:9 für Long Video, einmal in 9:16 für Shorts."
+        "prompt": "True-Crime-Cover für Pistas Ocultas. Drei matte, überlappende Flächen in Atlantikgrün, warmem Sand und gedecktem Kupfer. Eine Fläche ist leicht versetzt und gibt durch einen schmalen Spalt den Blick auf eine halb offene Tür frei. Logo klein, Titel ‚A PORTA ABERTA‘. Klar, ruhig und dokumentarisch; keine Fliesen, Karten, Kompasse, Linsen, Gesichter oder zusätzlichen Texte. Einmal in 16:9 für Long Video, einmal in 9:16 für Shorts.",
+        "look": "Atlantic green, warm sand and muted copper; three matte overlapping planes, one slightly offset, leaving a narrow gap onto the clue; calm and documentary"
       },
       "tr": {
         "signature": "woven_break",
@@ -278,7 +263,8 @@
           "faces",
           "extra text"
         ],
-        "prompt": "Create a true-crime thumbnail with a tactile, angular woven pattern in petrol blue and stone, interrupted by one carmine path. Show a half-open door in the break in the weave. Add the Gizli İzler logo small and title “AÇIK KAPI.” Avoid square tile grids, lens circles, maps, octagons, faces, and extra text."
+        "prompt": "Create a true-crime thumbnail with a tactile, angular woven pattern in petrol blue and stone, interrupted by one carmine path. Show a half-open door in the break in the weave. Add the Gizli İzler logo small and title “AÇIK KAPI.” Avoid square tile grids, lens circles, maps, octagons, faces, and extra text.",
+        "look": "petrol blue and stone; a tactile angular woven pattern interrupted by one carmine path, the clue in the break of the weave"
       }
     },
     "avatar": {
@@ -306,12 +292,6 @@
           "size": 0.1,
           "max_lines": 2
         },
-        "scene": {
-          "x": 0.47,
-          "y": 0.13,
-          "width": 0.5,
-          "height": 0.74
-        },
         "avatar": {
           "x": 0.045,
           "y": 0.48,
@@ -332,12 +312,6 @@
           "size": 0.045,
           "max_lines": 3
         },
-        "scene": {
-          "x": 0.08,
-          "y": 0.39,
-          "width": 0.84,
-          "height": 0.34
-        },
         "avatar": {
           "x": 0.5,
           "y": 0.62,
@@ -352,11 +326,27 @@
       "min_confidence": 0.6,
       "repairs": 2,
       "reason_max_words": 40,
-      "description_chars": 200,
-      "max_candidates": 30,
       "knowledge": "before_payoff",
       "preview_scale": 0.25,
-      "thumb_px": 420
+      "scene_min_words": 6,
+      "scene_max_words": 40
+    },
+    "scene_image": {
+      "enabled": true,
+      "model": "gpt-image-2.6-flare",
+      "sizes": {
+        "long": "1536x1024",
+        "short": "1024x1536"
+      },
+      "attempts": 3,
+      "timeout_s": 300,
+      "max_images_per_scene": 1,
+      "empty_fraction": {
+        "long": 0.42,
+        "short": 0.38
+      },
+      "ledger_stage": "image:cover",
+      "note": "One image for each cover; a failed call is tried again up to `attempts` times and every attempt is recorded (tokens, runtime, cost)."
     }
   }
 }
