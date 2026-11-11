@@ -95,7 +95,6 @@ REQUIRED_ROLES = {
     "opening_native_writer",
     "short_clip_director",
     "short_clip_native_writer",
-    "clip_scene_writer",
     "cover_planner",
     "host_writer",
     "host_writer_fa_ar",
@@ -3404,18 +3403,6 @@ class ClipMusicConfig(BaseModel):
     prompt: str
 
 
-class ClipScenesConfig(BaseModel):
-    """The pictures of a clip's middle: `count` mystery pictures the image model paints (`size`, in the `style`) from scene descriptions of `min_words` to `max_words` words that follow
-    the clip's context and detail; made once for a clip and shown in every language."""
-
-    count: int = Field(ge=1, le=6)
-    min_words: int = Field(ge=1)
-    max_words: int = Field(ge=1)
-    ledger_stage: str
-    style: str
-    size: str
-
-
 class ClipVideoConfig(BaseModel):
     """How a short clip is assembled (1080x1920): the avatar for the hook and the reaction, the film's pictures for the middle (each `picture_seconds` long, slowly zoomed),
     captions from the first word and the music bed. `avatar_framing` lists the looks to prefer (the film's own, closest first)."""
@@ -3431,7 +3418,9 @@ class ClipVideoConfig(BaseModel):
     avatar_crop_width_fraction: float = Field(gt=0.0, le=1.0)
     caption: ClipCaptionConfig
     music: ClipMusicConfig
-    scenes: ClipScenesConfig
+    pictures_max: int = Field(ge=1)
+    picture_min_px: list[int]
+    picture_forbidden_kinds: list[str]
     crf: int = Field(ge=0, le=51)
     preset: str
 

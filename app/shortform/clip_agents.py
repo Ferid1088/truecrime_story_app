@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from app.agents.opening import quotes_of
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
-from app.core.prompts import prompt
 from app.db.models import Case, ShortClip, StoryVersion
 from app.documentary.blueprint import latest_blueprint
 from app.documentary.host import _pack, voiced_prompt
@@ -63,40 +62,6 @@ class ClipPlanner:
         for r in rows:
             db.refresh(r)
         return rows
-
-    def _scene_problems(self, scenes: list[str]) -> list[dict]:
-        from app.covers.images import scene_issues
-
-        cfg = self.cfg.video.scenes
-        problems = [{"type": "scene_count", "fix": f"Give exactly {cfg.count} scenes."}] if len(scenes) != cfg.count else []
-        for i, scene in enumerate(scenes):
-            if not cfg.min_words <= len(scene.split()) <= cfg.max_words:
-                problems.append({"type": "scene_length", "part": f"scene {i + 1}", "fix": f"A scene has {cfg.min_words} to {cfg.max_words} words."})
-            problems += [{"type": "scene_not_symbolic", "part": f"scene {i + 1}", "fix": p} for p in scene_issues(scene)]
-        if len({x.lower() for x in scenes}) < len(scenes):
-            problems.append({"type": "same_scene", "fix": "Every scene is a different place or object."})
-        return problems
-
-    async def write_scenes(self, db: Session, case: Case, master: ShortClip) -> list[str]:
-        """The scene descriptions of an English clip's pictures (kept in its script, shown in every language), checked and written again while they have issues."""
-        cfg = self.cfg.video.scenes
-        script = json.loads(master.script_json)
-        payload = {"clip": {k: script.get(k) for k in ("angle", "hook", "context", "detail")}, "limits": {"count": cfg.count, "min_words": cfg.min_words, "max_words": cfg.max_words}}
-        system = prompt("shortform/clip_scenes")
-        raw, _res = await self._json(db, case.id, f"Clip Scene Writer ({master.clip_key})", "clip_scene_writer", system, payload)
-        scenes = [str(x).strip() for x in (raw.get("scenes") or []) if str(x).strip()] if isinstance(raw.get("scenes"), list) else []
-        problems, repairs = self._scene_problems(scenes), 0
-        while problems and repairs < self.cfg.repairs:
-            repairs += 1
-            raw, _res = await self._json(db, case.id, f"Clip Scene Writer ({master.clip_key}) repair {repairs}", "clip_scene_writer", system, {**payload, "previous": raw, "problems_to_fix": problems})
-            scenes = [str(x).strip() for x in (raw.get("scenes") or []) if str(x).strip()] if isinstance(raw.get("scenes"), list) else []
-            problems = self._scene_problems(scenes)
-        if problems:
-            raise ValueError(f"the scenes of clip {master.clip_key} did not pass their checks: {[p['type'] for p in problems]}")
-        script["scenes"] = scenes
-        master.script_json = json.dumps(script, ensure_ascii=False)
-        db.commit()
-        return scenes
 
     async def plan_english(self, db: Session, case: Case, version: StoryVersion) -> list[ShortClip]:
         """The English clips: planned from the English spoken text, checked, written again while a clip has issues."""

@@ -68,16 +68,18 @@
         "generated_seconds": 22,
         "prompt": "Tense suspense bed for a short true-crime clip: a low pulsing heartbeat-like synth pulse and a faint ticking clock, tight dissonant string tremolo slowly rising, dark and anxious, building unease and dread, never calm or soothing, restrained enough to sit under a speaking voice, no melody, no loud drums, no vocals"
       },
+      "pictures_max": 6,
       "crf": 20,
       "preset": "medium",
-      "scenes": {
-        "count": 4,
-        "min_words": 8,
-        "max_words": 40,
-        "ledger_stage": "image:clip",
-        "style": "Cinematic photoreal mystery still for a true-crime documentary short: vertical 2:3 frame, cold teal-blue night tones, deep shadows, drifting mist, one single warm light source, ominous and tense. Absolutely no text, no letters, no logo, no people, no faces, no bodies, no weapons, no blood.",
-        "size": "1024x1536"
-      }
+      "picture_min_px": [
+        900,
+        600
+      ],
+      "picture_forbidden_kinds": [
+        "victim",
+        "suspect",
+        "person"
+      ]
     }
   }
 }

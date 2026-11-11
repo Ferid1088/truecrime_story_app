@@ -283,7 +283,6 @@
           "short_clip_director",
           "short_clip_native_writer",
           "cover_planner",
-          "clip_scene_writer",
           "host_writer",
           "host_writer_fa_ar"
         ],
