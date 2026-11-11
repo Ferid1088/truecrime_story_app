@@ -53,7 +53,7 @@ def picture_count(seconds: float, cfg: ClipVideoConfig | None = None) -> int:
     cfg = cfg or ai_config.short_clips_settings().video
     low, high = cfg.picture_seconds
     best = max(1, round(seconds / ((low + high) / 2)))
-    return max(1, min(best, cfg.pictures_max, math.floor(seconds / low) or 1))
+    return max(1, min(best, cfg.scenes.count, math.floor(seconds / low) or 1))
 
 
 def chunks(voices: dict[str, dict], plan: Plan, cfg: ClipVideoConfig | None = None) -> list[dict]:

@@ -727,6 +727,13 @@
       "output": "json",
       "description": "Writes the title of the film's cover and of each short's cover in one language and chooses for each the scene (a picture the film shows) that fits it, with a reason and its certainty.",
       "used_by": "app/covers/agents.py"
+    },
+    "clip_scene_writer": {
+      "role": "clip_scene_writer",
+      "prompt": null,
+      "output": "json",
+      "description": "Describes the mystery pictures of a short clip's middle (symbolic scenes that follow its context and detail) for the image model.",
+      "used_by": "app/shortform/clip_agents.py"
     }
   }
 }

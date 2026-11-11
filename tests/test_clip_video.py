@@ -38,7 +38,7 @@ def test_the_pictures_fill_the_middle_each_for_a_few_seconds():
     low, high = cfg.picture_seconds
     for middle in (8.0, 15.0, 16.5, 2.0):
         n = CV.picture_count(middle, cfg)
-        assert 1 <= n <= cfg.pictures_max and (n == 1 or low <= middle / n <= high + 0.8)
+        assert 1 <= n <= cfg.scenes.count and (n == 1 or low <= middle / n <= high + 0.8)
 
 
 def test_the_captions_start_with_the_first_word_in_groups_and_follow_the_voice():

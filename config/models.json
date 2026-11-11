@@ -94,6 +94,7 @@
         "short_clip_director": "premium",
         "short_clip_native_writer": "premium",
         "cover_planner": "premium",
+        "clip_scene_writer": "premium",
         "opening_native_writer": "premium",
         "host_writer": "premium",
         "host_writer_fa_ar": "premium",
@@ -287,6 +288,11 @@
     "short_clip_director": {
       "temperature": 0.7,
       "max_tokens": 12000,
+      "reasoning_effort": "medium"
+    },
+    "clip_scene_writer": {
+      "temperature": 0.6,
+      "max_tokens": 4000,
       "reasoning_effort": "medium"
     },
     "cover_planner": {

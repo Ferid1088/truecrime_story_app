@@ -126,7 +126,8 @@ async def make_video(db: Session, case: Case, row: ShortClip, *, renderer: Voice
         with Image.open(frame) as picture:
             crops[part] = CV.avatar_crop(picture.size, x + w / 2, cfg)
     middle = plan.segments[1]
-    pictures = CP.choose(db, case, row.language, json.loads(row.script_json), CV.picture_count(middle["end"] - middle["start"], cfg))
+    painted = await CP.ensure_pictures(db, case, row)
+    pictures = [{"code": p["scene"][:40], "what": p["scene"], "path": storage.resolve(p["path"])} for p in painted[:CV.picture_count(middle["end"] - middle["start"], cfg)]]
     music = await ensure_music(db, row.case_id, library)
     captions = []
     for k, chunk in enumerate(CV.chunks(voices, plan, cfg)):
