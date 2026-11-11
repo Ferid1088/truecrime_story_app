@@ -34,23 +34,25 @@ def video_seconds(scene: HostScene) -> float | None:
     return A.probe_duration(path)
 
 
+def book_job(db: Session, case_id: int, job_id: str, seconds: float) -> ProviderCall:
+    """The estimated cost of one HeyGen video (host scene or short clip), once per provider job id."""
+    key = f"heygen:{job_id}"
+    existing = db.query(ProviderCall).filter(ProviderCall.stage == STAGE, ProviderCall.request_id == key).first()
+    if existing is not None:
+        return existing
+    price = float(load_pricing()["heygen"]["eur_per_minute"])
+    return BudgetService(db).record(
+        case_id=case_id, stage=STAGE, model=MODEL, units=round(seconds, 3),
+        cost_eur=round(seconds / 60 * price, 6), estimated=True, request_id=key,
+        cost_source="estimate")
+
+
 def book_video(db: Session, scene: HostScene) -> ProviderCall | None:
     """The estimated cost of this scene's video, once. None while there is no finished video."""
     if not scene.provider_job_id or not scene.avatar_video_path:
         return None
-    key = f"heygen:{scene.provider_job_id}"
-    existing = (db.query(ProviderCall)
-                .filter(ProviderCall.stage == STAGE, ProviderCall.request_id == key).first())
-    if existing is not None:
-        return existing
     seconds = video_seconds(scene)
-    if not seconds:
-        return None
-    price = float(load_pricing()["heygen"]["eur_per_minute"])
-    return BudgetService(db).record(
-        case_id=scene.case_id, stage=STAGE, model=MODEL, units=round(seconds, 3),
-        cost_eur=round(seconds / 60 * price, 6), estimated=True, request_id=key,
-        cost_source="estimate")
+    return book_job(db, scene.case_id, scene.provider_job_id, seconds) if seconds else None
 
 
 def book_existing(db: Session) -> list[ProviderCall]:

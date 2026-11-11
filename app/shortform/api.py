@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -19,6 +20,7 @@ from app.db.models import (
     RenderedShort,
     ShortCandidate,
     ShortFormScript,
+    ShortFormPublishingPlan,
     ShortProductionJob,
     Video,
 )
@@ -27,6 +29,7 @@ from app.lifecycle import case_archive
 from app.shortform import pipeline
 from app.shortform.director import ShortFormDirectorAgent, candidate_table
 from app.shortform.metrics import concept_type_comparison
+from app.shortform import release_plan
 from app.utils import utc_now
 
 router = APIRouter(tags=["short-form"])
@@ -85,6 +88,11 @@ class ShortFormAction(BaseModel):
 class CreateShortsRequest(BaseModel):
     film_job_id: int | None = None
     language: str | None = None
+
+
+class SaveReleasePlanRequest(BaseModel):
+    included_candidate_ids: list[int]
+    start_date: date | None = None
 
 
 def _candidate_hash(row: ShortCandidate) -> str:
@@ -217,6 +225,74 @@ def create_shorts(case_id: int, payload: CreateShortsRequest | None = None,
     if queue is None:
         raise HTTPException(status_code=409, detail="Film is not finished")
     return {"queue_id": queue.id, "film_job_id": job.id, "status": queue.status}
+
+
+@router.get("/api/short-form/{case_id}/release-plan")
+def get_release_plan(case_id: int, db: Session = Depends(get_db)):
+    if db.get(Case, case_id) is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    try:
+        preview = release_plan.build_release_document(db, case_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    stored = release_plan.latest_plan(db, case_id, preview["film_job_id"])
+    if (stored is not None and stored.source_episode_id == preview["film_job_id"]
+            and stored.status in {"draft", "approved"}
+            and json.loads(stored.plan_json or "{}").get("film_job_ids", [preview["film_job_id"]])
+            == preview.get("film_job_ids", [preview["film_job_id"]])):
+        return release_plan.serialize_plan(stored)
+    return {"id": None, "status": "preview", "document": preview, "created_at": None}
+
+
+@router.post("/api/short-form/{case_id}/release-plan")
+def save_release_plan(case_id: int, payload: SaveReleasePlanRequest,
+                      db: Session = Depends(get_db)):
+    if db.get(Case, case_id) is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    try:
+        document = release_plan.build_release_document(
+            db, case_id, included_candidate_ids=set(payload.included_candidate_ids),
+            start_date=payload.start_date,
+        )
+        stored = release_plan.store_draft(db, case_id, document)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return release_plan.serialize_plan(stored)
+
+
+@router.post("/api/short-form/{case_id}/release-plan/{plan_id}/approve")
+def approve_release_plan(case_id: int, plan_id: int, db: Session = Depends(get_db)):
+    row = db.get(ShortFormPublishingPlan, plan_id)
+    if row is None or row.case_id != case_id:
+        raise HTTPException(status_code=404, detail="Release plan not found")
+    if row.status not in {"draft", "approved"}:
+        raise HTTPException(status_code=409, detail="This release plan is no longer editable")
+    document = json.loads(row.plan_json or "{}")
+    if not document.get("slots"):
+        raise HTTPException(status_code=409, detail="The release plan has no publication slots")
+    review_language = document.get("review_language", "en")
+    for candidate in document.get("candidates", []):
+        if not candidate.get("included"):
+            continue
+        reviewed = next((item for item in candidate.get("languages", [])
+                         if item.get("language") == review_language), None)
+        if (reviewed is None or reviewed.get("render_status") != "done"
+                or reviewed.get("approval_state") != "approved"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Approve the {review_language} render for every selected short first",
+            )
+    row.status = "approved"
+    db.commit()
+    db.refresh(row)
+    result = release_plan.serialize_plan(row)
+    result["publish_ready"] = bool(
+        document.get("can_publish") and document.get("publisher_status") == "ready"
+    )
+    result["publish_note"] = (
+        "Publisher integration is not implemented yet; this records approval only."
+    )
+    return result
 
 
 @router.get("/api/short-form/{case_id}/queue")

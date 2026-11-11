@@ -71,6 +71,23 @@ async def voice_part(db: Session, case_id: int, language: str, part: str, text: 
     return {**store_voice(case_id, language, part, text, Path(take["raw_path"]), take["alignment"], take, folder=folder, stem=stem), "reused": False}
 
 
+def word_times(alignment: dict) -> list[list]:
+    """[word, start, end] of every word of a take, from the provider's character times (a word is a run of characters between spaces)."""
+    words, current, first, last = [], "", 0.0, 0.0
+    for char, start, end in zip(alignment.get("characters", []), alignment.get("starts", []), alignment.get("ends", []), strict=False):
+        if char.isspace():
+            if current:
+                words.append([current, round(first, 3), round(last, 3)])
+                current = ""
+            continue
+        if not current:
+            first = start
+        current, last = current + char, end
+    if current:
+        words.append([current, round(first, 3), round(last, 3)])
+    return words
+
+
 def store_voice(case_id: int, language: str, part: str, text: str, raw: Path, alignment: dict, take: dict, *, folder: Path | None = None,
                 stem: str | None = None) -> dict:
     """A take as the part's voice: at the block's local speed, saved with a sidecar (the file the film's audio is made from)."""
@@ -83,7 +100,7 @@ def store_voice(case_id: int, language: str, part: str, text: str, raw: Path, al
     audio, al = sped_up(raw.read_bytes(), tempo, alignment)
     storage.write_atomic(path, audio)
     meta = {"text": text, "tts_text": take.get("text"), "seconds": round(max(al["ends"]), 3), "settings": settings, "post_speed": tempo, "voice_id": vcfg.voice_id,
-            "character_cost": take.get("character_cost"), "request_id": take.get("request_id")}
+            "character_cost": take.get("character_cost"), "request_id": take.get("request_id"), "words": word_times(al)}
     storage.write_atomic(sidecar, json.dumps(meta, ensure_ascii=False))
     return {**meta, "path": storage.rel(path)}
 

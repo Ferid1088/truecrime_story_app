@@ -4,15 +4,26 @@ so each text can be listened to and corrected on its own."""
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
+import subprocess
 from pathlib import Path
 
+from PIL import Image
 from sqlalchemy.orm import Session
 
-from app.db.models import ShortClip
+from app.core.ai_config import ai_config
+from app.core.media_tools import ffmpeg_bin
+from app.covers import avatar as AV
+from app.db.models import Case, ShortClip
 from app.documentary import opening_media as OM
 from app.documentary import storage
+from app.documentary.music import MusicLibrary
 from app.documentary.voice_render import VoiceRenderer
+from app.shortform import clip_avatar as CA
+from app.shortform import clip_pictures as CP
+from app.shortform import clip_video as CV
 from app.shortform import clips as C
 
 PARTS = C.TEXT_PARTS
@@ -46,3 +57,89 @@ async def voice_clip(db: Session, row: ShortClip, renderer: VoiceRenderer | None
 async def voice_clips(db: Session, case_id: int, language: str, renderer: VoiceRenderer | None = None) -> list[dict]:
     """The voices of all the valid clips of a language, one clip after the other."""
     return [await voice_clip(db, row, renderer) for row in C.clips_of(db, case_id, language)]
+
+
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _frame(video: Path, out: Path) -> Path:
+    """One frame (a second in) of an avatar video, to find the host's face in it."""
+    subprocess.run([ffmpeg_bin() or "ffmpeg", "-y", "-v", "error", "-ss", "1", "-i", str(video), "-frames:v", "1", str(out)], check=True, capture_output=True)
+    return out
+
+
+def _join_audio(parts: list[Path], gap: float, out: Path) -> Path:
+    """The invitation's audio for the second avatar video: the reaction, a short silence, the invitation."""
+    cmd = [ffmpeg_bin() or "ffmpeg", "-y", "-v", "error"]
+    for p in parts:
+        cmd += ["-i", str(p)]
+    graph = (f"[0:a]aformat=sample_rates=44100:channel_layouts=mono,apad=pad_dur={gap}[a0];[1:a]aformat=sample_rates=44100:channel_layouts=mono[a1];[a0][a1]concat=n=2:v=0:a=1[o]")
+    subprocess.run(cmd + ["-filter_complex", graph, "-map", "[o]", str(out)], check=True, capture_output=True)
+    return out
+
+
+async def ensure_music(db: Session, case_id: int, library=None) -> dict:
+    """The clip bed, generated once (the same file serves every clip) and booked in the ledger as an estimate."""
+    cfg = ai_config.short_clips_settings().video.music
+    key = hashlib.sha256(f"{cfg.prompt}|{cfg.generated_seconds}".encode()).hexdigest()[:12]
+    library = library or MusicLibrary()
+    path = library.dir / f"clip_{key}.wav"
+    paid = 0
+    if not path.exists():
+        paid = await library._generate(cfg.prompt, cfg.generated_seconds, False, path)
+        from app.documentary.music_cost import book_opening
+
+        book_opening(db, case_id, f"clip:{key}", cfg.generated_seconds)
+    return {"path": storage.rel(path), "seconds": cfg.generated_seconds, "characters_paid": paid}
+
+
+async def make_video(db: Session, case: Case, row: ShortClip, *, renderer: VoiceRenderer | None = None, avatar_provider=None, library=None, sleep=asyncio.sleep) -> dict:
+    """The finished 1080x1920 video of one clip (kept in the row's media_json): the voices, the avatar's two videos (hook; reaction and invitation), the film's pictures,
+    the captions and the music bed. What was paid for (a voice, an avatar video) is reused when its audio is unchanged."""
+    cfg = ai_config.short_clips_settings().video
+    media = await voice_clip(db, row, renderer)
+    voices = media["voice"]
+    folder = clip_dir(row.case_id, row.language)
+    plan = CV.plan_timeline({p: voices[p]["seconds"] for p in CV.ORDER}, cfg)
+    audio = {"hook": storage.resolve(voices["hook"]["path"]),
+             "reaction": _join_audio([storage.resolve(voices["reaction"]["path"]), storage.resolve(voices["cta"]["path"])], cfg.gap_seconds, folder / f"voice_{row.clip_key}_reaction_cta.mp3")}
+    if avatar_provider is None:
+        from app.documentary import studio as ST
+        from app.providers.avatar import get_avatar_provider
+
+        avatar_provider = get_avatar_provider(key_env=ST.channel_profile(row.language)["heygen_key_env"])
+    avatars, crops = {}, {}
+    for part, audio_path in audio.items():
+        name = f"{row.clip_key}_{part}"
+        known = (media.get("avatars") or {}).get(part)
+        if known and known.get("audio_sha") == _sha(audio_path) and storage.resolve(known["path"]).exists():
+            made = known
+        else:
+            made = {**await CA.make_video(db, row.case_id, row.language, audio_path, name, folder, avatar_provider, sleep=sleep), "audio_sha": _sha(audio_path)}
+            media.setdefault("avatars", {})[part] = made
+            row.media_json = json.dumps(media, ensure_ascii=False)
+            db.commit()
+        avatars[part] = storage.resolve(made["path"])
+        frame = _frame(avatars[part], folder / f"frame_{name}.png")
+        x, _y, w, _h = AV.host_face(frame)
+        with Image.open(frame) as picture:
+            crops[part] = CV.avatar_crop(picture.size, x + w / 2, cfg)
+    middle = plan.segments[1]
+    pictures = CP.choose(db, case, row.language, json.loads(row.script_json), CV.picture_count(middle["end"] - middle["start"], cfg))
+    music = await ensure_music(db, row.case_id, library)
+    captions = []
+    for k, chunk in enumerate(CV.chunks(voices, plan, cfg)):
+        image = folder / "captions" / f"{row.clip_key}_{k:03d}.png"
+        image.parent.mkdir(exist_ok=True)
+        CV.caption_image(chunk["text"], row.language, image, cfg)
+        captions.append((image, chunk))
+    out = folder / f"clip_{row.clip_key}.mp4"
+    command = CV.assemble_command(plan, voices={p: storage.resolve(voices[p]["path"]) for p in CV.ORDER}, avatars=avatars, crops=crops, pictures=[p["path"] for p in pictures],
+                                  captions=captions, music=storage.resolve(music["path"]), out=out, cfg=cfg)
+    await asyncio.to_thread(CV.assemble, command)
+    media["video"] = {"path": storage.rel(out), "seconds": plan.total, "size": [cfg.width, cfg.height], "bytes": out.stat().st_size, "pictures": [{k: p[k] for k in ("code", "what")} for p in pictures],
+                      "music": music, "captions": len(captions), "plan": {"starts": plan.starts, "segments": plan.segments}}
+    row.media_json = json.dumps(media, ensure_ascii=False)
+    db.commit()
+    return media["video"]

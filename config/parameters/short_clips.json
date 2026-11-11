@@ -3,19 +3,83 @@
     "enabled": true,
     "max_clips": 5,
     "min_clips": 3,
-    "angles": ["question", "evidence", "contradiction", "human_detail", "turning_point"],
+    "angles": [
+      "question",
+      "evidence",
+      "contradiction",
+      "human_detail",
+      "turning_point"
+    ],
     "target_seconds": 25,
     "repairs": 2,
     "knowledge": "before_payoff",
     "segments": {
-      "hook": {"seconds": 2.0, "avatar": true},
-      "context": {"seconds": 3.0, "avatar": false},
-      "detail": {"seconds": 13.0, "avatar": false},
-      "reaction": {"seconds": 7.0, "avatar": true}
+      "hook": {
+        "seconds": 2.0,
+        "avatar": true
+      },
+      "context": {
+        "seconds": 3.0,
+        "avatar": false
+      },
+      "detail": {
+        "seconds": 13.0,
+        "avatar": false
+      },
+      "reaction": {
+        "seconds": 7.0,
+        "avatar": true
+      }
     },
     "word_tolerance": 0.25,
     "hook_min_seconds": 1.6,
     "hook_max_words": 9,
-    "cta_max_words": 14
+    "cta_max_words": 14,
+    "video": {
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "gap_seconds": 0.12,
+      "tail_seconds": 0.3,
+      "picture_seconds": [
+        2.4,
+        4.2
+      ],
+      "picture_zoom": 0.07,
+      "avatar_framing": [
+        "MEDIUM",
+        "WIDE"
+      ],
+      "avatar_crop_width_fraction": 1.0,
+      "caption": {
+        "words_per_chunk": 3,
+        "size": 0.052,
+        "center_y": 0.66,
+        "max_width": 0.86,
+        "ink": "#ffffff",
+        "stroke": "#000000",
+        "stroke_fraction": 0.09
+      },
+      "music": {
+        "volume": 0.16,
+        "duck": 0.55,
+        "fade_in": 0.8,
+        "fade_out": 1.2,
+        "generated_seconds": 22,
+        "prompt": "Instrumental bed for a short true-crime clip: dark, minimal, slow pulsing low synth with a faint tense texture, no melody, no drums that compete with a speaking voice, no vocals"
+      },
+      "pictures_max": 6,
+      "crf": 20,
+      "preset": "medium",
+      "picture_min_px": [
+        900,
+        600
+      ],
+      "picture_forbidden_kinds": [
+        "victim",
+        "suspect",
+        "person"
+      ]
+    }
   }
 }

@@ -3380,6 +3380,51 @@ class ShortClipSegmentConfig(BaseModel):
     avatar: bool
 
 
+class ClipCaptionConfig(BaseModel):
+    """The words burned into a clip from the first word: `words_per_chunk` words at a time, `size` of the height, centred at `center_y`, in `ink` with an outline."""
+
+    words_per_chunk: int = Field(ge=1, le=6)
+    size: float = Field(gt=0.0, lt=0.2)
+    center_y: float = Field(gt=0.0, lt=1.0)
+    max_width: float = Field(gt=0.0, le=1.0)
+    ink: str
+    stroke: str
+    stroke_fraction: float = Field(ge=0.0, lt=0.5)
+
+
+class ClipMusicConfig(BaseModel):
+    """The quiet bed under a clip: it starts when the hook ends, `volume` of full, `duck` lower while the voice speaks, faded in and out; generated once for `generated_seconds`."""
+
+    volume: float = Field(gt=0.0, le=1.0)
+    duck: float = Field(ge=0.0, lt=1.0)
+    fade_in: float = Field(ge=0.0)
+    fade_out: float = Field(ge=0.0)
+    generated_seconds: int = Field(ge=5, le=22)
+    prompt: str
+
+
+class ClipVideoConfig(BaseModel):
+    """How a short clip is assembled (1080x1920): the avatar for the hook and the reaction, the film's pictures for the middle (each `picture_seconds` long, slowly zoomed),
+    captions from the first word and the music bed. `avatar_framing` lists the looks to prefer (the film's own, closest first)."""
+
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    fps: int = Field(gt=0)
+    gap_seconds: float = Field(ge=0.0)
+    tail_seconds: float = Field(ge=0.0)
+    picture_seconds: list[float]
+    picture_zoom: float = Field(ge=0.0, lt=0.5)
+    avatar_framing: list[str]
+    avatar_crop_width_fraction: float = Field(gt=0.0, le=1.0)
+    caption: ClipCaptionConfig
+    music: ClipMusicConfig
+    pictures_max: int = Field(ge=1)
+    picture_min_px: list[int]
+    picture_forbidden_kinds: list[str]
+    crf: int = Field(ge=0, le=51)
+    preset: str
+
+
 class ShortClipsConfig(BaseModel):
     """The short clips of a film (config/parameters/short_clips.json): up to `max_clips` (at least `min_clips`), each with another one of the `angles`, a script of
     `target_seconds` in four parts (`segments`: the hook, the context, the detail the pictures show, the avatar's reaction with the invitation). A script
@@ -3398,6 +3443,7 @@ class ShortClipsConfig(BaseModel):
     hook_min_seconds: float = Field(gt=0.0)
     hook_max_words: int = Field(ge=3)
     cta_max_words: int = Field(ge=3)
+    video: ClipVideoConfig
 
     @model_validator(mode="after")
     def _parts(self):
