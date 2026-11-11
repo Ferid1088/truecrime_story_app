@@ -77,7 +77,11 @@ def caption_image(text: str, language: str, path: Path, cfg: ClipVideoConfig | N
     c = cfg.caption
     size = round(c.size * cfg.height)
     font = TY.font(language, "sans", "bold", size)
-    lines = TY.wrap(display_title(text, language), font, language, round(c.max_width * cfg.width))
+    shown, width = display_title(text, language), c.max_width
+    lines = TY.wrap(shown, font, language, round(width * cfg.width))
+    while len(lines) > 1 and len(lines[-1].split()) == 1 and width > 0.5:      # a lone word on the last line: narrower lines balance it
+        width -= 0.06
+        lines = TY.wrap(shown, font, language, round(width * cfg.width))
     line_h = round(size * 1.25)
     height = line_h * len(lines) + size
     image = Image.new("RGBA", (cfg.width, height), (0, 0, 0, 0))

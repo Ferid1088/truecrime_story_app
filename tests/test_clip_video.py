@@ -106,3 +106,11 @@ def test_a_turkish_caption_keeps_the_dotted_capital(tmp_path):
     assert display_title("izler ışık", "tr") == "İZLER IŞIK"
     size = CV.caption_image("izler ışık", "tr", tmp_path / "c.png", ai_config.short_clips_settings().video)
     assert size[0] == ai_config.short_clips_settings().video.width and (tmp_path / "c.png").exists()
+
+
+def test_a_caption_never_leaves_one_word_alone_on_its_last_line(tmp_path, monkeypatch):
+    seen = []
+    real = CV.TY.wrap
+    monkeypatch.setattr(CV.TY, "wrap", lambda *a: seen.append(real(*a)) or seen[-1])
+    CV.caption_image("the detective found the", "en", tmp_path / "c.png")
+    assert len(seen[-1]) == 1 or len(seen[-1][-1].split()) > 1
