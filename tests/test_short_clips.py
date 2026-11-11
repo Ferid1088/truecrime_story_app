@@ -133,3 +133,9 @@ def test_the_newest_version_of_a_clip_is_the_one_that_counts(db_session):
         db_session.add(ShortClip(case_id=case.id, language="es", clip_key="C1", kind="master", story_version_id=master.id, version=version, status=status, script_json="{}"))
     db_session.commit()
     assert C.clips_of(db_session, case.id, "es") == [] and [r.version for r in C.clips_of(db_session, case.id, "es", status=None)] == [2]
+
+
+def test_a_clip_that_speaks_to_the_viewer_formally_is_refused():
+    formal = clip(reaction="Das ist nur seine Version. Worauf achten Sie zuerst?", cta="Sehen Sie die ganze Geschichte.")
+    assert "formal_address" in codes(C.clip_issues(formal, story("de"), "de"))
+    assert "formal_address" not in codes(C.clip_issues(clip(), story(), "en"))

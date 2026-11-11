@@ -69,6 +69,8 @@ def clip_issues(clip: dict, story: HostStory, language: str, cfg: ShortClipsConf
     cutoff = knowledge_cutoff(story)
     for part in TEXT_PARTS:
         text = str(clip[part])
+        if rules is not None and (found := next((m.group(0) for p in rules.formal_patterns if (m := re.search(p, text))), None)):
+            issues.append({"type": "formal_address", "part": part, "quote": found, "fix": "Speak to the viewer informally, as a friend does (the host never says 'Sie' or the formal you of the language)."})
         if digits := digits_left(text, language):
             issues.append({"type": "numbers_as_digits", "part": part, "quote": ", ".join(digits[:4]), "fix": "Write numbers as words."})
         for issue in reveal_issues(story, cutoff, text):
