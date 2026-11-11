@@ -55,7 +55,7 @@ function CoverCard({ caseId, language, cover, candidates, onChanged }: { caseId:
             Save title
           </Button>
         </div>
-        {cover.reason && <p className="text-xs text-muted-foreground">Why this picture: {cover.reason}</p>}
+        {cover.reason && <p dir="auto" className="text-xs text-muted-foreground">Why this picture: {cover.reason}</p>}
         {suggested && cover.scene_code == null && <p className="text-xs text-amber-700 dark:text-amber-400">The planner was unsure about {suggested}: choose a scene yourself.</p>}
         {(cover.validation.issues ?? []).length > 0 && <p className="text-xs text-rose-600">Checks: {(cover.validation.issues ?? []).map((i) => i.type).join(", ")}</p>}
 
