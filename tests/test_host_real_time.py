@@ -21,7 +21,12 @@ def test_real_seconds_within_caps_pass_with_a_share_warning_in_a_pilot():
 def test_over_cap_appearances_and_total_are_errors():
     r = HS.real_time_report([_s(1, "opening", 140), _s(2, "mid", 150), _s(3, "final", 140)], 3000)
     codes = [e["code"] for e in r["errors"]]
-    assert codes.count("appearance_over_cap") == 3 and "host_time_over_cap" in codes
+    assert codes.count("appearance_over_cap") == 2 and "host_time_over_cap" in codes
+
+
+def test_an_opening_a_little_over_its_cap_with_the_identity_line_is_no_error():
+    r = HS.real_time_report([_s(1, "opening", HS.scene_cap("opening") + 4)], 3000)
+    assert not r["errors"]
 
 
 def test_share_is_an_error_only_for_a_film_of_600_seconds_or_more():

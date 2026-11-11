@@ -769,7 +769,7 @@ def real_time_report(scenes: list[HostScene], narration_seconds: float,
     for r in rows:
         if r["seconds"] is None:
             warnings.append({"code": "no_real_voice_yet", "segment": r["segment"]})
-        elif r["seconds"] > r["cap"]:
+        elif r["seconds"] > r["cap"] and r["position"] != "opening":      # the opening's fixed identity line comes on top of the writer's seconds: no error (owner decision)
             errors.append({"code": "appearance_over_cap", "segment": r["segment"],
                            "seconds": r["seconds"], "cap": r["cap"]})
         elif r["deviation"] > cfg.duration_tolerance:
