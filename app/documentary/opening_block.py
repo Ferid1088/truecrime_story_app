@@ -20,6 +20,7 @@ from app.documentary.host_story import HostStory, words_of
 from app.documentary.spoken import digits_left
 
 HOOK_KINDS = ("quote", "moment", "question")
+_HOOK_SENTENCE_END = re.compile(r"(?<=[.!?؟…])[\"”»’“]*\s+")          # a sentence ends on its mark, even when a closing quotation mark follows it
 
 
 def _scale(language: str) -> float:
@@ -62,7 +63,7 @@ def opening_issues(opening: dict, story: HostStory, language: str, cfg: OpeningB
         return [{"type": "empty_hook", "fix": "Write the hook."}]
     if not context:
         return [{"type": "empty_context", "fix": "Write the context text."}]
-    if len([s for s in _SENTENCE_END.split(hook) if s.strip()]) > 1:
+    if len([s for s in _HOOK_SENTENCE_END.split(hook) if s.strip()]) > 1:
         issues.append({"type": "hook_not_one_statement", "fix": "The hook is ONE statement, one sentence: no narrator's words around it ('he said', 'the man on the phone'), nothing added."})
     limit = hook_max_words(language, cfg)
     if len(hook.split()) > limit:
