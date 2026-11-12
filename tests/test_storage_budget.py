@@ -111,6 +111,7 @@ def test_a_source_video_counts_as_a_video_and_a_file_a_kept_piece_still_uses_sta
                         verification_status="verified", local_path=str(shared))
     db_session.add_all([rejected, piece])
     db_session.commit()
+    assert SB.rejected_media(db_session, case.id)["video"] == {"assets": 1, "bytes": 0}
     assert SB.remove_rejected(db_session, case.id, "video") == {"removed": 1, "bytes": 0}
     assert shared.exists() and piece.local_path == str(shared)
     db_session.refresh(rejected)

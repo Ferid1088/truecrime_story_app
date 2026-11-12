@@ -68,13 +68,16 @@ def _rejected_with_files(db: Session, case_id: int) -> list[VisualAsset]:
         (VisualAsset.local_path.isnot(None)) | (VisualAsset.thumbnail_path.isnot(None))).all()
 
 
+def _kept_paths(db: Session, case_id: int, going: set[int]) -> set[str]:
+    """The files that an asset staying behind still points at (the pieces of one video share its source file)."""
+    return {path for a in db.query(VisualAsset).filter(VisualAsset.case_id == case_id)
+            if a.id not in going for path in (a.local_path, a.thumbnail_path) if path}
+
+
 def _remove_files(db: Session, case_id: int, assets: list[VisualAsset]) -> dict:
     """Delete the files of these assets and mark them removed (metadata and verdict stay, so a picture is
-    never fetched or judged again). A file that an asset which stays still points at (the pieces of one video
-    share its proxy) is kept."""
-    going = {a.id for a in assets}
-    kept = {path for a in db.query(VisualAsset).filter(VisualAsset.case_id == case_id)
-            if a.id not in going for path in (a.local_path, a.thumbnail_path) if path}
+    never fetched or judged again). A file that an asset which stays still points at is kept."""
+    kept = _kept_paths(db, case_id, {a.id for a in assets})
     removed = freed = 0
     deleted: set[str] = set()
     for a in assets:
@@ -98,13 +101,15 @@ def purge_rejected(db: Session, case_id: int) -> dict:
 
 
 def rejected_media(db: Session, case_id: int) -> dict:
-    """What the owner's delete buttons would remove now: the rejected pictures and videos still holding files."""
-    out = {kind: {"assets": 0, "bytes": 0} for kind in KINDS}
-    counted: set[str] = set()
-    for a in _rejected_with_files(db, case_id):
-        kind = "video" if a.asset_type in VIDEO_TYPES else "photo"
-        out[kind]["assets"] += 1
-        out[kind]["bytes"] += _files(a, counted)
+    """What the owner's delete buttons would remove now: the rejected pictures and videos still holding files, and
+    the bytes that really go (a file a kept asset still uses stays)."""
+    rejected = _rejected_with_files(db, case_id)
+    out = {}
+    for kind in KINDS:
+        group = [a for a in rejected if _of_kind(a, kind)]
+        kept = _kept_paths(db, case_id, {a.id for a in group})
+        counted: set[str] = set(kept)
+        out[kind] = {"assets": len(group), "bytes": sum(_files(a, counted) for a in group)}
     return out
 
 
