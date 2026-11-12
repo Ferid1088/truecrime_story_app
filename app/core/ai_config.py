@@ -3402,7 +3402,18 @@ class ClipMusicConfig(BaseModel):
     fade_in: float = Field(ge=0.0)
     fade_out: float = Field(ge=0.0)
     generated_seconds: int = Field(ge=5, le=22)
+    library_target: int = Field(ge=1)           # new beds are made until the library holds this many; after that one of them is taken at random
+    variations: dict[str, list[str]]            # what makes each new bed sound different: one entry of each list is added to the prompt
     prompt: str
+
+    @model_validator(mode="after")
+    def _enough_variations(self) -> "ClipMusicConfig":
+        total = 1
+        for options in self.variations.values():
+            total *= len(options)
+        if not self.variations or total < self.library_target:
+            raise ValueError(f"the variations make {total} different beds, fewer than the library target {self.library_target}")
+        return self
 
 
 class ClipVideoConfig(BaseModel):

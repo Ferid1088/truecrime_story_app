@@ -65,8 +65,14 @@ def words_of(text: str) -> set[str]:
     return {w.lower() for w in _WORD.findall(text or "")}
 
 
-def choose(db: Session, case: Case, language: str, clip: dict, count: int) -> list[dict]:
-    """`count` pictures for a clip, best first: [{code, path, what, shared}]. NoPictures when the film shows none that can be used."""
+def ranked(found: list[dict], used: dict[str, int]) -> list[dict]:
+    """The pictures other clips show least first, then the ones whose words say most about this clip, then the film's order."""
+    return sorted(found, key=lambda f: (used.get(f["code"], 0), -f["shared"], f["order"]))
+
+
+def choose(db: Session, case: Case, language: str, clip: dict, count: int, used: dict[str, int] | None = None) -> list[dict]:
+    """`count` pictures for a clip: [{code, path, what, shared}]. The pictures other clips of the language show least come first (none at all before any that another
+    clip shows), then those whose words say most about this clip. NoPictures when the film shows none that can be used."""
     shown = shown_codes(db, case.id, language)
     late = S.late_reveal_ids(db, case.id)
     wanted = words_of(f"{clip.get('context', '')} {clip.get('detail', '')}")
@@ -79,5 +85,4 @@ def choose(db: Session, case: Case, language: str, clip: dict, count: int) -> li
         found.append({"code": asset.asset_code, "path": storage.resolve(asset.local_path), "what": what[:160], "shared": len(wanted & words_of(what)), "order": shown.index(asset.asset_code)})
     if not found:
         raise NoPictures(f"the {language} film shows no picture that a clip may use")
-    found.sort(key=lambda f: (-f["shared"], f["order"]))
-    return [{k: v for k, v in f.items() if k != "order"} for f in found[:count]]
+    return [{k: v for k, v in f.items() if k != "order"} for f in ranked(found, used or {})[:count]]

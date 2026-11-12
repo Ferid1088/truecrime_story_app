@@ -2457,6 +2457,25 @@ class ShortClip(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class ShortClipMusicTrack(Base):
+    """One quiet music bed of the short clips. Each short gets its own bed; new ones are made (and kept here) until the library holds the configured number
+    (short_clips.video.music.library_target), after that one of them is taken at random. `variation_key` says which sound variation the prompt had."""
+
+    __tablename__ = "short_clip_music_tracks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    track_code: Mapped[str] = mapped_column(String(60), unique=True, index=True)
+    variation_key: Mapped[str] = mapped_column(String(200), unique=True)
+    prompt: Mapped[str] = mapped_column(Text, default="")
+    seconds: Mapped[float] = mapped_column(Float, default=22.0)
+    provider: Mapped[str] = mapped_column(String(30), default="elevenlabs_sound")
+    file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    characters_paid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    use_count: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
 class CoverProposal(Base):
     """The title and the scene of one cover of one language of a case (`cover_key` "long" or a clip key C1 to C5). The newest row of a key is the current one. The
     cover planner writes a row (source "agent"); the owner's change is a newer row (source "owner"). `status`: proposed (the planner chose a scene it is sure of),

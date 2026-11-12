@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import json
 import subprocess
+from collections import Counter
 from pathlib import Path
 
 from PIL import Image
@@ -19,9 +20,9 @@ from app.covers import avatar as AV
 from app.db.models import Case, ShortClip
 from app.documentary import opening_media as OM
 from app.documentary import storage
-from app.documentary.music import MusicLibrary
 from app.documentary.voice_render import VoiceRenderer
 from app.shortform import clip_avatar as CA
+from app.shortform import clip_music as CMU
 from app.shortform import clip_pictures as CP
 from app.shortform import clip_video as CV
 from app.shortform import clips as C
@@ -81,19 +82,25 @@ def _join_audio(parts: list[Path], gap: float, out: Path) -> Path:
     return out
 
 
-async def ensure_music(db: Session, case_id: int, library=None) -> dict:
-    """The clip bed, generated once (the same file serves every clip) and booked in the ledger as an estimate."""
-    cfg = ai_config.short_clips_settings().video.music
-    key = hashlib.sha256(f"{cfg.prompt}|{cfg.generated_seconds}".encode()).hexdigest()[:12]
-    library = library or MusicLibrary()
-    path = library.dir / f"clip_{key}.wav"
-    paid = 0
-    if not path.exists():
-        paid = await library._generate(cfg.prompt, cfg.generated_seconds, False, path)
-        from app.documentary.music_cost import book_opening
+def pictures_of_other_ideas(db: Session, row: ShortClip) -> Counter:
+    """How often each picture already shows in the language's other clips: a clip prefers pictures no other clip of its language shows."""
+    used: Counter = Counter()
+    for other in C.clips_of(db, row.case_id, row.language):
+        if other.clip_key != row.clip_key:
+            used.update(p["code"] for p in (json.loads(other.media_json or "{}").get("video") or {}).get("pictures", []))
+    return used
 
-        book_opening(db, case_id, f"clip:{key}", cfg.generated_seconds)
-    return {"path": storage.rel(path), "seconds": cfg.generated_seconds, "characters_paid": paid}
+
+async def ensure_music(db: Session, row: ShortClip, library=None) -> dict:
+    """The bed of this clip: its own, from the database (made now while the library is below its target, else taken at random), kept in the row's media."""
+    media = json.loads(row.media_json or "{}")
+    track = await CMU.ClipMusic(db, library).choose(row.case_id, row.clip_key)
+    if (media.get("music") or {}).get("track_id") != track.id:
+        track.use_count += 1
+    media["music"] = {"track_id": track.id, "code": track.track_code}
+    row.media_json = json.dumps(media, ensure_ascii=False)
+    db.commit()
+    return {"path": track.file_path, "seconds": track.seconds, "track_id": track.id, "code": track.track_code}
 
 
 async def make_video(db: Session, case: Case, row: ShortClip, *, renderer: VoiceRenderer | None = None, avatar_provider=None, library=None, sleep=asyncio.sleep) -> dict:
@@ -128,8 +135,9 @@ async def make_video(db: Session, case: Case, row: ShortClip, *, renderer: Voice
         with Image.open(frame) as picture:
             crops[part] = CV.avatar_crop(picture.size, x + w / 2, cfg)
     middle = plan.segments[1]
-    pictures = CP.choose(db, case, row.language, json.loads(row.script_json), CV.picture_count(middle["end"] - middle["start"], cfg))
-    music = await ensure_music(db, row.case_id, library)
+    pictures = CP.choose(db, case, row.language, json.loads(row.script_json), CV.picture_count(middle["end"] - middle["start"], cfg), used=pictures_of_other_ideas(db, row))
+    music = await ensure_music(db, row, library)
+    media["music"] = {"track_id": music["track_id"], "code": music["code"]}
     captions = []
     for k, chunk in enumerate(CV.chunks(voices, plan, cfg)):
         image = folder / "captions" / f"{row.clip_key}_{k:03d}.png"
