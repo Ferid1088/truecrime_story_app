@@ -132,3 +132,31 @@ def test_the_marker_card_of_a_map_gets_the_place_in_the_films_language(monkeypat
     assert saved["names"] == ["United States", "Tipp City"], "the panel names were already localized: not done twice"
     asyncio.run(EV.localize_graphics(db, SimpleNamespace(id=1), plan_row, "fa"))
     assert json.loads(plan_row.plan_json)["beats"][0]["shots"][0]["map_zoom"]["place_label"] == "fa:Cunningham Court home"
+
+
+def test_an_english_panel_has_the_same_bar_as_the_other_languages_with_all_its_text_in_english(monkeypatch):
+    from app.documentary.graphics import mappanel as MP
+    from app.documentary.graphics.page import Page
+
+    drawn = []
+    real_text, real_tracked = Page.text, Page.tracked
+
+    def spy_text(self, left, top, width, text, role, px, fill, **kw):
+        drawn.append(text)
+        return real_text(self, left, top, width, text, role, px, fill, **kw)
+
+    def spy_tracked(self, left, top, text, *args, **kw):
+        drawn.append(text)
+        return real_tracked(self, left, top, text, *args, **kw)
+
+    monkeypatch.setattr(Page, "text", spy_text)
+    monkeypatch.setattr(Page, "tracked", spy_tracked)
+    credits = ["© OpenStreetMap contributors", "Imagery: U.S. Geological Survey"]
+    names = ["United States", "Ohio, Miami County", "Tipp City", "Cunningham Court home"]
+    panel = MP.MapPanel("en", {"names": names, "step_times": [0.0, 1.0, 2.0, 3.0]}, names[-1], credits)
+    image = panel.step(3)
+    canvas = ai_config.render
+    assert image.size == (canvas.width - MP.map_width(canvas.width), canvas.height)
+    for text in ("MAP ZOOM", "WHERE IT HAPPENED", "STEP 1", "STEP 2", "STEP 3", "NOW SHOWING", "MAP: OPEN DATA", *names):
+        assert text in drawn, text
+    assert MP.scale_text(14.0, 39.9, "en").startswith("1:") and MP.level_keys(4)[-1] == "level_place"

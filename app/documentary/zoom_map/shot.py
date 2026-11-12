@@ -56,11 +56,18 @@ def within_budget(render_seconds: float, video_seconds: float) -> bool:
     return render_seconds <= float(ai_config.zoom().render["budget_seconds_per_video_second"]) * video_seconds
 
 
+def is_current(spec: dict) -> bool:
+    """A zoom video made with the data of the panel beside it (when the camera reaches each place) and the camera's curve. An older one has neither: it would play
+    without the panel and the labels, so it is never reused, in any language; a new one is made in its place."""
+    return "step_times" in spec and "camera" in spec
+
+
 def find(db: Session, case_id: int, key: str) -> VisualAsset | None:
     for a in db.query(VisualAsset).filter(
             VisualAsset.case_id == case_id, VisualAsset.provider == "generated",
             VisualAsset.asset_type == "map").all():
-        if json.loads(a.spec_json or "{}").get("key") == key:
+        spec = json.loads(a.spec_json or "{}")
+        if spec.get("key") == key and is_current(spec):
             return a
     return None
 
@@ -158,7 +165,7 @@ def zoom_shot(plan_shot: dict, assets: dict[str, VisualAsset], language: str) ->
         if a.asset_type != "map" or a.provider != "generated":
             continue
         spec = json.loads(a.spec_json or "{}")
-        if spec.get("key") in wanted and spec.get("kind") == "zoom":
+        if spec.get("key") in wanted and spec.get("kind") == "zoom" and is_current(spec):
             found.setdefault(spec["key"], (a, spec))
     key = next((k for k in wanted if k in found), None)
     if key is None:

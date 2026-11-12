@@ -373,7 +373,7 @@ def test_the_variant_follows_the_beat():
 def fake_asset(language="en", variant="zoom_in", place="Fall River", returns=0, code="VIS_000900"):
     spec = {"key": SHOT.spec_key(language, place, returns, variant, 41.7, -71.15), "kind": "zoom", "variant": variant,
             "seconds": 8.0, "attribution": ["© OpenStreetMap contributors", "Imagery: U.S. Geological Survey"],
-            "marker": {"lat": 41.7, "lon": -71.15}, "place": SHOT.usage_place(place, returns)}
+            "marker": {"lat": 41.7, "lon": -71.15}, "place": SHOT.usage_place(place, returns), "step_times": [], "camera": []}
     return SimpleNamespace(asset_code=code, asset_type="map", provider="generated", local_path="x.mp4",
                            spec_json=json.dumps(spec))
 
@@ -394,6 +394,34 @@ def test_every_language_plays_only_the_zoom_video_made_in_its_own_language(langu
     other = "de" if language != "de" else "en"
     assert SHOT.zoom_shot({"map_zoom": info}, own, language)["fields"]["asset_id"] == "VIS_000950"
     assert SHOT.zoom_shot({"map_zoom": info}, {"v": fake_asset(other, code="VIS_000951")}, language) is None
+
+
+@pytest.mark.parametrize("language", ["en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"])
+def test_an_older_zoom_video_without_the_panels_data_is_never_played_in_any_language(language):
+    """The English film once played a map made before the panel existed: no left bar, other fonts and colours."""
+    info = {"place": "Fall River", "return": 0, "after": None, "lat": 41.7, "lon": -71.15, "names": ["USA", "Massachusetts", "Fall River"]}
+    old = fake_asset(language, code="VIS_000960")
+    spec = json.loads(old.spec_json)
+    del spec["step_times"], spec["camera"]
+    old.spec_json = json.dumps(spec)
+    assert not SHOT.is_current(spec)
+    assert SHOT.zoom_shot({"map_zoom": info}, {"old": old}, language) is None
+    new = fake_asset(language, code="VIS_000961")
+    got = SHOT.zoom_shot({"map_zoom": info}, {"old": old, "new": new}, language)["fields"]
+    assert got["asset_id"] == "VIS_000961"
+
+
+def test_the_panel_has_its_text_in_every_language_so_english_gets_the_same_bar_in_english():
+    from app.core.ai_config import ai_config
+    from app.documentary.graphics import mappanel as PANEL
+    from app.documentary.graphics import theme as T
+
+    keys = ["map_zoom", "map_title", "step", "now_showing", "map_source", *PANEL.LEVELS]
+    for language in ("en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"):
+        for key in keys:
+            assert T.label(language, key).strip(), (language, key)
+    assert ai_config.zoom() is not None
+    assert T.label("en", "map_zoom") == "MAP ZOOM" and T.label("en", "map_title") == "WHERE IT HAPPENED"
 
 
 def test_the_shot_carries_its_attribution_to_the_screen_and_the_credits():
