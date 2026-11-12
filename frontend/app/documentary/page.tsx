@@ -60,6 +60,58 @@ export default function DocumentaryPage() {
         </div>
       ) : (
         <>
+          <section className="mb-8" aria-label="Open one documentary">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-medium">Open one documentary</h2>
+              <div className="relative w-full sm:w-64">
+                <Search
+                  className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+                <Input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search cases…"
+                  aria-label="Search cases"
+                  className="pl-8"
+                />
+              </div>
+            </div>
+
+            {shown.length === 0 ? (
+              <EmptyState
+                title={needle ? "No cases match" : "No cases yet"}
+                description={
+                  needle
+                    ? "Try a different search."
+                    : "Discover or create a case — a documentary can start from zero with research and the language pipeline."
+                }
+              />
+            ) : (
+              <CaseOverview
+                idPrefix="documentary"
+                dateLabel="Created"
+                href={(id) => `/documentary/${id}`}
+                items={shown.map((c) => ({
+                  id: c.id,
+                  title: c.title,
+                  date: c.created_at,
+                  archived: c.archived,
+                  archiveReason: c.archive_reason,
+                  note: c.story_versions > 0 ? `${c.story_versions} story version${c.story_versions === 1 ? "" : "s"}` : "No story yet",
+                }))}
+                onArchive={async (id) => {
+                  await api.archiveCase(id);
+                  cases.refetch();
+                }}
+                onRestore={async (id) => {
+                  await api.unarchiveCase(id);
+                  cases.refetch();
+                }}
+              />
+            )}
+          </section>
+
           <div className="mb-8 grid grid-cols-1 items-start gap-4 xl:grid-cols-[1fr_360px]">
             <BatchPanel cases={cases.data} settings={settings.data} titles={titles} onStarted={refresh} />
             <div className="space-y-4">
@@ -76,56 +128,6 @@ export default function DocumentaryPage() {
           <div className="mb-8">
             <RecentJobs refreshKey={`${tick}|${activeSignature}`} resolutions={resolutions} />
           </div>
-
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-sm font-medium">Open one documentary</h2>
-            <div className="relative w-full sm:w-64">
-              <Search
-                className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                aria-hidden
-              />
-              <Input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search cases…"
-                aria-label="Search cases"
-                className="pl-8"
-              />
-            </div>
-          </div>
-
-          {shown.length === 0 ? (
-            <EmptyState
-              title={needle ? "No cases match" : "No cases yet"}
-              description={
-                needle
-                  ? "Try a different search."
-                  : "Discover or create a case — a documentary can start from zero with research and the language pipeline."
-              }
-            />
-          ) : (
-            <CaseOverview
-              idPrefix="documentary"
-              dateLabel="Created"
-              href={(id) => `/documentary/${id}`}
-              items={shown.map((c) => ({
-                id: c.id,
-                title: c.title,
-                date: c.created_at,
-                archived: c.archived,
-                archiveReason: c.archive_reason,
-                note: c.story_versions > 0 ? `${c.story_versions} story version${c.story_versions === 1 ? "" : "s"}` : "No story yet",
-              }))}
-              onArchive={async (id) => {
-                await api.archiveCase(id);
-                cases.refetch();
-              }}
-              onRestore={async (id) => {
-                await api.unarchiveCase(id);
-                cases.refetch();
-              }}
-            />
-          )}
         </>
       )}
     </div>
