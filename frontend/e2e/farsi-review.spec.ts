@@ -18,7 +18,7 @@ const words = (text: string, corrected: Record<number, string> = {}) =>
 /** The reviews that sit under the Farsi review tab next to the long film's: the host's voice (covered by host-voice-review.spec.ts), the film's opening and the short clips. */
 const REVIEWS = [
   { kind: "opening", button: "Opening (hook)", route: "opening-voice-review", blockId: "opening_hook", badge: "opening", note: "the opening's voice at once" },
-  { kind: "clips", button: "Short clips", route: "clip-voice-review", blockId: "clip_C1_hook", badge: "clips", note: "that part's voice at once" },
+  { kind: "clips", button: "Short clips", route: "clip-voice-review", blockId: "clip_C1_hook", badge: "in review", note: "that part's voice at once" },
 ] as const;
 
 async function mockFarsiTab(page: import("@playwright/test").Page) {
@@ -99,3 +99,42 @@ for (const review of REVIEWS) {
     await expect(card.locator("li[data-active=true]")).toContainText("take 1");
   });
 }
+
+test("the short clips review has an I'm finished button that makes the voices final and a button to reopen", async ({ page }) => {
+  let finished = false;
+  const block = { block_id: "clip_C1_hook", position: 0, canonical_text: "یه نفر اومده", voice_text: "یه نفر اومده", draft_text: null, text: "یه نفر اومده", edited: false,
+                  needs_sending: false, words: words("یه نفر اومده"), takes: [{ voice: { speed: 1.2, stability: 0.2, post_speed: 1.2 }, take_no: 1, source: "original", active: true, duration_s: 2, cost_eur: 0, text: "", aliases: [], created_at: "2026-11-11T10:00:00Z", audio_url: "/x.mp3" }] };
+  const state = () => ({ exists: true, kind: "clips", version_id: 7, language: "fa", status: finished ? "approved" : "open", assembled_current: false, assembled_at: null, approved: finished,
+                         corrected_blocks: 0, to_send: 0, assembled_audio_url: null, blocks: [block] });
+  await mockFarsiTab(page);
+  const base = "**/api/documentary/versions/7/clip-voice-review";
+  await page.route(base, (r: Route) => r.fulfill(ok(state())));
+  await page.route(`${base}/finish`, (r: Route) => { finished = true; return r.fulfill(ok(state())); });
+  await page.route(`${base}/reopen`, (r: Route) => { finished = false; return r.fulfill(ok(state())); });
+  await page.goto("/documentary/1?tab=Farsi%20review");
+  await page.getByRole("button", { name: "Short clips", exact: true }).click();
+  const finish = page.getByTestId("clips-finish");
+  await expect(finish).toHaveText("I'm finished - continue");
+  await expect(page.getByTestId("review-state")).toHaveText("in review");
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await finish.click();
+  await expect(page.getByTestId("review-state")).toHaveText("in review");
+  page.once("dialog", (dialog) => dialog.accept());
+  await finish.click();
+  await expect(page.getByTestId("review-state")).toHaveText("finished");
+  await expect(page.getByText("Finished. The clips' voices are final")).toBeVisible();
+  await expect(finish).toHaveCount(0);
+  await page.getByTestId("clips-reopen").click();
+  await expect(page.getByTestId("review-state")).toHaveText("in review");
+  await expect(page.getByTestId("clips-finish")).toBeVisible();
+});
+
+test("the finish button is not offered for the host or the opening reviews", async ({ page }) => {
+  await mockFarsiTab(page);
+  const open = { exists: true, kind: "opening", version_id: 7, language: "fa", status: "open", assembled_current: false, assembled_at: null, approved: false, corrected_blocks: 0, to_send: 0, assembled_audio_url: null, blocks: [] };
+  await page.route("**/api/documentary/versions/7/opening-voice-review", (r: Route) => r.fulfill(ok(open)));
+  await page.goto("/documentary/1?tab=Farsi%20review");
+  await page.getByRole("button", { name: "Opening (hook)", exact: true }).click();
+  await expect(page.getByTestId("block-review")).toBeVisible();
+  await expect(page.getByTestId("clips-finish")).toHaveCount(0);
+});

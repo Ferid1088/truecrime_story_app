@@ -6,4 +6,4 @@ from app.documentary.block_review import clip_review as CR
 from app.documentary.block_review.routes import build_router
 
 BASE = "clip-voice-review"
-router = build_router(BASE, CR.CLIPS, CR, CR.parts_of)
+router = build_router(BASE, CR.CLIPS, CR, CR.parts_of, finishable=True)

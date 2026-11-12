@@ -163,3 +163,49 @@ def test_the_routes_review_the_clips_and_there_is_no_route_to_assemble_or_approv
     for path in ("approve", "assemble", "assembled-audio"):
         assert client.request("POST" if path != "assembled-audio" else "GET", f"{base}/{path}").status_code in (404, 405)
     assert client.get(f"{base}/blocks/clip_C1_hook/takes/1/audio").headers["content-type"] == "audio/mpeg"
+
+
+def test_the_owner_can_say_he_is_finished_and_any_change_reopens_the_review(clips):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    db, version, _ = clips
+    client = TestClient(app)
+    base = f"/api/documentary/versions/{version.id}/clip-voice-review"
+    client.post(f"{base}/open")
+    assert client.get(base).json()["approved"] is False
+    done = client.post(f"{base}/finish").json()
+    assert done["approved"] is True and done["status"] == "approved"
+    assert client.get(base).json()["approved"] is True
+    take = client.put(f"{base}/blocks/clip_C1_hook", json={"text": "یه نفر اومده تو خونه‌م.", "words": []})
+    assert take.status_code == 200
+    assert client.get(base).json()["approved"] is False
+    client.post(f"{base}/finish")
+    assert client.post(f"{base}/reopen").json()["approved"] is False
+
+
+def test_finishing_is_refused_while_a_corrected_block_is_not_voiced(clips):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    db, version, _ = clips
+    client = TestClient(app)
+    base = f"/api/documentary/versions/{version.id}/clip-voice-review"
+    client.post(f"{base}/open")
+    client.put(f"{base}/blocks/clip_C1_hook", json={"text": "یه نفر دیگه اومده تو خونه‌م.", "words": []})
+    refused = client.post(f"{base}/finish")
+    assert refused.status_code == 409 and "not voiced yet" in refused.json()["detail"]
+    assert client.get(base).json()["approved"] is False
+
+
+def test_the_host_and_opening_reviews_have_no_finish_route(clips):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    db, version, _ = clips
+    client = TestClient(app)
+    for base in ("host-voice-review", "opening-voice-review"):
+        assert client.post(f"/api/documentary/versions/{version.id}/{base}/finish").status_code in (404, 405)

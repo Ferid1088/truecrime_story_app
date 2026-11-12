@@ -17,9 +17,10 @@ from app.documentary.block_review import edits as E
 from app.documentary.block_review import service as S
 
 
-def build_router(base: str, kind: str, adapter: ModuleType, parts) -> APIRouter:
+def build_router(base: str, kind: str, adapter: ModuleType, parts, finishable: bool = False) -> APIRouter:
     """`base` is the route segment (`host-voice-review`), `adapter` the module with the review's functions (current_review, open_review, allowed, audio_path),
-    `parts(db, version)` the blocks the version has (no review can be opened without them)."""
+    `parts(db, version)` the blocks the version has (no review can be opened without them). A `finishable` review (the short clips') has two more routes: the owner says
+    he is finished (the voices are final and the next steps may go on) and takes it back; any change of a block, a take or a text reopens it."""
     router = APIRouter()
 
     def speed_of(version: StoryVersion) -> float | None:
@@ -34,9 +35,16 @@ def build_router(base: str, kind: str, adapter: ModuleType, parts) -> APIRouter:
 
     def overview(db: Session, version: StoryVersion, review: VoiceReview) -> dict:
         blocks = S.blocks_of(db, review)
-        return {"exists": True, "kind": kind, "version_id": version.id, "language": review.language, "status": "open", "assembled_current": False, "assembled_at": None,
-                "approved": False, "assembled_audio_url": None, "corrected_blocks": sum(1 for b in blocks if b.edited),
+        finished = finishable and review.status == "approved"
+        return {"exists": True, "kind": kind, "version_id": version.id, "language": review.language, "status": review.status if finishable else "open", "assembled_current": False,
+                "assembled_at": None, "approved": finished, "assembled_audio_url": None, "corrected_blocks": sum(1 for b in blocks if b.edited),
                 "to_send": sum(1 for b in blocks if S.needs_sending(db, b)), "blocks": [A.block_view(db, version, b, base, speed_of(version)) for b in blocks]}
+
+    def _reopen(db: Session, review: VoiceReview) -> None:
+        """A finished review is open again as soon as anything in it changes."""
+        if finishable and review.status == "approved":
+            review.status = "open"
+            db.commit()
 
     root = f"/api/documentary/versions/{{version_id}}/{base}"
 
@@ -61,6 +69,7 @@ def build_router(base: str, kind: str, adapter: ModuleType, parts) -> APIRouter:
             block = A._guard(lambda: S.save_edit(db, review, block_id, body.text, [E.WordEdit(w.n, w.surface, w.finglish) for w in body.words]))
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
+        _reopen(db, review)
         return A.block_view(db, version, block, base, speed_of(version))
 
     @router.post(f"{root}/blocks/{{block_id}}/send")
@@ -71,6 +80,7 @@ def build_router(base: str, kind: str, adapter: ModuleType, parts) -> APIRouter:
             await S.send_block(db, review, block_id, again=bool(body and body.again))
         except S.ReviewError as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
+        _reopen(db, review)
         return A.block_view(db, version, S.block_of(db, review, block_id), base, speed_of(version))
 
     @router.post(f"{root}/replace")
@@ -78,6 +88,8 @@ def build_router(base: str, kind: str, adapter: ModuleType, parts) -> APIRouter:
         version = A._version(db, version_id)
         review = _review(db, version)
         matches = A._guard(lambda: S.replace_everywhere(db, review, body.find, body.replace, body.apply))
+        if body.apply and matches:
+            _reopen(db, review)
         return {"applied": body.apply, "blocks_found": len(matches), "places_found": sum(m["count"] for m in matches), "matches": matches,
                 **(overview(db, version, review) if body.apply else {})}
 
@@ -96,6 +108,8 @@ def build_router(base: str, kind: str, adapter: ModuleType, parts) -> APIRouter:
             except Exception as e:  # noqa: BLE001 -- one block failing must not stop the others; it is reported
                 db.rollback()
                 failed.append({"block_id": block.block_id, "error": str(e)[:300]})
+        if sent:
+            _reopen(db, review)
         return {"sent": sent, "failed": failed, **overview(db, version, review)}
 
     @router.post(f"{root}/blocks/{{block_id}}/takes/{{take_no}}/activate")
@@ -103,6 +117,7 @@ def build_router(base: str, kind: str, adapter: ModuleType, parts) -> APIRouter:
         version = A._version(db, version_id)
         review = _review(db, version)
         _ = A._guard(lambda: S.activate(db, review, block_id, take_no))
+        _reopen(db, review)
         return A.block_view(db, version, S.block_of(db, review, block_id), base, speed_of(version))
 
     @router.get(f"{root}/blocks/{{block_id}}/takes/{{take_no}}/audio")
@@ -114,5 +129,26 @@ def build_router(base: str, kind: str, adapter: ModuleType, parts) -> APIRouter:
         if path is None or not path.exists():
             raise HTTPException(status_code=404, detail="Take not found")
         return serve_file(path, "audio/mpeg")
+
+    if finishable:
+        @router.post(f"{root}/finish")
+        def finish(version_id: int, db: Session = Depends(get_db)):
+            """The owner has listened to everything and is finished: the voices are final. Refused while a corrected block has not been voiced."""
+            version = A._version(db, version_id)
+            review = _review(db, version)
+            waiting = [b.block_id for b in S.blocks_of(db, review) if S.needs_sending(db, b)]
+            if waiting:
+                raise HTTPException(status_code=409, detail=f"{len(waiting)} corrected block(s) are not voiced yet ({', '.join(waiting[:4])}): send them first")
+            review.status = "approved"
+            db.commit()
+            return overview(db, version, review)
+
+        @router.post(f"{root}/reopen")
+        def reopen(version_id: int, db: Session = Depends(get_db)):
+            version = A._version(db, version_id)
+            review = _review(db, version)
+            review.status = "open"
+            db.commit()
+            return overview(db, version, review)
 
     return router

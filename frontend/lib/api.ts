@@ -638,6 +638,8 @@ export const api = {
     post<BlockReviewBlock>(`/api/documentary/versions/${versionId}/opening-voice-review/blocks/${encodeURIComponent(blockId)}/takes/${takeNo}/activate`),
   clipsReview: (versionId: number) => request<BlockReview>(`/api/documentary/versions/${versionId}/clip-voice-review`),
   openClipsReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/clip-voice-review/open`),
+  finishClipsReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/clip-voice-review/finish`),
+  reopenClipsReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/clip-voice-review/reopen`),
   editClipsBlock: (versionId: number, blockId: string, body: { text?: string; words: { n: number; surface?: string; finglish?: string }[] }) =>
     put<BlockReviewBlock>(`/api/documentary/versions/${versionId}/clip-voice-review/blocks/${encodeURIComponent(blockId)}`, body),
   sendClipsBlock: (versionId: number, blockId: string, again = false) =>

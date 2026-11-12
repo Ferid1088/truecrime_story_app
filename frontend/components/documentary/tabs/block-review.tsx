@@ -74,7 +74,7 @@ export function BlockReview({ versionId, kind = "narration" }: { versionId: numb
   const replace = (b: BlockReviewBlock) => {
     if (!review) return;
     const all = review.blocks.map((x) => (x.block_id === b.block_id ? b : x));
-    setReview({ ...review, blocks: all, assembled_current: false, to_send: all.filter((x) => x.needs_sending).length, corrected_blocks: all.filter((x) => x.edited).length });
+    setReview({ ...review, blocks: all, approved: review.approved && !host, assembled_current: false, to_send: all.filter((x) => x.needs_sending).length, corrected_blocks: all.filter((x) => x.edited).length });
   };
 
   async function act<T extends BlockReviewOverview>(name: string, job: () => Promise<T>, done: (r: T) => string) {
@@ -96,11 +96,11 @@ export function BlockReview({ versionId, kind = "narration" }: { versionId: numb
     if (!review) return null;
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={host ? "outline" : review.approved ? "success" : "warning"} data-testid="review-state">{host ? what : review.approved ? "approved" : review.assembled_current ? "assembled — not approved" : "in review"}</Badge>
+        <Badge variant={kind === "clips" ? (review.approved ? "success" : "warning") : host ? "outline" : review.approved ? "success" : "warning"} data-testid="review-state">{kind === "clips" ? (review.approved ? "finished" : "in review") : host ? what : review.approved ? "approved" : review.assembled_current ? "assembled — not approved" : "in review"}</Badge>
         <span className="text-xs text-muted-foreground">{blocks.length} blocks · {review.corrected_blocks} corrected · {review.to_send} to send</span>
       </div>
     );
-  }, [review, blocks.length, host]);
+  }, [review, blocks.length, host, kind, what]);
 
   if (state.error) return <ErrorState message={state.error} onRetry={state.refetch} />;
   if (!state.data) return <Skeleton className="h-40 w-full" />;
@@ -109,7 +109,7 @@ export function BlockReview({ versionId, kind = "narration" }: { versionId: numb
     return (
       <EmptyState
         title={host ? `No ${what} review yet` : "No voice review yet"}
-        description={can ? (host ? `The ${what === "opening" ? "opening block has" : what === "clips" ? "clips have" : "host has"} a voice. Open the review to listen to each ${what === "opening" ? "part (the hook and the text after it)" : what === "clips" ? "part of each clip (hook, context, detail, reaction, invitation)" : "appearance"} and correct it by hand. Nothing is voiced or paid by opening it.` : "The narration is made. Open the review to listen to its blocks and correct them by hand. Nothing is voiced or paid by opening it.") : (host ? `This version has no ${what} yet.` : "The narration of this version is not made yet.")}
+        description={can ? (host ? `The ${what === "opening" ? "opening block has" : what === "clips" ? "clips have" : "host has"} a voice. Open the review to listen to each ${what === "opening" ? "part (the hook and the text after it)" : what === "clips" ? "part of each clip (hook, context, detail, reaction, invitation)" : "appearance"} and correct it by hand. Nothing is voiced or paid by opening it.` : "The narration is made. Open the review to listen to its blocks and correct them by hand. Nothing is voiced or paid by opening it.") : (kind === "clips" ? "The clips are not voiced yet." : host ? `This version has no ${what} yet.` : "The narration of this version is not made yet.")}
         action={can ? <Button onClick={() => act("open", () => calls.open(versionId), () => "Review opened.")} disabled={busy !== null}>{host ? `Open ${what} review` : "Open voice review"}</Button> : undefined}
       />
     );
@@ -127,6 +127,21 @@ export function BlockReview({ versionId, kind = "narration" }: { versionId: numb
             onClick={() => act("send", async () => { const r = await calls.sendAll(versionId); if (r.failed.length) setError(`${r.failed.length} block(s) failed: ${r.failed.map((f) => f.block_id).join(", ")}`); return r; }, (r) => `${r.sent.length} corrected block(s) voiced.`)}>
             {busy === "send" ? "Voicing…" : `Send ${review.to_send} corrected block${review.to_send === 1 ? "" : "s"} to ElevenLabs`}
           </Button>
+          {kind === "clips" && (review.approved ? (
+            <Button size="sm" variant="secondary" disabled={busy !== null} data-testid="clips-reopen"
+              onClick={() => act("reopen", () => api.reopenClipsReview(versionId), () => "Reopened: the clips are in review again.")}>
+              {busy === "reopen" ? "Reopening…" : "Reopen the review"}
+            </Button>
+          ) : (
+            <Button size="sm" disabled={busy !== null || review.to_send > 0} data-testid="clips-finish"
+              title={review.to_send > 0 ? "Send the corrected blocks to ElevenLabs first" : undefined}
+              onClick={() => {
+                if (!window.confirm("Are you finished with the clips? Their voices and words are final from now on, so the next steps may go on. Changing anything later reopens the review.")) return;
+                void act("finish", () => api.finishClipsReview(versionId), () => "Finished. The clips' voices are final; the next steps may go on.");
+              }}>
+              {busy === "finish" ? "Saving…" : "I'm finished - continue"}
+            </Button>
+          ))}
           {!host && (
             <>
               <Button size="sm" disabled={busy !== null || review.to_send > 0 || (review.approved && review.assembled_current)}
@@ -154,7 +169,7 @@ export function BlockReview({ versionId, kind = "narration" }: { versionId: numb
         {note && <p role="status" className="text-sm text-emerald-700">{note}</p>}
         {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
         <p className="text-xs text-muted-foreground">
-          {kind === "clips" ? "A take you tick is that part's voice at once and its words are the clip's words. Approving the film's voice is done in Voice review only." : kind === "opening" ? "A take you tick is the opening's voice at once and the opening's audio is made again from it. Approving the film's voice is done in Voice review only." : host ? "A take you tick is the host's voice at once and the avatar is made again from it. Approving the film's voice is done in Voice review only." : "No film is rendered before you approve the narration."}
+          {kind === "clips" ? "A take you tick is that part's voice at once and its words are the clip's words. When you have listened to every clip, press \"I'm finished - continue\": the voices are then final. Approving the film's voice is done in Voice review only." : kind === "opening" ? "A take you tick is the opening's voice at once and the opening's audio is made again from it. Approving the film's voice is done in Voice review only." : host ? "A take you tick is the host's voice at once and the avatar is made again from it. Approving the film's voice is done in Voice review only." : "No film is rendered before you approve the narration."}
         </p>
       </div>
       <ReplaceInBlocks versionId={versionId} kind={kind} language={review.language} onApplied={(r) => setReview(r)} />
