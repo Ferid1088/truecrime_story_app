@@ -61,6 +61,8 @@ import type {
   DrawingOverview,
   MvpCandidateGroup,
   MvpGaps,
+  RejectedMedia,
+  RejectedMediaRemoved,
   MvpFilmReview,
   MvpPlan,
   ShortFormCaseItem,
@@ -1163,6 +1165,9 @@ export const mvpApi = {
     }),
   gaps: (caseId: number, language = "en") =>
     request<MvpGaps>(`/api/cases/${caseId}/mvp/gaps?language=${language}`),
+  rejectedMedia: (caseId: number) => request<RejectedMedia>(`/api/cases/${caseId}/mvp/rejected-media`),
+  deleteRejectedMedia: (caseId: number, kind: "photo" | "video") =>
+    request<RejectedMediaRemoved>(`/api/cases/${caseId}/mvp/rejected-media/${kind}`, { method: "DELETE" }),
   decideNeighbourCover: (caseId: number, approved: boolean) =>
     post<{ approved: boolean }>(`/api/cases/${caseId}/mvp/neighbour-cover`, { approved }),
   decideCandidate: (candidateId: number, decision: "approve" | "reject", note?: string) =>

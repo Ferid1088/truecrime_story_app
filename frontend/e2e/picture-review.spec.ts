@@ -82,4 +82,32 @@ test.describe("Main Visual Planner picture review", () => {
     await expect(page.getByTestId("create-portraits")).toBeDisabled();
     await expect(page.getByTestId("portraits-check")).toContainText("The planner ordered VIS_103 and checks again");
   });
+
+  test("one button deletes the rejected pictures and one the rejected videos, each after a confirmation", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/documentary/1/review");
+    const pictures = page.getByTestId("review-queue-delete-rejected-photo");
+    const videos = page.getByTestId("review-queue-delete-rejected-video");
+    await expect(pictures).toHaveText("Delete rejected pictures (3)");
+    await expect(videos).toHaveText("Delete rejected videos (2)");
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await pictures.click();
+    await expect(pictures).toHaveText("Delete rejected pictures (3)");
+    page.once("dialog", (dialog) => {
+      expect(dialog.message()).toContain("3 rejected pictures (5 MB)");
+      void dialog.accept();
+    });
+    await pictures.click();
+    await expect(page.getByText(/Deleted 3 rejected pictures \(5 MB freed\)/)).toBeVisible();
+    await expect(pictures).toHaveText("Delete rejected pictures (0)");
+    await expect(pictures).toBeDisabled();
+    await expect(videos).toHaveText("Delete rejected videos (2)");
+    page.once("dialog", (dialog) => {
+      expect(dialog.message()).toContain("2 rejected videos (40 MB)");
+      void dialog.accept();
+    });
+    await videos.click();
+    await expect(page.getByText(/Deleted 2 rejected videos \(40 MB freed\)/)).toBeVisible();
+    await expect(videos).toBeDisabled();
+  });
 });

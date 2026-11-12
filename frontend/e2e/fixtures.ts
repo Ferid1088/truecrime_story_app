@@ -570,6 +570,7 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     candidate(2, "VIS_205", "Ka-Bar sheath", "the sheath on the evidence table", "verifiers disagree; stored for review"),
   ];
   const reviewQueueState = { list: () => reviewQueueItems };
+  const rejectedMedia = { photo: { assets: 3, bytes: 5 * 1048576 }, video: { assets: 2, bytes: 40 * 1048576 } };
   const selections = new Map<number, { must_use: boolean; draw_priority: number | null }>();
   let drawingMade = false;
 
@@ -678,6 +679,14 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     if (path === "/api/cases/1/thumbnails" && method === "GET") return json(route, [thumbnailFixture]);
     if (path === "/api/thumbnails/1/image") return route.fulfill({ status: 200, contentType: "image/png", body: PIXEL });
     if (path === "/api/cases/1/mvp/candidates" && method === "GET") return json(route, reviewQueueState.list());
+    if (path === "/api/cases/1/mvp/rejected-media" && method === "GET") return json(route, rejectedMedia);
+    const rejectedDelete = path.match(/^\/api\/cases\/1\/mvp\/rejected-media\/(photo|video)$/);
+    if (rejectedDelete && method === "DELETE") {
+      const kind = rejectedDelete[1] as "photo" | "video";
+      const gone = { removed: rejectedMedia[kind].assets, bytes: rejectedMedia[kind].bytes };
+      rejectedMedia[kind] = { assets: 0, bytes: 0 };
+      return json(route, gone);
+    }
     if (path === "/api/cases/1/mvp/candidates/decision" && method === "POST") {
       const body = route.request().postDataJSON() as { candidate_ids: number[]; decision: string };
       return json(route, { decided: body.candidate_ids.length, skipped: [], decision: body.decision });

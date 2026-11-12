@@ -53,23 +53,63 @@ def exceeded(db: Session, case_id: int) -> bool:
     return usage(db, case_id)["bytes"] >= ai_config.storage_budget.max_case_mb * MB
 
 
-def purge_rejected(db: Session, case_id: int) -> dict:
-    """Remove the files of rejected pictures older than the retention period."""
-    cutoff = utc_now() - timedelta(days=ai_config.storage_budget.rejected_retention_days)
+VIDEO_TYPES = ("video", "video_source")
+KINDS = ("photo", "video")
+
+
+def _of_kind(a: VisualAsset, kind: str) -> bool:
+    return (a.asset_type in VIDEO_TYPES) == (kind == "video")
+
+
+def _rejected_with_files(db: Session, case_id: int) -> list[VisualAsset]:
+    return db.query(VisualAsset).filter(
+        VisualAsset.case_id == case_id, VisualAsset.verification_status == "rejected",
+        VisualAsset.file_removed_at.is_(None),
+        (VisualAsset.local_path.isnot(None)) | (VisualAsset.thumbnail_path.isnot(None))).all()
+
+
+def _remove_files(db: Session, case_id: int, assets: list[VisualAsset]) -> dict:
+    """Delete the files of these assets and mark them removed (metadata and verdict stay, so a picture is
+    never fetched or judged again). A file that an asset which stays still points at (the pieces of one video
+    share its proxy) is kept."""
+    going = {a.id for a in assets}
+    kept = {path for a in db.query(VisualAsset).filter(VisualAsset.case_id == case_id)
+            if a.id not in going for path in (a.local_path, a.thumbnail_path) if path}
     removed = freed = 0
-    for a in db.query(VisualAsset).filter(
-            VisualAsset.case_id == case_id, VisualAsset.verification_status == "rejected",
-            VisualAsset.file_removed_at.is_(None), VisualAsset.created_at < cutoff):
-        size = _files(a)
-        if not size and not (a.local_path or a.thumbnail_path):
-            continue
+    deleted: set[str] = set()
+    for a in assets:
         for path in (a.local_path, a.thumbnail_path):
             p = storage.resolve(path)
-            if p is not None and p.exists():
+            if path and path not in kept and path not in deleted and p is not None and p.exists():
+                freed += p.stat().st_size
                 p.unlink()
+                deleted.add(path)
         a.local_path = a.thumbnail_path = None
         a.file_removed_at = utc_now()
         removed += 1
-        freed += size
     db.commit()
     return {"removed": removed, "bytes": freed}
+
+
+def purge_rejected(db: Session, case_id: int) -> dict:
+    """Remove the files of rejected pictures older than the retention period."""
+    cutoff = utc_now() - timedelta(days=ai_config.storage_budget.rejected_retention_days)
+    return _remove_files(db, case_id, [a for a in _rejected_with_files(db, case_id) if a.created_at < cutoff])
+
+
+def rejected_media(db: Session, case_id: int) -> dict:
+    """What the owner's delete buttons would remove now: the rejected pictures and videos still holding files."""
+    out = {kind: {"assets": 0, "bytes": 0} for kind in KINDS}
+    counted: set[str] = set()
+    for a in _rejected_with_files(db, case_id):
+        kind = "video" if a.asset_type in VIDEO_TYPES else "photo"
+        out[kind]["assets"] += 1
+        out[kind]["bytes"] += _files(a, counted)
+    return out
+
+
+def remove_rejected(db: Session, case_id: int, kind: str) -> dict:
+    """The owner's button: delete the files of every rejected picture (kind 'photo') or video (kind 'video')."""
+    if kind not in KINDS:
+        raise ValueError(f"kind must be one of {KINDS}")
+    return _remove_files(db, case_id, [a for a in _rejected_with_files(db, case_id) if _of_kind(a, kind)])

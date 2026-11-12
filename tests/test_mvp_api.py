@@ -328,3 +328,24 @@ def test_priority_zero_unselects_a_photo_and_frees_its_number_for_another(db_ses
     assert client.put(url(second), json={"draw_priority": 3}).status_code == 409
     assert client.put(url(first), json={"draw_priority": 0}).json()["draw_priority"] is None
     assert client.put(url(second), json={"draw_priority": 3}).json()["draw_priority"] == 3, "the number is free again"
+
+
+def test_the_delete_buttons_remove_rejected_files_over_the_api_and_hide_them_from_the_review(db_session, tmp_path):
+    case, plan, cand = _seed(db_session)
+    asset = db_session.get(VisualAsset, cand.visual_asset_id)
+    file = tmp_path / "x.jpg"
+    file.write_bytes(b"x" * 100)
+    asset.local_path = str(file)
+    asset.verification_status = "rejected"
+    cand.final_status = "rejected"
+    db_session.commit()
+    client = TestClient(app)
+    assert client.get(f"/api/cases/{case.id}/mvp/rejected-media").json() == {
+        "photo": {"assets": 1, "bytes": 100}, "video": {"assets": 0, "bytes": 0}}
+    assert len(client.get(f"/api/cases/{case.id}/mvp/candidates?status=rejected").json()) == 1
+    assert client.delete(f"/api/cases/{case.id}/mvp/rejected-media/video").json() == {"removed": 0, "bytes": 0}
+    assert file.exists()
+    assert client.delete(f"/api/cases/{case.id}/mvp/rejected-media/photo").json() == {"removed": 1, "bytes": 100}
+    assert not file.exists()
+    assert client.get(f"/api/cases/{case.id}/mvp/candidates?status=rejected").json() == []
+    assert client.delete(f"/api/cases/{case.id}/mvp/rejected-media/audio").status_code == 422

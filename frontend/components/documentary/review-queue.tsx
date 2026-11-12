@@ -207,6 +207,7 @@ export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number;
   const { data, loading, error, refetch } = useApi(
     () => mvpApi.candidates(caseId, "all", beat, cutOnly), [caseId, beat, cutOnly]);
   const { data: gaps, refetch: refetchGaps } = useApi(() => mvpApi.gaps(caseId), [caseId]);
+  const { data: rejectedMedia, refetch: refetchRejected } = useApi(() => mvpApi.rejectedMedia(caseId), [caseId]);
   const [index, setIndex] = useState(0);
   const [decided, setDecided] = useState<Record<number, Verdict>>({});
   const [selections, setSelections] = useState<Record<number, SelectionValue>>({});
@@ -269,6 +270,30 @@ export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number;
       }
     },
     [item, busy, caseId, nextOpen, safeIndex, refetchGaps],
+  );
+
+  const deleteRejected = useCallback(
+    async (target: Kind) => {
+      const found = rejectedMedia?.[target];
+      const name = target === "photo" ? "pictures" : "videos";
+      if (!found || found.assets === 0 || busy) return;
+      if (!window.confirm(
+        `Delete the files of ${found.assets} rejected ${name} (${(found.bytes / 1048576).toFixed(0)} MB)? ` +
+        "This cannot be undone. Their records stay, so the same file is not fetched or judged again.")) return;
+      setBusy(true);
+      try {
+        const done = await mvpApi.deleteRejectedMedia(caseId, target);
+        setMessage(`Deleted ${done.removed} rejected ${name} (${(done.bytes / 1048576).toFixed(0)} MB freed).`);
+        setDecided({});
+        setIndex(0);
+        await Promise.all([refetch(), refetchRejected()]);
+      } catch (e) {
+        setMessage(e instanceof ApiError ? e.message : `Could not delete the rejected ${name}.`);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [rejectedMedia, busy, caseId, refetch, refetchRejected],
   );
 
   useEffect(() => {
@@ -357,9 +382,28 @@ export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number;
               </Button>
             ))}
           </div>
-          <Button type="button" size="sm" variant="ghost" onClick={() => { setDecided({}); void refetch(); }}>
+          <Button type="button" size="sm" variant="ghost" onClick={() => { setDecided({}); void refetch(); void refetchRejected(); }}>
             Reload list
           </Button>
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+          <div className="flex gap-2" data-testid="review-queue-delete-rejected">
+            {KINDS.map((option) => {
+              const count = rejectedMedia?.[option.key].assets ?? 0;
+              return (
+                <Button
+                  key={option.key}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy || count === 0}
+                  data-testid={`review-queue-delete-rejected-${option.key}`}
+                  onClick={() => void deleteRejected(option.key)}
+                >
+                  Delete rejected {option.label.toLowerCase()} ({count})
+                </Button>
+              );
+            })}
+          </div>
           {beat && (
             <Button type="button" size="sm" variant="ghost" onClick={() => switchTo(shown)}>
               All beats (now {beat})

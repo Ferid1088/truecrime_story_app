@@ -2388,6 +2388,21 @@ export interface MvpCandidateGroup extends MvpCandidate {
 }
 
 /** Moments of the film that have no picture, video or graphic after every alternative. */
+export interface RejectedMediaKind {
+  assets: number;
+  bytes: number;
+}
+
+export interface RejectedMedia {
+  photo: RejectedMediaKind;
+  video: RejectedMediaKind;
+}
+
+export interface RejectedMediaRemoved {
+  removed: number;
+  bytes: number;
+}
+
 export interface MvpGaps {
   language: string;
   gap_count: number;

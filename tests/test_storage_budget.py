@@ -84,6 +84,46 @@ def test_a_picture_that_is_not_rejected_is_never_purged_however_old(db_session, 
     assert SB.purge_rejected(db_session, case.id)["removed"] == 0
 
 
+def test_the_owner_button_deletes_the_files_of_rejected_pictures_only_not_videos_or_kept_ones(db_session, tmp_path):
+    case = _case(db_session)
+    pic = _asset(db_session, case, "P", 1000, "rejected", root=tmp_path)
+    vid = _asset(db_session, case, "V", 4000, "rejected", root=tmp_path, asset_type="video")
+    kept = _asset(db_session, case, "K", 500, "verified", root=tmp_path)
+    assert SB.rejected_media(db_session, case.id) == {"photo": {"assets": 1, "bytes": 1010},
+                                                      "video": {"assets": 1, "bytes": 4010}}
+    assert SB.remove_rejected(db_session, case.id, "photo") == {"removed": 1, "bytes": 1010}
+    assert not (tmp_path / "P.jpg").exists() and (tmp_path / "V.jpg").exists() and (tmp_path / "K.jpg").exists()
+    db_session.refresh(pic)
+    assert pic.local_path is None and pic.file_removed_at is not None and pic.verification_status == "rejected"
+    assert vid.local_path and kept.local_path
+    assert SB.remove_rejected(db_session, case.id, "video") == {"removed": 1, "bytes": 4010}
+    assert not (tmp_path / "V.jpg").exists() and (tmp_path / "K.jpg").exists()
+    assert SB.rejected_media(db_session, case.id) == {"photo": {"assets": 0, "bytes": 0}, "video": {"assets": 0, "bytes": 0}}
+
+
+def test_a_source_video_counts_as_a_video_and_a_file_a_kept_piece_still_uses_stays(db_session, tmp_path):
+    case = _case(db_session)
+    shared = tmp_path / "proxy.mp4"
+    shared.write_bytes(b"x" * 300)
+    rejected = VisualAsset(case_id=case.id, asset_code="S1", asset_type="video_source", provider="youtube",
+                           verification_status="rejected", local_path=str(shared))
+    piece = VisualAsset(case_id=case.id, asset_code="S2", asset_type="video", provider="youtube",
+                        verification_status="verified", local_path=str(shared))
+    db_session.add_all([rejected, piece])
+    db_session.commit()
+    assert SB.remove_rejected(db_session, case.id, "video") == {"removed": 1, "bytes": 0}
+    assert shared.exists() and piece.local_path == str(shared)
+    db_session.refresh(rejected)
+    assert rejected.local_path is None and rejected.file_removed_at is not None
+
+
+def test_the_owner_button_refuses_a_kind_that_is_neither_picture_nor_video(db_session):
+    import pytest
+
+    with pytest.raises(ValueError):
+        SB.remove_rejected(db_session, _case(db_session).id, "audio")
+
+
 def _big_client(size):
     def handler(request):
         return httpx.Response(200, content=b"\xff" * size, headers={"content-type": "image/jpeg"})
