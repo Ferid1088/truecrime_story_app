@@ -111,7 +111,7 @@ test.describe("Main Visual Planner picture review", () => {
     await expect(videos).toBeDisabled();
   });
 
-  test("Picture review is a tab of the documentary workspace, right after Host", async ({ page }) => {
+  test("Picture review is a tab of the documentary workspace, after Host and the Film cover", async ({ page }) => {
     await mockApi(page);
     const ok = (body: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
     await page.route("**/api/documentary/settings", (r) => r.fulfill(ok({
@@ -132,7 +132,8 @@ test.describe("Main Visual Planner picture review", () => {
     await page.goto("/documentary/1");
     await expect(page.getByRole("tab", { name: "Host" })).toBeVisible();
     const tabs = await page.getByRole("tab").allInnerTexts();
-    expect(tabs.indexOf("Picture review")).toBe(tabs.indexOf("Host") + 1);
+    expect(tabs.indexOf("Picture review")).toBe(tabs.indexOf("Film cover") + 1);
+    expect(tabs.indexOf("Film cover")).toBe(tabs.indexOf("Host") + 1);
     await page.getByRole("tab", { name: "Picture review" }).click();
     await expect(page.getByRole("tab", { name: "Picture review", selected: true })).toBeVisible();
     await expect(page.getByTestId("review-queue-page")).toBeVisible();

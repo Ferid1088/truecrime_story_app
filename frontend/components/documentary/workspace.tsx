@@ -25,12 +25,12 @@ import { VoiceTab } from "./tabs/voice";
 import { VoiceReviewTab } from "./tabs/voice-review";
 import { FarsiReviewTab } from "./tabs/farsi-review";
 import { CoversTab } from "./tabs/covers";
+import { ShortClipsAndCoversTab } from "./tabs/short-clips-and-covers";
 import { VoicePerformanceTab } from "./tabs/voice-performance";
 import { HostTab } from "./tabs/host";
 import { VisualLibraryTab } from "./tabs/visual-library";
 import { PlannerTab } from "./tabs/planner";
 import { ReviewQueuePage } from "./review-queue";
-import { ShortClipsTab } from "./tabs/short-clips";
 import { DetectiveTab } from "./tabs/detective";
 import { TimelineTab } from "./tabs/timeline";
 import { MusicTab } from "./tabs/music";
@@ -46,11 +46,11 @@ const TABS = [
   "Voice Performance",
   "Voice Review",
   "Farsi review",
-  "Covers",
   "Voice",
   "Host",
+  "Film cover",
   "Picture review",
-  "Short clips",
+  "Short clips & covers",
   "Visual Planner",
   "Detective",
   "Visual Library",
@@ -211,11 +211,11 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
         {tab === "Voice Performance" && <VoicePerformanceTab {...languageProps} />}
         {tab === "Voice Review" && <VoiceReviewTab {...languageProps} />}
         {tab === "Farsi review" && <FarsiReviewTab {...languageProps} />}
-        {tab === "Covers" && <CoversTab {...languageProps} />}
+        {tab === "Film cover" && <CoversTab {...languageProps} which="film" />}
         {tab === "Voice" && <VoiceTab {...languageProps} />}
         {tab === "Host" && <HostTab {...languageProps} />}
         {tab === "Picture review" && <ReviewQueuePage caseId={caseId} embedded />}
-        {tab === "Short clips" && <ShortClipsTab caseId={caseId} />}
+        {tab === "Short clips & covers" && <ShortClipsAndCoversTab {...languageProps} />}
         {tab === "Visual Planner" && <PlannerTab {...common} />}
         {tab === "Detective" && <DetectiveTab {...common} />}
         {tab === "Visual Library" && <VisualLibraryTab {...common} />}

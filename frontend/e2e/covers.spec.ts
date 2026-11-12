@@ -69,11 +69,29 @@ async function mockCovers(page: import("@playwright/test").Page, covers: Cover[]
   return calls;
 }
 
-test("the Covers tab shows the film cover and the short covers with their scene descriptions, counts and the cost book; nothing is approved by the planner", async ({ page }) => {
-  await mockCovers(page, [cover({ key: "long", id: 1 }), cover({ key: "C1", id: 2, title: "Who opened it" }), cover({ key: "C2", id: 3, status: "open", confidence: 0.4 })]);
-  await page.goto("/documentary/1?tab=Covers");
-  await expect(page.getByTestId("covers-counts")).toContainText("0 approved, 2 proposed, 1 open, 0 skipped, 3 not planned yet (of 6)");
+const SHORTS_TAB = "/documentary/1?tab=Short%20clips%20%26%20covers";
+
+test("the Film cover tab sits right after Host and shows only the film's cover; the short covers are under Short clips & covers", async ({ page }) => {
+  await mockCovers(page, [cover({ key: "long", id: 1 }), cover({ key: "C1", id: 2, title: "Who opened it" })]);
+  await page.goto("/documentary/1");
+  await expect(page.getByRole("tab", { name: "Host" })).toBeVisible();
+  const tabs = await page.getByRole("tab").allInnerTexts();
+  expect(tabs.indexOf("Film cover")).toBe(tabs.indexOf("Host") + 1);
+  expect(tabs).not.toContain("Covers");
+  await page.getByRole("tab", { name: "Film cover" }).click();
   await expect(page.getByTestId("cover-long")).toContainText("Film cover (16:9)");
+  await expect(page.getByTestId("cover-C1")).toHaveCount(0);
+  await page.getByRole("tab", { name: "Short clips & covers" }).click();
+  await page.getByTestId("shorts-view-covers").click();
+  await expect(page.getByTestId("cover-C1")).toContainText("Short C1 cover (9:16)");
+  await expect(page.getByTestId("cover-long")).toHaveCount(0);
+});
+
+test("the Short covers view shows the short covers with their scene descriptions, counts and the cost book; nothing is approved by the planner", async ({ page }) => {
+  await mockCovers(page, [cover({ key: "long", id: 1 }), cover({ key: "C1", id: 2, title: "Who opened it" }), cover({ key: "C2", id: 3, status: "open", confidence: 0.4 })]);
+  await page.goto(SHORTS_TAB);
+  await page.getByTestId("shorts-view-covers").click();
+  await expect(page.getByTestId("covers-counts")).toContainText("0 approved, 2 proposed, 1 open, 0 skipped, 3 not planned yet (of 6)");
   await expect(page.getByTestId("cover-C1")).toContainText("Short C1 cover (9:16)");
   await expect(page.getByTestId("cover-C2-status")).toHaveText("open");
   await expect(page.getByTestId("cover-C1").getByLabel("Scene of Short C1 cover (9:16)")).toHaveValue(SCENE);
@@ -85,7 +103,8 @@ test("the Covers tab shows the film cover and the short covers with their scene 
 
 test("a title and a scene are changed, the picture is made on request with its cost, the preview comes first, then the cover is approved; a change takes the approval away", async ({ page }) => {
   const calls = await mockCovers(page, [cover({ key: "long", id: 1 }), cover({ key: "C1", id: 2, title: "Who opened it" })]);
-  await page.goto("/documentary/1?tab=Covers");
+  await page.goto(SHORTS_TAB);
+  await page.getByTestId("shorts-view-covers").click();
   const card = page.getByTestId("cover-C1");
   await card.getByLabel("Title of Short C1 cover (9:16)").fill("Why it stayed open");
   await card.getByRole("button", { name: "Save title" }).click();

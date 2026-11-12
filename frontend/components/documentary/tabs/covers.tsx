@@ -131,8 +131,8 @@ function CostBook({ costs }: { costs: CoverCosts }) {
   );
 }
 
-/** The cover review: for each language the film's cover and one cover for each short, with the planner's title and scene to change, the picture the image model paints, preview, approve or skip. Only approved covers go into the upload plan. */
-export function CoversTab({ caseId, settings, language, onLanguageChange, refreshKey }: LanguageTabProps) {
+/** The cover review of one language, in two views: the film's cover (`film`) or the covers of the shorts (`shorts`). Each cover has the planner's title and scene to change, the picture the image model paints, preview, approve or skip. Only approved covers go into the upload plan. */
+export function CoversTab({ caseId, settings, language, onLanguageChange, refreshKey, which }: LanguageTabProps & { which: "film" | "shorts" }) {
   const [data, setData] = useState<CoversOverview | null>(null);
   const [summary, setSummary] = useState<CoversSummary | null>(null);
   const [busy, setBusy] = useState(false);
@@ -164,6 +164,7 @@ export function CoversTab({ caseId, settings, language, onLanguageChange, refres
     }
   };
 
+  const shown = data?.covers.filter((c) => (c.kind === "long") === (which === "film")) ?? [];
   const mine = summary?.languages[language];
   const total = summary ? Object.values(summary.languages).reduce((n, l) => n + l.approved, 0) : 0;
   return (
@@ -171,11 +172,11 @@ export function CoversTab({ caseId, settings, language, onLanguageChange, refres
       <LanguagePicker languages={settings.languages} value={language} onChange={onLanguageChange} />
       <Card>
         <CardHeader>
-          <CardTitle>Covers — {langLabel(language)}</CardTitle>
+          <CardTitle>{which === "film" ? "Film cover" : "Short covers"} — {langLabel(language)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p className="text-muted-foreground">
-            A film cover and one cover for each short. The planner proposes a title and a scene; the image model paints the scene when you press the button (it costs); the logo, title and avatar are added in code. Nothing is approved until you do it. Only approved covers go into the upload plan.
+            {which === "film" ? "The cover of the long film (16:9)." : "One cover for each short (9:16)."} The planner proposes a title and a scene; the image model paints the scene when you press the button (it costs); the logo, title and avatar are added in code. Nothing is approved until you do it. Only approved covers go into the upload plan.
           </p>
           {mine && summary && (
             <p data-testid="covers-counts">
@@ -189,10 +190,10 @@ export function CoversTab({ caseId, settings, language, onLanguageChange, refres
           {error && <p role="alert" className="text-xs text-rose-600">{error}</p>}
         </CardContent>
       </Card>
-      {data && data.covers.length === 0 ? (
-        <EmptyState title="No covers planned yet" description="Plan the covers once this language has its short clips." />
+      {data && shown.length === 0 ? (
+        <EmptyState title={which === "film" ? "No film cover planned yet" : "No short covers planned yet"} description="Plan the covers once this language has its short clips." />
       ) : (
-        data?.covers.map((cover) => <CoverCard key={`${cover.key}-${cover.id}`} caseId={caseId} language={language} cover={cover} onChanged={load} />)
+        shown.map((cover) => <CoverCard key={`${cover.key}-${cover.id}`} caseId={caseId} language={language} cover={cover} onChanged={load} />)
       )}
     </div>
   );

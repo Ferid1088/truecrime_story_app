@@ -34,8 +34,10 @@ test("Short clips is a tab that lists every language with the parts, the voice s
   await page.goto("/documentary/1");
   await expect(page.getByRole("tab", { name: "Host" })).toBeVisible();
   const tabs = await page.getByRole("tab").allInnerTexts();
-  expect(tabs.indexOf("Short clips")).toBe(tabs.indexOf("Picture review") + 1);
-  await page.getByRole("tab", { name: "Short clips" }).click();
+  expect(tabs.indexOf("Short clips & covers")).toBe(tabs.indexOf("Picture review") + 1);
+  await page.getByRole("tab", { name: "Short clips & covers" }).click();
+  await expect(page.getByTestId("shorts-view-clips")).toBeVisible();
+  await expect(page.getByTestId("shorts-view-covers")).toBeVisible();
   await expect(page.getByTestId("short-clips-summary")).toHaveText("2 clips · 1 voiced · 1 with a video");
   const first = page.getByTestId("short-clip-C1");
   await expect(first).toContainText("Somebody broke in.");
@@ -58,6 +60,6 @@ test("Short clips says so when the case has none", async ({ page }) => {
   await page.route("**/api/cases/1/documentary", (r: Route) => r.fulfill(ok(overview)));
   await page.route("**/api/cases/1/costs", (r: Route) => r.fulfill(ok(costs)));
   await page.route("**/api/cases/1/short-clips", (r: Route) => r.fulfill(ok({ languages: [] })));
-  await page.goto("/documentary/1?tab=Short%20clips");
+  await page.goto("/documentary/1?tab=Short%20clips%20%26%20covers");
   await expect(page.getByText("No short clips yet")).toBeVisible();
 });
