@@ -43,6 +43,12 @@ def opening_dir(case_id: int, language: str) -> Path:
     return d
 
 
+def _name(path: str | None) -> str | None:
+    """A saved file by its own name: the voice and music files are named after what they hold, so the opening's audio is named after its inputs and not after the
+    folder the data lives in."""
+    return Path(path).name if path else None
+
+
 def _sha(*parts: object) -> str:
     return hashlib.sha256(json.dumps(parts, sort_keys=True, default=str, ensure_ascii=False).encode("utf-8")).hexdigest()
 
@@ -110,7 +116,7 @@ def reassemble(db: Session, row: FilmOpening) -> dict:
     media = json.loads(row.media_json or "{}")
     cfg = ai_config.opening_block_settings()
     hook, context, music = media["hook"], media["context"], media.get("music")
-    out = opening_dir(row.case_id, row.language) / f"opening_{_sha(hook['path'], context['path'], music['path'] if music else None, cfg.model_dump())[:12]}.wav"
+    out = opening_dir(row.case_id, row.language) / f"opening_{_sha(_name(hook['path']), _name(context['path']), _name(music['path']) if music else None, cfg.model_dump())[:12]}.wav"
     timings = assemble(storage.resolve(hook["path"]), storage.resolve(context["path"]), storage.resolve(music["path"]) if music else None,
                        hook["seconds"], context["seconds"], out, cfg)
     media["audio"] = {"path": storage.rel(out), "sha256": hashlib.sha256(out.read_bytes()).hexdigest(), **timings}
@@ -228,7 +234,7 @@ async def make_media(db: Session, case_id: int, row: FilmOpening, master: FilmOp
     hook = await voice_part(db, case_id, row.language, "hook", opening["hook"], renderer)
     context = await voice_part(db, case_id, row.language, "context", opening["context"], renderer)
     music = await ensure_music(db, case_id, master_opening, library)
-    out = opening_dir(case_id, row.language) / f"opening_{_sha(hook['path'], context['path'], music['path'], cfg.model_dump())[:12]}.wav"
+    out = opening_dir(case_id, row.language) / f"opening_{_sha(_name(hook['path']), _name(context['path']), _name(music['path']), cfg.model_dump())[:12]}.wav"
     timings = await asyncio.to_thread(
         assemble, storage.resolve(hook["path"]), storage.resolve(context["path"]), storage.resolve(music["path"]) if music else None,
         hook["seconds"], context["seconds"], out, cfg)

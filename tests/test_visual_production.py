@@ -19,7 +19,14 @@ from PIL import Image
 from test_blueprint_performance import PACK, SECTIONS, _good, _no_contradiction, _story
 
 from app.core.ai_config import ai_config
-from app.db.models import DocumentaryJob, ProductionScript, StoryVersion, VisualAsset, VisualPlan
+from app.db.models import (
+    DocumentaryJob,
+    FilmOpening,
+    ProductionScript,
+    StoryVersion,
+    VisualAsset,
+    VisualPlan,
+)
 from app.documentary.blueprint import validate_blueprint
 from app.documentary.production.critics import apply_fixes, deterministic_checks
 from app.documentary.production.script import compose
@@ -694,7 +701,7 @@ class PipelineGen:
         if role == "opening_director":
             return {"candidates": [{"text": "A door stood open that night.", "kind": "moment", "why": "w"}, {"text": "Nobody heard a single sound.", "kind": "moment", "why": "w"}],
                     "chosen": 0, "context": "Something in that house was wrong. Very wrong. The people who lived there told two different stories about the same hours, and nobody could say why.",
-                    "music": {"mood": "tension", "prompt": "slow low drone"}, "_mock_request_sha256": fingerprint}, self._res(role)
+                    "music": {"mood": "tension", "prompt": "slow low drone"}, "scenes": OPENING_SCENES, "_mock_request_sha256": fingerprint}, self._res(role)
         if role == "opening_native_writer":
             return {"hook": "A door stood open that night.", "context": "Something in that house was wrong. Very wrong. The people who lived there told two different stories about the same hours, and nobody could say why.",
                     "_mock_request_sha256": fingerprint}, self._res(role)
@@ -707,6 +714,10 @@ class PipelineGen:
             }, self._res(role)
         raise AssertionError(f"unexpected role {role}")
 
+
+# the two symbolic scenes the opening block's director must give (config opening_block.pictures.count)
+OPENING_SCENES = ["A brick house at night in snow with its garage door standing wide open and a warm beam on the driveway.",
+                  "A long empty hallway in a quiet house at night with one bedroom door ajar and a faint cool glow at its end."]
 
 ORIGINAL_STAGE_ATTENTION = __import__("app.documentary.mvp.pipeline", fromlist=["stage_owner_attention"]).stage_owner_attention
 
@@ -996,6 +1007,9 @@ def documentary_env(tmp_path, monkeypatch):
         lambda: DocumentaryMixer(MusicLibrary(provider=FakeSound())),
     )
     monkeypatch.setattr("app.documentary.opening_media.MusicLibrary", lambda: MusicLibrary(provider=FakeSound()))      # the opening block's music, from the same fake sound provider
+    from test_cover_images import FakeImages, good
+
+    monkeypatch.setattr("app.covers.images.APIMasterImageProvider", lambda: FakeImages([good() for _ in range(8)]))      # the opening block's pictures: never the real image model
 
     async def fake_research(self, db, case, queries, progress=None, found_during="research", **kw):
         from mock_payload import provider_request
@@ -1103,6 +1117,8 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
         {"id": "S4", "position": "final", "role": "outro", "after_act": None, "reason": "r"}]}])
     case, master = _story(db_session)
     case.resolution_status = "UNSOLVED"  # no public title without a solved/unsolved status
+    # an opening left by an earlier test under the same case id would be taken for this film's own
+    db_session.query(FilmOpening).filter_by(case_id=case.id).delete()
     db_session.commit()
     from app.documentary.mvp import pipeline as MVP
 
@@ -1127,10 +1143,9 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     assert stages["mvp_direct:en"]["attempts"] == first["mvp_direct:en"]["attempts"] + 1   # direction ran again
     assert "errors" not in json.loads(job.result_json), json.loads(job.result_json)
     assert job.progress == 1.0
-    assert all(
-        s["status"] in ("done", "skipped") or name.startswith(("short_", "mvp_"))
-        for name, s in stages.items()
-    )
+    unexpected = {name: (s["status"], s.get("detail")) for name, s in stages.items()
+                  if s["status"] not in ("done", "skipped") and not name.startswith(("short_", "mvp_"))}
+    assert not unexpected, unexpected
     # the offline fake finds two pictures and the planner approves both for the farmhouse
     assert stages["mvp_research"]["status"] in ("done", "degraded")
     assert stages["mvp_research"]["detail"]["rounds"][0]["new_assets"] == 2
