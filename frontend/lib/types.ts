@@ -2388,6 +2388,24 @@ export interface MvpCandidateGroup extends MvpCandidate {
 }
 
 /** Moments of the film that have no picture, video or graphic after every alternative. */
+export type ShortClipPart = "hook" | "context" | "detail" | "reaction" | "cta";
+
+export interface ShortClipView {
+  clip_key: string;
+  angle: string | null;
+  kind: string;
+  status: string;
+  parts: Record<ShortClipPart, string>;
+  voiced: boolean;
+  voice_seconds: number | null;
+  review: "in_review" | "finished" | null;
+  video: { seconds: number | null; bytes: number | null; url: string } | null;
+}
+
+export interface ShortClipsOverview {
+  languages: { language: string; clips: ShortClipView[] }[];
+}
+
 export interface RejectedMediaKind {
   assets: number;
   entries: number;

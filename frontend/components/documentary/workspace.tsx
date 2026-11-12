@@ -30,6 +30,7 @@ import { HostTab } from "./tabs/host";
 import { VisualLibraryTab } from "./tabs/visual-library";
 import { PlannerTab } from "./tabs/planner";
 import { ReviewQueuePage } from "./review-queue";
+import { ShortClipsTab } from "./tabs/short-clips";
 import { DetectiveTab } from "./tabs/detective";
 import { TimelineTab } from "./tabs/timeline";
 import { MusicTab } from "./tabs/music";
@@ -49,6 +50,7 @@ const TABS = [
   "Voice",
   "Host",
   "Picture review",
+  "Short clips",
   "Visual Planner",
   "Detective",
   "Visual Library",
@@ -213,6 +215,7 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
         {tab === "Voice" && <VoiceTab {...languageProps} />}
         {tab === "Host" && <HostTab {...languageProps} />}
         {tab === "Picture review" && <ReviewQueuePage caseId={caseId} embedded />}
+        {tab === "Short clips" && <ShortClipsTab caseId={caseId} />}
         {tab === "Visual Planner" && <PlannerTab {...common} />}
         {tab === "Detective" && <DetectiveTab {...common} />}
         {tab === "Visual Library" && <VisualLibraryTab {...common} />}

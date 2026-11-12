@@ -62,6 +62,7 @@ import type {
   MvpCandidateGroup,
   MvpGaps,
   RejectedMedia,
+  ShortClipsOverview,
   RejectedMediaRemoved,
   MvpFilmReview,
   MvpPlan,
@@ -1147,6 +1148,10 @@ export const monitoringApi = {
 export const drawingApi = {
   overview: (caseId: number) => request<DrawingOverview>(`/api/cases/${caseId}/drawing`),
   create: (caseId: number) => post<DrawingOverview>(`/api/cases/${caseId}/drawing/create`, {}),
+};
+
+export const shortClipsApi = {
+  overview: (caseId: number) => request<ShortClipsOverview>(`/api/cases/${caseId}/short-clips`),
 };
 
 export const mvpApi = {

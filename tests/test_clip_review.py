@@ -209,3 +209,50 @@ def test_the_host_and_opening_reviews_have_no_finish_route(clips):
     client = TestClient(app)
     for base in ("host-voice-review", "opening-voice-review"):
         assert client.post(f"/api/documentary/versions/{version.id}/{base}/finish").status_code in (404, 405)
+
+
+def test_the_short_clips_view_lists_each_language_with_parts_voice_state_and_video(clips, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    db, version, _ = clips
+    client = TestClient(app)
+    body = client.get(f"/api/cases/{version.case_id}/short-clips").json()
+    [fa] = body["languages"]
+    assert fa["language"] == "fa" and [c["clip_key"] for c in fa["clips"]] == ["C1", "C2"]
+    first = fa["clips"][0]
+    assert first["parts"]["hook"] == SCRIPT["hook"] and first["angle"] == "question"
+    assert first["voiced"] is True and first["review"] is None and first["video"] is None and first["voice_seconds"] > 0
+    assert client.get(f"/api/cases/{version.case_id}/short-clips/fa/C1/video").status_code == 404
+    review = client.post(f"/api/documentary/versions/{version.id}/clip-voice-review/open")
+    assert review.status_code == 200
+    assert client.get(f"/api/cases/{version.case_id}/short-clips").json()["languages"][0]["clips"][0]["review"] == "in_review"
+    client.post(f"/api/documentary/versions/{version.id}/clip-voice-review/finish")
+    assert client.get(f"/api/cases/{version.case_id}/short-clips").json()["languages"][0]["clips"][0]["review"] == "finished"
+    assert client.get("/api/cases/999999/short-clips").status_code == 404
+
+
+def test_a_clip_video_is_served_and_a_clip_without_voice_is_not_voiced(clips, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    db, version, _ = clips
+    client = TestClient(app)
+    media_row = row(db, version, "C1")
+    video = tmp_path / "cases" / "clip.mp4"
+    video.parent.mkdir(parents=True, exist_ok=True)
+    video.write_bytes(b"\x00\x00\x00\x18ftypmp42")
+    media = json.loads(media_row.media_json)
+    media["video"] = {"path": str(video), "seconds": 26.5, "bytes": video.stat().st_size}
+    media_row.media_json = json.dumps(media)
+    db.commit()
+    first = client.get(f"/api/cases/{version.case_id}/short-clips").json()["languages"][0]["clips"][0]
+    assert first["video"]["seconds"] == 26.5 and first["video"]["url"].endswith("/short-clips/fa/C1/video")
+    served = client.get(first["video"]["url"])
+    assert served.status_code == 200 and served.headers["content-type"] == "video/mp4"
+    media["voice"]["hook"]["text"] = "ی چیز دیگه"
+    media_row.media_json = json.dumps(media)
+    db.commit()
+    assert client.get(f"/api/cases/{version.case_id}/short-clips").json()["languages"][0]["clips"][0]["voiced"] is False
