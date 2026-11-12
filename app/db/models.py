@@ -3323,6 +3323,7 @@ class MvpCandidate(Base):
     final_status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     reasons_json: Mapped[str] = mapped_column(Text, default="[]")
     verifiers_json: Mapped[str] = mapped_column(Text, default="[]")
+    dismissed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)   # the owner cleared a rejected entry from the review; the verdict stays
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
 

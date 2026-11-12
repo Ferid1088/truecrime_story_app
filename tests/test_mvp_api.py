@@ -341,11 +341,59 @@ def test_the_delete_buttons_remove_rejected_files_over_the_api_and_hide_them_fro
     db_session.commit()
     client = TestClient(app)
     assert client.get(f"/api/cases/{case.id}/mvp/rejected-media").json() == {
-        "photo": {"assets": 1, "bytes": 100}, "video": {"assets": 0, "bytes": 0}}
+        "photo": {"assets": 1, "entries": 1, "bytes": 100}, "video": {"assets": 0, "entries": 0, "bytes": 0}}
     assert len(client.get(f"/api/cases/{case.id}/mvp/candidates?status=rejected").json()) == 1
-    assert client.delete(f"/api/cases/{case.id}/mvp/rejected-media/video").json() == {"removed": 0, "bytes": 0}
+    assert client.delete(f"/api/cases/{case.id}/mvp/rejected-media/video").json() == {
+        "removed": 0, "bytes": 0, "dismissed": 0}
     assert file.exists()
-    assert client.delete(f"/api/cases/{case.id}/mvp/rejected-media/photo").json() == {"removed": 1, "bytes": 100}
+    assert client.delete(f"/api/cases/{case.id}/mvp/rejected-media/photo").json() == {
+        "removed": 1, "bytes": 100, "dismissed": 1}
     assert not file.exists()
     assert client.get(f"/api/cases/{case.id}/mvp/candidates?status=rejected").json() == []
     assert client.delete(f"/api/cases/{case.id}/mvp/rejected-media/audio").status_code == 422
+
+
+def test_a_picture_rejected_for_one_requirement_but_kept_for_another_keeps_its_file_and_loses_only_the_rejected_entry(
+        db_session, tmp_path):
+    case, plan, cand = _seed(db_session)
+    asset = db_session.get(VisualAsset, cand.visual_asset_id)
+    file = tmp_path / "kept.jpg"
+    file.write_bytes(b"x" * 50)
+    asset.local_path = str(file)
+    asset.verification_status = "verified"
+    other = MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="B02.1", beat_id="B02",
+                           function="evidence", entity_key="ashley", role_needed="evidence", priority="high",
+                           spec_json="{}")
+    db_session.add(other)
+    db_session.commit()
+    kept = MvpCandidate(requirement_id=other.id, visual_asset_id=asset.id, identity_status="approved",
+                        provenance_status="passed", ethics_status="approved", scene_status="approved",
+                        rights_status="cleared", final_status="approved", role="evidence")
+    cand.final_status = "rejected"
+    db_session.add(kept)
+    db_session.commit()
+    client = TestClient(app)
+    assert client.get(f"/api/cases/{case.id}/mvp/rejected-media").json()["photo"] == {
+        "assets": 1, "entries": 1, "bytes": 0}
+    assert client.delete(f"/api/cases/{case.id}/mvp/rejected-media/photo").json() == {
+        "removed": 0, "bytes": 0, "dismissed": 1}
+    assert file.exists() and asset.local_path == str(file)
+    assert client.get(f"/api/cases/{case.id}/mvp/candidates?status=rejected").json() == []
+    [row] = client.get(f"/api/cases/{case.id}/mvp/candidates?status=approved").json()
+    assert row["asset_id"] == asset.id
+    db_session.refresh(cand)
+    assert cand.final_status == "rejected" and cand.dismissed_at is not None
+
+
+def test_the_preview_does_not_count_entries_of_pictures_whose_files_the_owner_already_deleted(db_session):
+    from datetime import datetime, timezone
+
+    case, plan, cand = _seed(db_session)
+    asset = db_session.get(VisualAsset, cand.visual_asset_id)
+    asset.verification_status = "rejected"
+    asset.file_removed_at = datetime.now(timezone.utc)
+    asset.local_path = None
+    cand.final_status = "rejected"
+    db_session.commit()
+    assert TestClient(app).get(f"/api/cases/{case.id}/mvp/rejected-media").json()["photo"] == {
+        "assets": 0, "entries": 0, "bytes": 0}

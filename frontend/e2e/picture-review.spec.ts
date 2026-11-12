@@ -94,20 +94,20 @@ test.describe("Main Visual Planner picture review", () => {
     await pictures.click();
     await expect(pictures).toHaveText("Delete rejected pictures (3)");
     page.once("dialog", (dialog) => {
-      expect(dialog.message()).toContain("3 rejected pictures (5 MB)");
+      expect(dialog.message()).toContain("Clear 3 rejected pictures? 7 rejected entries leave the list");
       void dialog.accept();
     });
     await pictures.click();
-    await expect(page.getByText(/Deleted 3 rejected pictures \(5 MB freed\)/)).toBeVisible();
+    await expect(page.getByText(/Cleared 7 rejected entries; deleted 3 rejected pictures \(5 MB freed\)/)).toBeVisible();
     await expect(pictures).toHaveText("Delete rejected pictures (0)");
     await expect(pictures).toBeDisabled();
     await expect(videos).toHaveText("Delete rejected videos (2)");
     page.once("dialog", (dialog) => {
-      expect(dialog.message()).toContain("2 rejected videos (40 MB)");
+      expect(dialog.message()).toContain("Clear 2 rejected videos? 4 rejected entries leave the list");
       void dialog.accept();
     });
     await videos.click();
-    await expect(page.getByText(/Deleted 2 rejected videos \(40 MB freed\)/)).toBeVisible();
+    await expect(page.getByText(/Cleared 4 rejected entries; deleted 2 rejected videos \(40 MB freed\)/)).toBeVisible();
     await expect(videos).toBeDisabled();
   });
 

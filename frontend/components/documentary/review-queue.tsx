@@ -280,12 +280,14 @@ export function ReviewQueuePage({
       const name = target === "photo" ? "pictures" : "videos";
       if (!found || found.assets === 0 || busy) return;
       if (!window.confirm(
-        `Delete the files of ${found.assets} rejected ${name} (${(found.bytes / 1048576).toFixed(0)} MB)? ` +
-        "This cannot be undone. Their records stay, so the same file is not fetched or judged again.")) return;
+        `Clear ${found.assets} rejected ${name}? ${found.entries} rejected entries leave the list and the files of ` +
+        `${name} rejected everywhere are deleted (${(found.bytes / 1048576).toFixed(0)} MB). A file that is kept for ` +
+        "another requirement stays. This cannot be undone; the verdicts stay, so nothing is judged again.")) return;
       setBusy(true);
       try {
         const done = await mvpApi.deleteRejectedMedia(caseId, target);
-        setMessage(`Deleted ${done.removed} rejected ${name} (${(done.bytes / 1048576).toFixed(0)} MB freed).`);
+        setMessage(`Cleared ${done.dismissed} rejected entries; deleted ${done.removed} rejected ${name} ` +
+          `(${(done.bytes / 1048576).toFixed(0)} MB freed).`);
         setDecided({});
         setIndex(0);
         await Promise.all([refetch(), refetchRejected()]);

@@ -16,6 +16,7 @@ from app.documentary.mvp import direct as DR
 from app.documentary.mvp import overlays as OV
 from app.documentary.mvp import review as RV
 from app.documentary.mvp import verify as VF
+from app.documentary.mvp import rejected_media as RM
 from app.documentary.visuals import storage_budget as SB
 
 router = APIRouter(tags=["main-visual-planner"])
@@ -148,7 +149,8 @@ def mvp_candidates(case_id: int, status: str = "needs_review", beat: str | None 
              .join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
              .join(VisualAsset, VisualAsset.id == MvpCandidate.visual_asset_id)
              .filter(MvpRequirement.case_id == case_id, MvpCandidate.final_status.in_(wanted or ["needs_review"]),
-                     VisualAsset.file_removed_at.is_(None)))       # a picture the owner deleted is not shown again
+                     VisualAsset.file_removed_at.is_(None),         # a picture the owner deleted is not shown again
+                     MvpCandidate.dismissed_at.is_(None)))          # nor an entry the owner cleared
     if beat:
         query = query.filter(MvpRequirement.beat_id == beat)
     if cut_only:
@@ -163,17 +165,18 @@ def mvp_candidates(case_id: int, status: str = "needs_review", beat: str | None 
 
 @router.get("/api/cases/{case_id}/mvp/rejected-media")
 def rejected_media(case_id: int, db: Session = Depends(get_db)):
-    """How many rejected pictures and videos still hold files, and how many bytes: what the delete buttons remove."""
-    return SB.rejected_media(db, case_id)
+    """What the two delete buttons would clear: rejected pictures and videos, the rejected entries they hide, the bytes."""
+    return RM.preview(db, case_id)
 
 
 @router.delete("/api/cases/{case_id}/mvp/rejected-media/{kind}")
 def delete_rejected_media(case_id: int, kind: str, db: Session = Depends(get_db)):
-    """The owner deletes the files of all rejected pictures (kind `photo`) or all rejected videos (kind `video`).
-    The records and their verdicts stay, so the same picture is never fetched or judged again."""
+    """The owner clears all rejected pictures (kind `photo`) or all rejected videos (kind `video`): the files of those
+    rejected everywhere go, and every rejected entry leaves the review list. The verdicts stay, so the same picture
+    is never fetched or judged again."""
     if kind not in SB.KINDS:
         raise HTTPException(422, f"kind must be one of {', '.join(SB.KINDS)}")
-    return SB.remove_rejected(db, case_id, kind)
+    return RM.clear(db, case_id, kind)
 
 
 def apply_decision(db: Session, cand: MvpCandidate, decision: str, note: str | None,

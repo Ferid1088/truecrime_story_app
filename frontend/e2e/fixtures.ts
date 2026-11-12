@@ -570,7 +570,9 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     candidate(2, "VIS_205", "Ka-Bar sheath", "the sheath on the evidence table", "verifiers disagree; stored for review"),
   ];
   const reviewQueueState = { list: () => reviewQueueItems };
-  const rejectedMedia = { photo: { assets: 3, bytes: 5 * 1048576 }, video: { assets: 2, bytes: 40 * 1048576 } };
+  const rejectedMedia = {
+    photo: { assets: 3, entries: 7, bytes: 5 * 1048576 }, video: { assets: 2, entries: 4, bytes: 40 * 1048576 },
+  };
   const selections = new Map<number, { must_use: boolean; draw_priority: number | null }>();
   let drawingMade = false;
 
@@ -683,8 +685,8 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     const rejectedDelete = path.match(/^\/api\/cases\/1\/mvp\/rejected-media\/(photo|video)$/);
     if (rejectedDelete && method === "DELETE") {
       const kind = rejectedDelete[1] as "photo" | "video";
-      const gone = { removed: rejectedMedia[kind].assets, bytes: rejectedMedia[kind].bytes };
-      rejectedMedia[kind] = { assets: 0, bytes: 0 };
+      const gone = { removed: rejectedMedia[kind].assets, bytes: rejectedMedia[kind].bytes, dismissed: rejectedMedia[kind].entries };
+      rejectedMedia[kind] = { assets: 0, entries: 0, bytes: 0 };
       return json(route, gone);
     }
     if (path === "/api/cases/1/mvp/candidates/decision" && method === "POST") {
