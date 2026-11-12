@@ -198,7 +198,9 @@ function OwnerNote({ caseId, item, flushRef }: {
   );
 }
 
-export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number; portraits?: boolean }) {
+export function ReviewQueuePage({
+  caseId, portraits = false, embedded = false,
+}: { caseId: number; portraits?: boolean; embedded?: boolean }) {
   // opened from "Choose another first portrait": the approved photos, to give one the drawing priority
   const [chosenShown, setShown] = useState<(typeof SHOWN)[number]["key"] | null>(portraits ? "approved" : null);
   const [chosenKind, setKind] = useState<Kind | null>(portraits ? "photo" : null);
@@ -326,18 +328,25 @@ export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number;
 
   const verdict = item ? verdictOf(item, decided) : undefined;
   const chosenPriority = item ? (selections[item.asset_id] ? selections[item.asset_id].draw_priority : item.draw_priority) : null;
-  const height = "lg:h-[calc(100vh-17rem)]";
+  const height = embedded ? "lg:h-[calc(100vh-24rem)]" : "lg:h-[calc(100vh-17rem)]";
+  const Frame = embedded ? "section" : "main";
   return (
-    <main className="w-full px-6 py-5" data-testid="review-queue-page">
+    <Frame className={embedded ? "w-full" : "w-full px-6 py-5"} data-testid="review-queue-page">
       <header className="mb-3 flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
         <div className="min-w-0">
-          <Link
-            href={`/documentary/${caseId}`}
-            className="mb-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ChevronLeft className="h-4 w-4" /> Documentary
-          </Link>
-          <h1 className="text-xl font-semibold tracking-tight">Picture review</h1>
+          {!embedded && (
+            <Link
+              href={`/documentary/${caseId}`}
+              className="mb-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ChevronLeft className="h-4 w-4" /> Documentary
+            </Link>
+          )}
+          {embedded ? (
+            <h2 className="text-xl font-semibold tracking-tight">Picture review</h2>
+          ) : (
+            <h1 className="text-xl font-semibold tracking-tight">Picture review</h1>
+          )}
           <p className="mt-0.5 text-sm text-muted-foreground" data-testid="review-queue-counter">
             {queue.length > 0 && <span className="font-medium text-foreground">{safeIndex + 1} / {queue.length} · </span>}
             {left} left to review: {SHOWN_TEXT[shown]}
@@ -619,6 +628,6 @@ export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number;
           </section>
         </div>
       ) : null}
-    </main>
+    </Frame>
   );
 }

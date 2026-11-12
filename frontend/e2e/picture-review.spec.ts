@@ -1,5 +1,5 @@
 import { test, expect } from "./test-base";
-import { mockApi } from "./fixtures";
+import { mockApi, PRODUCTION_LANGUAGES } from "./fixtures";
 
 test.describe("Main Visual Planner picture review", () => {
   test("shows the first open picture with its requirement, five decisions and reasons", async ({ page }) => {
@@ -109,5 +109,34 @@ test.describe("Main Visual Planner picture review", () => {
     await videos.click();
     await expect(page.getByText(/Deleted 2 rejected videos \(40 MB freed\)/)).toBeVisible();
     await expect(videos).toBeDisabled();
+  });
+
+  test("Picture review is a tab of the documentary workspace, right after Host", async ({ page }) => {
+    await mockApi(page);
+    const ok = (body: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+    await page.route("**/api/documentary/settings", (r) => r.fulfill(ok({
+      languages: [...PRODUCTION_LANGUAGES], film_minutes: { min: 45, max: 120 }, pilot_seconds: 120, voices: {},
+      channels: { en: { name: "ClueVera" } }, avatar_generation: { enabled: true },
+      voice_performance: { enabled: true, level_tags: {}, level_styles: {} },
+      concurrency: { llm: 1, vision: 1, elevenlabs_tts: 1, elevenlabs_sound: 1, asr: 1, render: 1, downloads: 1, jobs: 1, languages: 1 },
+      render: { width: 1920, height: 1080, fps: 24, audio_sample_rate: 48000, burn_subtitles: true, subtitle_max_chars: 42, subtitle_max_seconds: 7, show_credits: true },
+      rights_profiles: { preview: [], publish: [] }, dynamic_eq: {},
+    })));
+    await page.route("**/api/cases/1/documentary", (r) => r.fulfill(ok({
+      finals: [], master_version_id: null, film_minutes: { min: 45, max: 120 }, blueprint: null,
+      audio_plan: null, languages: {}, visual_plan: null, jobs: [], visual_counts: {},
+    })));
+    await page.route("**/api/cases/1/costs", (r) => r.fulfill(ok({
+      case_id: 1, cap_eur: 300, spent_eur: 0, remaining_eur: 300, status: "new", stop_reason: null, calls: [],
+    })));
+    await page.goto("/documentary/1");
+    await expect(page.getByRole("tab", { name: "Host" })).toBeVisible();
+    const tabs = await page.getByRole("tab").allInnerTexts();
+    expect(tabs.indexOf("Picture review")).toBe(tabs.indexOf("Host") + 1);
+    await page.getByRole("tab", { name: "Picture review" }).click();
+    await expect(page.getByRole("tab", { name: "Picture review", selected: true })).toBeVisible();
+    await expect(page.getByTestId("review-queue-page")).toBeVisible();
+    await expect(page.getByTestId("review-queue-delete-rejected-photo")).toBeVisible();
+    await expect(page.locator("main")).toHaveCount(1);
   });
 });
