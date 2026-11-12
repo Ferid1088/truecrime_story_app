@@ -61,7 +61,7 @@
         "stroke_fraction": 0.09
       },
       "music": {
-        "volume": 2.0,
+        "volume": 2.5,
         "duck": 0.2,
         "fade_in": 0.8,
         "fade_out": 1.2,
