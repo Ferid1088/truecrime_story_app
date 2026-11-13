@@ -110,9 +110,11 @@ def scene_outfit(db: Session, scene) -> HostOutfit | None:
         or selected_outfit(db, scene.case_id, scene.language)
 
 
-def section_ids() -> list[str]:
-    """S1 ... Sn: the host's sections of every film (their number is the configured count of appearances)."""
-    return [f"S{n}" for n in range(1, ai_config.host.max_appearances + 1)]
+def section_ids(db: Session, case_id: int) -> list[str]:
+    """S1 ... Sn: the host's sections of the case's films (their number is the appearances of the case's host plan, else the configured count)."""
+    from app.documentary.host_planning import cfg_for_case
+
+    return [f"S{n}" for n in range(1, cfg_for_case(db, case_id).max_appearances + 1)]
 
 
 def section_outfit(db: Session, case_id: int, language: str, section: str) -> HostOutfit | None:
@@ -128,8 +130,9 @@ def set_section_outfit(db: Session, case_id: int, language: str, section: str,
                        outfit: HostOutfit | None) -> None:
     """Choose the outfit of one section, or (None) take the choice back. A scene of that section that has no video yet and no
     outfit of its own forgets its look, so its look is chosen again from the new outfit."""
-    if section not in section_ids():
-        raise OutfitError(f"{section!r} is not a section of the host ({', '.join(section_ids())})")
+    sections = section_ids(db, case_id)
+    if section not in sections:
+        raise OutfitError(f"{section!r} is not a section of the host ({', '.join(sections)})")
     if outfit is not None and (outfit.case_id != case_id or outfit.language != language or outfit.status == "retired"):
         raise OutfitError(f"That outfit is not available for {language}.")
     row = (db.query(HostSectionOutfit)
@@ -155,7 +158,7 @@ def section_view(db: Session, case_id: int, language: str) -> dict:
     """What the Host tab shows for one language: for every section the outfit it wears (its own choice, else the video's)."""
     default = selected_outfit(db, case_id, language)
     sections = []
-    for section in section_ids():
+    for section in section_ids(db, case_id):
         own = section_outfit(db, case_id, language, section)
         wearing = own or default
         sections.append({"section": section, "chosen": own is not None,

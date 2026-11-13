@@ -48,7 +48,7 @@ from app.documentary.host import (
     writer_system_prompt,
 )
 from app.documentary.host_firewall import reveal_issues
-from app.documentary.host_planning import fit_plan, inherit, story_seconds, validate_host_plan
+from app.documentary.host_planning import cfg_for_case, fit_plan, inherit, story_seconds, validate_host_plan
 from app.documentary.host_story import HostStory, load_story
 from app.documentary.identity_line import (
     ends_with_identity,
@@ -114,25 +114,26 @@ class HostDirector:
             raise RuntimeError("The blueprint is invalid; fix it before planning the host.")
         story = self._story(db, case, master, bp_row)
         narration = story_seconds(story)
+        cfg = cfg_for_case(db, case.id, self.cfg)         # a case with a host plan keeps its number of appearances
         payload = director_input(story, narration)
-        system = director_system_prompt(self.cfg, narration)
+        system = director_system_prompt(cfg, narration)
 
         plan, report, res, raw = None, {"errors": [True]}, None, {}
         english = english_host_plan(db, case.id) if (master.language or "en") != ai_config.language_pipeline.draft_language else None
         if english is not None:        # the film of another language has the host sections of the English film, when they fit its story
-            plan, report = validate_host_plan(structure_of(english), story, self.cfg)
+            plan, report = validate_host_plan(structure_of(english), story, cfg)
             report = inherit(report)
             report["origin"] = f"the English film's host plan {english.id}"
         if plan is None or report["errors"]:
             raw, res = await self._json(db, case.id, "Host Director", "host_director", system, payload)
-            plan, report = validate_host_plan(raw, story, self.cfg)
+            plan, report = validate_host_plan(raw, story, cfg)
         repairs = 0
         while report["errors"] and repairs < self.cfg.max_repair_iterations:
             repairs += 1
             raw, res = await self._json(
                 db, case.id, f"Host Director repair {repairs}", "host_director", system,
                 {**payload, "previous_plan": raw, "errors_to_fix": report["errors"]})
-            plan, report = validate_host_plan(raw, story, self.cfg)
+            plan, report = validate_host_plan(raw, story, cfg)
         report["repair_iterations"] = repairs
         query = db.query(HostPlan)
         count = (query.filter(HostPlan.blueprint_id == bp_row.id).count() if bp_row is not None
@@ -172,7 +173,7 @@ class HostDirector:
         """The plan's appearances in the story of the version that is voiced (the plan's acts are not a spoken version's beats)."""
         bp_row = db.get(EditorialBlueprint, plan_row.blueprint_id) if plan_row.blueprint_id else None
         made_for = self._story(db, case, db.get(StoryVersion, bp_row.story_version_id), bp_row) if bp_row is not None else story
-        return fit_plan(json.loads(plan_row.plan_json or "{}").get("segments") or [], made_for, story, self.cfg)
+        return fit_plan(json.loads(plan_row.plan_json or "{}").get("segments") or [], made_for, story, cfg_for_case(db, case.id, self.cfg))
 
     async def write(self, db: Session, case: Case, version: StoryVersion,
                     plan_row: HostPlan) -> HostSegments:

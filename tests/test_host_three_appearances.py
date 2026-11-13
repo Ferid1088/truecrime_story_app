@@ -31,3 +31,24 @@ def test_a_mid_appearance_of_another_role_is_refused_and_so_are_two_mid_appearan
     four = plan_raw()
     four["segments"][2]["role"] = "transition"
     assert "appearance_count_out_of_range" in codes(validate_host_plan(four, story())[1]["errors"])
+
+
+def test_a_case_with_a_host_plan_keeps_its_four_appearances_and_a_new_case_gets_three(db_session):
+    import json
+    from uuid import uuid4
+
+    from app.db.models import Case, HostPlan
+    from app.documentary.host_planning import cfg_for_case
+    from app.documentary.outfits import section_ids
+
+    old = Case(canonical_title="Old four", slug=f"o-{uuid4().hex[:8]}", language="en")
+    new = Case(canonical_title="New case", slug=f"n-{uuid4().hex[:8]}", language="en")
+    db_session.add_all([old, new])
+    db_session.commit()
+    db_session.add(HostPlan(case_id=old.id, version=1, status="valid", plan_json=json.dumps({"segments": plan_raw()["segments"]})))
+    db_session.commit()
+    kept = cfg_for_case(db_session, old.id)
+    assert (kept.min_appearances, kept.max_appearances, kept.mid_roles) == (4, 4, [])
+    assert validate_host_plan(plan_raw(), story(), kept)[1]["status"] == "valid"
+    assert section_ids(db_session, old.id) == ["S1", "S2", "S3", "S4"]
+    assert cfg_for_case(db_session, new.id) is ai_config.host and section_ids(db_session, new.id) == ["S1", "S2", "S3"]

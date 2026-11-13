@@ -14,6 +14,27 @@ from app.documentary.host_story import HostStory
 POSITIONS = ("opening", "mid", "final")
 
 
+def appearances_of_case(db, case_id: int) -> int | None:
+    """How many appearances the case's newest host plan has, or None when the case has no host plan yet."""
+    import json
+
+    from app.db.models import HostPlan
+
+    plan = db.query(HostPlan).filter(HostPlan.case_id == case_id).order_by(HostPlan.id.desc()).first()
+    segments = json.loads(plan.plan_json or "{}").get("segments") if plan is not None else None
+    return len(segments) if segments else None
+
+
+def cfg_for_case(db, case_id: int, cfg: HostConfig | None = None) -> HostConfig:
+    """The host settings for one case: a case that already has a host plan keeps that plan's number of appearances (and its mid roles),
+    whatever the configuration says now; only a case without a host plan follows the configuration."""
+    cfg = cfg or ai_config.host
+    have = appearances_of_case(db, case_id)
+    if have is None or (have == cfg.max_appearances and have >= cfg.min_appearances):
+        return cfg
+    return cfg.model_copy(update={"min_appearances": have, "max_appearances": have, "short_film_min_appearances": have, "mid_roles": []})
+
+
 def story_seconds(story: HostStory) -> float:
     """The narration's length from the planned words, at the draft language's pace."""
     wpm = ai_config.language_pipeline.words_per_minute[ai_config.language_pipeline.draft_language]
