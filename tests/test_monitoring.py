@@ -12,6 +12,7 @@ from app.db.models import (
     ShortClip,
     Video,
     DocumentaryJob,
+    MvpFilmReview,
     EditorialBlueprint,
     ProviderCall,
     StoryVersion,
@@ -246,3 +247,19 @@ def test_research_counts_as_done_when_the_story_exists_but_this_job_did_not_rese
     job = _job(db_session, case, "running", "blueprint", [_stage("final_approval", "done"), _stage("blueprint", "running")])
     shared = {p["key"]: p["state"] for p in next(j for j in _snapshot(case)["running"] if j["id"] == job.id)["phase_bars"]["shared"]["phases"]}
     assert shared["research"] == "done" and shared["story"] == "done" and shared["blueprint"] == "running"
+
+
+def test_a_phase_that_waits_for_the_owner_is_marked_with_what_to_do_and_where(db_session):
+    case = _case(db_session)
+    job = _job(db_session, case, "partial", "voice:en", [_stage("spoken:en", "done"), _stage("voice:en", "done"), _stage("spoken:de", "done")],
+               error="de: AwaitingVoiceReview: Awaiting voice review: the de narration is made (/x). Listen to it, then resume.")
+    job.languages_json = '["en", "de"]'
+    db_session.add(MvpFilmReview(case_id=case.id, language="en", state="AWAITING_OWNER_REVIEW"))
+    db_session.commit()
+    answer = TestClient(app).get(f"/api/cases/{case.id}/monitoring").json()["latest_job"]["phase_bars"]
+    rows = {r["language"]: r for r in answer["languages"]}
+    voice = next(p for p in rows["de"]["phases"] if p["key"] == "voice")
+    assert voice["state"] == "owner" and voice["owner"]["href"] == f"/documentary/{case.id}?tab=Voice"
+    assert rows["de"]["needs_you"]["label"].startswith("Listen") and rows["de"]["current"] == "Voice"
+    assert next(p for p in rows["en"]["phases"] if p["key"] == "review")["state"] == "owner"
+    assert next(p for p in rows["en"]["phases"] if p["key"] == "voice")["state"] == "done"

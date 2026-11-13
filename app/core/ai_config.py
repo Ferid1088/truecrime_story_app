@@ -3778,6 +3778,15 @@ class ProgressPhase(BaseModel):
     source: str = "stages"
 
 
+class ProgressGate(BaseModel):
+    """A place where the run waits for the owner: the words of the job's error that name it, the phase it holds, and where the owner decides."""
+
+    match: str
+    phase: str
+    label: str
+    href: str
+
+
 class ProgressConfig(BaseModel):
     """The segments of the progress bars on the Monitoring page: the work shared by all languages and the chain of each language."""
 
@@ -3785,6 +3794,8 @@ class ProgressConfig(BaseModel):
     language: list[ProgressPhase]
     clip_keys: list[str]
     cover_keys: list[str]
+    gates: list[ProgressGate]
+    film_review: ProgressGate | None = None
 
 
 class MonitoringConfig(BaseModel):

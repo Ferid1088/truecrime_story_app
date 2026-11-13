@@ -3528,11 +3528,18 @@ export interface MonitoringStage {
   tab: string;
 }
 
+/** A place where the run waits for the owner: what to do and where. */
+export interface MonitoringOwnerGate {
+  label: string;
+  href: string;
+}
+
 export interface MonitoringPhase {
   key: string;
   label: string;
   group: string;
-  state: "pending" | "waiting" | "running" | "done" | "degraded" | "failed" | "blocked";
+  state: "pending" | "waiting" | "running" | "done" | "degraded" | "failed" | "blocked" | "owner";
+  owner?: MonitoringOwnerGate;
   done: number;
   total: number;
   stage: string | null;
@@ -3543,7 +3550,7 @@ export interface MonitoringPhase {
 
 export interface MonitoringProgress {
   shared: { phases: MonitoringPhase[] };
-  languages: { language: string; phases: MonitoringPhase[]; current: string | null; stuck: boolean; finished: boolean }[];
+  languages: { language: string; phases: MonitoringPhase[]; current: string | null; needs_you: MonitoringOwnerGate | null; stuck: boolean; finished: boolean }[];
 }
 
 export interface MonitoringJob {

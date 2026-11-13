@@ -282,7 +282,45 @@
         "C3",
         "C4",
         "C5"
-      ]
+      ],
+      "gates": [
+        {
+          "match": "Awaiting voice review",
+          "phase": "voice",
+          "label": "Listen to the narration and approve it",
+          "href": "/documentary/{case_id}?tab=Voice"
+        },
+        {
+          "match": "Awaiting picture review",
+          "phase": "plan",
+          "label": "Review the pictures",
+          "href": "/documentary/{case_id}/review"
+        },
+        {
+          "match": "Awaiting portrait choice",
+          "phase": "portraits",
+          "label": "Choose another first portrait",
+          "href": "/documentary/{case_id}/review?portraits=1"
+        },
+        {
+          "match": "Awaiting portrait creation",
+          "phase": "portraits",
+          "label": "Create the portraits",
+          "href": "/documentary/{case_id}/review"
+        },
+        {
+          "match": "Awaiting outfit",
+          "phase": "avatar",
+          "label": "Choose the outfit",
+          "href": "/documentary/{case_id}?tab=Run"
+        }
+      ],
+      "film_review": {
+        "phase": "review",
+        "label": "Watch the film and decide",
+        "href": "/documentary/{case_id}?tab=Render",
+        "match": ""
+      }
     }
   }
 }

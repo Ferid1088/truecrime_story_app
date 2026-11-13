@@ -23,7 +23,11 @@ const LANGUAGE_FILL: Record<string, string> = {
 };
 const SHARED_FILL = "bg-foreground/50";
 
+/** The owner's gates: a striped, pulsing bar that no language uses. */
+const OWNER_FILL = "animate-pulse bg-[repeating-linear-gradient(135deg,var(--foreground)_0_5px,transparent_5px_10px)]";
+
 function fillClass(state: MonitoringPhase["state"], color: string): string {
+  if (state === "owner") return OWNER_FILL;
   if (state === "degraded") return "bg-amber-500";
   if (state === "failed") return "bg-rose-500";
   if (state === "blocked") return "bg-rose-500/70";
@@ -37,6 +41,7 @@ function fraction(p: MonitoringPhase): number {
 
 const STATE_WORD: Record<MonitoringPhase["state"], string> = {
   pending: "not started",
+  owner: "needs you",
   waiting: "waiting",
   running: "running",
   done: "done",
@@ -66,18 +71,18 @@ function Bar({ row, color, phases, selected, onSelect }: { row: string; color: s
           {g.phases.map((p) => {
             const active = selected?.row === row && selected.phase.key === p.key;
             const percent = Math.round(fraction(p) * 100);
-            const filled = p.state === "failed" || p.state === "blocked" ? 100 : percent;     // a stopped phase shows its colour over the whole bar
+            const filled = p.state === "failed" || p.state === "blocked" || p.state === "owner" ? 100 : percent;     // a stopped phase shows its colour over the whole bar
             return (
               <button
                 key={p.key}
                 type="button"
-                disabled={p.total === 0}
+                disabled={p.total === 0 && p.state !== "owner"}
                 onClick={() => onSelect(active ? null : { row, phase: p })}
                 title={`${p.label}: ${STATE_WORD[p.state]}${p.total ? ` - ${percent} % (${p.done} of ${p.total} steps)` : ""}`}
                 aria-label={`${row} ${p.label}: ${percent} %, ${STATE_WORD[p.state]}`}
                 data-state={p.state}
                 data-percent={percent}
-                className={`relative h-2.5 min-w-0 flex-1 overflow-hidden rounded-sm bg-muted-foreground/15 outline-offset-2 disabled:cursor-default ${p.total === 0 ? "opacity-40" : ""} ${active ? "outline outline-2 outline-foreground" : ""}`}
+                className={`relative h-2.5 min-w-0 flex-1 overflow-hidden rounded-sm bg-muted-foreground/15 outline-offset-2 disabled:cursor-default ${p.total === 0 && p.state !== "owner" ? "opacity-40" : ""} ${p.state === "owner" ? "ring-2 ring-foreground" : ""} ${active ? "outline outline-2 outline-foreground" : ""}`}
               >
                 <span className={`absolute inset-y-0 left-0 transition-[width] duration-500 ${fillClass(p.state, color)}`} style={{ width: `${filled}%` }} />
               </button>
@@ -98,6 +103,11 @@ function Detail({ phase }: { phase: MonitoringPhase }) {
   return (
     <div className="mt-2 rounded-md border border-border bg-muted/30 p-3 text-xs" data-testid="progress-detail">
       <p className="mb-2 font-medium">{phase.label} - {STATE_WORD[phase.state]}</p>
+      {phase.owner && (
+        <p className="mb-2">
+          <Link href={phase.owner.href} className="font-medium underline" data-testid="progress-owner-link">{phase.owner.label}</Link>
+        </p>
+      )}
       <ul className="space-y-1">
         {phase.stages.map((s) => (
           <li key={s.name} className="flex flex-wrap justify-between gap-2">
@@ -136,6 +146,7 @@ function CaseProgress({ job, title }: { job: MonitoringJob; title: string }) {
   const [selected, setSelected] = useState<Selected>(null);
   const progress = job.phase_bars;
   const running = job.status === "running" || job.status === "queued" || job.status === "cancelling";
+  const waiting = progress.languages.filter((r) => r.needs_you);
   const labelOf = (code: string) => (LANGUAGES[code] ?? code.toUpperCase()).replace(/ \(.*\)$/, "");
   return (
     <div className="space-y-2 border-b border-border pb-4 last:border-0 last:pb-0" data-testid="progress-case">
@@ -148,6 +159,16 @@ function CaseProgress({ job, title }: { job: MonitoringJob; title: string }) {
           Job #{job.id} · {duration(job.age_s)}
         </span>
       </div>
+      {waiting.length > 0 && (
+        <div className="flex flex-wrap gap-2" data-testid="progress-needs-you">
+          {waiting.map((r) => (
+            <Link key={r.language} href={r.needs_you!.href} className="inline-flex items-center gap-2 rounded-md border-2 border-foreground px-2 py-1 text-xs font-medium hover:bg-muted">
+              <span className="size-2.5 animate-pulse rounded-sm bg-[repeating-linear-gradient(135deg,var(--foreground)_0_3px,transparent_3px_6px)]" aria-hidden />
+              {labelOf(r.language)}: {r.needs_you!.label}
+            </Link>
+          ))}
+        </div>
+      )}
       <Legend phases={progress.shared.phases} />
       <div className="flex items-center gap-2">
         <span className="w-28 shrink-0 text-xs text-muted-foreground">Shared</span>
@@ -161,7 +182,7 @@ function CaseProgress({ job, title }: { job: MonitoringJob; title: string }) {
           <Bar row={r.language} color={LANGUAGE_FILL[r.language] ?? SHARED_FILL} phases={r.phases} selected={selected} onSelect={setSelected} />
           <span className="w-36 shrink-0 text-right text-xs text-muted-foreground">
             <span className="mr-1 tabular-nums font-medium text-foreground">{overall(r.phases)} %</span>
-            {r.finished ? <span className="inline-flex items-center gap-1 text-emerald-600"><Check className="size-3" /></span>
+            {r.needs_you ? <Link href={r.needs_you.href} className="font-semibold text-foreground underline" title={r.needs_you.label}>Needs you</Link> : r.finished ? <span className="inline-flex items-center gap-1 text-emerald-600"><Check className="size-3" /></span>
               : r.stuck ? <span className="inline-flex items-center gap-1 text-rose-600"><AlertTriangle className="size-3" /> slow</span>
               : r.current ?? "-"}
           </span>

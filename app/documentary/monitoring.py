@@ -111,7 +111,7 @@ class Monitor:
             "languages": data["languages"], "error": job.error, "next_action": data["next_action"],
             "worker_id": job.worker_id, "heartbeat_age_s": seconds_since(job.heartbeat_at),
             "age_s": seconds_since(job.created_at), "idle_s": seconds_since(job.updated_at),
-            "stages": stages, "stage_counts": _counts(stages), "phase_bars": progress_view(self.db, job.case_id, self.case_stages(job), data["languages"]),
+            "stages": stages, "stage_counts": _counts(stages), "phase_bars": progress_view(self.db, job.case_id, self.case_stages(job), data["languages"], job),
             "current_call": call if call.get("active") else None,
             "warnings": [{"stage": w.get("stage"), "message": w.get("message")}
                          for w in (data["result"] or {}).get("warnings") or []],

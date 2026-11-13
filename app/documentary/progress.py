@@ -3,12 +3,16 @@ state is read from the job's stages. The segments are in config/parameters/monit
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ProgressPhase, ai_config
-from app.db.models import CoverImage, FilmOpening, HostScene, ShortClip, Video
+from app.db.models import CoverImage, DocumentaryJob, FilmOpening, HostScene, MvpFilmReview, ShortClip, Video
 
 RUNNING, FAILED, BLOCKED, DONE, DEGRADED, WAITING, PENDING = "running", "failed", "blocked", "done", "degraded", "waiting", "pending"
+OWNER = "owner"            # the run waits here for the owner
+ACTIVE_JOB = ("queued", "running", "cancelling")
 
 
 def _split(name: str) -> tuple[str, str | None]:
@@ -82,8 +86,8 @@ def _phases(phases: list[ProgressPhase], stages: list[dict], made: dict[str, lis
 
 def _current(phases: list[dict]) -> dict | None:
     """The phase to name under a bar: the running one, else the failed one, else the first that is not finished; a phase the job does not plan is none."""
-    planned = [p for p in phases if p["total"]]
-    for state in (RUNNING, FAILED, BLOCKED, WAITING, PENDING):
+    planned = [p for p in phases if p["total"] or p["state"] == OWNER]
+    for state in (OWNER, RUNNING, FAILED, BLOCKED, WAITING, PENDING):
         found = next((p for p in planned if p["state"] == state), None)
         if found:
             return found
@@ -98,12 +102,34 @@ def _stuck(phase: dict | None) -> bool:
     return phase["seconds"] > limit * 60
 
 
-def progress_view(db: Session, case_id: int, stages: list[dict], languages: list[str]) -> dict:
+def owner_gates(db: Session, case_id: int, job: DocumentaryJob, languages: list[str]) -> dict[tuple[str, str], dict]:
+    """The places where the run waits for the owner, as {(language, phase key): what to do and where}: from the error a stopped job ended with
+    (a line "de: ... Awaiting voice review ..." names its language, otherwise the language of the job's stage) and from the films held at the owner-review gate."""
+    cfg = ai_config.monitoring_settings().progress
+    found: dict[tuple[str, str], dict] = {}
+    error = job.error or ""
+    if job.status not in ACTIVE_JOB and error:
+        stage_language = _split(job.stage or "")[1] or (languages[0] if languages else "")
+        for gate in cfg.gates:
+            if gate.match not in error:
+                continue
+            named = {m.group(1) for m in re.finditer(r"\b([a-z]{2}): \w*: ?" + re.escape(gate.match), error)}
+            for language in named or {stage_language}:
+                found[(language, gate.phase)] = {"label": gate.label, "href": gate.href.format(case_id=case_id)}
+    review = cfg.film_review
+    if review:
+        for held in db.query(MvpFilmReview).filter(MvpFilmReview.case_id == case_id, MvpFilmReview.state == "AWAITING_OWNER_REVIEW").all():
+            found[(held.language, review.phase)] = {"label": review.label, "href": review.href.format(case_id=case_id)}
+    return found
+
+
+def progress_view(db: Session, case_id: int, stages: list[dict], languages: list[str], job: DocumentaryJob) -> dict:
     """The bars of one case: `shared` (stages without a language) and one row per language, the job's languages and the languages the case already has a film in."""
     cfg = ai_config.monitoring_settings().progress
     have = {v.language for v in db.query(Video).filter(Video.case_id == case_id).all()}
     order = ai_config.multilingual.producible_languages
     shown = sorted({*languages, *have}, key=lambda c: order.index(c) if c in order else len(order))
+    gates = owner_gates(db, case_id, job, languages)
     shared_stages = [s for s in stages if _split(s["name"])[1] is None]
     shared = _phases(cfg.shared, shared_stages)
     research, story = shared[0], shared[1]
@@ -113,7 +139,12 @@ def progress_view(db: Session, case_id: int, stages: list[dict], languages: list
     for language in shown:
         mine = [s for s in stages if _split(s["name"])[1] == language]
         phases = _phases(cfg.language, mine, _case_items(db, case_id, language))
+        for phase in phases:
+            gate = gates.get((language, phase["key"]))
+            if gate and phase["state"] not in (DONE, DEGRADED):
+                phase["state"], phase["owner"] = OWNER, gate
         current = _current(phases)
-        rows.append({"language": language, "phases": phases, "current": current["label"] if current else None,
+        needs = next((p["owner"] for p in phases if p["state"] == OWNER), None)
+        rows.append({"language": language, "phases": phases, "current": current["label"] if current else None, "needs_you": needs,
                      "stuck": _stuck(current), "finished": all(p["total"] and p["state"] in (DONE, DEGRADED) for p in phases)})
     return {"shared": {"phases": shared}, "languages": rows}
