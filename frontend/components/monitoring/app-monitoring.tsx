@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/state";
 import { PageHeader } from "@/components/page-header";
+import { ProgressCard } from "@/components/monitoring/progress-bars";
 import {
   Issues,
   ProvidersCard,
@@ -66,6 +67,11 @@ export function AppMonitoring() {
         {error && <p className="text-sm text-rose-700">Could not refresh: {error}</p>}
 
         <Issues issues={data.issues} onAct={act} busy={busy} />
+
+        <ProgressCard
+          jobs={data.cases.flatMap((c) => (c.job ? [c.job] : []))}
+          budgets={data.budgets}
+        />
 
         <div className="grid gap-5 lg:grid-cols-2">
           <Running title="Running now" jobs={data.running} empty="No job is running." onOpenTab={openStage} />

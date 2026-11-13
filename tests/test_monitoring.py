@@ -196,3 +196,26 @@ def test_the_reading_stage_has_its_own_longer_limit_before_it_counts_as_stuck(db
     _job(db_session, case, "running", "reading:fa", [{"name": "reading:fa", "status": "running", "started_at": started}],
          worker_id="w1", heartbeat_at=utc_now())
     assert any("Stage reading:fa has run for" in t for t in _titles(_snapshot(case)))
+
+
+def _stage(name, status, seconds=5.0):
+    return {"name": name, "status": status, "attempts": 1, "started_at": utc_now().isoformat(), "detail": {}}
+
+
+def test_the_progress_bars_show_each_language_phase_and_where_it_is(db_session):
+    case = _case(db_session)
+    job = _job(db_session, case, "running", "voice:de", [
+        _stage("blueprint", "done"), _stage("mvp_direct", "done"),
+        _stage("spoken:en", "done"), _stage("voice:en", "done"), _stage("render:en", "done"),
+        _stage("spoken:de", "done"), _stage("voice:de", "running"), _stage("render:de", "pending"),
+        _stage("short_render:de", "blocked")])
+    job.languages_json = '["en", "de"]'
+    db_session.commit()
+    progress = next(j for j in _snapshot(case)["running"] if j["id"] == job.id)["phase_bars"]
+    shared = {p["key"]: p["state"] for p in progress["shared"]["phases"]}
+    assert shared == {"plan": "done", "research": "pending", "pictures": "done"}
+    rows = {r["language"]: r for r in progress["languages"]}
+    states = {k: {p["key"]: p["state"] for p in r["phases"]} for k, r in rows.items()}
+    assert states["en"]["voice"] == "done" and states["en"]["render"] == "done" and states["en"]["shorts"] == "pending"
+    assert states["de"]["voice"] == "running" and states["de"]["render"] == "pending" and states["de"]["shorts"] == "blocked"
+    assert rows["de"]["current"] == "Voice" and rows["en"]["current"] is None and rows["en"]["finished"] and not rows["de"]["finished"]

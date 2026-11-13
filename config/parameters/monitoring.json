@@ -40,6 +40,101 @@
       "render": "Render",
       "mvp_review": "Render",
       "board_plan": "Visual Planner"
+    },
+    "progress": {
+      "shared": [
+        {
+          "key": "plan",
+          "label": "Plan",
+          "stages": [
+            "final_approval",
+            "blueprint",
+            "audio_plan",
+            "host_plan",
+            "chapters",
+            "naming",
+            "film_length",
+            "board_plan"
+          ]
+        },
+        {
+          "key": "research",
+          "label": "Research",
+          "stages": [
+            "mvp_needs",
+            "mvp_research",
+            "mvp_verify"
+          ]
+        },
+        {
+          "key": "pictures",
+          "label": "Pictures",
+          "stages": [
+            "mvp_direct",
+            "mvp_complete",
+            "mvp_portraits",
+            "zoom_maps"
+          ]
+        }
+      ],
+      "language": [
+        {
+          "key": "text",
+          "label": "Text",
+          "stages": [
+            "spoken",
+            "performance",
+            "reading",
+            "punctuation",
+            "host"
+          ]
+        },
+        {
+          "key": "voice",
+          "label": "Voice",
+          "stages": [
+            "voice"
+          ]
+        },
+        {
+          "key": "pictures",
+          "label": "Pictures",
+          "stages": [
+            "mvp_host",
+            "mvp_direct",
+            "mvp_complete",
+            "mvp_portraits",
+            "zoom_maps"
+          ]
+        },
+        {
+          "key": "production",
+          "label": "Production",
+          "stages": [
+            "production",
+            "critique",
+            "mvp_coverage",
+            "visual_audit"
+          ]
+        },
+        {
+          "key": "render",
+          "label": "Render",
+          "stages": [
+            "render",
+            "mvp_review"
+          ]
+        },
+        {
+          "key": "shorts",
+          "label": "Shorts",
+          "stages": [
+            "short_selection",
+            "short_script",
+            "short_render"
+          ]
+        }
+      ]
     }
   }
 }

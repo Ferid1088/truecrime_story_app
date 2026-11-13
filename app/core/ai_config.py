@@ -3767,6 +3767,21 @@ class GraphicsConfig(BaseModel):
         return self
 
 
+class ProgressPhase(BaseModel):
+    """One segment of a progress bar: the pipeline stages (names without the language) that make it up."""
+
+    key: str
+    label: str
+    stages: list[str]
+
+
+class ProgressConfig(BaseModel):
+    """The segments of the progress bars on the Monitoring page: the work shared by all languages and the chain of each language."""
+
+    shared: list[ProgressPhase]
+    language: list[ProgressPhase]
+
+
 class MonitoringConfig(BaseModel):
     """What the Monitoring tab watches (config/parameters/monitoring.json): when something counts as stuck or
     unhealthy and which workspace tab belongs to each pipeline stage."""
@@ -3784,6 +3799,7 @@ class MonitoringConfig(BaseModel):
     recent_days: float = Field(gt=0.0)
     recent_provider_errors: int = Field(gt=0)
     stage_tabs: dict[str, str]
+    progress: ProgressConfig
 
 
 class CrimeMapsConfig(BaseModel):

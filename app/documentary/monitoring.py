@@ -19,6 +19,7 @@ from app.core.env import env_value
 from app.db.base import get_db
 from app.db.models import Case, DocumentaryJob, MvpFilmReview, ProviderCall, VisualPlan
 from app.documentary import jobs as J
+from app.documentary.progress import progress_view
 from app.services.budget import BudgetService
 from app.utils import ensure_utc, utc_now
 
@@ -99,7 +100,7 @@ class Monitor:
             "languages": data["languages"], "error": job.error, "next_action": data["next_action"],
             "worker_id": job.worker_id, "heartbeat_age_s": seconds_since(job.heartbeat_at),
             "age_s": seconds_since(job.created_at), "idle_s": seconds_since(job.updated_at),
-            "stages": stages, "stage_counts": _counts(stages),
+            "stages": stages, "stage_counts": _counts(stages), "phase_bars": progress_view(stages, data["languages"]),
             "current_call": call if call.get("active") else None,
             "warnings": [{"stage": w.get("stage"), "message": w.get("message")}
                          for w in (data["result"] or {}).get("warnings") or []],

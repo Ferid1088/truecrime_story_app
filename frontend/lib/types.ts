@@ -3528,6 +3528,23 @@ export interface MonitoringStage {
   tab: string;
 }
 
+export interface MonitoringPhase {
+  key: string;
+  label: string;
+  state: "pending" | "waiting" | "running" | "done" | "degraded" | "failed" | "blocked";
+  done: number;
+  total: number;
+  stage: string | null;
+  seconds: number | null;
+  error: string | null;
+  stages: { name: string; status: string; attempts: number; seconds: number | null; error: string | null }[];
+}
+
+export interface MonitoringProgress {
+  shared: { phases: MonitoringPhase[] };
+  languages: { language: string; phases: MonitoringPhase[]; current: string | null; stuck: boolean; finished: boolean }[];
+}
+
 export interface MonitoringJob {
   id: number;
   case_id: number;
@@ -3543,6 +3560,7 @@ export interface MonitoringJob {
   age_s: number | null;
   idle_s: number | null;
   stages: MonitoringStage[];
+  phase_bars: MonitoringProgress;
   stage_counts: Record<string, number>;
   current_call: { stage: string; provider: string; call_number: number; elapsed_seconds?: number } | null;
   warnings: { stage: string | null; message: string | null }[];
