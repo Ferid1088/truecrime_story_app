@@ -10,6 +10,9 @@ from app.documentary.host_planning import fit_plan
 from app.documentary.host_story import HostAct, HostStory
 
 
+pytestmark = pytest.mark.usefixtures("four_host_appearances")
+
+
 def story(count: int, words: int, prefix: str, hook_first: bool = True, payoffs: tuple[int, ...] = ()) -> HostStory:
     acts = tuple(HostAct(f"{prefix}{i}", i, f"title {i}", "", f"text {i}", (), (), (), words, hook=hook_first and i == 1, payoff=i in payoffs)
                  for i in range(1, count + 1))

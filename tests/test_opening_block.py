@@ -159,6 +159,7 @@ def test_a_native_writer_writes_the_opening_again_from_the_english_one(db_sessio
     assert db_session.query(FilmOpening).filter(FilmOpening.case_id == case.id).count() == 2
 
 
+@pytest.mark.usefixtures("four_host_appearances")
 def test_the_host_writer_is_told_what_the_opening_block_already_said(db_session, isolated_host_history, monkeypatch):
     from test_host import HostGen
 

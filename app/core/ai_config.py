@@ -2069,6 +2069,8 @@ class HostConfig(BaseModel):
     hand_motion: HandMotionConfig = Field(default_factory=HandMotionConfig)
     # The kinds of appearance and their seconds [base, min, max] before the film's own weights.
     roles: dict[str, HostRole]
+    # The roles a mid appearance may have; empty = every mid role. With one mid appearance the owner fixes its kind and so its length.
+    mid_roles: list[str] = []
     # Seconds of an appearance grow with the weight of the act before it (its share of the
     # story against an even share) and with its place in the film (later = longer).
     act_weight_gain: float = Field(default=0.5, ge=0.0, le=2.0)

@@ -15,6 +15,9 @@ from app.documentary import host_angle as HA
 from app.documentary.host_story import HostAct, HostStory
 
 
+pytestmark = pytest.mark.usefixtures("four_host_appearances")
+
+
 def story(texts: list[str], payoffs: tuple[int, ...] = (), words: int = 100) -> HostStory:
     acts = tuple(HostAct(f"B{i}", i, f"title {i}", "", t, (), (f"q{i}",), ("q1",) if i == 2 else (), words, hook=i == 1, payoff=i in payoffs)
                  for i, t in enumerate(texts, 1))

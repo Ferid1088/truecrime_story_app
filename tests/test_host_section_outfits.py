@@ -1,6 +1,7 @@
 """The host's outfit per section (S1 ... S4) and language: chosen with the case, before any text or host scene exists."""
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 from test_host_outfit_window import library  # noqa: F401  (the fixture of the library photos)
 
@@ -8,6 +9,7 @@ from app.db.models import Case, HostScene
 from app.documentary import outfits as OF
 from app.main import app
 
+pytestmark = pytest.mark.usefixtures("four_host_appearances")
 client = TestClient(app)
 
 

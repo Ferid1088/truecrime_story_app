@@ -113,6 +113,9 @@ def validate_host_plan(raw: dict, story: HostStory, cfg: HostConfig | None = Non
                            "position": s.get("position"), "expected": spec.position})
             continue
         position = spec.position
+        if position == "mid" and cfg.mid_roles and role not in cfg.mid_roles:
+            errors.append({"code": "mid_role_not_allowed", "segment": sid, "role": role, "allowed": cfg.mid_roles})
+            continue
         if position == "opening":
             cutoff, act_id = 0, None
         elif position == "final":

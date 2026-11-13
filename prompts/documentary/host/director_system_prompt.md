@@ -29,9 +29,10 @@ ROLES (the kinds of appearance; the allowed seconds are computed, shown here for
 
 HOW MANY, WHERE
 - Every film has the same number of appearances: {min_appearances} to {max_appearances} in total
-  (the configured count), the opening and the outro included. With four, that is the opening (S1),
-  two mid appearances (S2, S3) and the outro (S4). Where they stand follows the structure of the
-  film, not a fixed pattern.
+  (the configured count), the opening and the outro included. With three, that is the opening (S1),
+  one mid appearance (S2) and the outro (S3); with four, two mid appearances (S2, S3) and the outro
+  (S4). Use only the roles listed above. Where they stand follows the structure of the film, not a
+  fixed pattern. The example below shows four appearances; plan the count given above.
 - A mid appearance ("transition", "reflection", "viewer_question") stands AFTER an act
   ("after_act": an act id), at an act boundary or natural tension point, never in the middle of
   a scene. Never after the hook act, never right before a payoff act, never after the last act

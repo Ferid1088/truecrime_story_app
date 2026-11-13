@@ -442,3 +442,14 @@ def roomy_machine(monkeypatch):
     monkeypatch.setattr(ai_config.orchestrator, "stagger_seconds", 0.0)
     yield
     concurrency.reset_throttles()
+
+
+@pytest.fixture()
+def four_host_appearances(monkeypatch):
+    """The host tests that plan four appearances (opening, two mid, outro) run with that count, whatever the live configuration says."""
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.host, "min_appearances", 4)
+    monkeypatch.setattr(ai_config.host, "max_appearances", 4)
+    monkeypatch.setattr(ai_config.host, "short_film_min_appearances", 4)
+    monkeypatch.setattr(ai_config.host, "mid_roles", [])

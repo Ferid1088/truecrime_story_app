@@ -71,13 +71,14 @@
   "host": {
     "enabled": true,
     "time_accounting": "added",
-    "min_appearances": 4,
-    "max_appearances": 4,
+    "min_appearances": 3,
+    "max_appearances": 3,
+    "mid_roles": ["transition"],
     "min_acts_between": 1,
     "min_gap_seconds": 240,
     "short_film_seconds": 600,
     "short_film_min_gap_seconds": 90,
-    "short_film_min_appearances": 4,
+    "short_film_min_appearances": 3,
     "roles": {
       "opening": {
         "position": "opening",

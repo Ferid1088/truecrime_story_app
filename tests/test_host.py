@@ -43,6 +43,9 @@ from app.providers.generation.base import GenerationResult
 
 BP = _no_contradiction(_good())  # B01 hook, B03 reveal, F001..F004
 
+pytestmark = pytest.mark.usefixtures("four_host_appearances")
+
+
 _VOCAB = ("timeline witness record door morning house letter neighbour phone kitchen "
           "statement detail question street evening car window answer silence family "
           "account version hour moment report note road garden name").split()
@@ -1390,3 +1393,4 @@ def test_a_host_writer_that_answers_with_the_dialogue_alone_has_still_written_it
     finally:
         db_session.expire_all()
         _delete_case_tree(db_session, case.id)
+

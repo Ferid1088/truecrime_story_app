@@ -219,7 +219,7 @@ def director_system_prompt(cfg: HostConfig | None = None,
         "required above are still planned)" if short else "")
     roles = "\n".join(
         f'- "{name}" (position "{spec.position}"): {spec.min_seconds:g}–{spec.max_seconds:g} s'
-        for name, spec in cfg.roles.items())
+        for name, spec in cfg.roles.items() if spec.position != "mid" or not cfg.mid_roles or name in cfg.mid_roles)
     return prompt("documentary/host/director_system_prompt").format(
         persona_prompt=persona_prompt(cfg), roles=roles, min_appearances=least,
         max_appearances=cfg.max_appearances, min_acts_between=cfg.min_acts_between,
