@@ -3772,7 +3772,9 @@ class ProgressPhase(BaseModel):
 
     key: str
     label: str
-    stages: list[str]
+    stages: list[str] = []
+    # "stages": read from the job's stages; otherwise from what the case holds in the database (avatar, opening, clips, covers)
+    source: str = "stages"
 
 
 class ProgressConfig(BaseModel):
@@ -3780,6 +3782,8 @@ class ProgressConfig(BaseModel):
 
     shared: list[ProgressPhase]
     language: list[ProgressPhase]
+    clip_keys: list[str]
+    cover_keys: list[str]
 
 
 class MonitoringConfig(BaseModel):

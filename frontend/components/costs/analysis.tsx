@@ -8,7 +8,7 @@ import { ErrorState } from "@/components/state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { MinuteBars, SpendChart } from "./charts";
-import { Bars, CallTable, eur } from "./shared";
+import { Bars, CallTable, eur, useLiveTick } from "./shared";
 
 function Fact({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -22,7 +22,8 @@ function Fact({ label, value, hint }: { label: string; value: string; hint?: str
 
 /** What is worth looking at: pace and days to the cap, the price of a film minute, waste, the dearest calls and models, the prompt cache and sudden jumps. */
 export function Analysis({ caseId }: { caseId: number }) {
-  const { data, error, refetch } = useApi(() => api.costsAnalysis(caseId), [caseId]);
+  const tick = useLiveTick();
+  const { data, error, refetch } = useApi(() => api.costsAnalysis(caseId), [caseId, tick], { keepPrevious: true });
   if (error) return <ErrorState message={error} onRetry={refetch} />;
   if (!data) return <Skeleton className="h-48" />;
   const { pace, waste, cache, shorts } = data;

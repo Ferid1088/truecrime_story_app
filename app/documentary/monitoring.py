@@ -90,6 +90,17 @@ class Monitor:
                         "seconds": seconds, "error": s.get("error"), "tab": self.tab_for(s["name"])})
         return out
 
+    def case_stages(self, job: DocumentaryJob) -> list[dict]:
+        """The case's stages over all its jobs up to this one, the newest state of each (a stage this job has not reached yet keeps the state an earlier job gave it)."""
+        merged: dict[str, dict] = {}
+        for earlier in self.db.query(DocumentaryJob).filter(DocumentaryJob.case_id == job.case_id, DocumentaryJob.id <= job.id).order_by(DocumentaryJob.id):
+            for stage in self.stage_view(earlier):
+                old = merged.get(stage["name"])
+                if old and old["status"] in ("done", "degraded") and stage["status"] in ("pending", "skipped"):
+                    continue
+                merged[stage["name"]] = stage
+        return list(merged.values())
+
     def job_view(self, job: DocumentaryJob) -> dict:
         data = J.job_dict(job)
         stages = self.stage_view(job)
@@ -100,7 +111,7 @@ class Monitor:
             "languages": data["languages"], "error": job.error, "next_action": data["next_action"],
             "worker_id": job.worker_id, "heartbeat_age_s": seconds_since(job.heartbeat_at),
             "age_s": seconds_since(job.created_at), "idle_s": seconds_since(job.updated_at),
-            "stages": stages, "stage_counts": _counts(stages), "phase_bars": progress_view(stages, data["languages"]),
+            "stages": stages, "stage_counts": _counts(stages), "phase_bars": progress_view(self.db, job.case_id, self.case_stages(job), data["languages"]),
             "current_call": call if call.get("active") else None,
             "warnings": [{"stage": w.get("stage"), "message": w.get("message")}
                          for w in (data["result"] or {}).get("warnings") or []],

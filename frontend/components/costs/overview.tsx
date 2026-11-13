@@ -14,7 +14,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { LiveFeed } from "./live";
 import { CertaintyBar, SpendChart } from "./charts";
 import { PhaseCharts } from "./phases";
-import { Bars, Money, eur } from "./shared";
+import { Bars, Money, eur, useLiveTick } from "./shared";
 
 function Invoices({ rows, vendors, onChanged }: { rows: CostReconciliation[]; vendors: { key: string; label: string }[]; onChanged: () => void }) {
   const [vendor, setVendor] = useState(vendors[0]?.key ?? "");
@@ -68,7 +68,8 @@ function Invoices({ rows, vendors, onChanged }: { rows: CostReconciliation[]; ve
 
 /** All cases at a glance: the money really spent, who it went to, which steps and languages, which case; click a case to open its own analysis. */
 export function CostsOverview() {
-  const { data, error, refetch } = useApi(() => api.costsOverview(), [], { keepPrevious: true });
+  const tick = useLiveTick();
+  const { data, error, refetch } = useApi(() => api.costsOverview(), [tick], { keepPrevious: true });
   if (error && !data) return <ErrorState message={error} onRetry={refetch} />;
   if (!data) return <Skeleton className="h-64" />;
   const t = data.totals;

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorState } from "@/components/state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { eur } from "./shared";
+import { eur, useLiveTick } from "./shared";
 
 /** One colour per entity (never per rank): the vendors and the five steps that have a slot of the palette; everything else is gray. */
 const SLOT: Record<string, string> = {
@@ -42,7 +42,8 @@ export function SpendChart({ caseId, title = "Spending over time" }: { caseId: n
   const [cumulative, setCumulative] = useState(false);
   const [table, setTable] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
-  const { data, error, refetch } = useApi(() => api.costsSeries(by, bucket, caseId), [by, bucket, caseId], { keepPrevious: true });
+  const tick = useLiveTick();
+  const { data, error, refetch } = useApi(() => api.costsSeries(by, bucket, caseId), [by, bucket, caseId, tick], { keepPrevious: true });
 
   const lines = useMemo(() => {
     if (!data) return [];

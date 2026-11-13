@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { formatDateTime } from "@/lib/format";
 import type { CostCall, CostRow } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -114,4 +114,18 @@ export function CallTable({ calls }: { calls: CostCall[] }) {
       </TBody>
     </Table>
   );
+}
+
+const REFRESH_MS = 10000;
+
+/** A counter that goes up every few seconds while the page is visible: put it in the dependencies of a request and the figures follow the money live. */
+export function useLiveTick(): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") setTick((t) => t + 1);
+    }, REFRESH_MS);
+    return () => clearInterval(timer);
+  }, []);
+  return tick;
 }

@@ -8,6 +8,9 @@ from fastapi.testclient import TestClient
 from app.core.config import settings
 from app.db.models import (
     Case,
+    CoverImage,
+    ShortClip,
+    Video,
     DocumentaryJob,
     EditorialBlueprint,
     ProviderCall,
@@ -207,15 +210,30 @@ def test_the_progress_bars_show_each_language_phase_and_where_it_is(db_session):
     job = _job(db_session, case, "running", "voice:de", [
         _stage("blueprint", "done"), _stage("mvp_direct", "done"),
         _stage("spoken:en", "done"), _stage("voice:en", "done"), _stage("render:en", "done"),
-        _stage("spoken:de", "done"), _stage("voice:de", "running"), _stage("render:de", "pending"),
-        _stage("short_render:de", "blocked")])
+        _stage("spoken:de", "done"), _stage("voice:de", "running"), _stage("render:de", "pending")])
     job.languages_json = '["en", "de"]'
+    db_session.add_all([ShortClip(case_id=case.id, language="en", clip_key="C1", status="valid"),
+                        CoverImage(case_id=case.id, language="en", cover_key="long", model="m", size="s", ok=True),
+                        Video(case_id=case.id, language="fr", title="fr film")])
     db_session.commit()
-    progress = next(j for j in _snapshot(case)["running"] if j["id"] == job.id)["phase_bars"]
-    shared = {p["key"]: p["state"] for p in progress["shared"]["phases"]}
-    assert shared == {"plan": "done", "research": "pending", "pictures": "done"}
-    rows = {r["language"]: r for r in progress["languages"]}
+    bars = next(j for j in _snapshot(case)["running"] if j["id"] == job.id)["phase_bars"]
+    shared = {p["key"]: p["state"] for p in bars["shared"]["phases"]}
+    assert shared == {"plan": "done", "research": "pending", "pictures": "done", "music": "pending"}
+    rows = {r["language"]: r for r in bars["languages"]}
+    assert set(rows) == {"en", "de", "fr"}                      # a language the case has a film in shows without a job stage
     states = {k: {p["key"]: p["state"] for p in r["phases"]} for k, r in rows.items()}
-    assert states["en"]["voice"] == "done" and states["en"]["render"] == "done" and states["en"]["shorts"] == "pending"
-    assert states["de"]["voice"] == "running" and states["de"]["render"] == "pending" and states["de"]["shorts"] == "blocked"
-    assert rows["de"]["current"] == "Voice" and rows["en"]["current"] is None and rows["en"]["finished"] and not rows["de"]["finished"]
+    assert states["en"]["voice"] == "done" and states["en"]["render"] == "done" and states["en"]["shorts"] == "waiting" and states["en"]["covers"] == "waiting"
+    assert states["de"]["voice"] == "running" and states["de"]["render"] == "pending" and states["de"]["avatar"] == "pending"
+    assert rows["de"]["current"] == "Voice" and not rows["de"]["finished"]
+    assert [p["label"] for p in rows["fr"]["phases"]] == ["Text", "Voice", "Avatar", "Pictures", "Opening", "Production", "Render", "Shorts", "Covers"]
+
+
+def test_the_bars_keep_what_an_earlier_job_of_the_case_finished(db_session):
+    case = _case(db_session)
+    _job(db_session, case, "completed", "render:de", [_stage("spoken:de", "done"), _stage("voice:de", "done")])
+    job = _job(db_session, case, "running", "spoken:de", [_stage("spoken:de", "running"), _stage("voice:de", "pending")])
+    job.languages_json = '["de"]'
+    db_session.commit()
+    bars = next(j for j in _snapshot(case)["running"] if j["id"] == job.id)["phase_bars"]
+    states = {p["key"]: p["state"] for p in bars["languages"][0]["phases"]}
+    assert states["text"] == "running" and states["voice"] == "done"

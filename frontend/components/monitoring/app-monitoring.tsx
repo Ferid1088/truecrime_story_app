@@ -68,10 +68,7 @@ export function AppMonitoring() {
 
         <Issues issues={data.issues} onAct={act} busy={busy} />
 
-        <ProgressCard
-          jobs={data.cases.flatMap((c) => (c.job ? [c.job] : []))}
-          budgets={data.budgets}
-        />
+        <ProgressCard jobs={data.cases.flatMap((c) => (c.job ? [c.job] : []))} />
 
         <div className="grid gap-5 lg:grid-cols-2">
           <Running title="Running now" jobs={data.running} empty="No job is running." onOpenTab={openStage} />

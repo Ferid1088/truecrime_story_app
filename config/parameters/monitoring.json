@@ -49,7 +49,6 @@
           "stages": [
             "final_approval",
             "blueprint",
-            "audio_plan",
             "host_plan",
             "chapters",
             "naming",
@@ -75,6 +74,13 @@
             "mvp_portraits",
             "zoom_maps"
           ]
+        },
+        {
+          "key": "music",
+          "label": "Music",
+          "stages": [
+            "audio_plan"
+          ]
         }
       ],
       "language": [
@@ -97,6 +103,12 @@
           ]
         },
         {
+          "key": "avatar",
+          "label": "Avatar",
+          "source": "avatar",
+          "stages": []
+        },
+        {
           "key": "pictures",
           "label": "Pictures",
           "stages": [
@@ -106,6 +118,12 @@
             "mvp_portraits",
             "zoom_maps"
           ]
+        },
+        {
+          "key": "opening",
+          "label": "Opening",
+          "source": "opening",
+          "stages": []
         },
         {
           "key": "production",
@@ -128,12 +146,30 @@
         {
           "key": "shorts",
           "label": "Shorts",
-          "stages": [
-            "short_selection",
-            "short_script",
-            "short_render"
-          ]
+          "source": "clips",
+          "stages": []
+        },
+        {
+          "key": "covers",
+          "label": "Covers",
+          "source": "covers",
+          "stages": []
         }
+      ],
+      "clip_keys": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5"
+      ],
+      "cover_keys": [
+        "long",
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5"
       ]
     }
   }

@@ -16,7 +16,7 @@ import { Drill, type Chip } from "./drill";
 import { LiveFeed } from "./live";
 import { CertaintyBar, SpendChart } from "./charts";
 import { PhaseCharts } from "./phases";
-import { Bars, Money, eur } from "./shared";
+import { Bars, Money, eur, useLiveTick } from "./shared";
 
 type Pick = (cell: { step?: [string, string]; language?: [string, string]; vendor?: [string, string] }) => void;
 
@@ -121,7 +121,8 @@ export function CaseCosts({ caseId, standalone = false }: { caseId: number; stan
   const [allocation, setAllocation] = useState<"none" | "even">("none");
   const [view, setView] = useState<(typeof VIEWS)[number]>("Spending");
   const [chips, setChips] = useState<Chip[]>([]);
-  const { data, error, refetch } = useApi(() => api.costsCase(caseId, allocation), [caseId, allocation], { keepPrevious: true });
+  const tick = useLiveTick();
+  const { data, error, refetch } = useApi(() => api.costsCase(caseId, allocation), [caseId, allocation, tick], { keepPrevious: true });
 
   const pick: Pick = (cell) => {
     const next: Chip[] = [];

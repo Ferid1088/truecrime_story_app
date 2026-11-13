@@ -9,7 +9,7 @@ import type { CostPhases } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorState } from "@/components/state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { eur } from "./shared";
+import { eur, useLiveTick } from "./shared";
 
 /** One colour per vendor (never per rank); a vendor without a slot of its own is gray. */
 const VENDOR: Record<string, string> = {
@@ -190,7 +190,8 @@ export function PhaseLanguages({ data }: { data: CostPhases }) {
 
 /** Both phase charts for all cases (caseId null) or one case. */
 export function PhaseCharts({ caseId }: { caseId: number | null }) {
-  const { data, error, refetch } = useApi(() => api.costsPhases(caseId), [caseId], { keepPrevious: true });
+  const tick = useLiveTick();
+  const { data, error, refetch } = useApi(() => api.costsPhases(caseId), [caseId, tick], { keepPrevious: true });
   if (error && !data) return <ErrorState message={error} onRetry={refetch} />;
   if (!data) return <Skeleton className="h-72" />;
   return (

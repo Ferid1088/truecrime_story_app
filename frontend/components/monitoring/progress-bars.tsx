@@ -80,7 +80,7 @@ function Legend({ phases }: { phases: MonitoringPhase[] }) {
   );
 }
 
-function CaseProgress({ job, title, spent, cap }: { job: MonitoringJob; title: string; spent?: number; cap?: number }) {
+function CaseProgress({ job, title }: { job: MonitoringJob; title: string }) {
   const [selected, setSelected] = useState<Selected>(null);
   const progress = job.phase_bars;
   const running = job.status === "running" || job.status === "queued" || job.status === "cancelling";
@@ -93,7 +93,7 @@ function CaseProgress({ job, title, spent, cap }: { job: MonitoringJob; title: s
           <Badge variant={running ? "info" : job.status === "failed" ? "danger" : "default"}>{running ? job.status : `last job ${job.status}`}</Badge>
         </div>
         <span className="text-xs tabular-nums text-muted-foreground">
-          Job #{job.id} · {duration(job.age_s)}{spent != null && cap != null ? ` · EUR ${spent.toFixed(2)} of ${cap.toFixed(0)}` : ""}
+          Job #{job.id} · {duration(job.age_s)}
         </span>
       </div>
       <Legend phases={progress.shared.phases} />
@@ -119,16 +119,13 @@ function CaseProgress({ job, title, spent, cap }: { job: MonitoringJob; title: s
   );
 }
 
-export function ProgressCard({ jobs, budgets }: { jobs: MonitoringJob[]; budgets: { case_id: number; spent_eur: number; cap_eur: number }[] }) {
+export function ProgressCard({ jobs }: { jobs: MonitoringJob[] }) {
   return (
     <Card>
       <CardHeader><CardTitle>Progress by language</CardTitle></CardHeader>
       <CardContent className="space-y-4" data-testid="monitoring-progress">
         {jobs.length === 0 && <p className="text-xs text-muted-foreground">Nothing is running and nothing stopped lately.</p>}
-        {jobs.map((j) => {
-          const b = budgets.find((x) => x.case_id === j.case_id);
-          return <CaseProgress key={j.id} job={j} title={j.case_title ?? `Case ${j.case_id}`} spent={b?.spent_eur} cap={b?.cap_eur} />;
-        })}
+        {jobs.map((j) => <CaseProgress key={j.id} job={j} title={j.case_title ?? `Case ${j.case_id}`} />)}
       </CardContent>
     </Card>
   );
