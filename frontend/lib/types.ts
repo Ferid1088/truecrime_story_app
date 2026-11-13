@@ -3920,3 +3920,9 @@ export interface CostSeries {
   labels: string[];
   series: { key: string; label: string; values: number[]; estimated: number[] }[];
 }
+
+export interface CostPhases {
+  steps: { key: string; label: string; shared: boolean; total_eur: number; estimated_eur: number; vendors: Record<string, number>; languages: Record<string, number> }[];
+  languages: string[];
+  vendors: { key: string; label: string }[];
+}

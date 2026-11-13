@@ -15,6 +15,7 @@ import { Analysis } from "./analysis";
 import { Drill, type Chip } from "./drill";
 import { LiveFeed } from "./live";
 import { CertaintyBar, SpendChart } from "./charts";
+import { PhaseCharts } from "./phases";
 import { Bars, Money, eur } from "./shared";
 
 type Pick = (cell: { step?: [string, string]; language?: [string, string]; vendor?: [string, string] }) => void;
@@ -152,6 +153,7 @@ export function CaseCosts({ caseId, standalone = false }: { caseId: number; stan
       {view === "Analysis" && <Analysis caseId={caseId} />}
       {view === "Spending" && (
         <>
+          <PhaseCharts key={`phases-${caseId}`} caseId={caseId} />
           <Card className="viz-root">
             <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
               <CardTitle>Every step in every language</CardTitle>

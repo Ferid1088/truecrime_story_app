@@ -28,6 +28,14 @@
       ]
     },
     {
+      "key": "visuals",
+      "label": "Pictures and maps",
+      "shared": true,
+      "stage_patterns": [
+        "^(mvp_|visual_|main visual planner|detective director|cinematic engines|general imagery|overlay scan|stage director|visual design director|image:(?!cover|clip|opening))"
+      ]
+    },
+    {
       "key": "language_text",
       "label": "Language versions (text)",
       "shared": false,
@@ -68,11 +76,11 @@
       ]
     },
     {
-      "key": "covers",
-      "label": "Covers",
+      "key": "music",
+      "label": "Music and sound",
       "shared": false,
       "stage_patterns": [
-        "^(image:cover|image:clip|cover)"
+        "^(elevenlabs|music)"
       ]
     },
     {
@@ -84,19 +92,11 @@
       ]
     },
     {
-      "key": "music",
-      "label": "Music and sound",
+      "key": "covers",
+      "label": "Covers",
       "shared": false,
       "stage_patterns": [
-        "^(elevenlabs|music)"
-      ]
-    },
-    {
-      "key": "visuals",
-      "label": "Pictures and maps",
-      "shared": true,
-      "stage_patterns": [
-        "^(mvp_|visual_|main visual planner|detective director|cinematic engines|general imagery|overlay scan|stage director|visual design director|image:)"
+        "^(image:cover|image:clip|cover)"
       ]
     },
     {

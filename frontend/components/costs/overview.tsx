@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { LiveFeed } from "./live";
 import { CertaintyBar, SpendChart } from "./charts";
+import { PhaseCharts } from "./phases";
 import { Bars, Money, eur } from "./shared";
 
 function Invoices({ rows, vendors, onChanged }: { rows: CostReconciliation[]; vendors: { key: string; label: string }[]; onChanged: () => void }) {
@@ -87,6 +88,7 @@ export function CostsOverview() {
           </div>
         ))}
       </div>
+      <PhaseCharts caseId={null} />
       <div className="grid items-start gap-4 lg:grid-cols-[2fr_1fr]">
         <SpendChart caseId={null} />
         <div className="space-y-4">

@@ -151,3 +151,16 @@ def test_the_series_have_zero_filled_buckets_and_fold_the_steps_without_a_colour
     assert all(len(s["values"]) == 24 for s in by_vendor["series"]) and sum(sum(s["values"]) for s in by_vendor["series"]) == pytest.approx(3.5)
     by_step = Q.series(db_session, case.id, "step", "day", 30)
     assert len(by_step["labels"]) == 30 and {s["key"]: round(sum(s["values"]), 2) for s in by_step["series"]} == {"voice": 2.0, "other_steps": 1.5}
+
+
+def test_the_phases_come_in_pipeline_order_split_by_vendor_and_language(db_session, case):
+    add(db_session, case, stage="tts:fa", eur=2.0, model="eleven_v4", host="api.elevenlabs.io", tin=None, tout=None)
+    add(db_session, case, stage="tts:de", eur=1.0, model="eleven_v4", host="api.elevenlabs.io", tin=None, tout=None)
+    add(db_session, case, stage="research", eur=4.0)
+    add(db_session, case, stage="Spoken Writer (fa)", eur=0.5)
+    found = Q.phases(db_session, case.id)
+    assert [s["key"] for s in found["steps"]] == ["research", "language_text", "voice"]
+    voice = found["steps"][2]
+    assert voice["vendors"] == {"elevenlabs": 3.0} and voice["languages"] == {"fa": 2.0, "de": 1.0} and voice["total_eur"] == 3.0
+    assert found["steps"][0]["shared"] is True and found["steps"][0]["languages"] == {R.SHARED: 4.0}
+    assert "research" not in {s["key"] for s in Q.phases(db_session, 999999999)["steps"]}

@@ -67,6 +67,15 @@ def series(by: str = Query("vendor", pattern="^(vendor|step)$"), bucket: str = Q
     return Q.series(db, case_id, by, bucket, span or (24 if bucket == "hour" else 30))
 
 
+@router.get("/phases")
+def phases(case_id: int | None = None, db: Session = Depends(get_db)):
+    """The real money by pipeline phase, split by vendor and by language (all cases, or one)."""
+    if case_id is not None:
+        _case(db, case_id)
+    _fresh(db, case_id)
+    return Q.phases(db, case_id)
+
+
 @router.get("/cases/{case_id}/group")
 def group(case_id: int, by: str = Query(pattern="^(step|language|vendor|model|subject|accuracy|day)$"), step: str | None = None, language: str | None = None, vendor: str | None = None,
           model: str | None = None, subject: str | None = None, accuracy: str | None = None, day: str | None = None, db: Session = Depends(get_db)):

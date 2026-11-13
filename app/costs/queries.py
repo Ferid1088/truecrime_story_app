@@ -296,3 +296,20 @@ def series(db: Session, case_id: int | None, by: str, bucket: str, span: int) ->
         out.append({"key": k, "label": "Other steps" if k == "other_steps" else names.get(k, "Other"), "values": [_round(folded[k].get(x, [0.0, 0.0])[0]) for x in labels],
                     "estimated": [_round(folded[k].get(x, [0.0, 0.0])[1]) for x in labels]})
     return {"by": by, "bucket": bucket, "timezone": R.registry()["display_timezone"], "labels": labels, "series": out}
+
+
+def phases(db: Session, case_id: int | None) -> dict:
+    """The money by pipeline phase (in the order of the pipeline), split by vendor and by language: the figures behind "in which phase did how much go to which vendor"
+    and "how do the languages compare phase by phase"."""
+    vendors = {(s, v): float(e) for s, v, e in scoped(counted(db.query(STEP, VENDOR, func.sum(PRICE))), case_id).group_by(STEP, VENDOR).all()}
+    languages = {(s, lang): float(e) for s, lang, e in scoped(counted(db.query(STEP, LANGUAGE, func.sum(PRICE))), case_id).group_by(STEP, LANGUAGE).all()}
+    estimated = {s: float(e) for s, e in scoped(counted(db.query(STEP, ESTIMATED)), case_id).group_by(STEP).all()}
+    steps = []
+    for step in R.registry()["steps"]:
+        key = step["key"]
+        by_vendor = {v: _round(e) for (s, v), e in vendors.items() if s == key and e}
+        by_language = {lang: _round(e) for (s, lang), e in languages.items() if s == key and e}
+        if by_vendor:
+            steps.append({"key": key, "label": step["label"], "shared": step["shared"], "total_eur": _round(sum(by_vendor.values())), "estimated_eur": _round(estimated.get(key)),
+                          "vendors": by_vendor, "languages": by_language})
+    return {"steps": steps, "languages": R.registry()["languages"], "vendors": [{"key": k, "label": v} for k, v in R.vendor_labels().items()] + [{"key": "other", "label": "Other"}]}
