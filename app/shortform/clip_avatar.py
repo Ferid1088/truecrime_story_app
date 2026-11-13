@@ -70,5 +70,5 @@ async def make_video(db: Session, case_id: int, language: str, audio: Path, name
     from app.documentary import audio as A
 
     seconds = float(job.duration) if job.duration else A.probe_duration(dest)
-    book_job(db, case_id, job.job_id, seconds)
+    book_job(db, case_id, job.job_id, seconds, language, f"short clip {name}")
     return {"path": storage.rel(dest), "seconds": round(seconds, 3), "job_id": job.job_id, "look_id": look_id}

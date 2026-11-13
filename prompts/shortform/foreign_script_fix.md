@@ -1,0 +1,1 @@
+The word {word} is written in Latin letters and is not a word of this language: delete it and say that thought in ordinary words of the language, or write the sentence another way. No Latin letters anywhere.

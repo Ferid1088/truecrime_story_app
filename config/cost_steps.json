@@ -1,0 +1,188 @@
+{
+  "languages": [
+    "en",
+    "fa",
+    "de",
+    "tr",
+    "ar",
+    "es",
+    "fr",
+    "it",
+    "pt"
+  ],
+  "steps": [
+    {
+      "key": "research",
+      "label": "Research",
+      "shared": true,
+      "stage_patterns": [
+        "^(research|mvp_research|discovery|visual_research|visual_search|transcript|video segmenter|fact extractor|evidence verifier|chapters|topical fill|moment cutting)"
+      ]
+    },
+    {
+      "key": "story",
+      "label": "Story and blueprint",
+      "shared": true,
+      "stage_patterns": [
+        "^(story plan|blueprint|narrative director|story timing|english_aud|english_audit|length_correction|critique|film experience|shorts_plan)"
+      ]
+    },
+    {
+      "key": "language_text",
+      "label": "Language versions (text)",
+      "shared": false,
+      "stage_patterns": [
+        "^(language_|spoken|host writer|host angle|host$|host:)"
+      ]
+    },
+    {
+      "key": "text_polish",
+      "label": "Voice text preparation",
+      "shared": false,
+      "stage_patterns": [
+        "^(punctuation|reading|irab|tashkeel|semantic review|voice preparation|performance|voice performance|audio_plan)"
+      ]
+    },
+    {
+      "key": "voice",
+      "label": "Voice",
+      "shared": false,
+      "stage_patterns": [
+        "^(voice$|voice:|tts)"
+      ]
+    },
+    {
+      "key": "avatar",
+      "label": "Avatar video",
+      "shared": false,
+      "stage_patterns": [
+        "^heygen"
+      ]
+    },
+    {
+      "key": "opening",
+      "label": "Opening block",
+      "shared": false,
+      "stage_patterns": [
+        "^(opening|image:opening)"
+      ]
+    },
+    {
+      "key": "covers",
+      "label": "Covers",
+      "shared": false,
+      "stage_patterns": [
+        "^(image:cover|image:clip|cover)"
+      ]
+    },
+    {
+      "key": "shorts",
+      "label": "Short clips",
+      "shared": false,
+      "stage_patterns": [
+        "^(short|shorts)"
+      ]
+    },
+    {
+      "key": "music",
+      "label": "Music and sound",
+      "shared": false,
+      "stage_patterns": [
+        "^(elevenlabs|music)"
+      ]
+    },
+    {
+      "key": "visuals",
+      "label": "Pictures and maps",
+      "shared": true,
+      "stage_patterns": [
+        "^(mvp_|visual_|main visual planner|detective director|cinematic engines|general imagery|overlay scan|stage director|visual design director|image:)"
+      ]
+    },
+    {
+      "key": "preview",
+      "label": "Previews and tests",
+      "shared": true,
+      "stage_patterns": [
+        "^(preview|test)"
+      ]
+    },
+    {
+      "key": "other",
+      "label": "Other",
+      "shared": true,
+      "stage_patterns": []
+    }
+  ],
+  "vendors": [
+    {
+      "key": "elevenlabs",
+      "label": "ElevenLabs",
+      "hosts": [
+        "api.elevenlabs.io"
+      ],
+      "models": [
+        "^eleven",
+        "^elevenlabs"
+      ],
+      "stages": [
+        "^(tts|elevenlabs)"
+      ]
+    },
+    {
+      "key": "heygen",
+      "label": "HeyGen",
+      "hosts": [
+        "api.heygen.com"
+      ],
+      "models": [
+        "^heygen"
+      ],
+      "stages": [
+        "^heygen"
+      ]
+    },
+    {
+      "key": "brave",
+      "label": "Brave Search",
+      "hosts": [
+        "api.search.brave.com"
+      ],
+      "models": [
+        "^brave"
+      ],
+      "stages": []
+    },
+    {
+      "key": "apiko",
+      "label": "Apiko gateway",
+      "hosts": [
+        "api.apiko.app"
+      ],
+      "models": [],
+      "stages": []
+    },
+    {
+      "key": "apimaster",
+      "label": "APIMaster gateway",
+      "hosts": [
+        "apimaster.ai"
+      ],
+      "models": [
+        "^(gemini|gpt|bge|baai|parasail|claude)"
+      ],
+      "stages": []
+    }
+  ],
+  "language_pattern": "(?<![a-z0-9])(en|fa|de|tr|ar|es|fr|it|pt)(?![a-z0-9])",
+  "estimated_sources": [
+    "estimate",
+    "assumed-unverified",
+    "assumed_web_price"
+  ],
+  "duplicate_window_seconds": 10,
+  "wire_hosts": [
+    "apimaster.ai",
+    "api.apiko.app"
+  ]
+}

@@ -1,4 +1,12 @@
 import type {
+  CostAnalysis,
+  CostCall,
+  CostCaseSummary,
+  CostFilters,
+  CostLive,
+  CostOverview,
+  CostReconciliation,
+  CostRow,
   BlockReview,
   BlockReviewBlock,
   BlockReviewOverview,
@@ -282,6 +290,18 @@ export interface AddSourcePayload {
 
 export const api = {
   caseCosts: (caseId: number) => request<CaseCostPanel>(`/api/cases/${caseId}/costs`),
+  costsOverview: () => request<CostOverview>("/api/costs/overview"),
+  costsCase: (caseId: number, allocation: "none" | "even") => request<CostCaseSummary>(`/api/costs/cases/${caseId}?allocation=${allocation}`),
+  costsGroup: (caseId: number, by: string, filters: CostFilters) =>
+    request<{ by: string; rows: CostRow[]; totals: { eur: number; estimated_eur: number; calls: number } }>(`/api/costs/cases/${caseId}/group${query({ by, ...filters })}`),
+  costsCalls: (caseId: number, filters: CostFilters, offset = 0) =>
+    request<{ total: number; calls: CostCall[] }>(`/api/costs/cases/${caseId}/calls${query({ ...filters, limit: 50, offset })}`),
+  costsLive: (caseId: number | null, afterId?: number | null) =>
+    request<CostLive>(`${caseId == null ? "/api/costs/live" : `/api/costs/cases/${caseId}/live`}${query({ after_id: afterId })}`),
+  costsAnalysis: (caseId: number) => request<CostAnalysis>(`/api/costs/cases/${caseId}/analysis`),
+  saveInvoice: (body: { vendor: string; period: string; amount_eur: number; note?: string | null }) =>
+    put<{ reconciliation: CostReconciliation[] }>("/api/costs/invoices", body),
+  deleteInvoice: (id: number) => request<{ reconciliation: CostReconciliation[] }>(`/api/costs/invoices/${id}`, { method: "DELETE" }),
   setCaseBudget: (caseId: number, cap_eur: number) =>
     patch<CaseCostPanel>(`/api/cases/${caseId}/budget`, { cap_eur }),
   dashboard: () => request<DashboardResponse>("/api/dashboard"),

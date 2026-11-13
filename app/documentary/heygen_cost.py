@@ -34,7 +34,7 @@ def video_seconds(scene: HostScene) -> float | None:
     return A.probe_duration(path)
 
 
-def book_job(db: Session, case_id: int, job_id: str, seconds: float) -> ProviderCall:
+def book_job(db: Session, case_id: int, job_id: str, seconds: float, language: str | None = None, subject: str | None = None) -> ProviderCall:
     """The estimated cost of one HeyGen video (host scene or short clip), once per provider job id."""
     key = f"heygen:{job_id}"
     existing = db.query(ProviderCall).filter(ProviderCall.stage == STAGE, ProviderCall.request_id == key).first()
@@ -44,7 +44,7 @@ def book_job(db: Session, case_id: int, job_id: str, seconds: float) -> Provider
     return BudgetService(db).record(
         case_id=case_id, stage=STAGE, model=MODEL, units=round(seconds, 3),
         cost_eur=round(seconds / 60 * price, 6), estimated=True, request_id=key,
-        cost_source="estimate")
+        cost_source="estimate", language=language, subject=subject)
 
 
 def book_video(db: Session, scene: HostScene) -> ProviderCall | None:
@@ -52,7 +52,7 @@ def book_video(db: Session, scene: HostScene) -> ProviderCall | None:
     if not scene.provider_job_id or not scene.avatar_video_path:
         return None
     seconds = video_seconds(scene)
-    return book_job(db, scene.case_id, scene.provider_job_id, seconds) if seconds else None
+    return book_job(db, scene.case_id, scene.provider_job_id, seconds, scene.language, f"host scene {scene.id}") if seconds else None
 
 
 def book_existing(db: Session) -> list[ProviderCall]:

@@ -228,6 +228,11 @@ def latin_left(text: str, language: str) -> list[str]:
     return list(dict.fromkeys(LATIN_WORD.findall(spoken)))
 
 
+def latin_fix(word: str) -> str:
+    """The repair note sent back for a Latin word in a text of an own-script language."""
+    return prompt("shortform/foreign_script_fix").format(word=repr(word))
+
+
 def numbers_rule(language: str) -> str:
     """The writer's rule for numbers in a language whose numbers are written out in words ("" for another)."""
     return prompt(f"documentary/spoken/numbers_{language}") + "\n\n" if language in ai_config.spoken.numbers_as_words else ""

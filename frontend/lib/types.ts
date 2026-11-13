@@ -3775,3 +3775,139 @@ export interface CoversSummary {
   expected_per_language: number;
   languages: Record<string, { proposed: number; open: number; approved: number; skipped: number; missing: number }>;
 }
+
+export interface CostRow {
+  key: string | number | null;
+  label: string;
+  eur: number;
+  estimated_eur: number;
+  failed_eur: number;
+  calls: number;
+  tokens_in: number | null;
+  tokens_out: number | null;
+}
+
+export interface CostCell {
+  eur: number;
+  estimated_eur: number;
+  calls: number;
+  allocated_eur?: number;
+}
+
+export interface CostMatrix {
+  allocation: "none" | "even";
+  languages: string[];
+  columns: string[];
+  labels: Record<string, string>;
+  rows: { step: string; label: string; cells: Record<string, CostCell>; total_eur: number; total_estimated_eur: number }[];
+  column_totals: Record<string, { eur: number; allocated_eur: number; estimated_eur: number }>;
+  total_eur: number;
+  total_estimated_eur: number;
+}
+
+export interface CostVendorMatrix {
+  languages: string[];
+  columns: string[];
+  labels: Record<string, string>;
+  rows: { vendor: string; label: string; cells: Record<string, CostCell>; total_eur: number; total_estimated_eur: number }[];
+}
+
+export interface CostTotals {
+  real_eur: number;
+  estimated_eur: number;
+  gross_eur: number;
+  repeats_eur: number;
+  priced_calls: number;
+  unlabelled_rows: number;
+}
+
+export interface CostBudget {
+  cap_eur: number;
+  counter_eur: number;
+  remaining_eur: number;
+  baseline_eur: number;
+  status: string;
+}
+
+export interface CostReconciliation {
+  vendor: string;
+  label: string;
+  period: string;
+  ledger_eur: number;
+  ledger_estimated_eur: number;
+  invoice_id: number | null;
+  invoice_eur: number | null;
+  note: string | null;
+  difference_eur: number | null;
+}
+
+export interface CostOverview {
+  totals: CostTotals;
+  by_vendor: CostRow[];
+  by_step: CostRow[];
+  by_language: CostRow[];
+  cases: (CostRow & { case_id: number | null; title: string; exists: boolean })[];
+  daily: CostRow[];
+  accuracy: CostRow[];
+  reconciliation: CostReconciliation[];
+  vendors: { key: string; label: string }[];
+}
+
+export interface CostCaseSummary {
+  case_id: number;
+  title: string;
+  totals: CostTotals;
+  budget: CostBudget | null;
+  matrix: CostMatrix;
+  vendors: CostVendorMatrix;
+  by_step: CostRow[];
+  by_vendor: CostRow[];
+  daily: CostRow[];
+}
+
+export interface CostCall {
+  id: number;
+  created_at: string;
+  step: string | null;
+  language: string | null;
+  vendor: string | null;
+  host: string;
+  model: string | null;
+  stage: string | null;
+  subject: string | null;
+  units: number | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  tokens_cached: number | null;
+  cost_eur: number | null;
+  accuracy: string | null;
+  cost_source: string | null;
+  ok: boolean;
+  error: string | null;
+  request_id: string | null;
+  duplicate_of: number | null;
+  attribution: string | null;
+  duration_ms: number;
+}
+
+export interface CostLive {
+  calls: CostCall[];
+  eur_per_minute: number;
+  last_5_min_eur: number;
+  last_hour_eur: number;
+  last_id: number | null;
+}
+
+export interface CostAnalysis {
+  pace: { eur_last_24h: number; eur_per_day_recent: number; days_until_cap: number | null };
+  per_language: { language: string; own_eur: number; with_shared_eur: number; film_minutes: number | null; eur_per_film_minute: number | null }[];
+  shorts: { clips_with_video: number; writing_and_covers_eur: number };
+  waste: { failed_calls_eur: number; repair_calls_eur: number };
+  top_calls: CostCall[];
+  models: CostRow[];
+  cache: { tokens_cached: number; tokens_in: number; share: number | null };
+  spikes: { step: string; label: string; last_24h_eur: number; usual_per_day_eur: number }[];
+  daily: CostRow[];
+}
+
+export type CostFilters = Partial<Record<"step" | "language" | "vendor" | "model" | "subject" | "accuracy" | "day", string>>;

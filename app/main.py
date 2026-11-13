@@ -118,6 +118,7 @@ from app.naming.api import router as naming_router  # noqa: E402
 from app.shortform.api import router as shortform_router  # noqa: E402
 from app.shortform.closing_api import router as closing_router  # noqa: E402
 from app.shortform.clips_api import router as short_clips_router  # noqa: E402
+from app.costs.api import router as cost_dashboard_router  # noqa: E402
 from app.thumbnails.api import router as thumbnail_router  # noqa: E402
 
 # The stage routers first (same precedence as before the split), then the case-level API.
@@ -146,6 +147,7 @@ for _router in (
     covers_router,
     system.router,
     costs.router,
+    cost_dashboard_router,
     controls.router,
     outfit_library.router,
     discovery.router,

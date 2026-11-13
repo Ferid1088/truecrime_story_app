@@ -100,10 +100,16 @@ class BudgetService:
                tokens_reasoning: int | None = None,
                reasoning_effort: str | None = None, cache_write_tokens: int | None = None,
                prompt_prefix_sha256: str | None = None, request_id: str | None = None,
-               cost_source: str | None = None) -> ProviderCall:
+               cost_source: str | None = None, language: str | None = None,
+               subject: str | None = None) -> ProviderCall:
         converted = cost_eur
         if converted is None and cost_usd is not None:
             converted = float(cost_usd) * ai_config.budget.usd_to_eur
+        from app.costs import registry as costs
+        from app.services.tracking import _documentary_metadata
+
+        found = costs.label(host="budget-ledger", stage=stage, model=model, cost_eur=converted, estimated=estimated, cost_source=cost_source,
+                            language=language or _documentary_metadata().get("language"))
         row = ProviderCall(created_at=utc_now(), host="budget-ledger", method="CALL",
                            path=f"/{stage}", status=200 if ok else 402, ok=ok,
                            duration_ms=duration_ms or 0, tokens_in=tokens_in, tokens_out=tokens_out,
@@ -113,7 +119,8 @@ class BudgetService:
                            cost_source=cost_source, cost_usd=cost_usd, error=error, case_id=case_id,
                            stage=stage, model=model, units=units, cost_eur=converted,
                            estimated=estimated, is_test_data=is_test_data,
-                           documentary_job_id=documentary_job_id)
+                           documentary_job_id=documentary_job_id, language=found.language, step=found.step, vendor=found.vendor, subject=subject or found.subject,
+                           accuracy=found.accuracy, attribution="live")
         self.db.add(row)
         self.db.commit()
         return row

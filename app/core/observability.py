@@ -234,6 +234,10 @@ def record_call(request: httpx.Request, started: float, response: httpx.Response
             units=(1 if is_brave else
                    ((tin or 0) + (tout or 0) if tin is not None or tout is not None else None)),
         )
+        from app.costs import registry as costs
+
+        found = costs.label(host=row["host"], stage=row["stage"], model=resolved_model, cost_eur=cost_eur, estimated=estimated, cost_source=None, language=metadata.get("language"))
+        row.update(language=found.language, step=found.step, vendor=found.vendor, subject=found.subject, accuracy=found.accuracy, attribution="live")
         _ensure_thread()
         _queue.put_nowait(row)
     except Exception as e:  # noqa: BLE001  (observability must never break a call)

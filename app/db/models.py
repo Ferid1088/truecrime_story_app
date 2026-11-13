@@ -2733,6 +2733,7 @@ class ProviderCall(Base):
     Only host, path (no query string), status, timing and usage numbers are kept, never keys or content."""
 
     __tablename__ = "provider_calls"
+    __table_args__ = (Index("ix_provider_calls_case_created", "case_id", "created_at"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, index=True)
@@ -2776,6 +2777,30 @@ class ProviderCall(Base):
     documentary_job_id: Mapped[int | None] = mapped_column(
         ForeignKey("documentary_jobs.id"), nullable=True, index=True
     )
+    # The cost dashboard's view of the row (app/costs): which language and pipeline step it was paid for, the vendor, the
+    # object, how sure the price is, how the values were found ("live" or "rule" for old rows) and, when this row only
+    # repeats another row of the same call, the id of the row that is counted.
+    language: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    step: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    vendor: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    subject: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    accuracy: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    attribution: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    duplicate_of: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+
+
+class CostInvoice(Base):
+    """A vendor's real bill for one month, typed in by the owner: the ledger is compared with it."""
+
+    __tablename__ = "cost_invoices"
+    __table_args__ = (UniqueConstraint("vendor", "period", name="uq_cost_invoice_vendor_period"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    vendor: Mapped[str] = mapped_column(String(40))
+    period: Mapped[str] = mapped_column(String(7))
+    amount_eur: Mapped[float] = mapped_column(Float)
+    note: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
 class CaseEvent(Base):

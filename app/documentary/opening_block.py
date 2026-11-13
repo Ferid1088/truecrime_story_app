@@ -17,7 +17,7 @@ from app.db.models import FilmOpening
 from app.documentary.host import _SENTENCE_END
 from app.documentary.host_firewall import reveal_issues
 from app.documentary.host_story import HostStory, words_of
-from app.documentary.spoken import digits_left, latin_left
+from app.documentary.spoken import digits_left, latin_fix, latin_left
 
 HOOK_KINDS = ("quote", "moment", "question")
 _HOOK_SENTENCE_END = re.compile(r"(?<=[.!?؟…])[\"”»’“]*\s+")          # a sentence ends on its mark, even when a closing quotation mark follows it
@@ -81,7 +81,7 @@ def opening_issues(opening: dict, story: HostStory, language: str, cfg: OpeningB
         if digits := digits_left(text, language):
             issues.append({"type": "numbers_as_digits", "part": label, "quote": ", ".join(digits[:4]), "fix": "Write numbers as words."})
         if latin := latin_left(text, language):
-            issues.append({"type": "foreign_script", "part": label, "quote": ", ".join(latin[:4]), "fix": f"The word {latin[0]!r} is written in Latin letters and is not a word of this language: delete it and say that thought in ordinary words of the language, or write the sentence another way. No Latin letters anywhere."})
+            issues.append({"type": "foreign_script", "part": label, "quote": ", ".join(latin[:4]), "fix": latin_fix(latin[0])})
         for issue in reveal_issues(story, cfg.knowledge_acts, text):
             issues.append({**issue, "part": label})
     if story.acts and cfg.knowledge_acts:

@@ -37,10 +37,12 @@ import { MusicTab } from "./tabs/music";
 import { ProductionScriptTab } from "./tabs/production-script";
 import { CritiqueTab } from "./tabs/critique";
 import { RenderTab } from "./tabs/render";
+import { CaseCosts } from "@/components/costs/case-costs";
 
 const TABS = [
   "Run",
   "Monitoring",
+  "Costs",
   "Blueprint",
   "Language Versions",
   "Voice Performance",
@@ -206,6 +208,7 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
         {tab === "Monitoring" && (
           <MonitoringTab caseId={caseId} onOpenTab={(t) => setTab(TABS.find((known) => known === t) ?? "Run")} onChanged={refresh} />
         )}
+        {tab === "Costs" && <CaseCosts caseId={caseId} />}
         {tab === "Blueprint" && <BlueprintTab {...common} />}
         {tab === "Language Versions" && <LanguagesTab {...common} />}
         {tab === "Voice Performance" && <VoicePerformanceTab {...languageProps} />}

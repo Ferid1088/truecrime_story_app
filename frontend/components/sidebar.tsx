@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Archive,
   Clapperboard,
+  Coins,
   Compass,
   Activity,
   MonitorCheck,
@@ -42,6 +43,7 @@ const NAV = [
   { href: "/short-form", label: "Short-Form", icon: Smartphone },
   { href: "/archive", label: "Archive", icon: Archive },
   { href: "/database", label: "Database", icon: Database },
+  { href: "/costs", label: "Costs", icon: Coins },
   { href: "/monitoring", label: "Monitoring", icon: MonitorCheck },
   { href: "/ops", label: "Operations", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
