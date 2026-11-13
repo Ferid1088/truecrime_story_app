@@ -5,7 +5,7 @@ The only hard EUR limit is the per-case cap; the rest bound how much a stage sea
 
 | stage | limit | where |
 |---|---|---|
-| whole case | actual spend cap EUR 300 (a case may carry its own) | `policies.json` `budget.total_cap_eur` (+ `Case.total_cost_cap_eur`) |
+| whole case | actual spend cap EUR 500 (set in config; a case may carry its own, which then wins) | `policies.json` `budget.total_cap_eur` (+ `Case.total_cost_cap_eur`) |
 | discovery | cost estimate averaged over the last N runs: 20 | `limits.json` `discovery.cost_estimate_sample_size` |
 | research (web) | queries, rounds, fetches, results per language; time; Brave key | `connections.json` `search_engine.*` (6 queries, 3 rounds, 10 fetches, 10 results, 900 s) |
 | research (YouTube) | queries and results per language, results per query | `research.json` `youtube_research.*` (8, 8, 20) |
