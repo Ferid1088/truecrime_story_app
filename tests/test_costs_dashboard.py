@@ -140,3 +140,14 @@ def test_the_api_serves_the_overview_the_case_the_calls_and_the_bills(client, db
     assert client.put("/api/costs/invoices", json={"vendor": "heygen", "period": "2026-13", "amount_eur": 1}).status_code == 422
     assert client.delete(f"/api/costs/invoices/{invoice_id}").status_code == 200
     assert client.get("/api/costs/cases/999999999").status_code == 404
+
+
+def test_the_series_have_zero_filled_buckets_and_fold_the_steps_without_a_colour(db_session, case):
+    add(db_session, case, stage="tts:fa", eur=2.0, model="eleven_v4", host="api.elevenlabs.io", tin=None, tout=None)
+    add(db_session, case, stage="research", eur=1.0)
+    add(db_session, case, stage="critique", eur=0.5)
+    by_vendor = Q.series(db_session, case.id, "vendor", "hour", 24)
+    assert len(by_vendor["labels"]) == 24 and {s["key"] for s in by_vendor["series"]} == {"elevenlabs", "apimaster"}
+    assert all(len(s["values"]) == 24 for s in by_vendor["series"]) and sum(sum(s["values"]) for s in by_vendor["series"]) == pytest.approx(3.5)
+    by_step = Q.series(db_session, case.id, "step", "day", 30)
+    assert len(by_step["labels"]) == 30 and {s["key"]: round(sum(s["values"]), 2) for s in by_step["series"]} == {"voice": 2.0, "other_steps": 1.5}

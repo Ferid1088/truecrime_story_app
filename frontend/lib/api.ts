@@ -7,6 +7,7 @@ import type {
   CostOverview,
   CostReconciliation,
   CostRow,
+  CostSeries,
   BlockReview,
   BlockReviewBlock,
   BlockReviewOverview,
@@ -296,6 +297,8 @@ export const api = {
     request<{ by: string; rows: CostRow[]; totals: { eur: number; estimated_eur: number; calls: number } }>(`/api/costs/cases/${caseId}/group${query({ by, ...filters })}`),
   costsCalls: (caseId: number, filters: CostFilters, offset = 0) =>
     request<{ total: number; calls: CostCall[] }>(`/api/costs/cases/${caseId}/calls${query({ ...filters, limit: 50, offset })}`),
+  costsSeries: (by: "vendor" | "step", bucket: "day" | "hour", caseId: number | null) =>
+    request<CostSeries>(`/api/costs/series${query({ by, bucket, case_id: caseId })}`),
   costsLive: (caseId: number | null, afterId?: number | null) =>
     request<CostLive>(`${caseId == null ? "/api/costs/live" : `/api/costs/cases/${caseId}/live`}${query({ after_id: afterId })}`),
   costsAnalysis: (caseId: number) => request<CostAnalysis>(`/api/costs/cases/${caseId}/analysis`),

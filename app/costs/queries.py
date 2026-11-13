@@ -4,10 +4,13 @@ row of the same call, and only rows with a price. Every figure also says how muc
 from __future__ import annotations
 
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import String, cast, func
+from sqlalchemy import String, func
 from sqlalchemy import case as sql_case
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.expression import FunctionElement
 
 from app.costs import registry as R
 from app.db.models import Case, CostInvoice, ShortClip, Video
@@ -21,10 +24,34 @@ FAILED = func.coalesce(func.sum(sql_case((P.ok.is_(False), PRICE), else_=0.0)), 
 STEP = func.coalesce(P.step, "other")
 LANGUAGE = sql_case((P.language.isnot(None), P.language), (STEP.in_(R.shared_steps()), R.SHARED), else_=R.UNKNOWN_LANGUAGE)
 VENDOR = func.coalesce(P.vendor, "other")
-DATE_TEXT = cast(P.created_at, String)
+
+
+class LocalText(FunctionElement):
+    """The call's time as text in the display time zone ("2026-11-13 08:15:00"), so days and hours are the owner's, not the database's."""
+
+    type = String()
+    name = "local_text"
+    inherit_cache = True
+
+
+@compiles(LocalText)
+def _local_text(element, compiler, **kw):
+    return f"CAST(timezone('{R.registry()['display_timezone']}', {compiler.process(element.clauses, **kw)}) AS TEXT)"
+
+
+@compiles(LocalText, "sqlite")
+def _local_text_sqlite(element, compiler, **kw):
+    return f"CAST({compiler.process(element.clauses, **kw)} AS TEXT)"
+
+
+DATE_TEXT = LocalText(P.created_at)
 MONTH = func.substr(DATE_TEXT, 1, 7)
 DIMENSIONS = {"step": STEP, "language": LANGUAGE, "vendor": VENDOR, "model": func.coalesce(P.model, "-"), "subject": func.coalesce(P.subject, "-"),
               "accuracy": func.coalesce(P.accuracy, "none"), "day": func.substr(DATE_TEXT, 1, 10), "case": P.case_id}
+
+
+def local_now():
+    return utc_now().astimezone(ZoneInfo(R.registry()["display_timezone"]))
 
 
 def counted(q):
@@ -89,7 +116,7 @@ def overview(db: Session) -> dict:
     for row in grouped(db, None, "case", limit=500):
         case = cases.get(row["key"])
         per_case.append({**row, "case_id": row["key"], "title": case.canonical_title if case else ("(no case)" if row["key"] is None else f"Case {row['key']} (deleted)"), "exists": case is not None})
-    since = utc_now() - timedelta(days=30)
+    since = local_now() - timedelta(days=30)
     daily = [r for r in grouped(db, None, "day", limit=400) if r["key"] >= since.strftime("%Y-%m-%d")]
     return {"totals": totals(db), "by_vendor": grouped(db, None, "vendor"), "by_step": grouped(db, None, "step"), "by_language": grouped(db, None, "language"),
             "cases": per_case, "daily": daily, "accuracy": grouped(db, None, "accuracy")}
@@ -235,3 +262,37 @@ def reconciliation(db: Session) -> list[dict]:
                     "invoice_id": bill.id if bill else None, "invoice_eur": _round(bill.amount_eur) if bill else None, "note": bill.note if bill else None,
                     "difference_eur": _round(eur - bill.amount_eur) if bill else None})
     return out
+
+
+def series(db: Session, case_id: int | None, by: str, bucket: str, span: int) -> dict:
+    """The real money over the last `span` days or hours (zero where nothing was spent), one line per vendor or per step. A step outside the few the chart gives a colour
+    to is added to "Other steps"; a vendor with no colour of its own to "Other"."""
+    chart = R.registry()["chart"]
+    now = local_now()
+    if bucket == "hour":
+        end = now.replace(minute=0, second=0, microsecond=0)
+        labels = [(end - timedelta(hours=i)).strftime("%Y-%m-%d %H") for i in range(span - 1, -1, -1)]
+        start, width = end - timedelta(hours=span - 1), 13
+    else:
+        end = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        labels = [(end - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(span - 1, -1, -1)]
+        start, width = end - timedelta(days=span - 1), 10
+    when = func.substr(DATE_TEXT, 1, width)
+    key = STEP if by == "step" else VENDOR
+    rows = (scoped(counted(db.query(when, key, func.sum(PRICE), ESTIMATED)), case_id).filter(P.created_at >= start.astimezone(ZoneInfo("UTC"))).group_by(when, key).all())
+    keep = chart["step_series"] if by == "step" else chart["vendor_series"]
+    other = "other_steps" if by == "step" else "other"
+    folded: dict[str, dict[str, float]] = {}
+    for label, k, eur, est in rows:
+        into = k if k in keep else other
+        cell = folded.setdefault(into, {}).setdefault(label, [0.0, 0.0])
+        cell[0] += float(eur or 0.0)
+        cell[1] += float(est or 0.0)
+    names = R.step_labels() if by == "step" else R.vendor_labels()
+    out = []
+    for k in [*keep, other]:
+        if k not in folded:
+            continue
+        out.append({"key": k, "label": "Other steps" if k == "other_steps" else names.get(k, "Other"), "values": [_round(folded[k].get(x, [0.0, 0.0])[0]) for x in labels],
+                    "estimated": [_round(folded[k].get(x, [0.0, 0.0])[1]) for x in labels]})
+    return {"by": by, "bucket": bucket, "timezone": R.registry()["display_timezone"], "labels": labels, "series": out}

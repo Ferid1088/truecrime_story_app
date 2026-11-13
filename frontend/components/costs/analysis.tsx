@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorState } from "@/components/state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { Bars, CallTable, DailyBars, eur } from "./shared";
+import { MinuteBars, SpendChart } from "./charts";
+import { Bars, CallTable, eur } from "./shared";
 
 function Fact({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -45,7 +46,8 @@ export function Analysis({ caseId }: { caseId: number }) {
           </CardContent>
         </Card>
       )}
-      <Card>
+      <div className="grid items-start gap-4 lg:grid-cols-[3fr_2fr]">
+        <Card>
         <CardHeader><CardTitle>Price of a finished film minute, per language</CardTitle></CardHeader>
         <CardContent>
           <Table>
@@ -63,11 +65,11 @@ export function Analysis({ caseId }: { caseId: number }) {
             </TBody>
           </Table>
         </CardContent>
-      </Card>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card><CardHeader><CardTitle>Per day</CardTitle></CardHeader><CardContent><DailyBars rows={data.daily} /></CardContent></Card>
-        <Card><CardHeader><CardTitle>Models</CardTitle></CardHeader><CardContent><Bars rows={data.models} /></CardContent></Card>
+        </Card>
+        <MinuteBars rows={data.per_language} />
       </div>
+      <SpendChart key={`step-${caseId}`} caseId={caseId} title="Where the money went, over time" />
+      <Card><CardHeader><CardTitle>Models</CardTitle></CardHeader><CardContent><Bars rows={data.models} /></CardContent></Card>
       <Card><CardHeader><CardTitle>The 20 dearest single calls</CardTitle></CardHeader><CardContent><CallTable calls={data.top_calls} /></CardContent></Card>
     </div>
   );

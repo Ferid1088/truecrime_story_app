@@ -54,7 +54,17 @@ def case_summary(case_id: int, allocation: str = Query("none", pattern="^(none|e
     case = _case(db, case_id)
     _fresh(db, case_id)
     return {"case_id": case_id, "title": case.canonical_title, "totals": Q.totals(db, case_id), "budget": Q.budget_of(db, case_id), "matrix": Q.matrix(db, case_id, allocation),
-            "vendors": Q.vendor_matrix(db, case_id), "by_step": Q.grouped(db, case_id, "step"), "by_vendor": Q.grouped(db, case_id, "vendor"), "daily": Q.grouped(db, case_id, "day", limit=60)}
+            "vendors": Q.vendor_matrix(db, case_id), "by_step": Q.grouped(db, case_id, "step"), "by_vendor": Q.grouped(db, case_id, "vendor"), "accuracy": Q.grouped(db, case_id, "accuracy"), "daily": Q.grouped(db, case_id, "day", limit=60)}
+
+
+@router.get("/series")
+def series(by: str = Query("vendor", pattern="^(vendor|step)$"), bucket: str = Query("day", pattern="^(day|hour)$"), span: int | None = Query(None, ge=2, le=90),
+           case_id: int | None = None, db: Session = Depends(get_db)):
+    """The real money over time, one line per vendor or step: the last 30 days, or (bucket hour) the last 24 hours."""
+    if case_id is not None:
+        _case(db, case_id)
+    _fresh(db, case_id)
+    return Q.series(db, case_id, by, bucket, span or (24 if bucket == "hour" else 30))
 
 
 @router.get("/cases/{case_id}/group")

@@ -14,16 +14,23 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Analysis } from "./analysis";
 import { Drill, type Chip } from "./drill";
 import { LiveFeed } from "./live";
-import { Bars, DailyBars, Money, eur } from "./shared";
+import { CertaintyBar, SpendChart } from "./charts";
+import { Bars, Money, eur } from "./shared";
 
 type Pick = (cell: { step?: [string, string]; language?: [string, string]; vendor?: [string, string] }) => void;
 
-function Cell({ cell, allocated, onClick, bold }: { cell?: CostCell; allocated?: boolean; onClick?: () => void; bold?: boolean }) {
+/** Heat: the deeper the blue, the bigger the share of the dearest cell (square root, so small cells still show). */
+function heat(value: number, max: number): string | undefined {
+  if (!max || value <= 0) return undefined;
+  return `color-mix(in srgb, var(--viz-1) ${Math.round(Math.sqrt(value / max) * 42)}%, transparent)`;
+}
+
+function Cell({ cell, allocated, onClick, bold, max }: { cell?: CostCell; allocated?: boolean; onClick?: () => void; bold?: boolean; max?: number }) {
   const value = cell?.eur ?? 0;
   const share = allocated ? cell?.allocated_eur ?? 0 : 0;
   if (!value && !share) return <TD className="text-right text-xs text-muted-foreground">–</TD>;
   return (
-    <TD className="text-right text-xs">
+    <TD className="text-right text-xs" style={{ background: max ? heat(value, max) : undefined }}>
       <button type="button" onClick={onClick} className={`tabular-nums hover:underline ${bold ? "font-semibold" : ""}`}>
         <Money value={value} estimated={cell?.estimated_eur} />
       </button>
@@ -33,6 +40,7 @@ function Cell({ cell, allocated, onClick, bold }: { cell?: CostCell; allocated?:
 }
 
 function MatrixTable({ matrix, allocated, pick }: { matrix: CostMatrix; allocated: boolean; pick: Pick }) {
+  const max = Math.max(...matrix.rows.flatMap((r) => matrix.columns.map((c) => r.cells[c]?.eur ?? 0)), 0);
   return (
     <div className="overflow-x-auto">
       <Table data-testid="cost-matrix">
@@ -50,7 +58,7 @@ function MatrixTable({ matrix, allocated, pick }: { matrix: CostMatrix; allocate
                 <button type="button" className="hover:underline" onClick={() => pick({ step: [row.step, row.label] })}>{row.label}</button>
               </TD>
               {matrix.columns.map((c) => (
-                <Cell key={c} cell={row.cells[c]} allocated={allocated} onClick={() => pick({ step: [row.step, row.label], language: [c, matrix.labels[c]] })} />
+                <Cell key={c} cell={row.cells[c]} allocated={allocated} max={max} onClick={() => pick({ step: [row.step, row.label], language: [c, matrix.labels[c]] })} />
               ))}
               <TD className="text-right text-xs font-semibold"><Money value={row.total_eur} estimated={row.total_estimated_eur} /></TD>
             </TR>
@@ -70,6 +78,7 @@ function MatrixTable({ matrix, allocated, pick }: { matrix: CostMatrix; allocate
 }
 
 function VendorTable({ matrix, pick }: { matrix: CostVendorMatrix; pick: Pick }) {
+  const max = Math.max(...matrix.rows.flatMap((r) => matrix.columns.map((c) => r.cells[c]?.eur ?? 0)), 0);
   return (
     <div className="overflow-x-auto">
       <Table data-testid="cost-vendors">
@@ -84,7 +93,7 @@ function VendorTable({ matrix, pick }: { matrix: CostVendorMatrix; pick: Pick })
           {matrix.rows.map((row) => (
             <TR key={row.vendor}>
               <TD className="whitespace-nowrap text-xs font-medium"><button type="button" className="hover:underline" onClick={() => pick({ vendor: [row.vendor, row.label] })}>{row.label}</button></TD>
-              {matrix.columns.map((c) => <Cell key={c} cell={row.cells[c]} onClick={() => pick({ vendor: [row.vendor, row.label], language: [c, matrix.labels[c]] })} />)}
+              {matrix.columns.map((c) => <Cell key={c} cell={row.cells[c]} max={max} onClick={() => pick({ vendor: [row.vendor, row.label], language: [c, matrix.labels[c]] })} />)}
               <TD className="text-right text-xs font-semibold"><Money value={row.total_eur} estimated={row.total_estimated_eur} /></TD>
             </TR>
           ))}
@@ -143,7 +152,7 @@ export function CaseCosts({ caseId, standalone = false }: { caseId: number; stan
       {view === "Analysis" && <Analysis caseId={caseId} />}
       {view === "Spending" && (
         <>
-          <Card>
+          <Card className="viz-root">
             <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
               <CardTitle>Every step in every language</CardTitle>
               <div className="flex items-center gap-1 text-xs">
@@ -159,11 +168,14 @@ export function CaseCosts({ caseId, standalone = false }: { caseId: number; stan
               </p>
             </CardContent>
           </Card>
-          <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-            <Card><CardHeader><CardTitle>Per vendor</CardTitle></CardHeader><CardContent><Bars rows={data.by_vendor} onPick={(r) => pick({ vendor: [String(r.key), r.label] })} /></CardContent></Card>
-            <Card><CardHeader><CardTitle>Per day</CardTitle></CardHeader><CardContent><DailyBars rows={data.daily.slice(-30)} /></CardContent></Card>
+          <div className="grid items-start gap-4 lg:grid-cols-[2fr_1fr]">
+            <SpendChart key={`spend-${caseId}`} caseId={caseId} />
+            <div className="space-y-4">
+              <CertaintyBar rows={data.accuracy} />
+              <Card><CardHeader><CardTitle>Per vendor</CardTitle></CardHeader><CardContent><Bars rows={data.by_vendor} onPick={(r) => pick({ vendor: [String(r.key), r.label] })} /></CardContent></Card>
+            </div>
           </div>
-          <Card><CardHeader><CardTitle>Each vendor in each language</CardTitle></CardHeader><CardContent><VendorTable matrix={data.vendors} pick={pick} /></CardContent></Card>
+          <Card className="viz-root"><CardHeader><CardTitle>Each vendor in each language</CardTitle></CardHeader><CardContent><VendorTable matrix={data.vendors} pick={pick} /></CardContent></Card>
           <div id="cost-drill-anchor"><Drill caseId={caseId} chips={chips} onChips={setChips} /></div>
         </>
       )}

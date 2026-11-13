@@ -38,6 +38,25 @@
   --ring: #818cf8;
 }
 
+/* Chart colours: the categorical slots of the data-viz palette, validated for adjacent series in both modes (slots 1-5). */
+.viz-root {
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-4: #eda100;
+  --viz-5: #e87ba4;
+  --viz-other: #8b8a84;
+}
+
+.dark .viz-root {
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-4: #c98500;
+  --viz-5: #d55181;
+  --viz-other: #8a8982;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

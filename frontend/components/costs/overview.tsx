@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { LiveFeed } from "./live";
-import { Bars, DailyBars, Money, eur } from "./shared";
+import { CertaintyBar, SpendChart } from "./charts";
+import { Bars, Money, eur } from "./shared";
 
 function Invoices({ rows, vendors, onChanged }: { rows: CostReconciliation[]; vendors: { key: string; label: string }[]; onChanged: () => void }) {
   const [vendor, setVendor] = useState(vendors[0]?.key ?? "");
@@ -86,6 +87,13 @@ export function CostsOverview() {
           </div>
         ))}
       </div>
+      <div className="grid items-start gap-4 lg:grid-cols-[2fr_1fr]">
+        <SpendChart caseId={null} />
+        <div className="space-y-4">
+          <CertaintyBar rows={data.accuracy} />
+          <Card><CardHeader><CardTitle>Per vendor</CardTitle></CardHeader><CardContent><Bars rows={data.by_vendor} /></CardContent></Card>
+        </div>
+      </div>
       <LiveFeed key="all" caseId={null} />
       <Card>
         <CardHeader><CardTitle>Cases</CardTitle></CardHeader>
@@ -105,12 +113,10 @@ export function CostsOverview() {
           </Table>
         </CardContent>
       </Card>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card><CardHeader><CardTitle>Per vendor</CardTitle></CardHeader><CardContent><Bars rows={data.by_vendor} /></CardContent></Card>
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card><CardHeader><CardTitle>Per step</CardTitle></CardHeader><CardContent><Bars rows={data.by_step} /></CardContent></Card>
         <Card><CardHeader><CardTitle>Per language</CardTitle></CardHeader><CardContent><Bars rows={data.by_language} /></CardContent></Card>
       </div>
-      <Card><CardHeader><CardTitle>Last 30 days</CardTitle></CardHeader><CardContent><DailyBars rows={data.daily} /></CardContent></Card>
       <Invoices rows={data.reconciliation} vendors={data.vendors} onChanged={refetch} />
     </div>
   );

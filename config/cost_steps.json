@@ -184,5 +184,22 @@
   "wire_hosts": [
     "apimaster.ai",
     "api.apiko.app"
-  ]
+  ],
+  "display_timezone": "Europe/Berlin",
+  "chart": {
+    "step_series": [
+      "visuals",
+      "text_polish",
+      "voice",
+      "avatar",
+      "language_text"
+    ],
+    "vendor_series": [
+      "apimaster",
+      "heygen",
+      "elevenlabs",
+      "brave",
+      "apiko"
+    ]
+  }
 }

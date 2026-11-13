@@ -3863,6 +3863,7 @@ export interface CostCaseSummary {
   by_step: CostRow[];
   by_vendor: CostRow[];
   daily: CostRow[];
+  accuracy: CostRow[];
 }
 
 export interface CostCall {
@@ -3911,3 +3912,11 @@ export interface CostAnalysis {
 }
 
 export type CostFilters = Partial<Record<"step" | "language" | "vendor" | "model" | "subject" | "accuracy" | "day", string>>;
+
+export interface CostSeries {
+  by: "vendor" | "step";
+  bucket: "day" | "hour";
+  timezone: string;
+  labels: string[];
+  series: { key: string; label: string; values: number[]; estimated: number[] }[];
+}

@@ -55,20 +55,6 @@ export function Bars({ rows, onPick, testId }: { rows: CostRow[]; onPick?: (row:
   );
 }
 
-/** The money per day as small columns, the newest on the right. */
-export function DailyBars({ rows }: { rows: CostRow[] }) {
-  const max = Math.max(...rows.map((r) => r.eur), 0.0001);
-  return (
-    <div className="flex h-24 items-end gap-0.5" data-testid="daily-bars">
-      {rows.map((row) => (
-        <div key={String(row.key)} className="flex-1" title={`${row.key}: ${eur(row.eur)}`}>
-          <div className="w-full rounded-t bg-primary/80" style={{ height: `${Math.max((row.eur / max) * 96, 2)}px` }} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function Detail({ call }: { call: CostCall }) {
   const fields: [string, string][] = [
     ["Call", `#${call.id}`], ["Time", formatDateTime(call.created_at)], ["Step", call.step ?? "–"], ["Language", call.language ?? "unknown"], ["Vendor", call.vendor ?? "–"],
