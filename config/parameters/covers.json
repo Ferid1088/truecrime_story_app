@@ -284,39 +284,40 @@
     "layout": {
       "long": {
         "margin": 0.045,
-        "logo_height": 0.13,
+        "logo_height": 0.39,
+        "logo_top": 0.45,
+        "logo_x": 0.045,
         "title": {
           "x": 0.045,
-          "y": 0.22,
-          "width": 0.4,
+          "y": 0.07,
+          "width": 0.5,
           "size": 0.1,
           "max_lines": 2
         },
         "avatar": {
-          "x": 0.045,
-          "y": 0.48,
-          "width": 0.17,
-          "height": 0.36,
+          "x": 0.29,
+          "y": 0.4,
+          "width": 0.255,
+          "height": 0.54,
           "face_widths": 2.8
-        },
-        "logo_top": 0.06
+        }
       },
       "short": {
         "margin": 0.0556,
-        "logo_top": 0.135,
-        "logo_height": 0.07,
+        "logo_top": 0.126,
+        "logo_height": 0.21,
         "title": {
           "x": 0.0556,
-          "y": 0.23,
+          "y": 0.34,
           "width": 0.89,
           "size": 0.065,
           "max_lines": 2
         },
         "avatar": {
-          "x": 0.5,
-          "y": 0.62,
-          "width": 0.4,
-          "height": 0.21,
+          "x": 0.31,
+          "y": 0.5,
+          "width": 0.6,
+          "height": 0.315,
           "face_widths": 2.8
         }
       }
@@ -342,11 +343,24 @@
       "timeout_s": 300,
       "max_images_per_scene": 1,
       "empty_fraction": {
-        "long": 0.42,
-        "short": 0.38
+        "long": 0.55,
+        "short": 0.52
       },
       "ledger_stage": "image:cover",
       "note": "One image for each cover; a failed call is tried again up to `attempts` times and every attempt is recorded (tokens, runtime, cost)."
-    }
+    },
+    "scrim": {
+      "start_peak": 0.62,
+      "max_peak": 0.97,
+      "step": 0.05,
+      "extent": {
+        "long": 0.62,
+        "short": 0.62
+      },
+      "plateau": 0.8,
+      "percentile": 5,
+      "note": "The veil behind the words is made stronger, step by step, until the worst 5% of the picture's pixels under the title still give the title colour the contrast the configuration asks for."
+    },
+    "min_accent_contrast": 3.0
   }
 }

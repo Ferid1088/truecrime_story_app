@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageOps
 
 from app.core.ai_config import ai_config
 from app.documentary.visuals import typography as TY
-from app.thumbnails.compose import RTL, contrast
+from app.thumbnails.compose import RTL
 
 TURKISH_UPPER = str.maketrans({"i": "İ", "ı": "I"})
 
@@ -50,19 +50,49 @@ def _mask(size: tuple[int, int], draw_shape) -> Image.Image:
     return big.resize(size, Image.LANCZOS)
 
 
-def _scrim(canvas: Image.Image, color: tuple[int, int, int], kind: str, rtl: bool) -> None:
-    """A soft veil in the theme's colour over the side (long) or the top (short) where the words stand, so the title reads on any picture."""
+def _scrim(canvas: Image.Image, color: tuple[int, int, int], kind: str, rtl: bool, peak: float) -> None:
+    """A soft veil in the theme's colour over the side (long) or the top (short) where the words stand: full strength (`peak`) up to the configured plateau, then fading out."""
+    cfg = ai_config.covers_settings().scrim
     width, height = canvas.size
+    extent, plateau = cfg["extent"][kind], cfg["plateau"]
     if kind == "long":
-        ramp = np.clip(1 - np.linspace(0, 1, width) / 0.62, 0, 1)
+        ramp = np.clip((1 - np.linspace(0, 1, width) / extent) / (1 - plateau), 0, 1)
         alpha = (ramp[::-1] if rtl else ramp)[None, :].repeat(height, 0)
     else:
-        ramp = np.clip(1 - np.linspace(0, 1, height) / 0.5, 0, 1)
+        ramp = np.clip((1 - np.linspace(0, 1, height) / extent) / (1 - plateau), 0, 1)
         alpha = ramp[:, None].repeat(width, 1)
     layer = np.zeros((height, width, 4), dtype=np.uint8)
     layer[..., :3] = color
-    layer[..., 3] = (alpha * 0.62 * 255).astype(np.uint8)
+    layer[..., 3] = (alpha * peak * 255).astype(np.uint8)
     canvas.alpha_composite(Image.fromarray(layer, "RGBA"))
+
+
+def _luminance(rgb: np.ndarray) -> np.ndarray:
+    linear = np.where(rgb <= 0.03928, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4)
+    return linear @ np.array([0.2126, 0.7152, 0.0722])
+
+
+def _worst_contrast(canvas: Image.Image, box: tuple[int, int, int, int], ink: tuple[int, int, int]) -> float:
+    """The contrast of the ink against the picture under `box`: the figure the worst few percent of its pixels still reach (a dark corner of the picture counts)."""
+    x, y, w, h = box
+    pixels = np.asarray(canvas.crop((x, y, x + w, y + h)).convert("RGB"), dtype=np.float64) / 255.0
+    ink_l = float(_luminance(np.array(ink, dtype=np.float64) / 255.0))
+    back = _luminance(pixels).ravel()
+    ratio = (np.maximum(back, ink_l) + 0.05) / (np.minimum(back, ink_l) + 0.05)
+    return float(np.percentile(ratio, ai_config.covers_settings().scrim["percentile"]))
+
+
+def _veil(canvas: Image.Image, theme_color: tuple[int, int, int], kind: str, rtl: bool, box: tuple[int, int, int, int], ink: tuple[int, int, int]) -> tuple[Image.Image, float, float]:
+    """The picture with the veil, made stronger step by step until the title (ink) reads on it; returns it, the veil's strength and the title's contrast."""
+    cfg = ai_config.covers_settings()
+    peak = cfg.scrim["start_peak"]
+    while True:
+        veiled = canvas.copy()
+        _scrim(veiled, theme_color, kind, rtl, peak)
+        contrast_now = _worst_contrast(veiled, box, ink)
+        if contrast_now >= cfg.min_title_contrast or peak >= cfg.scrim["max_peak"] - 1e-9:
+            return veiled, peak, contrast_now
+        peak = min(peak + cfg.scrim["step"], cfg.scrim["max_peak"])
 
 
 def _title_lines(text: str, language: str, width: int, size: int, max_lines: int):
@@ -94,23 +124,24 @@ def compose(kind: str, language: str, scene: Path, portrait: Image.Image, logo: 
     rtl = language in RTL
     with Image.open(scene) as picture:
         canvas = ImageOps.fit(picture.convert("RGB"), (width, height), Image.LANCZOS).convert("RGBA")
-    _scrim(canvas, _rgb(theme.background), kind, rtl)
-    draw = ImageDraw.Draw(canvas)
-    elements: dict[str, list[int]] = {}
-
     title_cfg = layout["title"]
     box_w = round(title_cfg["width"] * width)
     font, lines, size = _title_lines(display_title(title, language), language, box_w, round(title_cfg["size"] * height), title_cfg["max_lines"])
     line_h = round(size * 1.18)
     title_x = round(_place(title_cfg, rtl) * width)
     title_y = round(title_cfg["y"] * height)
-    centred = kind == "short"
+    title_box = (title_x, title_y, box_w, line_h * len(lines))
     ink, accent = _rgb(theme.ink), _rgb(theme.accent)
+    canvas, veil, title_contrast = _veil(canvas, _rgb(theme.background), kind, rtl, title_box, ink)
+    accent_ok = _worst_contrast(canvas, title_box, accent) >= cfg.min_accent_contrast
+    draw = ImageDraw.Draw(canvas)
+    elements: dict[str, list[int]] = {}
+    centred = kind == "short"
     for i, line in enumerate(lines):
-        color = accent if i == len(lines) - 1 and len(lines) > 1 and kind == "long" else ink
+        color = accent if i == len(lines) - 1 and len(lines) > 1 and kind == "long" and accent_ok else ink
         tx = title_x + (box_w / 2 if centred else box_w if rtl else 0)
         TY.draw_text(draw, (tx, title_y + i * line_h), line, font, language, fill=color, anchor="ma" if centred else "ra" if rtl else "la")
-    elements["title"] = [title_x, title_y, box_w, line_h * len(lines)]
+    elements["title"] = list(title_box)
 
     av = layout["avatar"]
     av_box = (round(_place(av, rtl) * width), round(av["y"] * height), round(av["width"] * width), round(av["height"] * height))
@@ -127,7 +158,8 @@ def compose(kind: str, language: str, scene: Path, portrait: Image.Image, logo: 
     with Image.open(logo) as mark:
         mark = ImageOps.contain(mark.convert("RGB"), (logo_h, logo_h), Image.LANCZOS)
     margin = round(layout["margin"] * width)
-    logo_x = (width - mark.width) // 2 if centred else width - margin - mark.width if rtl else margin
+    side = round(layout.get("logo_x", layout["margin"]) * width)
+    logo_x = (width - mark.width) // 2 if centred else width - side - mark.width if rtl else side
     logo_y = round(layout["logo_top"] * height) if "logo_top" in layout else margin
     canvas.paste(mark.convert("RGBA"), (logo_x, logo_y), _mask(mark.size, lambda dr, s: dr.rounded_rectangle((0, 0, mark.width * s, mark.height * s), radius=round(mark.width * 0.12) * s, fill=255)))
     elements["logo"] = [logo_x, logo_y, mark.width, mark.height]
@@ -141,7 +173,7 @@ def compose(kind: str, language: str, scene: Path, portrait: Image.Image, logo: 
             break
     out.write_bytes(buffer.getvalue())
     result = {"kind": kind, "language": language, "size": [width, height], "scale": scale, "elements": elements, "bytes": buffer.tell(), "title_font_px": size, "title_lines": lines,
-              "title_contrast": round(contrast(_rgb(theme.background), ink), 2)}
+              "title_contrast": round(title_contrast, 2), "veil_strength": round(veil, 2)}
     result["problems"] = layout_problems(result)
     return result
 

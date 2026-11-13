@@ -98,3 +98,32 @@ def test_the_short_cover_keeps_its_content_out_of_the_reserved_margins(picture, 
     for name in ("title", "logo", "avatar"):
         x, y, w, h = made["elements"][name]
         assert y >= cfg.safe_zones["short"]["top_fraction"] * height and y + h <= (1 - cfg.safe_zones["short"]["bottom_fraction"]) * height
+
+
+@pytest.mark.parametrize("language", ["de", "fr", "en"])
+@pytest.mark.parametrize("kind", ["long", "short"])
+def test_a_title_reads_on_a_dark_picture_in_every_theme_the_veil_gets_as_strong_as_it_must_be(language, kind, tmp_path):
+    """German and French have a light paper theme with dark words: over a dark scene the old thin veil left them unreadable."""
+    dark = tmp_path / "dark.jpg"
+    Image.new("RGB", (900, 700), (14, 16, 20)).save(dark)
+    cfg = ai_config.covers_settings()
+    a, f = cfg.layout[kind]["avatar"], cfg.formats[kind]
+    face = AV.portrait(OUTFIT, a["width"] * f.width / (a["height"] * f.height), a["face_widths"])
+    made = C.compose(kind, language, dark, face, storage.ROOT / ai_config.channels[language].logo, TITLES[language], tmp_path / "c.jpg", scale=0.15)
+    assert made["title_contrast"] >= cfg.min_title_contrast and made["problems"] == []
+    if language in ("de", "fr"):
+        assert made["veil_strength"] > cfg.scrim["start_peak"]
+
+
+def test_the_logo_is_three_times_and_the_avatar_one_and_a_half_times_the_size_they_had(picture, tmp_path):
+    """Before: logo 0.13 (long) / 0.07 (short) of the height, avatar 0.17 x 0.36 (long) / 0.4 x 0.21 (short) of the width and height."""
+    cfg = ai_config.covers_settings()
+    assert cfg.layout["long"]["logo_height"] == pytest.approx(0.13 * 3) and cfg.layout["short"]["logo_height"] == pytest.approx(0.07 * 3)
+    for kind, was in (("long", (0.17, 0.36)), ("short", (0.4, 0.21))):
+        avatar = cfg.layout[kind]["avatar"]
+        assert avatar["width"] == pytest.approx(was[0] * 1.5, rel=0.02) and avatar["height"] == pytest.approx(was[1] * 1.5, rel=0.02)
+        f = cfg.formats[kind]
+        face = AV.portrait(OUTFIT, avatar["width"] * f.width / (avatar["height"] * f.height), avatar["face_widths"])
+        made = C.compose(kind, "en", picture, face, storage.ROOT / ai_config.channels["en"].logo, "The open door", tmp_path / f"{kind}.jpg", scale=0.15)
+        height = made["size"][1]
+        assert made["elements"]["logo"][3] >= cfg.layout[kind]["logo_height"] * height * 0.9 and made["problems"] == []

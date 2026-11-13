@@ -3570,7 +3570,9 @@ class CoversConfig(BaseModel):
     proposal: dict
     avatar: dict
     layout: dict[str, dict]
+    scrim: dict
     min_title_contrast: float = Field(gt=1.0)
+    min_accent_contrast: float = Field(gt=1.0)
     themes: dict[str, CoverThemeConfig]
 
     @model_validator(mode="after")
