@@ -62,7 +62,7 @@ function Bar({ row, color, phases, selected, onSelect }: { row: string; color: s
   return (
     <div className="flex flex-1 gap-2.5" role="group" aria-label={`${row} progress`}>
       {groups(phases).map((g) => (
-        <div key={g.name} className="flex min-w-0 gap-0.5" style={{ flexGrow: g.phases.length, flexBasis: 0 }}>
+        <div key={g.name} className="flex h-4 min-w-0 items-center gap-0.5" style={{ flexGrow: g.phases.length, flexBasis: 0 }}>
           {g.phases.map((p) => {
             const active = selected?.row === row && selected.phase.key === p.key;
             const percent = Math.round(fraction(p) * 100);
@@ -77,7 +77,7 @@ function Bar({ row, color, phases, selected, onSelect }: { row: string; color: s
                 aria-label={`${row} ${p.label}: ${percent} %, ${STATE_WORD[p.state]}`}
                 data-state={p.state}
                 data-percent={percent}
-                className={`relative h-4 min-w-0 flex-1 overflow-hidden rounded-sm bg-muted-foreground/15 outline-offset-2 disabled:cursor-default ${p.total === 0 ? "opacity-40" : ""} ${active ? "outline outline-2 outline-foreground" : ""}`}
+                className={`relative h-2.5 min-w-0 flex-1 overflow-hidden rounded-sm bg-muted-foreground/15 outline-offset-2 disabled:cursor-default ${p.total === 0 ? "opacity-40" : ""} ${active ? "outline outline-2 outline-foreground" : ""}`}
               >
                 <span className={`absolute inset-y-0 left-0 transition-[width] duration-500 ${fillClass(p.state, color)}`} style={{ width: `${filled}%` }} />
               </button>
