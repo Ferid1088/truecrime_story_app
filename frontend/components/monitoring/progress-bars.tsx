@@ -111,8 +111,8 @@ function Legend({ phases }: { phases: MonitoringPhase[] }) {
           <div className="truncate border-b border-border font-medium">{g.name}</div>
           <div className="flex gap-0.5">
             {g.phases.map((p) => (
-              <span key={p.key} className="flex h-[4.5rem] min-w-0 flex-1 items-end justify-center" title={p.label}>
-                <span className="whitespace-nowrap [writing-mode:vertical-rl] rotate-180">{p.label}</span>
+              <span key={p.key} className="flex h-7 min-w-0 flex-1 items-end justify-center overflow-hidden text-center text-[9px] leading-[1.1]" title={p.label}>
+                <span className="break-words">{p.label}</span>
               </span>
             ))}
           </div>
