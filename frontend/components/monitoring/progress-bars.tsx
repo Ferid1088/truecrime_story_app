@@ -9,15 +9,21 @@ import { duration } from "@/components/documentary/monitoring-parts";
 import { LANGUAGES } from "@/lib/format";
 import type { MonitoringJob, MonitoringPhase } from "@/lib/types";
 
-const SEGMENT: Record<MonitoringPhase["state"], string> = {
-  pending: "bg-muted-foreground/20",
-  waiting: "bg-sky-500/40",
+/** The colour of the filled part of a segment. */
+const FILL: Record<MonitoringPhase["state"], string> = {
+  pending: "bg-muted-foreground/40",
+  waiting: "bg-sky-500",
   running: "bg-sky-500 animate-pulse",
   done: "bg-emerald-500",
   degraded: "bg-amber-500",
   failed: "bg-rose-500",
-  blocked: "bg-rose-500/60",
+  blocked: "bg-rose-500/70",
 };
+
+/** How much of a phase is finished, 0 to 1: its finished steps over its steps (a phase the job does not plan has none). */
+function fraction(p: MonitoringPhase): number {
+  return p.total ? Math.min(p.done / p.total, 1) : 0;
+}
 
 const STATE_WORD: Record<MonitoringPhase["state"], string> = {
   pending: "not started",
@@ -36,21 +42,30 @@ function Bar({ row, phases, selected, onSelect }: { row: string; phases: Monitor
     <div className="flex flex-1 gap-1" role="group" aria-label={`${row} progress`}>
       {phases.map((p) => {
         const active = selected?.row === row && selected.phase.key === p.key;
+        const percent = Math.round(fraction(p) * 100);
         return (
           <button
             key={p.key}
             type="button"
             disabled={p.total === 0}
             onClick={() => onSelect(active ? null : { row, phase: p })}
-            title={`${p.label}: ${STATE_WORD[p.state]}${p.total ? ` (${p.done}/${p.total} steps)` : ""}`}
-            aria-label={`${row} ${p.label}: ${STATE_WORD[p.state]}`}
+            title={`${p.label}: ${STATE_WORD[p.state]}${p.total ? ` - ${percent} % (${p.done} of ${p.total} steps)` : ""}`}
+            aria-label={`${row} ${p.label}: ${percent} %, ${STATE_WORD[p.state]}`}
             data-state={p.state}
-            className={`h-3 min-w-0 flex-1 rounded-sm outline-offset-2 disabled:cursor-default ${SEGMENT[p.total ? p.state : "pending"]} ${p.total === 0 ? "opacity-40" : ""} ${active ? "outline outline-2 outline-foreground" : ""}`}
-          />
+            data-percent={percent}
+            className={`relative h-4 min-w-0 flex-1 overflow-hidden rounded-sm bg-muted-foreground/15 outline-offset-2 disabled:cursor-default ${p.total === 0 ? "opacity-40" : ""} ${active ? "outline outline-2 outline-foreground" : ""}`}
+          >
+            <span className={`absolute inset-y-0 left-0 transition-[width] duration-500 ${FILL[p.state]}`} style={{ width: `${percent}%` }} />
+          </button>
         );
       })}
     </div>
   );
+}
+
+/** The share of a language's phases that are finished (every phase counts the same). */
+function overall(phases: MonitoringPhase[]): number {
+  return Math.round((phases.reduce((sum, p) => sum + fraction(p), 0) / Math.max(phases.length, 1)) * 100);
 }
 
 function Detail({ phase }: { phase: MonitoringPhase }) {
@@ -74,7 +89,7 @@ function Detail({ phase }: { phase: MonitoringPhase }) {
 
 function Legend({ phases }: { phases: MonitoringPhase[] }) {
   return (
-    <div className="flex gap-1 pl-[7.5rem] pr-[7.5rem] text-[10px] text-muted-foreground">
+    <div className="flex gap-1 pl-[7.5rem] pr-[9rem] text-[10px] text-muted-foreground">
       {phases.map((p) => <span key={p.key} className="min-w-0 flex-1 truncate">{p.label}</span>)}
     </div>
   );
@@ -100,15 +115,16 @@ function CaseProgress({ job, title }: { job: MonitoringJob; title: string }) {
       <div className="flex items-center gap-2">
         <span className="w-28 shrink-0 text-xs text-muted-foreground">Shared</span>
         <Bar row="Shared" phases={progress.shared.phases} selected={selected} onSelect={setSelected} />
-        <span className="w-28 shrink-0" />
+        <span className="w-36 shrink-0" />
       </div>
       {progress.languages[0] && <Legend phases={progress.languages[0].phases} />}
       {progress.languages.map((r) => (
         <div key={r.language} className="flex items-center gap-2">
           <span className="w-28 shrink-0 truncate text-xs font-medium">{labelOf(r.language)}</span>
           <Bar row={r.language} phases={r.phases} selected={selected} onSelect={setSelected} />
-          <span className="w-28 shrink-0 text-right text-xs text-muted-foreground">
-            {r.finished ? <span className="inline-flex items-center gap-1 text-emerald-600"><Check className="size-3" /> done</span>
+          <span className="w-36 shrink-0 text-right text-xs text-muted-foreground">
+            <span className="mr-1 tabular-nums font-medium text-foreground">{overall(r.phases)} %</span>
+            {r.finished ? <span className="inline-flex items-center gap-1 text-emerald-600"><Check className="size-3" /></span>
               : r.stuck ? <span className="inline-flex items-center gap-1 text-rose-600"><AlertTriangle className="size-3" /> slow</span>
               : r.current ?? "-"}
           </span>
