@@ -2,6 +2,7 @@
 
 - [Incremental build and artifact graph](architecture/incremental-build.md)
 - [Shorts and publishing](architecture/shorts-and-publishing.md)
+- [Short-form release plan: agent handoff](architecture/short-form-release-plan-handoff.md)
 - [Operations and backups](operations.md)
 - [PostgreSQL](postgres.md)
 - [Security](security.md)

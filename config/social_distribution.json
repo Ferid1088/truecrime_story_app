@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "campaign": {
+    "timezone": "Europe/Berlin",
+    "review_language": "en",
+    "start_offset_days": 0,
+    "publish_time_local": "18:00",
+    "selected_by_default": true,
+    "days": 10
+  },
+  "platforms": {
+    "youtube_short": {"enabled": true},
+    "instagram_reel": {"enabled": true},
+    "facebook_reel": {"enabled": true},
+    "tiktok_video": {"enabled": true}
+  },
+  "schedule_template": [
+    {"day": 1, "short": 1, "platforms": ["youtube_short", "facebook_reel"]},
+    {"day": 2, "short": 2, "platforms": ["facebook_reel", "instagram_reel"]},
+    {"day": 3, "short": 3, "platforms": ["youtube_short", "tiktok_video"]},
+    {"day": 4, "short": 4, "platforms": ["instagram_reel", "facebook_reel"]},
+    {"day": 5, "short": 5, "platforms": ["youtube_short", "tiktok_video"]},
+    {"day": 6, "short": 1, "platforms": ["instagram_reel", "tiktok_video"]},
+    {"day": 7, "short": 2, "platforms": ["youtube_short", "tiktok_video"]},
+    {"day": 8, "short": 3, "platforms": ["facebook_reel", "instagram_reel"]},
+    {"day": 9, "short": 4, "platforms": ["youtube_short", "tiktok_video"]},
+    {"day": 10, "short": 5, "platforms": ["facebook_reel", "instagram_reel"]}
+  ],
+  "accounts": {
+    "youtube_short": {
+      "en": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "de": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "fa": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "ar": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "es": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "it": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "fr": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "pt": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "tr": {"account_id": "", "channel_url": "", "credential_ref": ""}
+    },
+    "instagram_reel": {
+      "en": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "de": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "fa": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "ar": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "es": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "it": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "fr": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "pt": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "tr": {"account_id": "", "channel_url": "", "credential_ref": ""}
+    },
+    "facebook_reel": {
+      "en": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "de": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "fa": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "ar": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "es": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "it": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "fr": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "pt": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "tr": {"account_id": "", "channel_url": "", "credential_ref": ""}
+    },
+    "tiktok_video": {
+      "en": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "de": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "fa": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "ar": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "es": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "it": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "fr": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "pt": {"account_id": "", "channel_url": "", "credential_ref": ""},
+      "tr": {"account_id": "", "channel_url": "", "credential_ref": ""}
+    }
+  }
+}

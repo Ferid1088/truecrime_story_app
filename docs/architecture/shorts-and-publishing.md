@@ -1,5 +1,7 @@
 # Shorts and publishing
 
+> Current episode-level release-plan implementation and remaining work are documented in the [agent handoff](short-form-release-plan-handoff.md). This file remains the broad architecture inventory; live platform publishing is still not implemented.
+
 This document separates the existing short-form pilot from a **PROPOSED** production
 and publishing system. No live publishing or OAuth is implemented here.
 
