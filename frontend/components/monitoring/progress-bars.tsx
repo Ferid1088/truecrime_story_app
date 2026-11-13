@@ -9,16 +9,26 @@ import { duration } from "@/components/documentary/monitoring-parts";
 import { LANGUAGES } from "@/lib/format";
 import type { MonitoringJob, MonitoringPhase } from "@/lib/types";
 
-/** The colour of the filled part of a segment. */
-const FILL: Record<MonitoringPhase["state"], string> = {
-  pending: "bg-muted-foreground/40",
-  waiting: "bg-sky-500",
-  running: "bg-sky-500 animate-pulse",
-  done: "bg-emerald-500",
-  degraded: "bg-amber-500",
-  failed: "bg-rose-500",
-  blocked: "bg-rose-500/70",
+/** Each language has its own colour for the filled part of its bars; yellow and red are kept for a warning and for a stop. */
+const LANGUAGE_FILL: Record<string, string> = {
+  en: "bg-blue-500",
+  fa: "bg-emerald-500",
+  de: "bg-violet-500",
+  ar: "bg-teal-400",
+  es: "bg-fuchsia-500",
+  it: "bg-cyan-300",
+  fr: "bg-indigo-300",
+  pt: "bg-green-700",
+  tr: "bg-slate-400",
 };
+const SHARED_FILL = "bg-foreground/50";
+
+function fillClass(state: MonitoringPhase["state"], color: string): string {
+  if (state === "degraded") return "bg-amber-500";
+  if (state === "failed") return "bg-rose-500";
+  if (state === "blocked") return "bg-rose-500/70";
+  return state === "running" ? `${color} animate-pulse` : color;
+}
 
 /** How much of a phase is finished, 0 to 1: its finished steps over its steps (a phase the job does not plan has none). */
 function fraction(p: MonitoringPhase): number {
@@ -48,7 +58,7 @@ function groups(phases: MonitoringPhase[]): { name: string; phases: MonitoringPh
   return out;
 }
 
-function Bar({ row, phases, selected, onSelect }: { row: string; phases: MonitoringPhase[]; selected: Selected; onSelect: (s: Selected) => void }) {
+function Bar({ row, color, phases, selected, onSelect }: { row: string; color: string; phases: MonitoringPhase[]; selected: Selected; onSelect: (s: Selected) => void }) {
   return (
     <div className="flex flex-1 gap-2.5" role="group" aria-label={`${row} progress`}>
       {groups(phases).map((g) => (
@@ -69,7 +79,7 @@ function Bar({ row, phases, selected, onSelect }: { row: string; phases: Monitor
                 data-percent={percent}
                 className={`relative h-4 min-w-0 flex-1 overflow-hidden rounded-sm bg-muted-foreground/15 outline-offset-2 disabled:cursor-default ${p.total === 0 ? "opacity-40" : ""} ${active ? "outline outline-2 outline-foreground" : ""}`}
               >
-                <span className={`absolute inset-y-0 left-0 transition-[width] duration-500 ${FILL[p.state]}`} style={{ width: `${filled}%` }} />
+                <span className={`absolute inset-y-0 left-0 transition-[width] duration-500 ${fillClass(p.state, color)}`} style={{ width: `${filled}%` }} />
               </button>
             );
           })}
@@ -126,7 +136,7 @@ function CaseProgress({ job, title }: { job: MonitoringJob; title: string }) {
   const [selected, setSelected] = useState<Selected>(null);
   const progress = job.phase_bars;
   const running = job.status === "running" || job.status === "queued" || job.status === "cancelling";
-  const labelOf = (code: string) => LANGUAGES[code] ?? code.toUpperCase();
+  const labelOf = (code: string) => (LANGUAGES[code] ?? code.toUpperCase()).replace(/ \(.*\)$/, "");
   return (
     <div className="space-y-2 border-b border-border pb-4 last:border-0 last:pb-0" data-testid="progress-case">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -141,14 +151,14 @@ function CaseProgress({ job, title }: { job: MonitoringJob; title: string }) {
       <Legend phases={progress.shared.phases} />
       <div className="flex items-center gap-2">
         <span className="w-28 shrink-0 text-xs text-muted-foreground">Shared</span>
-        <Bar row="Shared" phases={progress.shared.phases} selected={selected} onSelect={setSelected} />
+        <Bar row="Shared" color={SHARED_FILL} phases={progress.shared.phases} selected={selected} onSelect={setSelected} />
         <span className="w-36 shrink-0" />
       </div>
       {progress.languages[0] && <Legend phases={progress.languages[0].phases} />}
       {progress.languages.map((r) => (
         <div key={r.language} className="flex items-center gap-2">
-          <span className="w-28 shrink-0 truncate text-xs font-medium">{labelOf(r.language)}</span>
-          <Bar row={r.language} phases={r.phases} selected={selected} onSelect={setSelected} />
+          <span className="flex w-28 shrink-0 items-center gap-1.5 truncate text-xs font-medium"><span className={`size-2.5 shrink-0 rounded-full ${LANGUAGE_FILL[r.language] ?? SHARED_FILL}`} aria-hidden />{labelOf(r.language)}</span>
+          <Bar row={r.language} color={LANGUAGE_FILL[r.language] ?? SHARED_FILL} phases={r.phases} selected={selected} onSelect={setSelected} />
           <span className="w-36 shrink-0 text-right text-xs text-muted-foreground">
             <span className="mr-1 tabular-nums font-medium text-foreground">{overall(r.phases)} %</span>
             {r.finished ? <span className="inline-flex items-center gap-1 text-emerald-600"><Check className="size-3" /></span>
