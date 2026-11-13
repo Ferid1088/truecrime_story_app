@@ -25,7 +25,10 @@ def prompt_for(language: str, kind: str, scene: str) -> str:
     cfg = ai_config.covers_settings()
     theme = cfg.themes[language]
     empty = round(cfg.scene_image["empty_fraction"][kind] * 100)
-    where = ("Tall 2:3 frame. Keep the top {n}% of the frame dark and empty (calm negative space)." if kind == "short"
+    corner = cfg.layout["short"]["avatar"]
+    where = (("Tall 2:3 frame. Keep the top {n}% of the frame dark and empty (calm negative space). Also keep the lower " + ("left" if language in RTL else "right")
+              + f" corner, {round(corner['width'] * 100)}% of the width and {round(corner['height'] * 100)}% of the height, calm and free of the main subject: "
+              "put the subject in the middle of the frame.") if kind == "short"
              else "Wide 3:2 frame. Keep the " + ("right" if language in RTL else "left") + " {n}% of the frame dark and empty (calm negative space).").format(n=empty)
     return (f"Photorealistic, restrained, cinematic documentary still for a true-crime film cover. The look of the channel: {theme.look}. The scene: {scene.strip().rstrip('.')}. "
             f"Absolutely no text, no letters, no logo, no watermark, no people, no faces, no gore, no weapons. Also avoid: {', '.join(theme.forbidden)}. {where}")

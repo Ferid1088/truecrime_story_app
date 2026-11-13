@@ -34,7 +34,8 @@
         "top_fraction": 0.125,
         "bottom_fraction": 0.1667,
         "side_fraction": 0.0556,
-        "right_fraction": 0.0833
+        "right_fraction": 0.0833,
+        "avatar_bottom_fraction": 0.03
       },
       "long": {
         "corner_free_fraction": [
@@ -43,7 +44,8 @@
         ],
         "corner": "bottom_right",
         "margin_fraction": 0.045
-      }
+      },
+      "note_avatar": "Owner decision 2026-11-13: on a short cover the portrait sits in the bottom corner (right for left-to-right languages, left for Persian and Arabic), below the reserved bottom margin of the other elements; its bottom edge stays avatar_bottom_fraction above the edge of the picture. The platforms' real margins are still to be tested."
     },
     "platforms": {
       "youtube_long": {
@@ -314,8 +316,8 @@
           "max_lines": 2
         },
         "avatar": {
-          "x": 0.31,
-          "y": 0.515,
+          "x": 0.3444,
+          "y": 0.65,
           "width": 0.6,
           "height": 0.315,
           "face_widths": 2.8
@@ -344,7 +346,7 @@
       "max_images_per_scene": 1,
       "empty_fraction": {
         "long": 0.55,
-        "short": 0.52
+        "short": 0.45
       },
       "ledger_stage": "image:cover",
       "note": "One image for each cover; a failed call is tried again up to `attempts` times and every attempt is recorded (tokens, runtime, cost)."

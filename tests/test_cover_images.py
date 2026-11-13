@@ -57,10 +57,22 @@ def cover(db_session, monkeypatch, tmp_path):
 
 
 def test_the_prompt_has_the_look_the_scene_the_bans_and_the_empty_side():
+    empty = ai_config.covers_settings().scene_image["empty_fraction"]
     long_en = IM.prompt_for("en", "long", SCENE)
     assert ai_config.covers_settings().themes["en"].look in long_en and SCENE in long_en and "no text, no letters, no logo" in long_en and "no people, no faces" in long_en
-    assert "left 42%" in long_en and "Wide 3:2" in long_en
-    assert "right 42%" in IM.prompt_for("fa", "long", SCENE) and "top 38%" in IM.prompt_for("en", "short", SCENE) and "Tall 2:3" in IM.prompt_for("en", "short", SCENE)
+    assert f"left {round(empty['long'] * 100)}%" in long_en and "Wide 3:2" in long_en and "corner" not in long_en
+    assert f"right {round(empty['long'] * 100)}%" in IM.prompt_for("fa", "long", SCENE)
+    short_en = IM.prompt_for("en", "short", SCENE)
+    assert f"top {round(empty['short'] * 100)}%" in short_en and "Tall 2:3" in short_en
+
+
+def test_the_short_prompt_keeps_the_corner_of_the_portrait_free_on_the_side_of_the_language():
+    """The portrait of a short cover sits in the bottom corner (right, left for Persian and Arabic): the picture is asked to leave that corner calm."""
+    box = ai_config.covers_settings().layout["short"]["avatar"]
+    for language, side in (("en", "right"), ("de", "right"), ("tr", "right"), ("fa", "left"), ("ar", "left")):
+        prompt = IM.prompt_for(language, "short", SCENE)
+        assert f"lower {side} corner" in prompt and f"{round(box['width'] * 100)}% of the width" in prompt and f"{round(box['height'] * 100)}% of the height" in prompt
+    assert "lower" not in IM.prompt_for("en", "long", SCENE)
 
 
 def test_a_scene_with_a_person_a_victim_or_a_weapon_is_refused():

@@ -189,7 +189,8 @@ def layout_problems(made: dict) -> list[str]:
         zone = cfg.safe_zones["short"]
         for name in ("title", "logo", "avatar"):
             x, y, w, h = made["elements"][name]
-            if y < zone["top_fraction"] * height or y + h > (1 - zone["bottom_fraction"]) * height:
+            bottom = zone["avatar_bottom_fraction"] if name == "avatar" else zone["bottom_fraction"]       # the portrait sits in the bottom corner (owner decision)
+            if y < zone["top_fraction"] * height or y + h > (1 - bottom) * height:
                 problems.append(f"the {name} reaches the top or bottom margin of a short")
             if x < zone["side_fraction"] * width * 0.5 or x + w > width - zone["side_fraction"] * width * 0.5:
                 problems.append(f"the {name} reaches the side margin of a short")

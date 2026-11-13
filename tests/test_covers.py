@@ -95,9 +95,26 @@ def test_the_short_cover_keeps_its_content_out_of_the_reserved_margins(picture, 
     face = AV.portrait(OUTFIT, 0.5, 2.8)
     made = C.compose("short", "en", picture, face, storage.ROOT / ai_config.channels["en"].logo, "The open door", tmp_path / "s.jpg", scale=0.1)
     height = made["size"][1]
-    for name in ("title", "logo", "avatar"):
+    for name in ("title", "logo"):
         x, y, w, h = made["elements"][name]
         assert y >= cfg.safe_zones["short"]["top_fraction"] * height and y + h <= (1 - cfg.safe_zones["short"]["bottom_fraction"]) * height
+    _x, y, _w, h = made["elements"]["avatar"]
+    assert y + h <= (1 - cfg.safe_zones["short"]["avatar_bottom_fraction"]) * height and made["problems"] == []
+
+
+@pytest.mark.parametrize(("language", "side"), [("en", "right"), ("de", "right"), ("fa", "left"), ("ar", "left")])
+def test_the_portrait_of_a_short_cover_sits_in_the_bottom_corner_on_the_side_of_the_language(language, side, picture, tmp_path):
+    """Owner decision 2026-11-13: bottom corner, right for left-to-right languages, left for Persian and Arabic; the film cover keeps its place."""
+    cfg = ai_config.covers_settings()
+    a, f = cfg.layout["short"]["avatar"], cfg.formats["short"]
+    face = AV.portrait(OUTFIT, a["width"] * f.width / (a["height"] * f.height), a["face_widths"])
+    made = C.compose("short", language, picture, face, storage.ROOT / ai_config.channels[language].logo, TITLES[language], tmp_path / "s.jpg", scale=0.1)
+    width, height = made["size"]
+    x, y, w, h = made["elements"]["avatar"]
+    assert y + h >= 0.95 * height and made["problems"] == []                                # the lowest part of the picture
+    assert (x + w >= 0.9 * width) if side == "right" else (x <= 0.1 * width)
+    long = C.compose("long", language, picture, AV.portrait(OUTFIT, 0.5, 2.8), storage.ROOT / ai_config.channels[language].logo, TITLES[language], tmp_path / "l.jpg", scale=0.1)
+    assert long["elements"]["avatar"][1] < 0.5 * long["size"][1]                          # the film cover is as before: the portrait below the title, not in the corner
 
 
 @pytest.mark.parametrize("language", ["de", "fr", "en"])
