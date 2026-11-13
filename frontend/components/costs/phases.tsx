@@ -22,7 +22,9 @@ const colour = (key: string) => VENDOR[key] ?? "var(--viz-other)";
 export function PhaseVendors({ data }: { data: CostPhases }) {
   const [hover, setHover] = useState<string | null>(null);
   const [opened, setOpened] = useState<Set<string>>(new Set());
+  const [spread, setSpread] = useState(false);
   const max = Math.max(...data.steps.map((s) => s.total_eur), 0.0001);
+  const languageOrder = [...data.languages, "_shared", "_unknown"];
   const used = data.vendors.filter((v) => data.steps.some((s) => s.vendors[v.key]));
   const toggle = (key: string) => setOpened((old) => {
     const next = new Set(old);
@@ -32,8 +34,11 @@ export function PhaseVendors({ data }: { data: CostPhases }) {
   return (
     <div data-testid="phase-vendors">
       <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-        <span>Click a phase to see what it is made of.</span>
-        <button type="button" className="text-primary hover:underline" onClick={() => setOpened(opened.size ? new Set() : new Set(data.steps.map((s) => s.key)))} data-testid="phase-expand-all">{opened.size ? "Close all" : "Open all"}</button>
+        <span>Click a phase to see its money per language and the parts it is made of.</span>
+        <span className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={spread} onChange={(e) => setSpread(e.target.checked)} data-testid="phase-spread" />Add an even share of the shared work to each language</label>
+          <button type="button" className="text-primary hover:underline" onClick={() => setOpened(opened.size ? new Set() : new Set(data.steps.map((s) => s.key)))} data-testid="phase-expand-all">{opened.size ? "Close all" : "Open all"}</button>
+        </span>
       </div>
       <ul className="space-y-1.5">
         {data.steps.map((s) => (
@@ -62,6 +67,9 @@ export function PhaseVendors({ data }: { data: CostPhases }) {
               )}
             </div>
             {opened.has(s.key) && (
+              <PhaseLanguageRows phase={s} order={languageOrder} used={used} spread={spread} max={max} languages={data.languages} />
+            )}
+            {opened.has(s.key) && (
               <ul className="mb-2 ml-4 mt-1 space-y-1.5 border-l pl-3" data-testid={`phase-parts-${s.key}`}>
                 {s.parts.map((p) => (
                   <li key={p.key} data-testid={`part-${s.key}-${p.key}`}>
@@ -88,6 +96,35 @@ export function PhaseVendors({ data }: { data: CostPhases }) {
         {used.map((v) => <li key={v.key} className="flex items-center gap-1.5"><span className="inline-block size-2.5 rounded-sm" style={{ background: colour(v.key) }} />{v.label}</li>)}
       </ul>
     </div>
+  );
+}
+
+const LABEL: Record<string, string> = { _shared: "Shared (all languages)", _unknown: "Language unknown" };
+
+/** One phase per language: a bar for every language (and the shared and unknown money), split by vendor; "spread" adds an even share of the shared money to each language. */
+function PhaseLanguageRows({ phase, order, used, spread, max, languages }: { phase: CostPhases["steps"][number]; order: string[]; used: CostPhases["vendors"]; spread: boolean; max: number; languages: string[] }) {
+  const present = languages.filter((l) => phase.languages[l]);
+  const shared = phase.languages._shared ?? {};
+  const rows = order.filter((l) => phase.languages[l] && !(spread && l === "_shared" && present.length > 0)).map((l) => {
+    const parts = { ...(phase.languages[l] ?? {}) };
+    const isLanguage = !l.startsWith("_");
+    const extra = spread && isLanguage && present.length > 0;
+    if (extra) for (const [v, e] of Object.entries(shared)) parts[v] = (parts[v] ?? 0) + e / present.length;
+    return { l, parts, total: Object.values(parts).reduce((a, v) => a + v, 0), shareOnly: extra ? Object.values(shared).reduce((a, v) => a + v, 0) / present.length : 0 };
+  });
+  return (
+    <ul className="mb-1 ml-4 mt-1 space-y-1 border-l pl-3" data-testid={`phase-by-language-${phase.key}`}>
+      <li className="text-[10px] uppercase tracking-wide text-muted-foreground">Per language</li>
+      {[...rows].sort((a, b) => (a.l.startsWith("_") ? 1 : 0) - (b.l.startsWith("_") ? 1 : 0) || b.total - a.total).map(({ l, parts, total, shareOnly }) => (
+        <li key={l} className="grid grid-cols-[9rem_1fr_12rem] items-center gap-2 text-xs" data-testid={`phase-language-row-${phase.key}-${l}`}>
+          <span className="truncate">{LABEL[l] ?? langLabel(l)}</span>
+          <div className="flex h-3 gap-0.5" style={{ width: `${Math.max((total / max) * 100, 0.6)}%` }} role="img" aria-label={`${LABEL[l] ?? langLabel(l)}: ${used.filter((v) => parts[v.key]).map((v) => `${v.label} ${eur(parts[v.key])}`).join(", ")}`}>
+            {used.filter((v) => parts[v.key]).map((v) => <div key={v.key} className="first:rounded-l last:rounded-r" style={{ width: `${(parts[v.key] / total) * 100}%`, background: colour(v.key) }} />)}
+          </div>
+          <span className="text-right tabular-nums">{eur(total)}{shareOnly > 0 && <span className="ml-1 text-[10px] text-muted-foreground">incl. {eur(shareOnly)} share</span>}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
