@@ -3,6 +3,7 @@ row of the same call, and only rows with a price. Every figure also says how muc
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 
@@ -45,6 +46,28 @@ def _local_text_sqlite(element, compiler, **kw):
 
 
 DATE_TEXT = LocalText(P.created_at)
+
+
+class PartText(FunctionElement):
+    """What a stage is called before its first colon, in lower case ("Reading: write fa_b01" is "reading"); a language in brackets is taken off afterwards."""
+
+    type = String()
+    name = "part_text"
+    inherit_cache = True
+
+
+@compiles(PartText)
+def _part_text(element, compiler, **kw):
+    return f"lower(btrim(split_part(coalesce({compiler.process(element.clauses, **kw)}, '-'), ':', 1)))"
+
+
+@compiles(PartText, "sqlite")
+def _part_text_sqlite(element, compiler, **kw):
+    text = f"coalesce({compiler.process(element.clauses, **kw)}, '-')"
+    return f"lower(trim(CASE WHEN instr({text}, ':') > 0 THEN substr({text}, 1, instr({text}, ':') - 1) ELSE {text} END))"
+
+
+PART = PartText(P.stage)
 MONTH = func.substr(DATE_TEXT, 1, 7)
 DIMENSIONS = {"step": STEP, "language": LANGUAGE, "vendor": VENDOR, "model": func.coalesce(P.model, "-"), "subject": func.coalesce(P.subject, "-"),
               "accuracy": func.coalesce(P.accuracy, "none"), "day": func.substr(DATE_TEXT, 1, 10), "case": P.case_id}
@@ -298,12 +321,41 @@ def series(db: Session, case_id: int | None, by: str, bucket: str, span: int) ->
     return {"by": by, "bucket": bucket, "timezone": R.registry()["display_timezone"], "labels": labels, "series": out}
 
 
+def _part_name(part: str) -> str:
+    """The name of a part without a language in brackets or the block it was about ("semantic review fa_b03_g02_01" is "semantic review")."""
+    return re.sub(r"\s+\S*_b\d+\S*$", "", re.sub(r"\s*\(.*\)\s*$", "", part))
+
+
+def _parts(found: dict[str, dict]) -> list[dict]:
+    """The parts a phase is made of (the agent or stage group that paid), the dearest first; the many tiny ones are added up as "other parts"."""
+    ranked = sorted(found.items(), key=lambda kv: -kv[1]["eur"])
+    out = [{"key": k, "label": k.replace("_", " ").capitalize(), "eur": _round(v["eur"]), "vendors": {a: _round(b) for a, b in v["vendors"].items() if b},
+            "languages": {a: _round(b) for a, b in v["languages"].items() if b}} for k, v in ranked[:12]]
+    rest = ranked[12:]
+    if rest:
+        vendors: dict[str, float] = {}
+        languages: dict[str, float] = {}
+        for _k, v in rest:
+            for a, b in v["vendors"].items():
+                vendors[a] = vendors.get(a, 0.0) + b
+            for a, b in v["languages"].items():
+                languages[a] = languages.get(a, 0.0) + b
+        out.append({"key": "_other_parts", "label": "Other parts", "eur": _round(sum(v["eur"] for _k, v in rest)), "vendors": {a: _round(b) for a, b in vendors.items()}, "languages": {a: _round(b) for a, b in languages.items()}})
+    return out
+
+
 def phases(db: Session, case_id: int | None) -> dict:
     """The money by pipeline phase (in the order of the pipeline), split by vendor and by language (and each language by vendor): the figures behind "in which phase did how much go to which vendor"
     and "how do the languages compare phase by phase"."""
     vendors = {(s, v): float(e) for s, v, e in scoped(counted(db.query(STEP, VENDOR, func.sum(PRICE))), case_id).group_by(STEP, VENDOR).all()}
     languages = {(s, lang, v): float(e) for s, lang, v, e in scoped(counted(db.query(STEP, LANGUAGE, VENDOR, func.sum(PRICE))), case_id).group_by(STEP, LANGUAGE, VENDOR).all()}
     estimated = {s: float(e) for s, e in scoped(counted(db.query(STEP, ESTIMATED)), case_id).group_by(STEP).all()}
+    pieces: dict[str, dict[str, dict]] = {}
+    for s, part, v, lang, e in scoped(counted(db.query(STEP, PART, VENDOR, LANGUAGE, func.sum(PRICE))), case_id).group_by(STEP, PART, VENDOR, LANGUAGE).all():
+        cell = pieces.setdefault(s, {}).setdefault(_part_name(part), {"eur": 0.0, "vendors": {}, "languages": {}})
+        cell["eur"] += float(e)
+        cell["vendors"][v] = cell["vendors"].get(v, 0.0) + float(e)
+        cell["languages"][lang] = cell["languages"].get(lang, 0.0) + float(e)
     steps = []
     for step in R.registry()["steps"]:
         key = step["key"]
@@ -314,5 +366,5 @@ def phases(db: Session, case_id: int | None) -> dict:
                 by_language.setdefault(lang, {})[v] = _round(e)
         if by_vendor:
             steps.append({"key": key, "label": step["label"], "shared": step["shared"], "total_eur": _round(sum(by_vendor.values())), "estimated_eur": _round(estimated.get(key)),
-                          "vendors": by_vendor, "languages": by_language})
+                          "vendors": by_vendor, "languages": by_language, "parts": _parts(pieces.get(key, {}))})
     return {"steps": steps, "languages": R.registry()["languages"], "vendors": [{"key": k, "label": v} for k, v in R.vendor_labels().items()] + [{"key": "other", "label": "Other"}]}

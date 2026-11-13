@@ -166,3 +166,17 @@ def test_the_phases_come_in_pipeline_order_split_by_vendor_and_language(db_sessi
     add(db_session, case, stage="voice", eur=0.4, language="fa")        # the same language and phase paid to another vendor (the text model)
     assert Q.phases(db_session, case.id)["steps"][2]["languages"]["fa"] == {"elevenlabs": 2.0, "apimaster": 0.4}
     assert "research" not in {s["key"] for s in Q.phases(db_session, 999999999)["steps"]}
+
+
+def test_a_phase_is_made_of_parts_by_stage_with_their_vendors_and_languages(db_session, case):
+    add(db_session, case, stage="reading: write fa_b01_g01_01", eur=1.5)
+    add(db_session, case, stage="Reading: judge fa_b02_g01_01", eur=0.5)
+    add(db_session, case, stage="punctuation: syntax fr_b03_s01_01", eur=2.0, language="fr")
+    add(db_session, case, stage="Tashkeel (ar)", eur=0.25)
+    add(db_session, case, stage="semantic review FA_B03_g02_01", eur=0.1, model="gemini-3.8-flash")
+    add(db_session, case, stage="semantic review FA_B04_g01_01", eur=0.1, model="gemini-3.8-flash")
+    polish = next(s for s in Q.phases(db_session, case.id)["steps"] if s["key"] == "text_polish")
+    parts = {p["key"]: p for p in polish["parts"]}
+    assert {p["key"] for p in polish["parts"]} == {"punctuation", "reading", "tashkeel", "semantic review"} and parts["semantic review"]["eur"] == 0.2   # one part, not one per block
+    assert parts["reading"]["eur"] == 2.0 and parts["reading"]["vendors"] == {"apimaster": 2.0} and parts["reading"]["languages"] == {"fa": 2.0}
+    assert parts["punctuation"]["languages"] == {"fr": 2.0} and parts["tashkeel"]["languages"] == {"ar": 0.25}

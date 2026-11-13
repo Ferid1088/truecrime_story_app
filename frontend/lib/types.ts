@@ -3922,7 +3922,8 @@ export interface CostSeries {
 }
 
 export interface CostPhases {
-  steps: { key: string; label: string; shared: boolean; total_eur: number; estimated_eur: number; vendors: Record<string, number>; languages: Record<string, Record<string, number>> }[];
+  steps: { key: string; label: string; shared: boolean; total_eur: number; estimated_eur: number; vendors: Record<string, number>; languages: Record<string, Record<string, number>>;
+    parts: { key: string; label: string; eur: number; vendors: Record<string, number>; languages: Record<string, number> }[] }[];
   languages: string[];
   vendors: { key: string; label: string }[];
 }
