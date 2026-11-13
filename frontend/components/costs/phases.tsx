@@ -57,32 +57,61 @@ export function PhaseVendors({ data }: { data: CostPhases }) {
   );
 }
 
-/** The languages side by side: one small chart per language, a bar per phase, all on the same scale, so the shape of a language's spending can be compared at a glance. */
+const sum = (parts: Record<string, number> | undefined) => Object.values(parts ?? {}).reduce((a, v) => a + v, 0);
+
+/** The languages side by side: one small chart per language, a bar per phase split by vendor like the chart above, all on the same scale; the vendors' totals of each
+ *  language stand under its name, and the exact figures of a phase appear when the pointer is on it. */
 export function PhaseLanguages({ data }: { data: CostPhases }) {
-  const languages = data.languages.filter((l) => data.steps.some((s) => s.languages[l]));
-  const totals = Object.fromEntries(languages.map((l) => [l, data.steps.reduce((sum, s) => sum + (s.languages[l] ?? 0), 0)]));
-  const max = Math.max(...data.steps.flatMap((s) => languages.map((l) => s.languages[l] ?? 0)), 0.0001);
+  const [hover, setHover] = useState<string | null>(null);
+  const languages = data.languages.filter((l) => data.steps.some((s) => sum(s.languages[l]) > 0));
+  const totals = Object.fromEntries(languages.map((l) => [l, data.steps.reduce((acc, s) => acc + sum(s.languages[l]), 0)]));
+  const max = Math.max(...data.steps.flatMap((s) => languages.map((l) => sum(s.languages[l]))), 0.0001);
+  const used = data.vendors.filter((v) => data.steps.some((s) => languages.some((l) => s.languages[l]?.[v.key])));
   return (
     <div data-testid="phase-languages">
-      <p className="mb-2 text-xs text-muted-foreground">Every panel uses the same scale (the longest bar is {eur(max, 0)}). Only money that belongs to one language is shown; shared work is in the other chart.</p>
+      <p className="mb-2 text-xs text-muted-foreground">Every panel uses the same scale (the longest bar is {eur(max, 0)}). A bar is split by vendor, like the chart above; point at a bar for the exact figures. Only money that belongs to one language is shown; shared work is in the other chart.</p>
+      <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        {used.map((v) => <li key={v.key} className="flex items-center gap-1.5"><span className="inline-block size-2.5 rounded-sm" style={{ background: colour(v.key) }} />{v.label}</li>)}
+      </ul>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {[...languages].sort((a, b) => totals[b] - totals[a]).map((l) => (
-          <div key={l} className="rounded-md border p-2" data-testid={`phase-language-${l}`}>
-            <div className="mb-1 flex items-baseline justify-between text-xs"><span className="font-medium">{langLabel(l)}</span><span className="tabular-nums">{eur(totals[l])}</span></div>
-            <ul className="space-y-0.5">
-              {data.steps.filter((s) => !s.shared || s.languages[l]).map((s) => {
-                const value = s.languages[l] ?? 0;
-                return (
-                  <li key={s.key} className="grid grid-cols-[7.5rem_1fr_3.5rem] items-center gap-1.5 text-[10px]" title={`${langLabel(l)} · ${s.label}: ${eur(value)}`}>
-                    <span className="truncate text-muted-foreground">{s.label}</span>
-                    <div className="h-2.5"><div className="h-2.5 rounded-r" style={{ width: `${(value / max) * 100}%`, minWidth: value ? 2 : 0, background: "var(--viz-1)" }} /></div>
-                    <span className="text-right tabular-nums">{value ? eur(value) : "–"}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+        {[...languages].sort((a, b) => totals[b] - totals[a]).map((l) => {
+          const perVendor = used.map((v) => ({ ...v, eur: data.steps.reduce((acc, s) => acc + (s.languages[l]?.[v.key] ?? 0), 0) })).filter((v) => v.eur > 0);
+          return (
+            <div key={l} className="rounded-md border p-2" data-testid={`phase-language-${l}`}>
+              <div className="flex items-baseline justify-between text-xs"><span className="font-medium">{langLabel(l)}</span><span className="tabular-nums">{eur(totals[l])}</span></div>
+              <div className="mb-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground" data-testid={`phase-language-vendors-${l}`}>
+                {perVendor.map((v) => <span key={v.key} className="flex items-center gap-1"><span className="inline-block size-2 rounded-sm" style={{ background: colour(v.key) }} />{v.label} <span className="tabular-nums text-foreground">{eur(v.eur)}</span></span>)}
+              </div>
+              <ul className="space-y-0.5">
+                {data.steps.filter((s) => !s.shared || s.languages[l]).map((s) => {
+                  const parts = s.languages[l] ?? {};
+                  const total = sum(parts);
+                  const id = `${l}-${s.key}`;
+                  return (
+                    <li key={s.key} className="relative grid grid-cols-[7.5rem_1fr_3.5rem] items-center gap-1.5 text-[10px]" onPointerEnter={() => setHover(id)} onPointerLeave={() => setHover(null)} data-testid={`phase-language-${l}-${s.key}`}>
+                      <span className="truncate text-muted-foreground">{s.label}</span>
+                      <div className="flex h-2.5 gap-px" style={{ width: `${(total / max) * 100}%`, minWidth: total ? 2 : 0 }} role="img" aria-label={`${langLabel(l)} · ${s.label}: ${used.filter((v) => parts[v.key]).map((v) => `${v.label} ${eur(parts[v.key])}`).join(", ")}`}>
+                        {used.filter((v) => parts[v.key]).map((v) => <div key={v.key} className="first:rounded-l last:rounded-r" style={{ width: `${(parts[v.key] / total) * 100}%`, background: colour(v.key) }} />)}
+                      </div>
+                      <span className="text-right tabular-nums">{total ? eur(total) : "–"}</span>
+                      {hover === id && total > 0 && (
+                        <div className="pointer-events-none absolute left-28 top-3 z-10 w-52 rounded-md border bg-card p-2 text-xs shadow-md" data-testid="phase-language-tooltip">
+                          <div className="mb-1 font-medium">{langLabel(l)} · {s.label}</div>
+                          {used.filter((v) => parts[v.key]).sort((a, b) => parts[b.key] - parts[a.key]).map((v) => (
+                            <div key={v.key} className="flex items-center justify-between gap-3">
+                              <span className="flex items-center gap-1.5 text-muted-foreground"><span className="inline-block size-2.5 rounded-sm" style={{ background: colour(v.key) }} />{v.label}</span>
+                              <span className="font-semibold tabular-nums">{eur(parts[v.key])} <span className="font-normal text-muted-foreground">{Math.round((parts[v.key] / total) * 100)}%</span></span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

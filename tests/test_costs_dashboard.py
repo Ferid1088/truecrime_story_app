@@ -161,6 +161,8 @@ def test_the_phases_come_in_pipeline_order_split_by_vendor_and_language(db_sessi
     found = Q.phases(db_session, case.id)
     assert [s["key"] for s in found["steps"]] == ["research", "language_text", "voice"]
     voice = found["steps"][2]
-    assert voice["vendors"] == {"elevenlabs": 3.0} and voice["languages"] == {"fa": 2.0, "de": 1.0} and voice["total_eur"] == 3.0
-    assert found["steps"][0]["shared"] is True and found["steps"][0]["languages"] == {R.SHARED: 4.0}
+    assert voice["vendors"] == {"elevenlabs": 3.0} and voice["languages"] == {"fa": {"elevenlabs": 2.0}, "de": {"elevenlabs": 1.0}} and voice["total_eur"] == 3.0
+    assert found["steps"][0]["shared"] is True and found["steps"][0]["languages"] == {R.SHARED: {"apimaster": 4.0}}
+    add(db_session, case, stage="voice", eur=0.4, language="fa")        # the same language and phase paid to another vendor (the text model)
+    assert Q.phases(db_session, case.id)["steps"][2]["languages"]["fa"] == {"elevenlabs": 2.0, "apimaster": 0.4}
     assert "research" not in {s["key"] for s in Q.phases(db_session, 999999999)["steps"]}
