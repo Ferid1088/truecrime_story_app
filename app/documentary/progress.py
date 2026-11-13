@@ -64,14 +64,14 @@ def _case_items(db: Session, case_id: int, language: str) -> dict[str, list[dict
 def _phases(phases: list[ProgressPhase], stages: list[dict], made: dict[str, list[dict]] | None = None) -> list[dict]:
     out = []
     for phase in phases:
-        if phase.source != "stages":
-            out.append(_made(phase, (made or {}).get(phase.source, [])))
-            continue
         mine = [s for s in stages if _split(s["name"])[0] in phase.stages]
+        if phase.source != "stages" and not mine:
+            out.append(_made(phase, (made or {}).get(phase.source, [])) | {"group": phase.group})
+            continue
         running = next((s for s in mine if s["status"] == RUNNING), None)
         failed = next((s for s in mine if s["status"] == FAILED), None)
         shown = running or failed
-        out.append({"key": phase.key, "label": phase.label, "state": phase_state(mine),
+        out.append({"key": phase.key, "label": phase.label, "group": phase.group, "state": phase_state(mine),
                     "done": sum(s["status"] in ("done", "degraded", "skipped") for s in mine), "total": len(mine),
                     "stage": shown["name"] if shown else None, "seconds": shown["seconds"] if shown else None,
                     "error": shown.get("error") if shown else None,
@@ -106,6 +106,9 @@ def progress_view(db: Session, case_id: int, stages: list[dict], languages: list
     shown = sorted({*languages, *have}, key=lambda c: order.index(c) if c in order else len(order))
     shared_stages = [s for s in stages if _split(s["name"])[1] is None]
     shared = _phases(cfg.shared, shared_stages)
+    research, story = shared[0], shared[1]
+    if research["total"] == 0 and story["state"] in (DONE, DEGRADED):          # the research ran before this job: the story built on it exists
+        shared[0] = research | {"state": DONE, "done": 1, "total": 1, "stages": [_item("made before this job", DONE)]}
     rows = []
     for language in shown:
         mine = [s for s in stages if _split(s["name"])[1] == language]

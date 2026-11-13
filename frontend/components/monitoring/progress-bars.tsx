@@ -37,28 +37,44 @@ const STATE_WORD: Record<MonitoringPhase["state"], string> = {
 
 type Selected = { row: string; phase: MonitoringPhase } | null;
 
+/** The phases in their order, cut into runs of the same group (Text, Voice, Pictures ...). */
+function groups(phases: MonitoringPhase[]): { name: string; phases: MonitoringPhase[] }[] {
+  const out: { name: string; phases: MonitoringPhase[] }[] = [];
+  for (const p of phases) {
+    const last = out[out.length - 1];
+    if (last && last.name === p.group) last.phases.push(p);
+    else out.push({ name: p.group, phases: [p] });
+  }
+  return out;
+}
+
 function Bar({ row, phases, selected, onSelect }: { row: string; phases: MonitoringPhase[]; selected: Selected; onSelect: (s: Selected) => void }) {
   return (
-    <div className="flex flex-1 gap-1" role="group" aria-label={`${row} progress`}>
-      {phases.map((p) => {
-        const active = selected?.row === row && selected.phase.key === p.key;
-        const percent = Math.round(fraction(p) * 100);
-        return (
-          <button
-            key={p.key}
-            type="button"
-            disabled={p.total === 0}
-            onClick={() => onSelect(active ? null : { row, phase: p })}
-            title={`${p.label}: ${STATE_WORD[p.state]}${p.total ? ` - ${percent} % (${p.done} of ${p.total} steps)` : ""}`}
-            aria-label={`${row} ${p.label}: ${percent} %, ${STATE_WORD[p.state]}`}
-            data-state={p.state}
-            data-percent={percent}
-            className={`relative h-4 min-w-0 flex-1 overflow-hidden rounded-sm bg-muted-foreground/15 outline-offset-2 disabled:cursor-default ${p.total === 0 ? "opacity-40" : ""} ${active ? "outline outline-2 outline-foreground" : ""}`}
-          >
-            <span className={`absolute inset-y-0 left-0 transition-[width] duration-500 ${FILL[p.state]}`} style={{ width: `${percent}%` }} />
-          </button>
-        );
-      })}
+    <div className="flex flex-1 gap-2.5" role="group" aria-label={`${row} progress`}>
+      {groups(phases).map((g) => (
+        <div key={g.name} className="flex min-w-0 gap-0.5" style={{ flexGrow: g.phases.length, flexBasis: 0 }}>
+          {g.phases.map((p) => {
+            const active = selected?.row === row && selected.phase.key === p.key;
+            const percent = Math.round(fraction(p) * 100);
+            const filled = p.state === "failed" || p.state === "blocked" ? 100 : percent;     // a stopped phase shows its colour over the whole bar
+            return (
+              <button
+                key={p.key}
+                type="button"
+                disabled={p.total === 0}
+                onClick={() => onSelect(active ? null : { row, phase: p })}
+                title={`${p.label}: ${STATE_WORD[p.state]}${p.total ? ` - ${percent} % (${p.done} of ${p.total} steps)` : ""}`}
+                aria-label={`${row} ${p.label}: ${percent} %, ${STATE_WORD[p.state]}`}
+                data-state={p.state}
+                data-percent={percent}
+                className={`relative h-4 min-w-0 flex-1 overflow-hidden rounded-sm bg-muted-foreground/15 outline-offset-2 disabled:cursor-default ${p.total === 0 ? "opacity-40" : ""} ${active ? "outline outline-2 outline-foreground" : ""}`}
+              >
+                <span className={`absolute inset-y-0 left-0 transition-[width] duration-500 ${FILL[p.state]}`} style={{ width: `${filled}%` }} />
+              </button>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
@@ -89,8 +105,19 @@ function Detail({ phase }: { phase: MonitoringPhase }) {
 
 function Legend({ phases }: { phases: MonitoringPhase[] }) {
   return (
-    <div className="flex gap-1 pl-[7.5rem] pr-[9rem] text-[10px] text-muted-foreground">
-      {phases.map((p) => <span key={p.key} className="min-w-0 flex-1 truncate">{p.label}</span>)}
+    <div className="flex gap-2.5 pl-[7.5rem] pr-[9rem] text-[10px] text-muted-foreground">
+      {groups(phases).map((g) => (
+        <div key={g.name} className="min-w-0" style={{ flexGrow: g.phases.length, flexBasis: 0 }}>
+          <div className="truncate border-b border-border font-medium">{g.name}</div>
+          <div className="flex gap-0.5">
+            {g.phases.map((p) => (
+              <span key={p.key} className="flex h-[4.5rem] min-w-0 flex-1 items-end justify-center" title={p.label}>
+                <span className="whitespace-nowrap [writing-mode:vertical-rl] rotate-180">{p.label}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

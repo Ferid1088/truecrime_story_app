@@ -208,7 +208,7 @@ def _stage(name, status, seconds=5.0):
 def test_the_progress_bars_show_each_language_phase_and_where_it_is(db_session):
     case = _case(db_session)
     job = _job(db_session, case, "running", "voice:de", [
-        _stage("blueprint", "done"), _stage("mvp_direct", "done"),
+        _stage("blueprint", "done"), _stage("mvp_needs", "done"),
         _stage("spoken:en", "done"), _stage("voice:en", "done"), _stage("render:en", "done"),
         _stage("spoken:de", "done"), _stage("voice:de", "running"), _stage("render:de", "pending")])
     job.languages_json = '["en", "de"]'
@@ -218,14 +218,16 @@ def test_the_progress_bars_show_each_language_phase_and_where_it_is(db_session):
     db_session.commit()
     bars = next(j for j in _snapshot(case)["running"] if j["id"] == job.id)["phase_bars"]
     shared = {p["key"]: p["state"] for p in bars["shared"]["phases"]}
-    assert shared == {"plan": "done", "research": "pending", "pictures": "done", "music": "pending"}
+    assert list(shared) == ["research", "story", "blueprint", "music", "host_plan", "needs", "naming", "length", "library", "search"]
+    assert shared["blueprint"] == "done" and shared["needs"] == "done" and shared["music"] == "pending"
     rows = {r["language"]: r for r in bars["languages"]}
     assert set(rows) == {"en", "de", "fr"}                      # a language the case has a film in shows without a job stage
     states = {k: {p["key"]: p["state"] for p in r["phases"]} for k, r in rows.items()}
-    assert states["en"]["voice"] == "done" and states["en"]["render"] == "done" and states["en"]["shorts"] == "waiting" and states["en"]["covers"] == "waiting"
+    assert states["en"]["voice"] == "done" and states["en"]["render"] == "done" and states["en"]["clips"] == "waiting" and states["en"]["covers"] == "waiting"
     assert states["de"]["voice"] == "running" and states["de"]["render"] == "pending" and states["de"]["avatar"] == "pending"
     assert rows["de"]["current"] == "Voice" and not rows["de"]["finished"]
-    assert [p["label"] for p in rows["fr"]["phases"]] == ["Text", "Voice", "Avatar", "Pictures", "Opening", "Production", "Render", "Shorts", "Covers"]
+    assert [p["key"] for p in rows["fr"]["phases"]] == ["spoken", "opening", "host_text", "direction", "voice", "avatar", "plan", "fill", "portraits", "maps",
+                                                       "production", "critique", "coverage", "render", "review", "clips", "covers"]
 
 
 def test_the_bars_keep_what_an_earlier_job_of_the_case_finished(db_session):
@@ -236,4 +238,11 @@ def test_the_bars_keep_what_an_earlier_job_of_the_case_finished(db_session):
     db_session.commit()
     bars = next(j for j in _snapshot(case)["running"] if j["id"] == job.id)["phase_bars"]
     states = {p["key"]: p["state"] for p in bars["languages"][0]["phases"]}
-    assert states["text"] == "running" and states["voice"] == "done"
+    assert states["spoken"] == "running" and states["voice"] == "done"
+
+
+def test_research_counts_as_done_when_the_story_exists_but_this_job_did_not_research(db_session):
+    case = _case(db_session)
+    job = _job(db_session, case, "running", "blueprint", [_stage("final_approval", "done"), _stage("blueprint", "running")])
+    shared = {p["key"]: p["state"] for p in next(j for j in _snapshot(case)["running"] if j["id"] == job.id)["phase_bars"]["shared"]["phases"]}
+    assert shared["research"] == "done" and shared["story"] == "done" and shared["blueprint"] == "running"

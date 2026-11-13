@@ -3772,8 +3772,9 @@ class ProgressPhase(BaseModel):
 
     key: str
     label: str
+    group: str
     stages: list[str] = []
-    # "stages": read from the job's stages; otherwise from what the case holds in the database (avatar, opening, clips, covers)
+    # "stages": read from the job's stages only; otherwise the stages first, and what the case holds in the database (avatar, opening, clips, covers) when it has no such stage
     source: str = "stages"
 
 

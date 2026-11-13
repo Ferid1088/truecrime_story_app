@@ -44,93 +44,195 @@
     "progress": {
       "shared": [
         {
-          "key": "plan",
-          "label": "Plan",
-          "stages": [
-            "final_approval",
-            "blueprint",
-            "host_plan",
-            "chapters",
-            "naming",
-            "film_length",
-            "board_plan"
-          ]
-        },
-        {
           "key": "research",
           "label": "Research",
+          "group": "Story",
           "stages": [
-            "mvp_needs",
-            "mvp_research",
-            "mvp_verify"
+            "research",
+            "language_pipeline"
           ]
         },
         {
-          "key": "pictures",
-          "label": "Pictures",
+          "key": "story",
+          "label": "Story text",
+          "group": "Story",
           "stages": [
-            "mvp_direct",
-            "mvp_complete",
-            "mvp_portraits",
-            "zoom_maps"
+            "final_approval"
+          ]
+        },
+        {
+          "key": "blueprint",
+          "label": "Blueprint",
+          "group": "Story",
+          "stages": [
+            "blueprint",
+            "chapters"
           ]
         },
         {
           "key": "music",
-          "label": "Music",
+          "label": "Music plan",
+          "group": "Plans",
           "stages": [
             "audio_plan"
+          ]
+        },
+        {
+          "key": "host_plan",
+          "label": "Host plan",
+          "group": "Plans",
+          "stages": [
+            "host_plan"
+          ]
+        },
+        {
+          "key": "needs",
+          "label": "Picture needs",
+          "group": "Plans",
+          "stages": [
+            "mvp_needs",
+            "visual_needs"
+          ]
+        },
+        {
+          "key": "naming",
+          "label": "Names",
+          "group": "Plans",
+          "stages": [
+            "naming",
+            "board_plan"
+          ]
+        },
+        {
+          "key": "length",
+          "label": "Film length",
+          "group": "Plans",
+          "stages": [
+            "film_length"
+          ]
+        },
+        {
+          "key": "library",
+          "label": "Picture library",
+          "group": "Material",
+          "stages": [
+            "mvp_verify"
+          ]
+        },
+        {
+          "key": "search",
+          "label": "Picture search",
+          "group": "Material",
+          "stages": [
+            "mvp_research"
           ]
         }
       ],
       "language": [
         {
-          "key": "text",
-          "label": "Text",
+          "key": "spoken",
+          "label": "Voice text",
+          "group": "Text",
           "stages": [
-            "spoken",
-            "performance",
-            "reading",
-            "punctuation",
+            "spoken"
+          ]
+        },
+        {
+          "key": "opening",
+          "label": "Opening text",
+          "group": "Text",
+          "stages": [
+            "opening"
+          ],
+          "source": "opening"
+        },
+        {
+          "key": "host_text",
+          "label": "Host text",
+          "group": "Text",
+          "stages": [
             "host"
+          ]
+        },
+        {
+          "key": "direction",
+          "label": "Voice direction",
+          "group": "Voice",
+          "stages": [
+            "performance"
           ]
         },
         {
           "key": "voice",
           "label": "Voice",
+          "group": "Voice",
           "stages": [
             "voice"
           ]
         },
         {
           "key": "avatar",
-          "label": "Avatar",
-          "source": "avatar",
-          "stages": []
+          "label": "Avatar video",
+          "group": "Voice",
+          "stages": [
+            "host_voice",
+            "mvp_host"
+          ],
+          "source": "avatar"
         },
         {
-          "key": "pictures",
-          "label": "Pictures",
+          "key": "plan",
+          "label": "Picture plan",
+          "group": "Pictures",
           "stages": [
-            "mvp_host",
-            "mvp_direct",
-            "mvp_complete",
-            "mvp_portraits",
+            "mvp_direct"
+          ]
+        },
+        {
+          "key": "fill",
+          "label": "Picture fill",
+          "group": "Pictures",
+          "stages": [
+            "mvp_complete"
+          ]
+        },
+        {
+          "key": "portraits",
+          "label": "Portraits",
+          "group": "Pictures",
+          "stages": [
+            "mvp_portraits"
+          ]
+        },
+        {
+          "key": "maps",
+          "label": "Maps",
+          "group": "Pictures",
+          "stages": [
             "zoom_maps"
           ]
         },
         {
-          "key": "opening",
-          "label": "Opening",
-          "source": "opening",
-          "stages": []
+          "key": "production",
+          "label": "Script",
+          "group": "Production",
+          "stages": [
+            "production"
+          ]
         },
         {
-          "key": "production",
-          "label": "Production",
+          "key": "critique",
+          "label": "Critique",
+          "group": "Production",
           "stages": [
-            "production",
-            "critique",
+            "critique"
+          ]
+        },
+        {
+          "key": "coverage",
+          "label": "Coverage",
+          "group": "Production",
+          "stages": [
             "mvp_coverage",
             "visual_audit"
           ]
@@ -138,22 +240,32 @@
         {
           "key": "render",
           "label": "Render",
+          "group": "Film",
           "stages": [
-            "render",
+            "render"
+          ]
+        },
+        {
+          "key": "review",
+          "label": "Review",
+          "group": "Film",
+          "stages": [
             "mvp_review"
           ]
         },
         {
-          "key": "shorts",
-          "label": "Shorts",
-          "source": "clips",
-          "stages": []
+          "key": "clips",
+          "label": "Short clips",
+          "group": "After the film",
+          "stages": [],
+          "source": "clips"
         },
         {
           "key": "covers",
           "label": "Covers",
-          "source": "covers",
-          "stages": []
+          "group": "After the film",
+          "stages": [],
+          "source": "covers"
         }
       ],
       "clip_keys": [

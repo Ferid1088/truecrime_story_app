@@ -3531,6 +3531,7 @@ export interface MonitoringStage {
 export interface MonitoringPhase {
   key: string;
   label: string;
+  group: string;
   state: "pending" | "waiting" | "running" | "done" | "degraded" | "failed" | "blocked";
   done: number;
   total: number;
