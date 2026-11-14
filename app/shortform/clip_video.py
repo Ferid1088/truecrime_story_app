@@ -7,6 +7,8 @@ are burned in from the first word, a few at a time. The avatar's picture is the 
 from __future__ import annotations
 
 import math
+import re
+import unicodedata
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,18 +58,28 @@ def picture_count(seconds: float, cfg: ClipVideoConfig | None = None) -> int:
     return max(1, min(best, cfg.pictures_max, math.floor(seconds / low) or 1))
 
 
+PUNCTUATION_AT_THE_ENDS = re.compile(r"^[\W_]+|[\W_]+$")
+
+
+def caption_word(word: str) -> str:
+    """A spoken word as the caption shows it: no punctuation at its ends (a comma, a full stop, a quotation mark, «», the Arabic comma and question mark); what is inside the word (a hyphen, an
+    apostrophe, a half-space) stays. A «word» that is only punctuation becomes empty."""
+    return PUNCTUATION_AT_THE_ENDS.sub("", unicodedata.normalize("NFC", word))
+
+
 def chunks(voices: dict[str, dict], plan: Plan, cfg: ClipVideoConfig | None = None) -> list[dict]:
-    """The caption chunks: `words_per_chunk` words each, from the first word, with the time the voice says them (the times of the words of every part, moved to its start)."""
+    """The captions: one word each, in the order of the film, shown from the time the voice starts to say it until it has said it (`hold_seconds` later at most, and never over the next word),
+    so that the word goes away and the next one comes. The times are those of the words of every part, moved to its start."""
     cfg = cfg or ai_config.short_clips_settings().video
     out = []
     for part in ORDER:
-        words = voices[part].get("words") or []
-        for i in range(0, len(words), cfg.caption.words_per_chunk):
-            group = words[i:i + cfg.caption.words_per_chunk]
-            start = plan.starts[part] + group[0][1]
-            end = plan.starts[part] + group[-1][2]
-            nxt = words[i + cfg.caption.words_per_chunk] if i + cfg.caption.words_per_chunk < len(words) else None
-            out.append({"text": " ".join(w[0] for w in group), "start": round(start, 3), "end": round(plan.starts[part] + nxt[1] if nxt else end + 0.25, 3)})
+        words = [(shown, w[1], w[2]) for w in voices[part].get("words") or [] if (shown := caption_word(w[0]))]
+        for i, (text, start, end) in enumerate(words):
+            begin = plan.starts[part] + start
+            stop = plan.starts[part] + end + cfg.caption.hold_seconds
+            if i + 1 < len(words):
+                stop = min(stop, plan.starts[part] + words[i + 1][1])
+            out.append({"text": text, "start": round(begin, 3), "end": round(max(stop, begin + 0.05), 3)})
     return out
 
 

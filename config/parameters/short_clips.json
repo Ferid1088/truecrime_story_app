@@ -52,7 +52,7 @@
       ],
       "avatar_crop_width_fraction": 1.0,
       "caption": {
-        "words_per_chunk": 3,
+        "hold_seconds": 0.1,
         "size": 0.052,
         "center_y": 0.66,
         "max_width": 0.86,

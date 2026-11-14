@@ -24,11 +24,12 @@ from sqlalchemy.orm import Session
 from app.agents.naming import CaseNamingAgent, CaseTitleCritic, NativeTitleCritic
 from app.core.ai_config import ai_config
 from app.db.models import Case, CaseTitleCandidate
-from app.identity.titles import clean_title, sync_identity
+from app.identity.titles import clean_title, get_identity, sync_identity
 from app.naming import collision as COL
-from app.naming.context import build_context
+from app.naming.context import build_context, naming_view
 from app.naming.corpus import get_corpus
 from app.naming.gates import brevity_score, run_gates
+from app.naming import selection as SEL
 from app.naming.normalize import norm_title
 
 # The languages a title run covers when it names none; the optional production languages only when asked for.
@@ -64,11 +65,22 @@ def _f(v, default=None):
         return default
 
 
+QUOTE_PAIRS = {'"': '"', "'": "'", "«": "»", "“": "”", "„": "“", "‹": "›"}
+
+
+def unquote(raw: str | None) -> str:
+    """The title without quotation marks that wrap the whole of it; a quotation inside the title (it starts with « and closes it later) keeps its marks."""
+    title = (raw or "").strip()
+    while len(title) > 2 and QUOTE_PAIRS.get(title[0]) == title[-1] and title[1:-1].count(title[0]) == 0 and title[1:-1].count(title[-1]) == 0:
+        title = title[1:-1].strip()
+    return title
+
+
 def rank_score(scores: dict, title: str) -> float:
     w = ai_config.case_naming.weights
-    vals = {"memorability": scores.get("memorability") or 0, "curiosity": scores.get("curiosity") or 0,
-            "specificity": scores.get("specificity") or 0, "brevity": brevity_score(title),
-            "documentary_tone": scores.get("documentary_tone") or 0}
+    risks = [scores.get(k) or 0 for k in ("spoiler_risk", "epistemic_risk", "sensationalism_risk")]
+    vals = {"safety": 1 - max(risks), "clarity": scores.get("clarity") or 0, "curiosity": scores.get("curiosity") or 0, "specificity": scores.get("specificity") or 0,
+            "memorability": scores.get("memorability") or 0, "documentary_tone": scores.get("documentary_tone") or 0, "brevity": brevity_score(title)}
     total = sum(w.values()) or 1.0
     return sum(w.get(k, 0) * v for k, v in vals.items()) / total
 
@@ -109,7 +121,7 @@ async def _critics(gen, ctx: dict, language: str, survivors: list[Verdict]) -> N
             v.reasons.append("critic returned no score")
             continue
         v.scores = {k: _f(s.get(k)) for k in (
-            "specificity", "memorability", "curiosity", "documentary_tone",
+            "clarity", "specificity", "memorability", "curiosity", "documentary_tone",
             "sensationalism_risk", "spoiler_risk", "epistemic_risk")}
         v.scores["reason"] = str(s.get("reason") or "")[:300]
         if language != "en":
@@ -118,9 +130,11 @@ async def _critics(gen, ctx: dict, language: str, survivors: list[Verdict]) -> N
             v.scores["literal_translation"] = bool(n.get("literal_translation"))
             v.scores["native_reason"] = str(n.get("reason") or "")[:300]
         sc = v.scores
-        if any(sc[k] is None for k in ("specificity", "spoiler_risk", "epistemic_risk",
+        if any(sc[k] is None for k in ("clarity", "specificity", "spoiler_risk", "epistemic_risk",
                                        "sensationalism_risk")):
             v.reasons.append("critic scores incomplete")
+        elif sc["clarity"] < cfg.min_clarity:
+            v.reasons.append(f"unclear or abstract: a stranger would not know what happened (clarity {sc['clarity']:.2f})")
         elif sc["specificity"] < cfg.min_specificity:
             v.reasons.append(f"not case-specific (specificity {sc['specificity']:.2f})")
         elif sc["spoiler_risk"] > cfg.max_spoiler_risk:
@@ -145,7 +159,7 @@ async def evaluate_titles(db: Session, case: Case, language: str, titles: list[s
     verdicts: list[Verdict] = []
     seen: set[str] = set()
     for raw in titles:
-        title = (raw or "").strip().strip("\"'«»“”„").strip()
+        title = unquote(raw)
         n = norm_title(title)
         if not n or n in seen:
             continue
@@ -269,7 +283,7 @@ async def fill_language(db: Session, case: Case, language: str, ctx: dict, gen, 
                   and e.case_id != case.id][:60]
         proposal = await CaseNamingAgent(gen).run(
             language=language, count=need + cfg.extra_per_round,
-            case={k: v for k, v in ctx.items() if k not in ("reveal_terms", "existing_research_titles")},
+            case=naming_view(ctx),
             family_concept=concept, avoid=avoid[:120],
             other_language_titles=_others(db, case.id, language))
         concept = concept or proposal["editorial_concept"]
@@ -301,6 +315,7 @@ async def generate_case_titles(db: Session, case: Case, gen, embedder=None,
     out = {}
     for lang in title_languages(languages):
         out[lang] = await fill_language(db, case, lang, ctx, gen, embedder)
+        auto_select(db, case, lang)
     fam, concept = _family(db, case)
     return {"case_id": case.id, "title_family_id": fam, "editorial_concept": concept,
             "status_known": ctx["resolution_status"] != "unknown", "languages": out}
@@ -326,20 +341,22 @@ class ApprovalRefused(ValueError):
     pass
 
 
-def approve_candidate(db: Session, case: Case, candidate_id: int, *, revise: bool = False):
+def refusal(db: Session, case: Case, cand: CaseTitleCandidate) -> str | None:
+    """Why a candidate cannot be the title now (the gates and the collision check run again), or None."""
+    if cand.status == "rejected":
+        return f"rejected: {cand.rejection_reason}"
+    reason = run_gates(cand.title, cand.language, build_context(db, case), _others(db, case.id, cand.language))
+    col = COL.check_lexical(cand.title, cand.language, case.id, get_corpus(db), skip_own_candidates=True)
+    return reason or (col.reasons[0] if col.reasons else None)
+
+
+def approve_candidate(db: Session, case: Case, candidate_id: int, *, revise: bool = False, source: str = "owner"):
     """Select a title and write it to the episode identity. Deterministic
     checks run again first; a rejected candidate cannot be approved."""
     cand = db.get(CaseTitleCandidate, candidate_id)
     if cand is None or cand.case_id != case.id:
         raise ApprovalRefused("unknown candidate")
-    if cand.status == "rejected":
-        raise ApprovalRefused(f"rejected: {cand.rejection_reason}")
-    ctx = build_context(db, case)
-    reason = run_gates(cand.title, cand.language, ctx, _others(db, case.id, cand.language))
-    col = COL.check_lexical(cand.title, cand.language, case.id, get_corpus(db),
-                            skip_own_candidates=True)
-    reason = reason or (col.reasons[0] if col.reasons else None)
-    if reason:
+    if reason := refusal(db, case, cand):
         raise ApprovalRefused(reason)
     for other in _same_case_titles(db, case.id, cand.language):
         if other.status == "selected" and other.id != cand.id:
@@ -348,8 +365,23 @@ def approve_candidate(db: Session, case: Case, candidate_id: int, *, revise: boo
     ident = sync_identity(db, case, cand.language, title=cand.title, revise=revise)
     ident.title_family_id = cand.title_family_id
     ident.title_approved = True
+    ident.title_source = source
     db.commit()
     return ident
+
+
+def auto_select(db: Session, case: Case, language: str, prefer: int | None = None):
+    """The app's own choice of the film's title, so that no approval is needed: the `prefer`red candidate (the one the film's cover pairs best with its scene) when its rank is within
+    `pair_margin` of the best title that passes the gates, else that best one. An owner's title, a published one and a title approved before the source was recorded are
+    never replaced. Returns the identity, or None when nothing was chosen."""
+    ident = get_identity(db, case.id, language)
+    if ident is not None and (ident.published or ident.title_source == "owner" or (ident.title_approved and not ident.title_source)):
+        return None
+    viable = [r for r in SEL.eligible(db, case.id, language) if not refusal(db, case, r)]
+    if not viable:
+        return None
+    first = next((r for r in viable if r.id == prefer and SEL.within_margin(viable[0], r)), None)
+    return approve_candidate(db, case, (first or viable[0]).id, source="auto")
 
 
 def default_embedder():

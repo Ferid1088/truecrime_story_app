@@ -3797,6 +3797,153 @@ export interface CoversOverview {
   safe_zones: string;
 }
 
+export interface DescriptionIssue {
+  type: string;
+  severity: "error" | "warning";
+  message: string;
+}
+
+export interface FilmDescription {
+  language: string;
+  status: "ok" | "no_plan" | "invalid" | "failed" | "no_render";
+  reason: string | null;
+  text: string;
+  auto_text: string;
+  edited: boolean;
+  chars: number;
+  max_chars: number;
+  narrative: string;
+  hook: string | null;
+  issues: DescriptionIssue[];
+  dropped: string[];
+  plan_id: number | null;
+  model: string | null;
+  resolved_at: string | null;
+  cost: { tokens_in?: number; tokens_out?: number; cost_eur?: number | null; estimate?: boolean; extra_llm_requests?: number };
+}
+
+export interface DescriptionsOverview {
+  case_id: number;
+  languages: FilmDescription[];
+}
+
+export interface TitleOption {
+  id: string;
+  angle: string;
+  title: string;
+  candidate_id: number;
+  rank_score: number;
+  selected: boolean;
+}
+
+export interface FilmTitles {
+  language: string;
+  title: string | null;
+  youtube_title: string | null;
+  source: "owner" | "auto" | "";
+  approved: boolean;
+  published: boolean;
+  options: TitleOption[];
+  hook: string | null;
+  pairing: { pick: string; title: string; angle: string; reason: string } | null;
+  cover: { status: string; title: string; preview_url: string | null; approved_url: string | null } | null;
+  validation: { ok: boolean; issues: string[] };
+}
+
+export interface TitlesOverview {
+  case_id: number;
+  languages: FilmTitles[];
+}
+
+export interface YoutubeChapter {
+  start: number;
+  time: string;
+  title: string;
+  beat: string;
+  source: "writer" | "fallback";
+}
+
+export interface YoutubeChaptersView {
+  language: string;
+  status: "ok" | "omitted" | "no_plan" | "no_render" | "failed";
+  reason: string | null;
+  chapters: YoutubeChapter[];
+  dropped: string[];
+  text: string;
+  duration_s: number | null;
+  duration: string | null;
+  plan_id: number | null;
+  production_script_id: number | null;
+  fingerprint: string | null;
+  method: string | null;
+  model: string | null;
+  resolved_at: string | null;
+  cost: { tokens_in?: number; tokens_out?: number; cost_eur?: number | null; estimate?: boolean; extra_llm_requests?: number };
+}
+
+export interface YoutubeChaptersOverview {
+  case_id: number;
+  languages: YoutubeChaptersView[];
+  planned?: string[];
+}
+
+export interface TagItem {
+  text: string;
+  category: string;
+  evidence: string[];
+}
+
+export interface TagIssue {
+  type: string;
+  severity: "error" | "warning";
+  message: string;
+  tag?: string;
+}
+
+export interface TagReport {
+  ok: boolean;
+  char_count: number;
+  tag_count: number;
+  issues: TagIssue[];
+  fixes?: string[];
+}
+
+export interface TagCandidate {
+  tags: TagItem[];
+  text: string;
+  report: TagReport;
+  generated_at: string;
+}
+
+export interface TagSetView {
+  language: string;
+  locale: string;
+  max_chars: number;
+  tags: TagItem[];
+  text: string;
+  groups: { key: string; label: string; tags: string[] }[];
+  origin: "ai" | "edited" | null;
+  approval: "pending" | "approved" | "rejected";
+  status: "none" | "running" | "interrupted" | "done" | "failed";
+  error: string | null;
+  stale: boolean;
+  generated_at: string | null;
+  generator_version: number | null;
+  model: string | null;
+  report: TagReport;
+  fixes: string[];
+  warnings: string[];
+  candidate: TagCandidate | null;
+}
+
+export interface TagsOverview {
+  case_id: number;
+  max_chars: number;
+  target_tags: number[];
+  categories: { key: string; label: string }[];
+  languages: TagSetView[];
+}
+
 export interface CoversSummary {
   expected_per_language: number;
   languages: Record<string, { proposed: number; open: number; approved: number; skipped: number; missing: number }>;

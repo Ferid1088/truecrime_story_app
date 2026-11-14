@@ -55,6 +55,15 @@ def status_label(status: str | None, language: str) -> str | None:
     return (labels.get(language) or labels["en"])[key]
 
 
+def title_budget(language: str) -> int:
+    """How many characters an editorial title may have in this language: what is left of the limit once the longest status and the channel are added, so that the title is never shortened."""
+    cfg = ai_config.video_identity
+    labels = cfg.status_labels.get(language) or cfg.status_labels["en"]
+    longest = max(labels.values(), key=len)
+    suffix = (cfg.channel_separator + channel(language)["name"]) if cfg.include_channel_suffix else ""
+    return cfg.max_title_chars - len(cfg.title_format.format(title="", status=longest, channel_suffix=suffix))
+
+
 def clean_title(title: str) -> str:
     """The editorial title without episode numbers or stray spaces."""
     return re.sub(r"\s{2,}", " ", _EPISODE_NO.sub("", title or "")).strip(" -–—:|")
@@ -203,7 +212,7 @@ def identity_dict(i: EpisodeIdentity) -> dict:
         "language": i.language, "editorial_title": i.editorial_title,
         "resolution_status": i.resolution_status, "resolution_label": i.resolution_label,
         "youtube_title": i.youtube_title, "title_family_id": i.title_family_id,
-        "thumbnail_title": i.thumbnail_title,
+        "thumbnail_title": i.thumbnail_title, "title_approved": bool(i.title_approved), "title_source": i.title_source or "",
         "thumbnail_status_label": i.thumbnail_status_label,
         "host_outfit_id": i.host_outfit_id, "host_reference_asset": i.host_reference_asset,
         "published": bool(i.published), "published_title": i.published_title,

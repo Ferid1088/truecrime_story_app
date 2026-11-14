@@ -335,7 +335,8 @@ def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
         "final_approval", "blueprint", "audio_plan"] + [f"spoken:{l}" for l in languages] + (
         ["host_plan"] if host else []) + (
         ["chapters"] if ai_config.chapters.enabled else []) + (
-        ["naming"] if ai_config.case_naming.generate_in_pipeline else []) + [
+        ["naming"] if ai_config.case_naming.generate_in_pipeline else []) + (
+        ["tags"] if ai_config.tags_settings().generate_in_pipeline else []) + [
         "film_length", "mvp_needs", "mvp_verify", "mvp_research"]
     for l in languages:
         names += ([f"host:{l}"] if host else []) + [
@@ -601,6 +602,21 @@ class DocumentaryPipeline(StageRunner):
             return out
 
         await self._optional("naming", naming)
+
+        async def tags():
+            # the YouTube tags of every language, from the case facts (one small call on the cheap model per language, only for a language without
+            # up-to-date tags); the owner edits and approves them in the Tags tab
+            from app.tags import service as TAGS
+
+            made = await TAGS.generate(db, case, list(ok_langs))
+            failed = [l for l in made if TAGS.view(db, case, l)["status"] != "done"]
+            out = {"generated": made, "approve_in": "Tags tab"}
+            if failed:
+                out["degraded"] = f"no tags for: {failed}"
+            return out
+
+        if ai_config.tags_settings().generate_in_pipeline:
+            await self._optional("tags", tags)
 
         async def film_length():
             est = {l: estimate_film_minutes(v, ap) for l, v in spoken.items()}

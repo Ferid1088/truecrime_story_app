@@ -57,13 +57,23 @@ class ScriptedGen:
         for t in d["titles"]:
             b = self.bad.get(t, {})
             if role == "case_title_critic":
-                out.append({"title": t, "specificity": 0.8, "memorability": 0.7, "curiosity": 0.7,
+                out.append({"title": t, "clarity": 0.8, "specificity": 0.8, "memorability": 0.7, "curiosity": 0.7,
                             "documentary_tone": 0.8, "sensationalism_risk": 0.1,
                             "spoiler_risk": 0.1, "epistemic_risk": 0.1, "reason": "ok", **b})
             else:
                 out.append({"title": t, "native_quality": 0.9, "literal_translation": False,
                             "reason": "ok", **b})
         return {"scores": out}, None
+
+
+@pytest.fixture(autouse=True)
+def _short_fixture_titles(monkeypatch):
+    """The mechanics tests (gates, replacement loop, approval) use short fixture titles and seven candidates; the quality rules (a title says what happened) have their own tests below."""
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.case_naming, "min_words", 2)
+    monkeypatch.setattr(ai_config.case_naming, "max_words", 6)
+    monkeypatch.setattr(ai_config.case_naming, "candidates_per_language", 7)
 
 
 @pytest.fixture(autouse=True)
@@ -157,8 +167,8 @@ def test_specific_title_passes_and_generic_is_penalized():
     ctx = {"claim_limits": {}, "canonical_case_name": "Celle lantern"}
     assert G.run_gates("The Lantern Of Celle", "en", ctx) is None
     assert G.run_gates("The Final Night", "en", ctx)
-    assert G.brevity_score("The Lantern Of Celle") > G.brevity_score(
-        "The Lantern Of The Old Celle Harbor Road")
+    assert G.brevity_score("The Lantern Of Celle Burned All Night Long") > G.brevity_score("The Lantern")
+    assert G.brevity_score("The Lantern Of Celle Burned All Night Long") > G.brevity_score(" ".join(["Lantern"] * 20))
 
 
 def test_spoiler_and_epistemic_gates():
@@ -276,3 +286,76 @@ def test_the_script_gate_asks_arabic_script_only_of_the_right_to_left_languages(
     assert G.gate_script("El caso Hale", "es") is None and G.gate_script("Zeynep Kaya Dosyası", "tr") is None
     assert "Arabic script" in G.gate_script("قضية هيل", "es")
     assert G.gate_script("قضية هيل", "ar") is None and G.gate_script("Hale case", "ar")
+
+
+# ---------------------------------------------------------------- the rules of a title that says what happened (the mechanics above run with short fixtures)
+
+
+@pytest.fixture()
+def real_rules(monkeypatch):
+    from app.core.ai_config import ai_config
+
+    monkeypatch.undo()
+    return ai_config.case_naming
+
+
+@pytest.mark.parametrize("title,language,fits", [
+    ("She Called Police at 2 AM. Hours Later, She Was Missing", "en", True),
+    ("A Man Was Found Dead in His Hotel Room. What Happened?", "en", True),
+    ("Um 2 Uhr rief sie die Polizei – Stunden später war sie verschwunden", "de", True),
+    ("The Midnight Mystery", "en", False),
+    ("She Called Police at 2 AM and Hours Later She Was Missing From Her Home After a Strange Night", "en", False)])
+def test_a_title_may_say_what_happened_in_a_sentence_or_two(real_rules, title, language, fits):
+    assert (G.gate_length(title, language) is None) is fits and (G.gate_style(title, language) is None) is True
+
+
+def test_only_a_bare_question_is_clickbait_a_statement_before_it_is_fine(real_rules):
+    assert G.gate_style("What Happened to the Woman in Room 348?", "en") and "bare question" in G.gate_style("What Happened to the Woman in Room 348?", "en")
+    assert G.gate_style("A Man Was Found Dead in His Hotel Room. What Happened?", "en") is None
+    assert G.gate_style("ساعت ۲ بامداد زنگ زد؛ بعد چه شد؟", "fa") is None
+
+
+def test_no_title_is_longer_than_what_youtube_leaves_once_status_and_channel_are_added(real_rules):
+    from app.identity.titles import build_youtube_title, title_budget
+
+    for language in ("en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"):
+        title = "x" * title_budget(language)
+        assert "…" not in build_youtube_title(title, "UNSOLVED", language) and G.gate_length("word " * 4 + "x" * (title_budget(language) - 20), language) is None
+        assert G.gate_length("word " * 4 + "x" * (title_budget(language) - 18), language)
+
+
+def test_the_critic_rejects_an_abstract_title_and_the_ranking_prefers_clear_over_short(real_rules):
+    scores = {"clarity": 0.9, "curiosity": 0.7, "specificity": 0.8, "memorability": 0.5, "documentary_tone": 0.8}
+    vague = {**scores, "clarity": 0.2}
+    long_clear = "She Called Police at 2 AM. Hours Later, She Was Missing"
+    assert A.rank_score(scores, long_clear) > A.rank_score(vague, "Her Classroom His Pulpit")
+    assert A.rank_score(scores, long_clear) > A.rank_score({**scores, "clarity": 0.7}, "The Lantern Burned")
+    leaning = {**scores, "spoiler_risk": 0.45, "epistemic_risk": 0.1}
+    assert A.rank_score({**scores, "spoiler_risk": 0.05}, long_clear) > A.rank_score(leaning, long_clear)
+
+
+def test_the_title_writer_sees_the_opening_of_the_story_and_never_the_findings_of_the_investigation(db_session):
+    from test_chapters import _setup
+
+    from app.naming.context import build_context, naming_view
+
+    case, _, _ = _setup(db_session)
+    view = naming_view(build_context(db_session, case))
+    assert view["opening"] == ["A car at the lake at dawn."]  # one fifth of five beats
+    assert not {"central_question", "editorial_thesis", "contradictions", "hold_back", "reveal_terms", "timeline", "key_facts", "summary"} & set(view)
+    assert "arrest" not in json.dumps(view, ensure_ascii=False).lower()
+
+
+@pytest.mark.parametrize("language,title,blocked", [
+    ("en", "Her Husband Said an Alleged Intruder Shot Her", True), ("en", "He Told 911 Someone Had Broken In and Shot His Wife", False),
+    ("de", "Lehrerin im Schlaf erschossen, angeblich von einem Einbrecher", True), ("de", "Lehrerin im Schlaf erschossen: Der Ehemann rief den Notruf", False),
+    ("es", "Caso Ashley Flynn: un supuesto intruso y una esposa muerta", True), ("fr", "Caleb Flynn affirme qu'un cambrioleur a tiré sur sa femme", True),
+    ("pt", "Professora é baleada dormindo e marido culpa invasor", True), ("tr", "Öğretmen yatağında vuruldu, kocası hırsız girdiğini söyledi", True),
+    ("ar", "هل دخل لص منزل أشلي فلين فعلًا؟ مكالمة طوارئ في تروي", True), ("it", "Caso Ashley Flynn: il marito parla di un'effrazione notturna", True)])
+def test_a_title_states_what_was_reported_without_a_word_that_casts_doubt_on_it(language, title, blocked):
+    assert (G.gate_hint(title, language) is not None) is blocked
+
+
+def test_quotation_marks_that_wrap_the_whole_title_go_a_quotation_inside_it_stays():
+    assert A.unquote("«Qualcuno ha sparato a mia moglie»: la chiamata di Caleb Flynn al 911") == "«Qualcuno ha sparato a mia moglie»: la chiamata di Caleb Flynn al 911"
+    assert A.unquote('"She Called Police at 2 AM"') == "She Called Police at 2 AM" and A.unquote("«Der Anruf um 2 Uhr»") == "Der Anruf um 2 Uhr" and A.unquote("  Plain title ") == "Plain title"

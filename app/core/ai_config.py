@@ -96,6 +96,7 @@ REQUIRED_ROLES = {
     "short_clip_director",
     "short_clip_native_writer",
     "cover_planner",
+    "tag_generator",
     "host_writer",
     "host_writer_fa_ar",
     "host_critic",
@@ -2562,6 +2563,62 @@ class NamesConfig(BaseModel):
     min_form_chars: int = Field(default=3, ge=2, le=10)
 
 
+class DescriptionConfig(BaseModel):
+    """The YouTube description of a film (config/parameters/description.json): the narrative of `target_words` words (hard bounds `min_words` to `max_words`) is written by the chapter writer
+    in its own call from what the story's first `safe_beat_share` of beats tells; code adds the chapters, the disclosure, hashtags and the channel, within `max_chars`
+    (YouTube's limit): the channel line goes first when it is too long. The writer is given only the opening beats that merely set the scene (`safe_purposes`) and never the film's central question; `hint_stems` are words that cast doubt on an account or hint at staging (a description and a chapter title avoid them), `common_noun_capitals` the languages whose nouns are capitalised (no name check there). A description holds no references (no sources, no links, no picture credits)."""
+
+    enabled: bool = True
+    min_words: int = Field(ge=10)
+    max_words: int = Field(ge=20)
+    target_words: list[int]
+    safe_beat_share: float = Field(gt=0, le=1)
+    max_chars: int = Field(ge=500, le=5000)
+    repeat_word_limit: int = Field(ge=2)
+    safe_purposes: list[str]
+    common_noun_capitals: list[str]
+    hint_stems: dict[str, list[str]]
+    disclosure: dict[str, dict[str, str]]
+    genre_hashtags: dict[str, str]
+    note: str = ""
+
+    @model_validator(mode="after")
+    def _check(self) -> "DescriptionConfig":
+        if self.min_words > self.max_words or len(self.target_words) != 2:
+            raise ValueError("description: min_words <= max_words and target_words is [low, high]")
+        for language in self.disclosure:
+            if set(self.disclosure[language]) != {"narration", "presenter"} or not self.genre_hashtags.get(language, "").startswith("#"):
+                raise ValueError(f"description: incomplete texts for {language}")
+        return self
+
+
+class ChapterYoutubeConfig(BaseModel):
+    """The YouTube chapters of a film (the description's list of times): the chapter writer already writing the cards picks `min_chapters` to `max_chapters` of the
+    film's beats as chapters (about one per `beats_per_chapter` beats) and titles them natively, in the same call; code finds each beat's time in the finished
+    film, drops a chapter shorter than `min_chapter_seconds` and gives a title that names an outcome (`outcome_stems`: a culprit, a confession, a verdict, a
+    twist) or fails a check a neutral one of the language (`fallback_titles`: the first, a middle one with its number, the last). The extra prompt and output
+    are estimated at `chars_per_token` characters a token."""
+
+    enabled: bool = True
+    min_chapters: int = Field(ge=2, le=10)
+    max_chapters: int = Field(ge=3, le=20)
+    beats_per_chapter: int = Field(ge=3, le=30)
+    min_chapter_seconds: float = Field(ge=10.0)
+    summary_chars: int = Field(ge=40, le=300)
+    chars_per_token: float = Field(gt=0)
+    fallback_titles: dict[str, dict[str, str]]
+    outcome_stems: dict[str, list[str]]
+
+    @model_validator(mode="after")
+    def _check(self) -> "ChapterYoutubeConfig":
+        if self.min_chapters > self.max_chapters:
+            raise ValueError("chapters.youtube: min_chapters must not exceed max_chapters")
+        for language, titles in self.fallback_titles.items():
+            if set(titles) != {"first", "middle", "last"} or "{n}" not in titles["middle"]:
+                raise ValueError(f"chapters.youtube.fallback_titles.{language}: first, middle (with {{n}}) and last")
+        return self
+
+
 class ChaptersConfig(BaseModel):
     """Chapter cards and the running case timeline (on-screen cards made
     from the story's acts and the case's dated facts). Chapters are the
@@ -2599,6 +2656,7 @@ class ChaptersConfig(BaseModel):
     intro_dir: str = "data/intros"
     # the film's sound under the intro (the intro has its own)
     intro_duck_db: float = Field(default=-18.0, le=0.0)
+    youtube: ChapterYoutubeConfig
 
 
 class AutopilotScheduleConfig(BaseModel):
@@ -3385,9 +3443,9 @@ class ShortClipSegmentConfig(BaseModel):
 
 
 class ClipCaptionConfig(BaseModel):
-    """The words burned into a clip from the first word: `words_per_chunk` words at a time, `size` of the height, centred at `center_y`, in `ink` with an outline."""
+    """The words burned into a clip: one word at a time, shown while the voice says it and gone `hold_seconds` after it (earlier when the next word starts), no punctuation; `size` of the height, centred at `center_y`, in `ink` with an outline."""
 
-    words_per_chunk: int = Field(ge=1, le=6)
+    hold_seconds: float = Field(ge=0.0, le=0.5)
     size: float = Field(gt=0.0, lt=0.2)
     center_y: float = Field(gt=0.0, lt=1.0)
     max_width: float = Field(gt=0.0, le=1.0)
@@ -3555,6 +3613,37 @@ class CoverThemeConfig(BaseModel):
     rim: str
     forbidden: list[str]
     prompt: str
+
+
+class TagsConfig(BaseModel):
+    """The YouTube tags of a film (config/parameters/tags.json): at most `max_chars` characters (YouTube's limit) of about `target_tags` tags per case and language,
+    in the six `categories`, written by one model call per language (`concurrency` languages at a time) and checked in code: the deterministic checks use the
+    `accusation_terms` (what no tag may say about a person unless the facts prove it) and the `real_claim_terms` (what no tag of a fictional case may claim)."""
+
+    generator_version: int = Field(ge=1)
+    # The documentary run writes the tags of every language right after the names (one small call per language on the cheap model).
+    generate_in_pipeline: bool = True
+    max_chars: int = Field(ge=100, le=500)
+    target_tags: list[int]
+    concurrency: int = Field(ge=1, le=9)
+    repairs: int = Field(ge=0, le=3)
+    running_timeout_seconds: int = Field(ge=30)
+    categories: list[dict]
+    locales: dict[str, dict[str, str]]
+    accusation_terms: dict[str, list[str]]
+    real_claim_terms: dict[str, list[str]]
+    status_meaning: dict[str, str]
+    fact_limit: int = Field(ge=10)
+    claim_max_chars: int = Field(ge=60)
+    note: str = ""
+
+    @model_validator(mode="after")
+    def _check(self) -> "TagsConfig":
+        if len(self.target_tags) != 2 or self.target_tags[0] > self.target_tags[1]:
+            raise ValueError("tags: target_tags is [min, max]")
+        if len({c["key"] for c in self.categories}) != len(self.categories):
+            raise ValueError("tags: the category keys must be unique")
+        return self
 
 
 class CoversConfig(BaseModel):
@@ -4177,12 +4266,23 @@ class CaseNamingConfig(BaseModel):
     checks read stored data only — no search backend is ever called."""
 
     candidates_per_language: int = Field(default=7, ge=1)
+    # How the film's cover takes part in the choice of the title: the title the cover planner pairs with its scene wins only when its rank is within `pair_margin` of
+    # the best (else the best wins); a cover title may repeat at most `cover_max_repeat` of its words from the YouTube title; the options shown are the best titles
+    # that differ from each other (two options share at most `option_max_overlap` of their words).
+    pair_margin: float = Field(default=0.1, ge=0, le=1)
+    option_max_overlap: float = Field(default=0.5, ge=0, le=1)
+    # each further option is the one with the best rank minus `option_diversity` times its overlap with the options already chosen
+    option_diversity: float = Field(default=0.5, ge=0, le=2)
+    cover_max_repeat: float = Field(default=0.5, ge=0, le=1)
     # the documentary job drafts the title candidates (an editor approves one;
     # a film cannot be marked published without an approved title)
     generate_in_pipeline: bool = True
     max_rounds: int = Field(default=4, ge=1)
-    max_words: int = Field(default=6, ge=2)
-    preferred_words: tuple[int, int] = (2, 5)
+    # A title says what happened, so it needs room: `min_words` to `max_words` words, the preferred band for the brevity score, and at most `max_chars`
+    # characters or what is left of YouTube's 100 once the status and the channel are added (never shortened afterwards).
+    min_words: int = Field(default=4, ge=2)
+    max_words: int = Field(default=16, ge=4)
+    preferred_words: tuple[int, int] = (6, 14)
     # lexical (rapidfuzz 0-100) — a candidate this close to a stored title is rejected
     near_token_threshold: float = Field(default=88.0, ge=0, le=100)
     near_char_threshold: float = Field(default=90.0, ge=0, le=100)
@@ -4195,7 +4295,12 @@ class CaseNamingConfig(BaseModel):
                                  "discovery_title"]
     extra_per_round: int = Field(default=4, ge=0)
     max_chars: int = Field(default=60, ge=10)
-    reject_questions: bool = True
+    # English words of the withheld facts that give nothing away by themselves (house, night, dead ...): they are not forbidden in a title, only the distinctive ones are
+    neutral_words: list[str] = []
+    # a title that is only a question (no statement before it) is false-question clickbait; a statement followed by a question is fine
+    reject_bare_questions: bool = True
+    # the critic's `clarity`: would someone who never heard of the case understand what happened? (poetic or abstract titles score low)
+    min_clarity: float = Field(default=0.6, ge=0, le=1)
     # critic gates (scores 0-1; risks: lower is better)
     min_native_quality: float = Field(default=0.7, ge=0, le=1)
     min_specificity: float = Field(default=0.4, ge=0, le=1)
@@ -4203,8 +4308,8 @@ class CaseNamingConfig(BaseModel):
     max_epistemic_risk: float = Field(default=0.4, ge=0, le=1)
     max_sensationalism_risk: float = Field(default=0.5, ge=0, le=1)
     # ranking weights
-    weights: dict[str, float] = {"memorability": 0.25, "curiosity": 0.25, "specificity": 0.25,
-                                 "brevity": 0.1, "documentary_tone": 0.15}
+    weights: dict[str, float] = {"clarity": 0.28, "curiosity": 0.22, "specificity": 0.18, "safety": 0.15, "memorability": 0.07,
+                                 "documentary_tone": 0.07, "brevity": 0.03}
     generic_phrases: dict[str, list[str]] = {
         "en": ["the dark secret", "the final night", "hidden truth", "the hidden truth",
                "vanished without trace", "vanished without a trace", "the mystery",
@@ -4702,6 +4807,8 @@ class AIConfig(BaseModel):
     drawing: DrawingConfig | None = None
     opening_block: OpeningBlockConfig | None = None
     covers: CoversConfig | None = None
+    tags: TagsConfig | None = None
+    description: DescriptionConfig | None = None
     short_clips: ShortClipsConfig | None = None
     outro: OutroConfig | None = None
     monitoring: MonitoringConfig | None = None
@@ -4935,6 +5042,18 @@ class AIConfig(BaseModel):
         if self.short_clips is None:
             raise RuntimeError("config/parameters/short_clips.json is missing")
         return self.short_clips
+
+    def description_settings(self) -> DescriptionConfig:
+        """The YouTube description of a film (config/parameters/description.json)."""
+        if self.description is None:
+            raise RuntimeError("config/parameters/description.json is missing")
+        return self.description
+
+    def tags_settings(self) -> TagsConfig:
+        """The YouTube tags of a film (config/parameters/tags.json)."""
+        if self.tags is None:
+            raise RuntimeError("config/parameters/tags.json is missing")
+        return self.tags
 
     def covers_settings(self) -> CoversConfig:
         """The covers of a film (config/parameters/covers.json)."""

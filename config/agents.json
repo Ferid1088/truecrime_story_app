@@ -727,6 +727,13 @@
       "output": "json",
       "description": "Writes the title of the film's cover and of each short's cover in one language and chooses for each the scene (a picture the film shows) that fits it, with a reason and its certainty.",
       "used_by": "app/covers/agents.py"
+    },
+    "tag_generator": {
+      "role": "tag_generator",
+      "prompt": "tags/tag_generator",
+      "output": "json",
+      "description": "Writes the YouTube tags of one case in one language from the verified case dossier: localized names, search phrases, verified geography, classification and a few genre terms, each with its category and the evidence behind it.",
+      "used_by": "app/tags/generator.py"
     }
   }
 }

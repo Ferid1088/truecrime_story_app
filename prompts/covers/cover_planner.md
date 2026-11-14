@@ -6,6 +6,7 @@ WHAT YOU RECEIVE (one JSON object)
 - "covers": the covers to plan, each with its "key": "long" (the film) or a clip key with the clip's angle, idea and hook.
 - "look": the channel's visual style the picture is painted in; do not repeat it in a scene.
 - "limits": the words of a title and of a scene.
+- "youtube_titles" (not always present): the film's title options {"options": [{"id", "angle", "title"}], "story_hook"}: the titles the film can have on YouTube in this language and the verified idea behind them.
 - On a repeat call: "previous" and "problems_to_fix".
 
 RULES
@@ -16,5 +17,8 @@ RULES
 5. "confidence" is your honest certainty from 0 to 1 that the scene carries the title and the title is true of its film or clip. Use below 0.6 when you guess. "reason" says in a few words why this scene carries this title.
 6. The short covers' titles differ from the film's title; each reflects its own clip.
 
+7. When "youtube_titles" is present, the film's cover and its YouTube title are one pair: the cover's title is the thumbnail text, short, and it shows one concrete detail of the title's event (a time, an object, a place: «2:00 AM», «the open door») and makes its promise visible; it never repeats the words of the YouTube title, and it never gives away more than the title does. For the long cover choose the option whose promise your scene and thumbnail text complement best: "title_pick" is its id and "pair_reason" says in a few words why they belong together. The short covers have no pick.
+
 Return JSON only:
-{"covers": [{"key": "long", "title": "...", "scene": "...", "confidence": 0.0, "reason": "..."}]}
+{"covers": [{"key": "long", "title": "...", "scene": "...", "confidence": 0.0, "reason": "...", "title_pick": "A", "pair_reason": "..."}]}
+(title_pick and pair_reason only on the long cover and only when "youtube_titles" is present.)

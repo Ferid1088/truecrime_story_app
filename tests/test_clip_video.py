@@ -41,13 +41,44 @@ def test_the_pictures_fill_the_middle_each_for_a_few_seconds():
         assert 1 <= n <= cfg.pictures_max and (n == 1 or low <= middle / n <= high + 0.8)
 
 
-def test_the_captions_start_with_the_first_word_in_groups_and_follow_the_voice():
+def test_the_captions_show_one_word_at_a_time_while_the_voice_says_it():
     cfg = ai_config.short_clips_settings().video
     plan = CV.plan_timeline(SECONDS, cfg)
-    made = CV.chunks(voices(), plan, cfg)
-    assert made[0]["start"] == 0.0 and made[0]["text"].startswith("hook0") and len(made[0]["text"].split()) == cfg.caption.words_per_chunk
-    assert all(a["start"] <= b["start"] for a, b in zip(made, made[1:], strict=False)) and made[-1]["end"] <= plan.total
-    assert all(c["end"] > c["start"] for c in made)
+    spoken, made = voices(), CV.chunks(voices(), plan, cfg)
+    assert made[0]["start"] == 0.0 and made[0]["text"] == "hook0" and all(len(c["text"].split()) == 1 for c in made)
+    assert len(made) == sum(len(v["words"]) for v in spoken.values()) and all(c["end"] > c["start"] for c in made) and made[-1]["end"] <= plan.total
+    assert all(a["start"] <= b["start"] for a, b in zip(made, made[1:], strict=False))
+    word = spoken["hook"]["words"][0]
+    assert made[0]["end"] == round(min(word[2] + cfg.caption.hold_seconds, spoken["hook"]["words"][1][1]), 3)       # it goes away when it is said, the next one comes
+
+
+def test_a_word_never_stays_over_the_next_one_and_goes_away_in_a_pause():
+    cfg = ai_config.short_clips_settings().video
+    plan = CV.plan_timeline(SECONDS, cfg)
+    talk = voices()
+    talk["hook"]["words"] = [["Eins", 0.0, 0.3], ["zwei", 0.35, 0.6], ["drei", 1.2, 1.5]]
+    made = CV.chunks(talk, plan, cfg)[:3]
+    assert made[0]["end"] == 0.35 and made[1]["end"] == round(0.6 + cfg.caption.hold_seconds, 3) and made[2]["start"] == 1.2
+    assert made[1]["end"] < made[2]["start"]                                                                           # between «zwei» and «drei» nothing is shown
+
+
+@pytest.mark.parametrize("language,spoken,shown", [
+    ("de", ["Jemand", "ist", "eingebrochen,", "und", "hat", "meine", "Frau", "erschossen."], ["Jemand", "ist", "eingebrochen", "und", "hat", "meine", "Frau", "erschossen"]),
+    ("en", ["\"Someone", "broke", "in,\"", "he", "said.", "Why?", "Well-known!"], ["Someone", "broke", "in", "he", "said", "Why", "Well-known"]),
+    ("fa", ["ساعت", "دو،", "کسی", "وارد", "شده؟", "«می‌گوید»", "…"], ["ساعت", "دو", "کسی", "وارد", "شده", "می‌گوید"]),
+    ("ar", ["اتصل", "بالطوارئ،", "فجرًا؛", "ماذا", "حدث؟"], ["اتصل", "بالطوارئ", "فجرًا", "ماذا", "حدث"]),
+    ("es", ["¿Qué", "ocurrió", "realmente?", "¡Atención!"], ["Qué", "ocurrió", "realmente", "Atención"]),
+    ("fr", ["Il", "appelle,", "puis", "l'", "attend…"], ["Il", "appelle", "puis", "l", "attend"]),
+    ("it", ["Chiama", "la", "polizia,", "poi", "scompare."], ["Chiama", "la", "polizia", "poi", "scompare"]),
+    ("pt", ["Ela", "ligou", "às", "2h,", "desapareceu."], ["Ela", "ligou", "às", "2h", "desapareceu"]),
+    ("tr", ["Gece", "2'de", "polisi", "aradı,", "kayboldu."], ["Gece", "2'de", "polisi", "aradı", "kayboldu"])])
+def test_the_captions_have_no_punctuation_in_any_language_and_keep_what_is_inside_a_word(language, spoken, shown):
+    cfg = ai_config.short_clips_settings().video
+    plan = CV.plan_timeline(SECONDS, cfg)
+    talk = voices()
+    talk["hook"]["words"] = [[w, round(i * 0.4, 3), round(i * 0.4 + 0.3, 3)] for i, w in enumerate(spoken)]
+    assert [c["text"] for c in CV.chunks(talk, plan, cfg)[:len(shown)]] == shown
+    assert not any(ch in c["text"] for c in CV.chunks(talk, plan, cfg) for ch in ",.;:!?…،؟؛«»\"¿¡")
 
 
 def test_the_vertical_window_is_cut_around_the_face_inside_the_frame():

@@ -49,7 +49,7 @@ STAGE_ARTIFACT_TYPES: dict[str, tuple[str, ...]] = {
     "blueprint": ("beats",), "audio_plan": ("audio_blocks",),
     "spoken": ("spoken_version",), "host_plan": ("host_plan",), "chapters": (
         "chapter_plan", "timeline_cards", "chapter_cards"),
-    "naming": ("naming",), "film_length": ("film_length",),
+    "naming": ("naming",), "tags": (), "film_length": ("film_length",),
     "mvp_needs": ("visual_needs",),
     "mvp_verify": ("visual_pieces",),
     "mvp_research": ("visual_pieces",),

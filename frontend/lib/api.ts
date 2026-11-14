@@ -17,6 +17,13 @@ import type {
   CoverItem,
   CoversOverview,
   CoversSummary,
+  TagItem,
+  YoutubeChaptersOverview,
+  TitlesOverview,
+  DescriptionsOverview,
+  TagReport,
+  TagSetView,
+  TagsOverview,
   DetectivePlan,
   CaseControlEvent,
   CaseControlView,
@@ -637,6 +644,28 @@ export const api = {
       `/api/documentary/versions/${versionId}/host-voice-review/send-all`, { method: "POST", body: "{}", timeoutMs: 1_800_000 }),
   activateHostTake: (versionId: number, blockId: string, takeNo: number) =>
     post<BlockReviewBlock>(`/api/documentary/versions/${versionId}/host-voice-review/blocks/${encodeURIComponent(blockId)}/takes/${takeNo}/activate`),
+  filmDescriptions: (caseId: number) => request<DescriptionsOverview>(`/api/cases/${caseId}/descriptions`),
+  refreshFilmDescriptions: (caseId: number) => request<DescriptionsOverview>(`/api/cases/${caseId}/descriptions/refresh`, { method: "POST", body: "{}" }),
+  saveFilmDescription: (caseId: number, language: string, text: string | null) => put<DescriptionsOverview>(`/api/cases/${caseId}/descriptions/${language}`, { text }),
+  regenerateFilmDescription: (caseId: number, language: string) =>
+    request<DescriptionsOverview>(`/api/cases/${caseId}/descriptions/${language}/regenerate`, { method: "POST", body: "{}", timeoutMs: 600_000 }),
+  filmTitles: (caseId: number) => request<TitlesOverview>(`/api/cases/${caseId}/titles`),
+  youtubeChapters: (caseId: number) => request<YoutubeChaptersOverview>(`/api/cases/${caseId}/chapters/youtube`),
+  refreshYoutubeChapters: (caseId: number) => request<YoutubeChaptersOverview>(`/api/cases/${caseId}/chapters/youtube/refresh`, { method: "POST", body: "{}" }),
+  planYoutubeChapters: (caseId: number, languages: string[] | null) =>
+    request<YoutubeChaptersOverview>(`/api/cases/${caseId}/chapters/youtube/plan`, { method: "POST", body: JSON.stringify({ languages }), timeoutMs: 900_000 }),
+  tags: (caseId: number) => request<TagsOverview>(`/api/cases/${caseId}/tags`),
+  generateTags: (caseId: number, languages: string[] | null, force: boolean) =>
+    request<TagsOverview>(`/api/cases/${caseId}/tags/generate`, { method: "POST", body: JSON.stringify({ languages, force }), timeoutMs: 900_000 }),
+  generateTagsFor: (caseId: number, language: string) =>
+    request<TagSetView>(`/api/cases/${caseId}/tags/${language}/generate`, { method: "POST", body: "{}", timeoutMs: 600_000 }),
+  checkTags: (caseId: number, language: string, tags: TagItem[]) =>
+    request<TagReport>(`/api/cases/${caseId}/tags/${language}/check`, { method: "POST", body: JSON.stringify({ tags }) }),
+  saveTags: (caseId: number, language: string, tags: TagItem[]) => put<TagSetView>(`/api/cases/${caseId}/tags/${language}`, { tags }),
+  approveTags: (caseId: number, language: string) => request<TagSetView>(`/api/cases/${caseId}/tags/${language}/approve`, { method: "POST", body: "{}" }),
+  rejectTags: (caseId: number, language: string) => request<TagSetView>(`/api/cases/${caseId}/tags/${language}/reject`, { method: "POST", body: "{}" }),
+  useTagSuggestion: (caseId: number, language: string) => request<TagSetView>(`/api/cases/${caseId}/tags/${language}/candidate/use`, { method: "POST", body: "{}" }),
+  dropTagSuggestion: (caseId: number, language: string) => request<TagSetView>(`/api/cases/${caseId}/tags/${language}/candidate/drop`, { method: "POST", body: "{}" }),
   coversSummary: (caseId: number) => request<CoversSummary>(`/api/cases/${caseId}/covers/summary`),
   covers: (caseId: number, language: string) => request<CoversOverview>(`/api/cases/${caseId}/covers/${language}`),
   proposeCovers: (caseId: number, language: string) =>

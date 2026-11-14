@@ -28,6 +28,10 @@ import { CoversTab } from "./tabs/covers";
 import { ShortClipsAndCoversTab } from "./tabs/short-clips-and-covers";
 import { VoicePerformanceTab } from "./tabs/voice-performance";
 import { HostTab } from "./tabs/host";
+import { TagsTab } from "./tabs/tags";
+import { ChaptersTab } from "./tabs/chapters";
+import { TitlesTab } from "./tabs/titles";
+import { DescriptionsTab } from "./tabs/descriptions";
 import { VisualLibraryTab } from "./tabs/visual-library";
 import { PlannerTab } from "./tabs/planner";
 import { ReviewQueuePage } from "./review-queue";
@@ -50,6 +54,10 @@ const TABS = [
   "Farsi review",
   "Voice",
   "Host",
+  "Tags",
+  "Chapters",
+  "Titles",
+  "Descriptions",
   "Film cover",
   "Picture review",
   "Short clips & covers",
@@ -217,6 +225,10 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
         {tab === "Film cover" && <CoversTab {...languageProps} which="film" />}
         {tab === "Voice" && <VoiceTab {...languageProps} />}
         {tab === "Host" && <HostTab {...languageProps} />}
+        {tab === "Tags" && <TagsTab {...languageProps} />}
+        {tab === "Chapters" && <ChaptersTab {...languageProps} />}
+        {tab === "Titles" && <TitlesTab {...languageProps} />}
+        {tab === "Descriptions" && <DescriptionsTab {...languageProps} />}
         {tab === "Picture review" && <ReviewQueuePage caseId={caseId} embedded />}
         {tab === "Short clips & covers" && <ShortClipsAndCoversTab {...languageProps} />}
         {tab === "Visual Planner" && <PlannerTab {...common} />}

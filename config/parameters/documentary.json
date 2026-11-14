@@ -528,7 +528,38 @@
     "max_labelled_events": 24,
     "intro_enabled": true,
     "intro_dir": "data/intros",
-    "intro_duck_db": -18.0
+    "intro_duck_db": -18.0,
+    "youtube": {
+      "enabled": true,
+      "min_chapters": 3,
+      "max_chapters": 10,
+      "beats_per_chapter": 8,
+      "min_chapter_seconds": 10.0,
+      "summary_chars": 90,
+      "chars_per_token": 4,
+      "fallback_titles": {
+        "en": {"first": "The Opening", "middle": "Part {n}", "last": "The Final Questions"},
+        "de": {"first": "Der Anfang", "middle": "Teil {n}", "last": "Die offenen Fragen"},
+        "fa": {"first": "آغاز", "middle": "بخش {n}", "last": "پرسش‌های پایانی"},
+        "ar": {"first": "البداية", "middle": "الجزء {n}", "last": "الأسئلة الأخيرة"},
+        "es": {"first": "El comienzo", "middle": "Parte {n}", "last": "Las preguntas finales"},
+        "it": {"first": "L'inizio", "middle": "Parte {n}", "last": "Le ultime domande"},
+        "fr": {"first": "Le début", "middle": "Partie {n}", "last": "Les dernières questions"},
+        "pt": {"first": "O começo", "middle": "Parte {n}", "last": "As perguntas finais"},
+        "tr": {"first": "Başlangıç", "middle": "Bölüm {n}", "last": "Son sorular"}
+      },
+      "outcome_stems": {
+        "en": ["killer", "murderer", "culprit", "guilt", "convict", "confess", "verdict", "sentenc", "twist", "revealed", "the truth", "solved"],
+        "de": ["mörder", "täter", "schuld", "verurteil", "geständnis", "gesteht", "urteil", "wendung", "enthüllt", "die wahrheit", "gelöst"],
+        "fa": ["قاتل", "مجرم", "گناهکار", "محکوم", "اعتراف", "فاش", "حقیقت", "حل‌شده", "حل شده"],
+        "ar": ["قاتل", "مجرم", "مذنب", "مدان", "اعتراف", "الحكم", "كشف", "الحقيقة", "محلول"],
+        "es": ["asesino", "culpable", "condena", "confes", "veredicto", "giro", "revelad", "la verdad", "resuelto"],
+        "it": ["assassino", "colpevole", "condann", "confess", "verdetto", "sentenza", "colpo di scena", "rivelat", "la verità", "risolto"],
+        "fr": ["meurtrier", "coupable", "condamn", "aveu", "avoue", "verdict", "rebondissement", "révél", "la vérité", "résolu"],
+        "pt": ["assassino", "culpado", "condenad", "confess", "veredito", "reviravolta", "revelad", "a verdade", "resolvido"],
+        "tr": ["katil", "suçlu", "mahkum", "itiraf", "hüküm", "sürpriz", "ifşa", "gerçek ortaya", "çözüldü"]
+      }
+    }
   },
   "video_audit": {
     "frames_per_second": 1.0,

@@ -21,6 +21,7 @@
       "host_plan": "Host",
       "chapters": "Blueprint",
       "naming": "Run",
+      "tags": "Tags",
       "film_length": "Run",
       "mvp_needs": "Visual Planner",
       "mvp_verify": "Visual Planner",
@@ -100,6 +101,7 @@
           "group": "Plans",
           "stages": [
             "naming",
+            "tags",
             "board_plan"
           ]
         },

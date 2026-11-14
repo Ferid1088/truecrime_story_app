@@ -90,6 +90,33 @@ def acts_of(blueprint: dict, structure: dict | None = None) -> list[dict]:
     return out
 
 
+def story_beats(blueprint: dict) -> list[list[str]]:
+    """The film's beats in order, compact, for the writer that picks the YouTube chapters: [[id, purpose, summary]]. The summary is the blueprint's own."""
+    limit = ai_config.chapters.youtube.summary_chars
+    return [[b["id"], str(b.get("purpose") or ""), " ".join(str(b.get("summary") or "").split())[:limit]]
+            for b in blueprint.get("beats") or [] if b.get("id")]
+
+
+def safe_beats(beats: list[list[str]]) -> list[list[str]]:
+    """The opening beats a description or a title may be built from: the first beats that only set the scene (`safe_purposes`), at most `safe_beat_share` of the film, at least one. Everything after
+    them (the first evidence, a turn, a doubt) belongs to the film."""
+    cfg = ai_config.description_settings()
+    cap = max(round(len(beats) * cfg.safe_beat_share), 1)
+    found: list[list[str]] = []
+    for beat in beats[:cap]:
+        if beat[1] not in cfg.safe_purposes and found:
+            break
+        found.append(beat)
+    return found
+
+
+def youtube_count(beats: int) -> list[int]:
+    """[fewest, most] YouTube chapters for a film of this many beats: about one in `beats_per_chapter`, within the configured bounds."""
+    cfg = ai_config.chapters.youtube
+    target = round(beats / cfg.beats_per_chapter)
+    return [min(max(target - 2, cfg.min_chapters + 1), cfg.max_chapters), min(max(target + 1, cfg.min_chapters + 1), cfg.max_chapters)]
+
+
 def cold_open(blueprint: dict) -> bool:
     """The film opens on a hook beat that is followed by more of its act."""
     beats = blueprint.get("beats") or []
@@ -190,7 +217,12 @@ def latest_chapter_plan(db: Session, blueprint_id: int | None) -> ChapterPlan | 
 
 
 def plan_covers(row: ChapterPlan | None, languages: list[str]) -> bool:
-    return row is not None and set(languages) <= set(_loads(row.languages_json, []))
+    """The plan holds the languages and, when they are on, the YouTube chapters and the description the writer made for each of them (a plan made before they existed is written again)."""
+    if row is None or not set(languages) <= set(_loads(row.languages_json, [])):
+        return False
+    plan = _loads(row.plan_json, {})
+    needed = [key for key, on in (("story_chapters", ai_config.chapters.youtube.enabled), ("descriptions", ai_config.description_settings().enabled)) if on]
+    return all(set(languages) <= set(plan.get(key) or {}) for key in needed)
 
 
 # ---------------------------------------------------------------------------

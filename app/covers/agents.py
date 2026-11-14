@@ -17,6 +17,8 @@ from app.documentary.blueprint import latest_blueprint
 from app.documentary.host import _pack
 from app.documentary.host_firewall import open_questions
 from app.documentary.host_story import HostStory, load_story
+from app.naming import agent as NAMING
+from app.naming import selection as SEL
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 from app.shortform import clips as C
@@ -55,6 +57,10 @@ class CoverPlanner:
                        "reason_max_words": self.cfg["reason_max_words"]}}
         if language != "en":
             payload["english_covers"] = [{"key": k, "title": r.title, "scene": r.scene_prompt} for k, r in P.current(db, case.id, "en").items()]
+        titles = SEL.options(db, case, language)
+        options = {o["id"]: o for o in titles["options"]}
+        if options:
+            payload["youtube_titles"] = {"options": [{k: o[k] for k in ("id", "angle", "title")} for o in titles["options"]], "story_hook": titles["hook"]}
         system = "\n\n".join([prompt("covers/cover_planner"), prompt("covers/hooks/hook_rules"), prompt(f"covers/hooks/{language}")])
 
         async def ask(extra: dict):
@@ -64,7 +70,7 @@ class CoverPlanner:
             return raw, res
 
         def problems_of(items: list[dict]) -> dict[str, list[dict]]:
-            found = {i["key"] or f"#{n}": P.item_issues(i, story, cutoff, language) for n, i in enumerate(items)}
+            found = {i["key"] or f"#{n}": P.item_issues(i, story, cutoff, language, options) for n, i in enumerate(items)}
             if extra := P.set_issues(items, keys):
                 found["_set"] = extra
             return {k: v for k, v in found.items() if v}
@@ -77,9 +83,10 @@ class CoverPlanner:
             raw, res = await ask({"previous": raw, "problems_to_fix": problems})
             items = P.parse_items(raw)
             problems = problems_of(items)
-        return self._store(db, case, language, keys, items, problems, repairs, getattr(res, "model", None))
+        return self._store(db, case, language, keys, items, problems, repairs, getattr(res, "model", None), options)
 
-    def _store(self, db: Session, case: Case, language: str, keys: list[str], items: list[dict], problems: dict, repairs: int, model: str | None) -> list[CoverProposal]:
+    def _store(self, db: Session, case: Case, language: str, keys: list[str], items: list[dict], problems: dict, repairs: int, model: str | None,
+               options: dict[str, dict] | None = None) -> list[CoverProposal]:
         by_key = {i["key"]: i for i in items}
         earlier = P.current(db, case.id, language)
         rows = []
@@ -87,12 +94,17 @@ class CoverPlanner:
             item = by_key.get(key) or {"key": key, "title": "", "scene": "", "confidence": None, "reason": ""}
             issues = problems.get(key, []) + problems.get("_set", [])
             status = P.status_of(item, issues)
+            pick = (options or {}).get(item.get("title_pick") or "") if key == "long" else None
+            pairing = {"pairing": {"pick": item["title_pick"], "title": pick["title"], "angle": pick["angle"], "reason": item["pair_reason"]}} if pick else {}
             rows.append(CoverProposal(
                 case_id=case.id, language=language, cover_key=key, kind="long" if key == "long" else "short", version=(earlier[key].version + 1) if key in earlier else 1,
                 source="agent", status=status, title=item["title"], scene_prompt=item["scene"], confidence=item["confidence"] if item["scene"] else None, reason=item["reason"],
-                validation_json=json.dumps({"issues": issues, "repair_iterations": repairs}, ensure_ascii=False), generation_model=model))
+                validation_json=json.dumps({"issues": issues, "repair_iterations": repairs, **pairing}, ensure_ascii=False), generation_model=model))
         db.add_all(rows)
         db.commit()
         for r in rows:
             db.refresh(r)
+        long = by_key.get("long") or {}
+        if (options or {}).get(long.get("title_pick") or ""):
+            NAMING.auto_select(db, case, language, prefer=options[long["title_pick"]]["candidate_id"])
         return rows

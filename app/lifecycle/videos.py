@@ -20,10 +20,12 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import Case, DocumentaryJob, FollowUpCandidate, ProductionScript, StoryVersion, Video
+from app.documentary import youtube_chapters, youtube_description
 from app.documentary.production import host_timeline as HT
 from app.identity.titles import (build_youtube_title, get_identity, mark_published,
                                  public_status, sync_identity)
 from app.lifecycle.status import SOLVED, UNSOLVED
+from app.tags import service as tag_sets
 from app.utils import utc_now
 
 
@@ -73,6 +75,8 @@ def youtube_title(case: Case, language: str, title: str, *, production_type: str
 
 
 def youtube_metadata(db: Session, case: Case, video: Video) -> dict:
+    """Title, description and tags of a film. The tags are the owner's approved tags of this case in this film's language (documentary > Tags); a language without
+    approved tags keeps the plain tags built from the case below."""
     title, rule = youtube_title(case, video.language, video.title or case.canonical_title,
                                 production_type=video.production_type,
                                 status=video.status_at_publication or video.status_at_production)
@@ -86,6 +90,7 @@ def youtube_metadata(db: Session, case: Case, video: Video) -> dict:
             lines.append(f"Update to our earlier video ({ep}\"{orig.youtube_title or orig.title}\", "
                          f"{when}), made while the case was unsolved. The case has since been "
                          "solved.")
+    head = list(lines)
     if status == UNSOLVED:
         lines.append("Status: UNSOLVED — this case has not been solved "
                      f"(as of {utc_now().date().isoformat()}).")
@@ -100,8 +105,18 @@ def youtube_metadata(db: Session, case: Case, video: Video) -> dict:
     tags.append({"UNSOLVED": "unsolved case", "SOLVED": "solved case"}.get(status or "", "case"))
     if video.production_type == "follow_up":
         tags.append("case update")
-    return {"title": title, "title_rule": rule, "description": "\n".join(lines),
-            "tags": [t for t in dict.fromkeys(tags) if t]}
+    described = youtube_description.resolve(db, case, video)
+    text = youtube_description.final_text(described)
+    if text:
+        body = text if described.edited_text else "\n\n".join([*head, text])
+    else:
+        chapters = youtube_chapters.resolve(db, case, video)
+        if chapters.status == "ok":
+            lines += ["", youtube_chapters.block(json.loads(chapters.chapters_json)["chapters"])]
+        body = "\n".join(lines)
+    approved = tag_sets.approved(db, case.id, video.language)
+    return {"title": title, "title_rule": rule, "description": body,
+            "tags": approved if approved is not None else [t for t in dict.fromkeys(tags) if t]}
 
 
 def _sync_episode_identity(db: Session, case: Case, video: Video) -> None:

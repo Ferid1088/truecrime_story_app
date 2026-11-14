@@ -33,6 +33,7 @@ from app.db.models import (
     Video,
 )
 from app.documentary.pipeline.errors import JobPaused
+from app.identity.titles import approved_title
 from app.services.budget import BudgetService, BudgetStopped
 from app.utils import utc_now
 
@@ -659,9 +660,11 @@ class AutopilotRunner:
                 S.add_need(run, f"publish:{lang}:approve_shorts", "approve_shorts",
                            f"{count} {lang} shorts wait for your approval before real publishing.",
                            language=lang, blocking=False)
-        S.add_need(run, "publish:all:confirm_titles", "confirm_titles",
-                   "Choose one title per language; the dry run used suggestion 1 as an "
-                   "unconfirmed default.", blocking=False)
+        unchosen = [lang for lang in languages if not approved_title(db, case.id, lang)]
+        if unchosen:
+            S.add_need(run, "publish:all:confirm_titles", "confirm_titles",
+                       f"No title is chosen for {', '.join(unchosen)}; the dry run used suggestion 1 as an "
+                       "unconfirmed default.", blocking=False)
         S.set_step(run, "publish", "running",
                    f"{len(planned)} dry-run requests queued; nothing was sent")
         return True
@@ -695,7 +698,7 @@ class AutopilotRunner:
             titles = live_titles(db, case.id, video.language)
             films.append(P.FilmInput(
                 language=video.language, video_id=video.id, file_path=video.file_path or "",
-                title=titles[0].title if titles else (video.title or ""),
+                title=approved_title(db, case.id, video.language) or (titles[0].title if titles else (video.title or "")),
                 description=video.youtube_description or "",
                 tags=json.loads(video.youtube_tags_json or "[]")))
         shorts = []

@@ -94,6 +94,7 @@
         "short_clip_director": "premium",
         "short_clip_native_writer": "premium",
         "cover_planner": "premium",
+        "tag_generator": "writer",
         "opening_native_writer": "premium",
         "host_writer": "premium",
         "host_writer_fa_ar": "premium",
@@ -293,6 +294,11 @@
       "temperature": 0.5,
       "max_tokens": 8000,
       "reasoning_effort": "medium"
+    },
+    "tag_generator": {
+      "temperature": 0.3,
+      "max_tokens": 6000,
+      "reasoning_effort": "low"
     },
     "short_clip_native_writer": {
       "temperature": 0.7,

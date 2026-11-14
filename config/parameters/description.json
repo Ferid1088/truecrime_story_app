@@ -1,0 +1,249 @@
+{
+  "description": {
+    "enabled": true,
+    "min_words": 40,
+    "max_words": 220,
+    "target_words": [
+      80,
+      140
+    ],
+    "safe_beat_share": 0.2,
+    "max_chars": 5000,
+    "repeat_word_limit": 6,
+    "disclosure": {
+      "en": {
+        "narration": "This documentary uses AI-assisted narration.",
+        "presenter": "The presenter is an AI-generated avatar."
+      },
+      "de": {
+        "narration": "Diese Dokumentation verwendet KI-gestützte Erzählung.",
+        "presenter": "Der Moderator ist ein KI-generierter Avatar."
+      },
+      "fa": {
+        "narration": "روایت این مستند با کمک هوش مصنوعی تولید شده است.",
+        "presenter": "مجری این برنامه یک آواتار ساخته‌شده با هوش مصنوعی است."
+      },
+      "ar": {
+        "narration": "يعتمد هذا الفيلم الوثائقي على سرد مدعوم بالذكاء الاصطناعي.",
+        "presenter": "المقدّم شخصية افتراضية مولّدة بالذكاء الاصطناعي."
+      },
+      "es": {
+        "narration": "Este documental utiliza una narración asistida por IA.",
+        "presenter": "El presentador es un avatar generado por IA."
+      },
+      "it": {
+        "narration": "Questo documentario usa una narrazione assistita dall'IA.",
+        "presenter": "Il conduttore è un avatar generato dall'IA."
+      },
+      "fr": {
+        "narration": "Ce documentaire utilise une narration assistée par IA.",
+        "presenter": "Le présentateur est un avatar généré par IA."
+      },
+      "pt": {
+        "narration": "Este documentário usa narração assistida por IA.",
+        "presenter": "O apresentador é um avatar gerado por IA."
+      },
+      "tr": {
+        "narration": "Bu belgesel, yapay zekâ destekli anlatım kullanır.",
+        "presenter": "Sunucu, yapay zekâ ile oluşturulmuş bir avatardır."
+      }
+    },
+    "genre_hashtags": {
+      "en": "#TrueCrime",
+      "de": "#TrueCrime",
+      "fa": "#ترو_کرایم",
+      "ar": "#جرائم_حقيقية",
+      "es": "#CrímenesReales",
+      "it": "#CronacaNera",
+      "fr": "#TrueCrime",
+      "pt": "#CrimesReais",
+      "tr": "#GerçekSuç"
+    },
+    "note": "The narrative is written by the chapter writer in its own call from the opening beats only (`safe_purposes`: the first beats that only set the scene, at most `safe_beat_share` of the film); the chapters, the disclosure, the hashtags and the channel are added by code. `hint_stems` are the words of doubt, staging and contradiction (a description, a chapter title and a film title never cast doubt on an account or hint at what the evidence shows). A description holds no references: no sources, no links, no picture credits. A hashtag has no space; `#` and `<`/`>` are never in the narrative.",
+    "safe_purposes": [
+      "hook",
+      "orientation",
+      "human_introduction"
+    ],
+    "common_noun_capitals": [
+      "de"
+    ],
+    "hint_stems": {
+      "en": [
+        "staged",
+        "doesn't fit",
+        "does not fit",
+        "didn't add up",
+        "does not add up",
+        "add up",
+        "held together",
+        "hold up",
+        "inconsisten",
+        "contradict",
+        "alibi",
+        "too neat",
+        "not what it seems",
+        "doesn't match",
+        "does not match",
+        "his version",
+        "her version",
+        "two versions",
+        "story changed",
+        "account changed",
+        "really enter",
+        "really break",
+        "alleged",
+        "supposed",
+        "so-called",
+        "apparent intruder"
+      ],
+      "de": [
+        "inszeniert",
+        "passt nicht",
+        "geht nicht auf",
+        "hält stand",
+        "widersprüch",
+        "unstimmig",
+        "alibi",
+        "zu glatt",
+        "nicht das, was",
+        "seine version",
+        "zwei versionen",
+        "wirklich eingebrochen",
+        "angeblich",
+        "mutmaßlich",
+        "vermeintlich",
+        "sogenannt",
+        "seiner version",
+        "laut seiner"
+      ],
+      "fa": [
+        "صحنه‌سازی",
+        "صحنه سازی",
+        "نمی‌خورد",
+        "نمی خورد",
+        "جور درنمی",
+        "جور در نمی",
+        "جور درمی",
+        "تناقض",
+        "ناسازگار",
+        "آلیبی",
+        "دو روایت",
+        "روایت اولیه",
+        "تغییر می‌کرد",
+        "واقعاً وارد",
+        "مدعی",
+        "به‌اصطلاح",
+        "به اصطلاح",
+        "ادعا",
+        "روایتی دیگر"
+      ],
+      "ar": [
+        "مفبرك",
+        "مدبر",
+        "لا يتطابق",
+        "لا ينسجم",
+        "تناقض",
+        "متناقض",
+        "ألبي",
+        "نسختان",
+        "روايتان",
+        "هل دخل غريب",
+        "فهل دخل",
+        "لا تتطابق",
+        "المزعوم",
+        "المزعومة",
+        "زعم",
+        "هل دخل"
+      ],
+      "es": [
+        "escenificad",
+        "no encaja",
+        "no cuadra",
+        "contradic",
+        "incongruen",
+        "coartada",
+        "dos versiones",
+        "versiones de",
+        "su versión",
+        "realmente entró",
+        "supuesto",
+        "presunto",
+        "llamado",
+        "¿quién entró",
+        "la versión de",
+        "habría"
+      ],
+      "it": [
+        "inscenat",
+        "non quadra",
+        "non torna",
+        "contradd",
+        "incongruen",
+        "alibi",
+        "due versioni",
+        "non resta",
+        "è davvero entrato",
+        "presunto",
+        "cosiddetto",
+        "sedicente",
+        "il marito parla",
+        "la versione di",
+        "avrebbe"
+      ],
+      "fr": [
+        "mis en scène",
+        "mise en scène",
+        "ne colle pas",
+        "ne tient pas",
+        "contradic",
+        "incohéren",
+        "alibi",
+        "deux formes",
+        "deux versions",
+        "récit de la nuit prend",
+        "vraiment entré",
+        "prétendu",
+        "soi-disant",
+        "affirme qu",
+        "présumé",
+        "aurait",
+        "la version de"
+      ],
+      "pt": [
+        "encenad",
+        "forjad",
+        "não bate",
+        "não fecha",
+        "contradi",
+        "incoerên",
+        "álibi",
+        "duas versões",
+        "essa versão",
+        "realmente entrou",
+        "suposto",
+        "pretenso",
+        "culpa invasor",
+        "suposta",
+        "a versão de",
+        "teria"
+      ],
+      "tr": [
+        "sahnelen",
+        "uymuyor",
+        "örtüşmüyor",
+        "çelişk",
+        "tutarsız",
+        "mazeret",
+        "iki anlatım",
+        "ayrıntılar değişiyordu",
+        "yoksa sahnede",
+        "gerçekten girdi",
+        "sözde",
+        "iddia",
+        "güya",
+        "söyledi"
+      ]
+    }
+  }
+}

@@ -14,7 +14,10 @@ from app.db.base import get_db
 from app.db.models import Case, CaseTitleCandidate
 from app.identity import titles as T
 from app.identity.titles import TitleLocked
+from app.covers import proposals as COVERS
+from app.covers.api import cover_view
 from app.naming import agent as A
+from app.naming import selection as SEL
 from app.naming.corpus import get_corpus
 
 router = APIRouter(tags=["naming"])
@@ -59,7 +62,7 @@ def candidate_dict(c: CaseTitleCandidate) -> dict:
         "sensationalism_risk": c.sensationalism_risk, "spoiler_risk": c.spoiler_risk,
         "epistemic_risk": c.epistemic_risk,
         "native_quality": crit.get("native_quality"), "rank": crit.get("rank"),
-        "recommended": bool(crit.get("recommended")), "angle": crit.get("angle"),
+        "recommended": bool(crit.get("recommended")), "angle": crit.get("angle"), "clarity": crit.get("clarity"),
         "reason": crit.get("reason"),
     }
 
@@ -91,6 +94,43 @@ def naming_state(db: Session, case: Case) -> dict:
     }
 
 
+def title_issues(row: CaseTitleCandidate | None) -> list[str]:
+    """What the critics found against the film's chosen title, by the same limits the candidates had to keep."""
+    if row is None:
+        return ["the title was not written by the title writer (no critic scores)"]
+    cfg = ai_config.case_naming
+    found = []
+    for name, value, limit in (("spoiler risk", row.spoiler_risk, cfg.max_spoiler_risk), ("epistemic risk", row.epistemic_risk, cfg.max_epistemic_risk),
+                               ("sensationalism risk", row.sensationalism_risk, cfg.max_sensationalism_risk)):
+        if value is not None and value > limit:
+            found.append(f"{name} {value:.2f}")
+    if row.specificity_score is not None and row.specificity_score < cfg.min_specificity:
+        found.append(f"specificity {row.specificity_score:.2f}")
+    return found
+
+
+def titles_state(db: Session, case: Case) -> dict:
+    """Per language: the chosen title, the three options, the story hook, the film cover it is paired with and the checks."""
+    out = []
+    for language in ai_config.multilingual.producible_languages:
+        found = SEL.options(db, case, language)
+        ident = T.get_identity(db, case.id, language)
+        long = COVERS.current(db, case.id, language).get("long")
+        cover = cover_view(db, case, long) if long else None
+        chosen = ident.editorial_title if ident else None
+        row = next((c for c in SEL.eligible(db, case.id, language) if chosen and c.title == chosen), None)
+        issues = title_issues(row) if chosen else []
+        share = SEL.repeat_share(cover["title"], chosen) if cover and chosen else 0.0
+        if share > ai_config.case_naming.cover_max_repeat:
+            issues.append("the cover title repeats the title: plan the cover again (no picture is made by itself)")
+        out.append({"language": language, "title": chosen, "youtube_title": ident.youtube_title if ident else None, "source": (ident.title_source or ("owner" if ident and ident.title_approved else "")) if ident else "",
+                    "approved": bool(ident and ident.title_approved), "published": bool(ident and ident.published), "options": found["options"], "hook": found["hook"],
+                    "pairing": (cover or {}).get("validation", {}).get("pairing"),
+                    "cover": {"status": cover["status"], "title": cover["title"], "preview_url": cover["preview_url"], "approved_url": cover["approved_url"]} if cover else None,
+                    "validation": {"ok": not issues, "issues": issues}})
+    return {"case_id": case.id, "languages": out}
+
+
 class GenerateRequest(BaseModel):
     languages: list[Lang] | None = None
 
@@ -102,6 +142,11 @@ class ManualRequest(BaseModel):
 
 class ApproveRequest(BaseModel):
     revise: bool = False
+
+
+@router.get("/api/cases/{case_id}/titles")
+def get_titles(case_id: int, db: Session = Depends(get_db)):
+    return titles_state(db, _case(db, case_id))
 
 
 @router.get("/api/cases/{case_id}/naming")

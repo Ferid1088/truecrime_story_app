@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 
 from app.core.ai_config import ai_config
-from app.identity.titles import clean_title
+from app.identity.titles import clean_title, title_budget
 from app.naming.normalize import norm_title
 
 _ARABIC = re.compile(r"[؀-ۿݐ-ݿ]")
@@ -28,19 +28,20 @@ def brevity_score(title: str) -> float:
     if lo <= n <= hi:
         return 1.0
     if n < lo:
-        return 0.4
+        return max(0.0, n / lo)
     return max(0.0, 1.0 - (n - hi) / max(cfg.max_words - hi + 1, 1))
 
 
 def gate_length(title: str, language: str) -> str | None:
     cfg = ai_config.case_naming
     n = word_count(title)
-    if n < 2:
-        return "too short (needs at least 2 words)"
+    if n < cfg.min_words:
+        return f"too short ({n} words: a title says what happened, at least {cfg.min_words} words)"
     if n > cfg.max_words:
         return f"too long ({n} words, max {cfg.max_words})"
-    if len(title) > cfg.max_chars:
-        return f"too long ({len(title)} characters, max {cfg.max_chars})"
+    room = min(cfg.max_chars, title_budget(language))
+    if len(title) > room:
+        return f"too long ({len(title)} characters, max {room} once the status and the channel are added)"
     return None
 
 
@@ -52,8 +53,8 @@ def gate_style(title: str, language: str) -> str | None:
         return "ALL CAPS word"
     if "!" in title or title.strip().endswith("…"):
         return "exclamation or trailing ellipsis"
-    if cfg.reject_questions and re.search(r"[?؟]\s*$", title.strip()):
-        return "question title (false-question clickbait)"
+    if cfg.reject_bare_questions and re.search(r"[?؟]\s*$", title.strip()) and not re.search(r"[.:;–—،؛]\s", title.rsplit("?", 1)[0].rsplit("؟", 1)[0]):
+        return "a bare question (false-question clickbait): state what happened first"
     return None
 
 
@@ -64,6 +65,14 @@ def gate_generic(title: str, language: str) -> str | None:
         if n == p or (n.startswith(p + " ") and len(n.split()) <= len(p.split()) + 1):
             return f"generic title ('{phrase}')"
     return None
+
+
+def gate_hint(title: str, language: str) -> str | None:
+    """A title states what was reported without a word that casts doubt on it (alleged, supposed, 'angeblich') and without asking whether an account is true."""
+    from app.documentary.youtube_description import stem_in
+
+    term = stem_in(title, language, ai_config.description_settings().hint_stems.get(language, []))
+    return f"signals doubt about an account or hints at staging ('{term}'): state what was reported plainly" if term else None
 
 
 def gate_not_just_the_name(title: str, ctx: dict) -> str | None:
@@ -125,7 +134,7 @@ def run_gates(title: str, language: str, ctx: dict,
               others: dict[str, list[str]] | None = None) -> str | None:
     """First failing gate's reason, else None."""
     for reason in (gate_length(title, language), gate_style(title, language),
-                   gate_script(title, language), gate_generic(title, language),
+                   gate_script(title, language), gate_generic(title, language), gate_hint(title, language),
                    gate_not_just_the_name(title, ctx), gate_spoiler(title, ctx),
                    gate_epistemic(title, language, ctx),
                    gate_not_copy_of(title, language, others or {})):

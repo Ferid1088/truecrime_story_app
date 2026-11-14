@@ -14,6 +14,7 @@ from app.core.ai_config import ai_config
 from app.covers.compose import CoverError, display_title, fit_title, title_issues
 from app.covers.images import scene_issues
 from app.db.models import CoverProposal
+from app.naming import selection as SEL
 from app.documentary.host_firewall import reveal_issues
 from app.documentary.host_story import HostStory
 
@@ -41,12 +42,26 @@ def parse_items(raw: dict) -> list[dict]:
             confidence = None
         scene = str(item.get("scene") or "").strip()
         out.append({"key": str(item.get("key") or "").strip(), "title": str(item.get("title") or "").strip(), "confidence": confidence,
-                    "scene": "" if scene.lower() in ("none", "null") else scene, "reason": str(item.get("reason") or "").strip()})
+                    "scene": "" if scene.lower() in ("none", "null") else scene, "reason": str(item.get("reason") or "").strip(),
+                    "title_pick": str(item.get("title_pick") or "").strip().upper() or None, "pair_reason": str(item.get("pair_reason") or "").strip()})
     return out
 
 
-def item_issues(item: dict, story: HostStory, cutoff: int, language: str) -> list[dict]:
-    """What is wrong with one proposal, each with the fix the planner is told."""
+def pairing_issues(item: dict, options: dict[str, dict]) -> list[dict]:
+    """What is wrong with the film cover's pairing with the YouTube title options: no valid pick, no reason, or a cover title that repeats the picked title."""
+    cfg = ai_config.covers_settings().proposal
+    if item["title_pick"] not in options:
+        return [{"type": "title_pick", "fix": f"Choose the id ({', '.join(options)}) of the title option your cover pairs best with."}]
+    issues = []
+    if not item["pair_reason"] or len(item["pair_reason"].split()) > cfg["reason_max_words"]:
+        issues.append({"type": "pair_reason", "fix": f"Say in at most {cfg['reason_max_words']} words why this title and this cover belong together."})
+    if SEL.repeat_share(item["title"], options[item["title_pick"]]["title"]) > ai_config.case_naming.cover_max_repeat:
+        issues.append({"type": "repeats_title", "fix": "The cover title is the thumbnail text and must not repeat the picked YouTube title: say something else that makes the same promise visible."})
+    return issues
+
+
+def item_issues(item: dict, story: HostStory, cutoff: int, language: str, options: dict[str, dict] | None = None) -> list[dict]:
+    """What is wrong with one proposal, each with the fix the planner is told. The film cover is also checked against the title `options` when there are some."""
     cfg = ai_config.covers_settings().proposal
     issues: list[dict] = []
     if problems := title_issues(item["title"]):
@@ -70,6 +85,8 @@ def item_issues(item: dict, story: HostStory, cutoff: int, language: str) -> lis
             issues.append({"type": "scene_not_symbolic", "fix": problem})
         if not item["reason"] or len(item["reason"].split()) > cfg["reason_max_words"]:
             issues.append({"type": "reason", "fix": f"Say in at most {cfg['reason_max_words']} words why this scene carries this title."})
+    if options and item["key"] == "long":
+        issues += pairing_issues(item, options)
     return issues
 
 

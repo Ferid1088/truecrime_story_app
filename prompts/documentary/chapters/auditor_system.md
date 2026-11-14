@@ -7,7 +7,9 @@ WHAT YOU RECEIVE (one JSON object, one language per call)
 The same context the writer had: language, case_status, chapters (each
 with what it reveals and what is revealed later), events (id, date,
 claim), narration_excerpt (names and places as the narration spells
-them), limits, and "texts": {"film_title": "...", "chapter:act2": "...",
+them), limits, story_beats (the film's beats [id, purpose, summary] in film order),
+story_chapters and description (what was asked: the case record, the safe
+beats), and "texts": {"film_title": "...", "chapter:act2": "...",
 "event:T004": "..."}: the items to judge. The film title is judged
 against the whole story: it must not reveal what any chapter reveals.
 
@@ -28,6 +30,25 @@ Reject an item (and say which languages are wrong) when:
 - a language version is not a faithful, natural rendering, or spells a
   name or place differently from that language's narration;
 - it is longer than the limit, or empty.
+
+Items "story_chapter:<beat id>" are titles of the YouTube chapter list, read
+together in the description BEFORE anyone watches the film. Judge them
+strictly: reject a title that tells, from its beat onward (story_chapters),
+anything the story discloses later, that names or hints at a culprit, an
+outcome, a confession, a verdict, a twist or the answer to the central
+question (UNSOLVED: any solution), that is not true to the beats around
+its id, or that is not natural in the language; the list of titles as a
+whole must not tell the story.
+
+The item "description" is the narrative of the film's YouTube description,
+read before anyone watches. Reject it when it uses anything the beats after
+description.beats disclose, tells a discovery, a turn, a culprit, a
+confession, a verdict or the outcome (UNSOLVED: any solution), presents
+speculation as fact, casts doubt on an account or hints that something does not
+fit, was staged or contradicts the evidence, states anything the case record and the beats do not
+support (a name, a date, a place, a quotation, evidence), is sensational,
+generic or clickbait, repeats the title whole, or is not natural for a native
+speaker; it must also read as a hook, an overview and a brief invitation.
 
 Return JSON only:
 {"verdicts": [{"key": "chapter:act2", "ok": false, "languages": ["de"],

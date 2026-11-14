@@ -2660,6 +2660,8 @@ class EpisodeIdentity(Base):
     # an editor approved this title (naming flow); a title copied from the
     # story's own draft is not approved
     title_approved: Mapped[bool] = mapped_column(Boolean, default=False)
+    # who chose the title: "owner" (approved or edited by the owner: never changed by the app), "auto" (the best title-and-cover pair, chosen by the app; the owner may replace it), "" (before this existed)
+    title_source: Mapped[str] = mapped_column(String(10), default="")
     published: Mapped[bool] = mapped_column(Boolean, default=False)
     published_title: Mapped[str | None] = mapped_column(String(300), nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
@@ -3502,3 +3504,84 @@ class VoiceBlockTake(Base):
     duration_s: Mapped[float | None] = mapped_column(Float, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class VideoTagSet(Base):
+    """The YouTube tags of one case in one language (documentary > Tags). `tags_json` is the working list in the owner's order: [{text, category, evidence}]. `origin` says
+    who wrote it (ai, or edited by the owner), `approval` pending | approved | rejected. A regeneration never replaces an edited or approved list: its result waits
+    in `candidate_json` until the owner takes it or drops it. `source_fingerprint` is that of the case facts the list was written from (a different one now means
+    stale). `generation_status`: none | running | done | failed; a running set older than the configured timeout counts as interrupted."""
+
+    __tablename__ = "video_tag_sets"
+    __table_args__ = (UniqueConstraint("case_id", "language", name="uq_video_tag_set"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20))
+    tags_json: Mapped[str] = mapped_column(Text, default="[]")
+    origin: Mapped[str] = mapped_column(String(10), default="ai")
+    approval: Mapped[str] = mapped_column(String(10), default="pending")
+    generation_status: Mapped[str] = mapped_column(String(10), default="none")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    candidate_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    char_count: Mapped[int] = mapped_column(Integer, default=0)
+    source_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    generator_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    generated_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class VideoChapters(Base):
+    """The YouTube chapters of the film of one case in one language (documentary > Chapters): the list resolved on the finished film's timeline
+    (`chapters_json`: chapters and what was dropped), its status (ok | omitted | no_plan | no_render | failed), the production script and chapter plan it was made from and
+    their fingerprint (a changed render or plan makes a new list; the same ones keep it), and the estimated extra tokens and price the chapters added to the
+    chapter writer's existing calls (`cost_json`)."""
+
+    __tablename__ = "video_chapters"
+    __table_args__ = (UniqueConstraint("case_id", "language", name="uq_video_chapters"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20))
+    video_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    production_script_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    plan_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(12), default="no_render")
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chapters_json: Mapped[str] = mapped_column(Text, default="{}")
+    duration_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    method: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    cost_json: Mapped[str] = mapped_column(Text, default="{}")
+    resolved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
+class VideoDescription(Base):
+    """The YouTube description of the film of one case in one language (documentary > Descriptions): `narrative` (written by the chapter writer in its own call), `auto_text` (the whole
+    description the app assembled from it: narrative, chapters, disclosure, hashtags, channel; no references) and `edited_text` (the owner's own text: when it exists it is the text
+    used and the app never changes it). `status`: ok | no_plan (no narrative yet) | invalid (the narrative failed a check: the film keeps the plain description) | failed. The fingerprint is that
+    of everything the assembled text was made from, so a change of chapters, title or sources rebuilds it without a model call."""
+
+    __tablename__ = "video_descriptions"
+    __table_args__ = (UniqueConstraint("case_id", "language", name="uq_video_descriptions"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20))
+    video_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    plan_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(12), default="no_plan")
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    narrative: Mapped[str] = mapped_column(Text, default="")
+    auto_text: Mapped[str] = mapped_column(Text, default="")
+    edited_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    cost_json: Mapped[str] = mapped_column(Text, default="{}")
+    resolved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    edited_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)

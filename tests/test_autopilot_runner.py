@@ -180,7 +180,7 @@ def test_a_stopped_film_is_listed_with_its_reason_and_clears_when_the_job_is_res
     assert run.status == "running"
 
 
-def test_titles_are_made_for_languages_that_lack_seven_and_never_confirmed(
+def test_titles_are_made_for_languages_that_lack_their_candidates_and_never_confirmed(
         db_session, run, case):
     ports = FakePorts(titles=3)
     passes(db_session, run, ports)
@@ -190,7 +190,7 @@ def test_titles_are_made_for_languages_that_lack_seven_and_never_confirmed(
     passes(db_session, run, ports)
     assert "titles:en,de" in ports.calls
     need = next(n for n in S.needs(run) if n["kind"] == "titles_short")
-    assert "3 of 7" in need["message"]
+    assert f"3 of {ai_config.case_naming.candidates_per_language}" in need["message"]
     assert db_session.query(CaseTitleCandidate).filter_by(
         case_id=case.id, status="selected").count() == 0
     assert S.step_status(run, "titles") == "waiting"

@@ -20,7 +20,9 @@ import re
 from sqlalchemy.orm import Session
 
 from app.agents.story import build_evidence_pack
+from app.core.ai_config import ai_config
 from app.db.models import (Case, Contradiction, EditorialBlueprint, Fact, Source)
+from app.documentary.chapters import safe_beats, story_beats
 from app.documentary.visuals.spoilers import late_reveals
 from app.identity.titles import public_status, resolution_provenance
 from app.naming.normalize import norm_title
@@ -76,7 +78,7 @@ def build_context(db: Session, case: Case, *, opening_beats: int = 2) -> dict:
         if claim:
             hold_back.append(claim[:200])
             reveal_terms |= _terms(claim)
-    reveal_terms -= opening_terms
+    reveal_terms -= opening_terms | set(ai_config.case_naming.neutral_words)
 
     weak = [f["claim"][:160] for f in by_id.values()
             if f.get("uncertain") or f.get("evidence_strength") in ("weak", "unverified")][:10]
@@ -108,7 +110,24 @@ def build_context(db: Session, case: Case, *, opening_beats: int = 2) -> dict:
             "weak_or_disputed_claims": weak,
         },
         "existing_research_titles": [s.title for s in sources[:25]],
+        "opening": [b[2] for b in opening_beats_of(bp)],
+        "safe_facts": [{"claim": by_id[i]["claim"][:200]} for i in dict.fromkeys(r for b in beats if b.get("id") in {sb[0] for sb in opening_beats_of(bp)}
+                                                                              for r in [*(b.get("reveals") or []), *(b.get("relies_on") or [])]) if i in by_id][:8],
     }
+
+
+def opening_beats_of(blueprint: dict) -> list[list[str]]:
+    """The opening beats that only set the scene: what a title may be built on."""
+    return safe_beats(story_beats(blueprint))
+
+
+NAMING_VIEW = ("canonical_case_name", "known_public_names", "people", "location", "country", "incident_date", "human_core", "resolution_status", "claim_limits", "opening", "safe_facts")
+
+
+def naming_view(ctx: dict) -> dict:
+    """What the title writer sees of the case: the case's record and the opening of the story, never the investigation's later findings (the contradictions, the thesis, the central question,
+    the withheld facts): what it does not see it cannot give away. The gates and the critic still hold the withheld words and facts."""
+    return {k: ctx[k] for k in NAMING_VIEW}
 
 
 _WORD = re.compile(r"\w+", re.U)

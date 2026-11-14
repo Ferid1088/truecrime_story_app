@@ -387,10 +387,11 @@ def _story_plan_gate_off_by_default(monkeypatch):
 @pytest.fixture(autouse=True)
 def _no_title_drafting_in_pipeline_tests(monkeypatch):
     """Pipeline tests use scripted model answers; the naming stage (many
-    model calls) has its own tests."""
+    model calls) and the tags stage have their own tests."""
     from app.core.ai_config import ai_config
 
     monkeypatch.setattr(ai_config.case_naming, "generate_in_pipeline", False)
+    monkeypatch.setattr(ai_config.tags_settings(), "generate_in_pipeline", False)
 
 
 @pytest.fixture(autouse=True)

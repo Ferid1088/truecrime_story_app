@@ -1,0 +1,62 @@
+{
+  "tags": {
+    "generator_version": 1,
+    "generate_in_pipeline": true,
+    "max_chars": 500,
+    "target_tags": [10, 15],
+    "concurrency": 3,
+    "repairs": 1,
+    "running_timeout_seconds": 600,
+    "categories": [
+      {"key": "identity", "label": "Case identity and names", "needs_evidence": true, "by_model": true},
+      {"key": "search_phrases", "label": "Case-specific search phrases", "needs_evidence": true, "by_model": true},
+      {"key": "geography_history", "label": "Verified geographic and historical context", "needs_evidence": true, "by_model": true},
+      {"key": "classification", "label": "Crime type or case classification", "needs_evidence": true, "by_model": true},
+      {"key": "genre_terms", "label": "Localized True Crime terminology", "needs_evidence": false, "by_model": true},
+      {"key": "channel", "label": "Channel branding", "needs_evidence": false, "by_model": true},
+      {"key": "manual", "label": "Added by you", "needs_evidence": false, "by_model": false}
+    ],
+    "locales": {
+      "fa": {"label": "Persian (Iran)", "audience": "Iranian Persian"},
+      "en": {"label": "English", "audience": "International English"},
+      "de": {"label": "German", "audience": "Germany"},
+      "es": {"label": "Spanish", "audience": "Spain"},
+      "tr": {"label": "Turkish", "audience": "Türkiye"},
+      "fr": {"label": "French", "audience": "France"},
+      "it": {"label": "Italian", "audience": "Italy"},
+      "pt": {"label": "Brazilian Portuguese (pt-BR)", "audience": "Brazil"},
+      "ar": {"label": "Arabic", "audience": "Arabic-speaking audiences, Modern Standard Arabic"}
+    },
+    "accusation_terms": {
+      "en": ["killer", "murderer", "guilty", "convicted", "serial killer", "culprit"],
+      "fa": ["قاتل", "مجرم", "محکوم", "گناهکار"],
+      "ar": ["قاتل", "مجرم", "مدان", "مذنب"],
+      "de": ["mörder", "täter", "schuldig", "verurteilt"],
+      "es": ["asesino", "culpable", "condenado", "homicida"],
+      "fr": ["meurtrier", "assassin", "coupable", "condamné"],
+      "it": ["assassino", "colpevole", "condannato", "omicida"],
+      "pt": ["assassino", "culpado", "condenado", "homicida"],
+      "tr": ["katil", "suçlu", "mahkum", "cani"]
+    },
+    "real_claim_terms": {
+      "en": ["true crime", "real case", "real crime"],
+      "fa": ["ترو کرایم", "جنایت واقعی", "پرونده واقعی"],
+      "ar": ["جرائم حقيقية", "قضية حقيقية"],
+      "de": ["true crime", "echter fall", "wahre verbrechen"],
+      "es": ["crímenes reales", "caso real", "true crime"],
+      "fr": ["true crime", "faits divers", "affaire réelle"],
+      "it": ["true crime", "cronaca nera", "caso reale"],
+      "pt": ["crimes reais", "caso real", "true crime"],
+      "tr": ["gerçek suç", "gerçek olay", "true crime"]
+    },
+    "status_meaning": {
+      "SOLVED": "the case is resolved; the facts say how",
+      "UNSOLVED": "the case is unresolved; nobody may be named as the culprit",
+      "UNKNOWN": "the status of the case is not established",
+      "STATUS_UNDER_REVIEW": "the status of the case is not established"
+    },
+    "fact_limit": 80,
+    "claim_max_chars": 240,
+    "note": "A tag set belongs to one case and one language. `real_claim_terms` are what a tag may not say about a case marked fictional (identifier kind fictional)."
+  }
+}
