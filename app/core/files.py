@@ -37,8 +37,8 @@ def is_allowed(path: Path) -> bool:
     return any(real == r or real.is_relative_to(r) for r in allowed_roots())
 
 
-def serve(path: Path | None, media_type: str, filename: str | None = None, missing: str = "File missing"):
-    """FileResponse for a stored file, or 404. A path outside the data folders looks the same as a missing file."""
+def serve(path: Path | None, media_type: str, filename: str | None = None, missing: str = "File missing", headers: dict[str, str] | None = None):
+    """FileResponse for a stored file, or 404. A path outside the data folders looks the same as a missing file. `headers` are added to the response."""
     if path is None or not is_allowed(path) or not path.is_file():
         raise HTTPException(status_code=404, detail=missing)
-    return FileResponse(path, media_type=media_type, filename=filename)
+    return FileResponse(path, media_type=media_type, filename=filename, headers=headers)

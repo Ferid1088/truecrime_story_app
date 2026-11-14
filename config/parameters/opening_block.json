@@ -16,15 +16,28 @@
       "post_speed_extra": {
         "tr": 0.1
       },
+      "opening_post_speed": {
+        "fa": 1.3
+      },
       "stability_threshold": 0.4,
       "stability_drop": 0.2
     },
     "music": {
-      "volume": 0.45,
+      "volume": 0.72,
       "duck": 0.55,
-      "fade_out_seconds": 1.5,
-      "generated_seconds": 20,
-      "mood_fallback": "tension"
+      "fade_out_seconds": 0.3,
+      "generated_seconds": 30,
+      "tracks": 1,
+      "speed": 1.0,
+      "mood_fallback": "tension",
+      "prompt_max_chars": 450,
+      "library_target": 60,
+      "prompt": "Dark, mysterious and stressful orchestral thriller music for a true crime documentary opening: instrumental, no vocals, a low cello and double bass ostinato in a minor key, scraping percussion, sharp string stabs, cold eerie harmonics, a restless pulse that never relaxes, constant loud intensity throughout, no fade-out, no ending, cut off at full tension.",
+      "variations": {
+        "tempo": ["slow and heavy", "medium and creeping", "fast and driving", "building steadily", "restless and tight"],
+        "figure": ["repeated low notes", "broken minor chords", "alternating low octaves", "trills over a pedal note"],
+        "colour": ["dark and ominous", "cold and eerie", "uneasy and haunting", "metallic and harsh"]
+      }
     },
     "pictures": {
       "count": 2,

@@ -110,6 +110,7 @@ from app.covers.api import router as covers_router  # noqa: E402
 from app.tags.api import router as tags_router  # noqa: E402
 from app.documentary.youtube_chapters_api import router as youtube_chapters_router  # noqa: E402
 from app.documentary.youtube_description_api import router as youtube_description_router  # noqa: E402
+from app.documentary.opening_api import router as opening_router  # noqa: E402
 from app.documentary.detective.api import router as detective_router  # noqa: E402
 from app.documentary.drawing.api import router as drawing_router  # noqa: E402
 from app.documentary.monitoring import router as monitoring_router  # noqa: E402
@@ -151,6 +152,7 @@ for _router in (
     tags_router,
     youtube_chapters_router,
     youtube_description_router,
+    opening_router,
     system.router,
     costs.router,
     cost_dashboard_router,

@@ -64,14 +64,23 @@ def test_the_voice_of_the_block_is_the_languages_own_made_faster_and_less_stable
     assert OB.voice_settings_for(language)["stability"] == stability
 
 
+def test_the_openings_own_speed_is_faster_only_for_the_language_that_has_one_and_the_clips_keep_the_shared_rule():
+    assert OB.opening_post_speed("fa") == 1.3 and OB.post_speed_for("fa") == 1.2
+    assert all(OB.opening_post_speed(lang) == OB.post_speed_for(lang) for lang in ("en", "de", "ar", "es", "it", "fr", "pt", "tr"))
+
+
 def test_a_stability_below_the_threshold_is_kept():
     own = ai_config.voice.settings_for("v3_neutral", "fa")["stability"]
     assert own < ai_config.opening_block_settings().voice.stability_threshold and OB.voice_settings_for("fa")["stability"] == own
 
 
-def test_the_music_prompt_is_instrumental_and_has_a_fallback():
-    assert "no vocals" in OB.music_prompt({"music": {"prompt": "slow cello drone"}}) and "slow cello drone" in OB.music_prompt({"music": {"prompt": "slow cello drone"}})
-    assert ai_config.opening_block_settings().music.mood_fallback in OB.music_prompt({})
+def test_the_music_brief_is_stressful_mysterious_thriller_instrumental_and_makes_enough_different_tracks_within_the_providers_limit():
+    music = ai_config.opening_block_settings().music
+    total = 1
+    for options in music.variations.values():
+        total *= len(options)
+    assert "thriller" in music.prompt and "no vocals" in music.prompt and "stressful" in music.prompt and "mysterious" in music.prompt and total >= music.library_target == 60
+    assert len(music.prompt) + 13 + sum(max(len(o) for o in v) for v in music.variations.values()) + 2 * len(music.variations) <= music.prompt_max_chars
 
 
 SCENES = ["A suburban brick house at night in fresh snow, its garage door standing wide open and spilling a narrow beam of warm light across the dark driveway.",

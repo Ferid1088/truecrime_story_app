@@ -3537,19 +3537,41 @@ class OpeningVoiceConfig(BaseModel):
     post_speed_factor: float = Field(gt=0.0)
     post_speed_max: float = Field(gt=0.0)
     post_speed_extra: dict[str, float] = Field(default_factory=dict)
+    # the local speed of the opening's own voice for a language, instead of the shared rule above (the short clips follow the shared rule, not this)
+    opening_post_speed: dict[str, float] = Field(default_factory=dict)
     stability_threshold: float = Field(ge=0.0, le=1.0)
     stability_drop: float = Field(ge=0.0, le=1.0)
 
 
 class OpeningMusicConfig(BaseModel):
     """The music of the opening block starts directly after the first statement (the hook). `volume` is its level under the voice, `duck` how much it gives way
-    while the voice speaks, `fade_out_seconds` its end before the dark gap; `generated_seconds` is the length of the track that is generated for it."""
+    while the voice speaks, `tracks` how many different music tracks (one after the other) the opening has, `speed` how fast they are played, `fade_out_seconds` the end of each entry. Every case gets one stressful, mysterious thriller track (`prompt`, with a different sound
+    variation each time, `generated_seconds` long) that all its languages hear; a new track is made for each case until the library holds `library_target` of them,
+    after that one of them is taken at random. The whole text sent to the music provider is at most `prompt_max_chars` characters."""
 
     volume: float = Field(gt=0.0, le=1.0)
     duck: float = Field(ge=0.0, le=1.0)
     fade_out_seconds: float = Field(ge=0.0)
     generated_seconds: float = Field(gt=0.0)
+    speed: float = Field(ge=0.5, le=2.0)            # the playing speed of the music (0.5 = half speed, same pitch)
+    tracks: int = Field(ge=1)                       # how many different music tracks one opening has: each plays for an equal part of the time the voice speaks
     mood_fallback: str
+    prompt_max_chars: int = Field(default=450, ge=50)
+    library_target: int = Field(ge=1)
+    prompt: str
+    variations: dict[str, list[str]]
+
+    @model_validator(mode="after")
+    def _enough_and_short(self) -> "OpeningMusicConfig":
+        total = 1
+        for options in self.variations.values():
+            total *= len(options)
+        if not self.variations or total < self.library_target:
+            raise ValueError(f"the variations make {total} different tracks, fewer than the library target {self.library_target}")
+        longest = len(self.prompt) + len(" This track: ") + sum(max(len(o) for o in options) for options in self.variations.values()) + 2 * len(self.variations)
+        if longest > self.prompt_max_chars:
+            raise ValueError(f"the longest music prompt has {longest} characters; the provider takes {self.prompt_max_chars}")
+        return self
 
 
 class OpeningPicturesConfig(BaseModel):

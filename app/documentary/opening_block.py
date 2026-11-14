@@ -152,6 +152,12 @@ def post_speed_for(language: str, cfg: OpeningBlockConfig | None = None) -> floa
     return round(min(base * cfg.voice.post_speed_factor + cfg.voice.post_speed_extra.get(language, 0.0), cfg.voice.post_speed_max), 3)
 
 
+def opening_post_speed(language: str, cfg: OpeningBlockConfig | None = None) -> float:
+    """The local speed of the opening block's own voice: the language's entry in `voice.opening_post_speed` when it has one, else the shared rule (`post_speed_for`, which the short clips use)."""
+    cfg = cfg or ai_config.opening_block_settings()
+    return cfg.voice.opening_post_speed.get(language) or post_speed_for(language, cfg)
+
+
 def voice_settings_for(language: str, cfg: OpeningBlockConfig | None = None) -> dict:
     """The ElevenLabs settings of the opening's voice: the language's own style, with the stability `stability_drop` lower when it is `stability_threshold` or more."""
     cfg = cfg or ai_config.opening_block_settings()
@@ -159,14 +165,6 @@ def voice_settings_for(language: str, cfg: OpeningBlockConfig | None = None) -> 
     if settings["stability"] >= cfg.voice.stability_threshold:
         settings["stability"] = round(settings["stability"] - cfg.voice.stability_drop, 2)
     return settings
-
-
-def music_prompt(opening: dict, cfg: OpeningBlockConfig | None = None) -> str:
-    """The text the music is generated from: the director's brief, instrumental and without a melody that competes with the voice."""
-    cfg = cfg or ai_config.opening_block_settings()
-    brief = (opening.get("music") or {}).get("prompt") or ""
-    base = brief.strip() or f"{cfg.music.mood_fallback}, slow, dark, restrained"
-    return f"Instrumental film score for a true crime documentary opening, no vocals, no drums that compete with a speaking voice: {base}"
 
 
 def latest_opening(db: Session, case_id: int, language: str, story_version_id: int | None = None) -> FilmOpening | None:

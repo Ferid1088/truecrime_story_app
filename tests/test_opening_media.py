@@ -37,7 +37,7 @@ def test_the_music_begins_after_the_hook_and_the_gap_is_dark_and_silent(tmp_path
     hook, context, music = tone(tmp_path / "h.wav", 5000, 2.0), tone(tmp_path / "c.wav", 6000, 4.0), tone(tmp_path / "m.wav", 200, 12.0, 0.5)
     cfg = ai_config.opening_block_settings()
     out = tmp_path / "opening.wav"
-    timings = OM.assemble(hook, context, music, 2.0, 4.0, out, cfg)
+    timings = OM.assemble(hook, context, [music], 2.0, 4.0, out, cfg)
     assert timings["context"] == [2.0 + cfg.hook_pause_seconds, 6.0 + cfg.hook_pause_seconds]
     assert timings["gap"][1] - timings["gap"][0] == cfg.gap_seconds and timings["seconds"] == pytest.approx(timings["total"], abs=0.1)
     assert level_db(out, 0.1, 1.5, lowpass=400) < -50                       # no music under the first statement
@@ -48,7 +48,7 @@ def test_the_music_begins_after_the_hook_and_the_gap_is_dark_and_silent(tmp_path
 def test_without_music_only_the_voice_and_the_gap_are_made(tmp_path):
     hook, context = tone(tmp_path / "h.wav", 5000, 1.5), tone(tmp_path / "c.wav", 6000, 3.0)
     out = tmp_path / "opening.wav"
-    timings = OM.assemble(hook, context, None, 1.5, 3.0, out)
+    timings = OM.assemble(hook, context, [], 1.5, 3.0, out)
     assert timings["music"] is None and level_db(out, 1.6, 0.8, lowpass=400) < -50
     assert level_db(out, timings["gap"][0] + 0.2, 1.5) < -50
 
@@ -66,16 +66,18 @@ class FakeRenderer:
 
 class FakeLibrary:
     def __init__(self, tmp_path):
-        self.dir, self.made = tmp_path / "library", []
+        self.dir, self.made, self.lengths = tmp_path / "library", [], []
 
     async def _generate(self, prompt, seconds, loop, path):
         self.dir.mkdir(exist_ok=True)
         tone(path, 200, seconds, 0.5)
         self.made.append(prompt)
+        self.lengths.append(seconds)
         return 77
 
 
-def test_a_row_is_voiced_in_its_language_with_one_music_for_the_film(db_session, tmp_path, monkeypatch):
+def test_a_row_is_voiced_in_its_language_with_the_same_music_for_the_film(db_session, tmp_path, monkeypatch):
+    monkeypatch.setattr(ai_config.opening_block_settings().music, "tracks", 3)
     monkeypatch.setattr(storage, "cases_root", lambda: tmp_path / "cases")
     case, master_version, _ = _plan_story(db_session)
     opening = {"hook": "Someone locked the door.", "context": "A lantern in the hall. Nobody explains it.", "music": {"mood": "tension", "prompt": "slow cello drone"}}
@@ -87,15 +89,16 @@ def test_a_row_is_voiced_in_its_language_with_one_music_for_the_film(db_session,
     renderer, library = FakeRenderer(tmp_path), FakeLibrary(tmp_path)
     media_en = asyncio.run(OM.make_media(db_session, case.id, en, en, renderer, library))
     media_fa = asyncio.run(OM.make_media(db_session, case.id, fa, en, renderer, library))
-    assert len(library.made) == 1 and "slow cello drone" in library.made[0] and media_fa["music"]["path"] == media_en["music"]["path"]
+    assert len(library.made) == 3 == len(media_en["music"]["tracks"]) and all("orchestral thriller music" in p for p in library.made) and media_fa["music"] == media_en["music"]
+    assert len({t["track_id"] for t in media_fa["music"]["tracks"]}) == 3
     fa_hook = next(c for c in renderer.calls if c[1] == "fa")
     assert fa_hook[2]["stability"] == OB.voice_settings_for("fa")["stability"]
-    assert media_fa["hook"]["post_speed"] == OB.post_speed_for("fa") == 1.2
+    assert media_fa["hook"]["post_speed"] == OB.opening_post_speed("fa") == 1.3
     audio = storage.resolve(media_fa["audio"]["path"])
     assert audio.exists() and media_fa["audio"]["seconds"] > media_fa["audio"]["hook"][1] + media_fa["audio"]["gap"][1] - media_fa["audio"]["gap"][0]
     assert json.loads(fa.media_json)["audio"]["sha256"] == media_fa["audio"]["sha256"]
-    booked = db_session.query(ProviderCall).filter(ProviderCall.request_id.like("music_opening:%"), ProviderCall.case_id == case.id).all()
-    assert len(booked) == 1 and booked[0].case_id == case.id
+    booked = db_session.query(ProviderCall).filter(ProviderCall.request_id.like("music_opening:%")).all()
+    assert len(booked) == 3 and {b.case_id for b in booked} == {case.id}
 
 
 def test_a_saved_voice_is_not_paid_for_again(db_session, tmp_path, monkeypatch):
@@ -130,3 +133,29 @@ def test_the_pictures_are_painted_once_for_the_film_and_every_language_shows_the
     media_en = asyncio.run(OM.make_media(db_session, case.id, en, en, renderer, library))
     media_fa = asyncio.run(OM.make_media(db_session, case.id, fa, en, renderer, library))
     assert media_en["pictures"] == media_fa["pictures"] == made and json.loads(fa.media_json)["pictures"] == made
+
+
+def test_the_opening_music_is_three_different_tracks_one_after_the_other(tmp_path, monkeypatch):
+    cfg = ai_config.opening_block_settings()
+    monkeypatch.setattr(cfg.music, "tracks", 3)
+    tracks = [tmp_path / f"m{i}.wav" for i in range(cfg.music.tracks)]
+    cmd, timings = OM.assemble_command(tmp_path / "h.mp3", tmp_path / "c.mp3", tracks, 3.0, 12.0, tmp_path / "o.wav", cfg)
+    graph = cmd[cmd.index("-filter_complex") + 1]
+    assert cfg.music.tracks == 3 and [str(t) for t in tracks] == [cmd[i + 1] for i, a in enumerate(cmd) if a == "-i"][2:]
+    assert graph.count("atrim=0:") == 3 and "[2:a]" in graph and "[4:a]" in graph and "concat=n=3:v=0:a=1,adelay=3000" in graph
+    assert timings["music"] == [3.0, 16.5]
+
+
+def test_the_opening_music_is_played_at_the_configured_speed(tmp_path, monkeypatch):
+    cfg = ai_config.opening_block_settings()
+    monkeypatch.setattr(cfg.music, "speed", 0.5)
+    cmd, _ = OM.assemble_command(tmp_path / "h.mp3", tmp_path / "c.mp3", [tmp_path / "m.wav"], 3.0, 12.0, tmp_path / "o.wav", cfg)
+    graph = cmd[cmd.index("-filter_complex") + 1]
+    assert cfg.music.tracks == 1 and "[2:a]" in graph and f"atempo={cfg.music.speed},atrim=0:" in graph
+
+
+def test_music_at_normal_speed_has_no_tempo_filter(tmp_path, monkeypatch):
+    cfg = ai_config.opening_block_settings()
+    monkeypatch.setattr(cfg.music, "speed", 1.0)
+    cmd, _ = OM.assemble_command(tmp_path / "h.mp3", tmp_path / "c.mp3", [tmp_path / "m.wav"], 3.0, 12.0, tmp_path / "o.wav", cfg)
+    assert "atempo" not in cmd[cmd.index("-filter_complex") + 1]

@@ -54,13 +54,13 @@ def _sha(*parts: object) -> str:
 
 
 async def voice_part(db: Session, case_id: int, language: str, part: str, text: str, renderer: VoiceRenderer | None = None, *, folder: Path | None = None,
-                     block_id: str | None = None) -> dict:
-    """The voice of one part (hook or context; the short clips use it for their parts with their own `folder` and `block_id`): the text spoken in the language's
-    voice at the block's settings and local speed. Reused when the saved file was made from the same text, voice and settings."""
+                     block_id: str | None = None, tempo: float | None = None) -> dict:
+    """The voice of one part (hook or context; the short clips use it for their parts with their own `folder`, `block_id` and `tempo`): the text spoken in the language's
+    voice at the block's settings and local speed (the opening's own unless a `tempo` is given). Reused when the saved file was made from the same text, voice and settings."""
     vcfg = ai_config.voice.languages.get(language)
     if vcfg is None:
         raise OpeningMediaError(f"no voice configured for {language}")
-    settings, tempo = OB.voice_settings_for(language), OB.post_speed_for(language)
+    settings, tempo = OB.voice_settings_for(language), tempo or OB.opening_post_speed(language)
     d = folder or opening_dir(case_id, language)
     stem = block_id or part
     key = _sha(text, vcfg.voice_id, vcfg.model_id, settings, tempo)[:16]
@@ -74,7 +74,7 @@ async def voice_part(db: Session, case_id: int, language: str, part: str, text: 
              "sentences": [{"speech": s, "display": s, "tts": s, "level": None} for s in sentences]}
     result = await renderer.speak_block(block, language, vcfg, settings, ai_config.voice.seed, d / "takes")
     take = result["take"]
-    return {**store_voice(case_id, language, part, text, Path(take["raw_path"]), take["alignment"], take, folder=folder, stem=stem), "reused": False}
+    return {**store_voice(case_id, language, part, text, Path(take["raw_path"]), take["alignment"], take, folder=folder, stem=stem, tempo=tempo), "reused": False}
 
 
 def word_times(alignment: dict) -> list[list]:
@@ -95,10 +95,10 @@ def word_times(alignment: dict) -> list[list]:
 
 
 def store_voice(case_id: int, language: str, part: str, text: str, raw: Path, alignment: dict, take: dict, *, folder: Path | None = None,
-                stem: str | None = None) -> dict:
-    """A take as the part's voice: at the block's local speed, saved with a sidecar (the file the film's audio is made from)."""
+                stem: str | None = None, tempo: float | None = None) -> dict:
+    """A take as the part's voice: at the block's local speed (the opening's own unless a `tempo` is given), saved with a sidecar (the file the film's audio is made from)."""
     vcfg = ai_config.voice.languages[language]
-    settings, tempo = OB.voice_settings_for(language), OB.post_speed_for(language)
+    settings, tempo = OB.voice_settings_for(language), tempo or OB.opening_post_speed(language)
     d = folder or opening_dir(case_id, language)
     key = _sha(text, vcfg.voice_id, vcfg.model_id, settings, tempo)[:16]
     name = stem or part
@@ -115,9 +115,9 @@ def reassemble(db: Session, row: FilmOpening) -> dict:
     """The block's audio made again from the parts the row has now (after a part's voice was replaced in the review); returns the new audio record."""
     media = json.loads(row.media_json or "{}")
     cfg = ai_config.opening_block_settings()
-    hook, context, music = media["hook"], media["context"], media.get("music")
-    out = opening_dir(row.case_id, row.language) / f"opening_{_sha(_name(hook['path']), _name(context['path']), _name(music['path']) if music else None, cfg.model_dump())[:12]}.wav"
-    timings = assemble(storage.resolve(hook["path"]), storage.resolve(context["path"]), storage.resolve(music["path"]) if music else None,
+    hook, context, music = media["hook"], media["context"], (media.get("music") or {}).get("tracks") or []
+    out = opening_dir(row.case_id, row.language) / f"opening_{_sha(_name(hook['path']), _name(context['path']), *(_name(t["path"]) for t in music), cfg.model_dump())[:12]}.wav"
+    timings = assemble(storage.resolve(hook["path"]), storage.resolve(context["path"]), [storage.resolve(t["path"]) for t in music],
                        hook["seconds"], context["seconds"], out, cfg)
     media["audio"] = {"path": storage.rel(out), "sha256": hashlib.sha256(out.read_bytes()).hexdigest(), **timings}
     row.media_json = json.dumps(media, ensure_ascii=False)
@@ -125,22 +125,14 @@ def reassemble(db: Session, row: FilmOpening) -> dict:
     return media["audio"]
 
 
-async def ensure_music(db: Session, case_id: int, master: dict, library: MusicLibrary | None = None) -> dict:
-    """The opening's music, generated once for the film from the director's brief (every language of the film hears the same music) and booked in
-    the ledger as an estimate. Reused when the file of this brief exists."""
-    cfg = ai_config.opening_block_settings()
-    prompt = OB.music_prompt(master, cfg)
-    library = library or MusicLibrary()
-    key = _sha(prompt, cfg.music.generated_seconds)[:12]
-    path = library.dir / f"opening_{key}.wav"
-    paid = 0
-    async with _music_lock(key):      # the languages of a film run side by side: the music is paid for once
-        if not path.exists():
-            paid = await library._generate(prompt, cfg.music.generated_seconds, False, path)
-            from app.documentary.music_cost import book_opening
+async def ensure_music(db: Session, case_id: int, library: MusicLibrary | None = None) -> dict:
+    """The opening's music: the case's different piano tracks, one for each entry (one set for all its languages: missing ones are made while the library is below its
+    target, booked in the ledger as an estimate, else taken at random; see documentary/opening_music.py). The languages of a film run side by side, so the choice is made one at a time."""
+    from app.documentary.opening_music import OpeningMusic
 
-            book_opening(db, case_id, key, cfg.music.generated_seconds)
-    return {"path": storage.rel(path), "prompt": prompt, "seconds": cfg.music.generated_seconds, "characters_paid": paid}
+    async with _music_lock("opening-library"):
+        tracks = await OpeningMusic(db, library).choose(case_id)
+    return {"tracks": [{"path": t.file_path, "track_id": t.id, "code": t.track_code, "prompt": t.prompt, "seconds": t.seconds} for t in tracks]}
 
 
 def pictures_prompt(scene: str) -> str:
@@ -177,10 +169,10 @@ async def ensure_pictures(db: Session, case_id: int, master: FilmOpening, provid
         return made
 
 
-def assemble_command(hook: Path, context: Path, music: Path | None, hook_seconds: float, context_seconds: float, out: Path,
+def assemble_command(hook: Path, context: Path, music: list[Path], hook_seconds: float, context_seconds: float, out: Path,
                      cfg: OpeningBlockConfig | None = None, sample_rate: int | None = None) -> tuple[list[str], dict]:
     """ffmpeg command and timings of the block's audio: the hook, the pause, the context text and the dark gap; the music starts when the hook ends, gives
-    way under the voice and has faded out when the context text ends."""
+    way under the voice and has faded out when the context text ends; the music is `music.tracks` different tracks, each played from its beginning at `music.speed` for an equal part of that time."""
     cfg = cfg or ai_config.opening_block_settings()
     ff = ffmpeg_bin()
     if not ff:
@@ -197,11 +189,14 @@ def assemble_command(hook: Path, context: Path, music: Path | None, hook_seconds
     cmd = [ff, "-y", "-v", "error", "-i", str(hook), "-i", str(context)]
     if music:
         music_len = speech_end - hook_seconds
-        fade = min(cfg.music.fade_out_seconds, music_len / 2)
+        part = music_len / len(music)
+        fade = min(cfg.music.fade_out_seconds, part / 3)
         ratio = round(1.0 / max(1.0 - cfg.music.duck, 0.05), 2)
-        cmd += ["-i", str(music)]
-        graph += [f"[2:a]{fmt},atrim=0:{music_len:.3f},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.8,afade=t=out:st={music_len - fade:.3f}:d={fade:.3f},"
-                  f"adelay={int(hook_seconds * 1000)}:all=1,apad=whole_dur={total:.3f},volume={cfg.music.volume}[m]",
+        for track in music:
+            cmd += ["-i", str(track)]
+        slow = f"atempo={cfg.music.speed}," if cfg.music.speed != 1.0 else ""
+        graph += [f"[{2 + i}:a]{fmt},{slow}atrim=0:{part:.3f},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.5,afade=t=out:st={part - fade:.3f}:d={fade:.3f}[p{i}]" for i in range(len(music))]
+        graph += ["".join(f"[p{i}]" for i in range(len(music))) + f"concat=n={len(music)}:v=0:a=1,adelay={int(hook_seconds * 1000)}:all=1,apad=whole_dur={total:.3f},volume={cfg.music.volume}[m]",
                   "[voice]asplit=2[v1][v2]", f"[m][v1]sidechaincompress=threshold=0.02:ratio={ratio}:attack=20:release=400[md]",
                   "[v2][md]amix=inputs=2:normalize=0:duration=longest,alimiter=limit=0.95[a]"]
     else:
@@ -209,7 +204,7 @@ def assemble_command(hook: Path, context: Path, music: Path | None, hook_seconds
     return cmd + ["-filter_complex", ";".join(graph), "-map", "[a]", "-t", f"{total:.3f}", str(out)], timings
 
 
-def assemble(hook: Path, context: Path, music: Path | None, hook_seconds: float, context_seconds: float, out: Path,
+def assemble(hook: Path, context: Path, music: list[Path], hook_seconds: float, context_seconds: float, out: Path,
              cfg: OpeningBlockConfig | None = None) -> dict:
     out.parent.mkdir(parents=True, exist_ok=True)
     cmd, timings = assemble_command(hook, context, music, hook_seconds, context_seconds, out, cfg)
@@ -229,14 +224,13 @@ async def make_media(db: Session, case_id: int, row: FilmOpening, master: FilmOp
                      library: MusicLibrary | None = None) -> dict:
     """Voice, music and the assembled audio of one opening row (the English row is its own master; a native row hears the film's music). The result is kept in the row's media_json."""
     opening = json.loads(row.opening_json or "{}")
-    master_opening = json.loads(master.opening_json or "{}")
     cfg = ai_config.opening_block_settings()
     hook = await voice_part(db, case_id, row.language, "hook", opening["hook"], renderer)
     context = await voice_part(db, case_id, row.language, "context", opening["context"], renderer)
-    music = await ensure_music(db, case_id, master_opening, library)
-    out = opening_dir(case_id, row.language) / f"opening_{_sha(_name(hook['path']), _name(context['path']), _name(music['path']), cfg.model_dump())[:12]}.wav"
+    music = await ensure_music(db, case_id, library)
+    out = opening_dir(case_id, row.language) / f"opening_{_sha(_name(hook['path']), _name(context['path']), *(_name(t["path"]) for t in music["tracks"]), cfg.model_dump())[:12]}.wav"
     timings = await asyncio.to_thread(
-        assemble, storage.resolve(hook["path"]), storage.resolve(context["path"]), storage.resolve(music["path"]) if music else None,
+        assemble, storage.resolve(hook["path"]), storage.resolve(context["path"]), [storage.resolve(t["path"]) for t in music["tracks"]],
         hook["seconds"], context["seconds"], out, cfg)
     pictures = json.loads(master.media_json or "{}").get("pictures") or []
     media = {"hook": hook, "context": context, "music": music, "pictures": pictures, "audio": {"path": storage.rel(out), "sha256": hashlib.sha256(out.read_bytes()).hexdigest(), **timings}}

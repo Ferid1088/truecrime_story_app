@@ -3797,6 +3797,27 @@ export interface CoversOverview {
   safe_zones: string;
 }
 
+export interface FilmOpeningView {
+  language: string;
+  kind: "master" | "native";
+  status: string;
+  version: number;
+  created_at: string | null;
+  hook: string;
+  context: string;
+  music: { mood?: string; prompt?: string };
+  model: string | null;
+  candidates: { text: string; kind: string; why: string; chosen: boolean }[];
+  scenes: { text: string; picture_url: string | null }[];
+  audio: { url: string; seconds: number | null; hook: [number, number] | null; context: [number, number] | null } | null;
+  issues: { type: string; fix?: string; quote?: string }[];
+}
+
+export interface OpeningsOverview {
+  case_id: number;
+  languages: FilmOpeningView[];
+}
+
 export interface DescriptionIssue {
   type: string;
   severity: "error" | "warning";

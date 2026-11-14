@@ -1,6 +1,6 @@
 """The hand review of the film's opening block (review kind "opening"): the same review as the host's (blocks with text and voice, corrections, takes ticked, replace
 in all blocks), the blocks being the two parts of the block, the hook and the context text. A ticked take becomes the part's voice at once, its corrected words the
-part's words, and the block's audio is made again from the parts (the film is built from it later). There is nothing to assemble and nothing to approve here.
+part's words, and the block's audio is made again from the parts (the film is built from it later). There is nothing to assemble; the owner approves the opening when he has listened to both parts (the review's status becomes "approved"), and any change reopens it.
 Only for the languages in `voice.opening_review_languages`."""
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def allowed(language: str) -> bool:
 
 
 def post_speed(language: str) -> float:
-    return OB.post_speed_for(language)
+    return OB.opening_post_speed(language)
 
 
 def block_id(part: str) -> str:
@@ -77,7 +77,7 @@ def required(language: str, settings: dict) -> float:
     wrong = {k: (settings.get(k), want[k]) for k in ("stability", "speed") if settings.get(k) != want[k]}
     if wrong:
         raise S.ReviewError("the opening is not voiced: its settings are not the opening's (" + ", ".join(f"{k} {a} instead of {b}" for k, (a, b) in wrong.items()) + ")")
-    return OB.post_speed_for(language)
+    return OB.opening_post_speed(language)
 
 
 def parts_of(db: Session, version: StoryVersion) -> list[tuple[str, dict]]:

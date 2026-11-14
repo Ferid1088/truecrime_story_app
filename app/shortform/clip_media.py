@@ -18,6 +18,7 @@ from app.core.ai_config import ai_config
 from app.core.media_tools import ffmpeg_bin
 from app.covers import avatar as AV
 from app.db.models import Case, ShortClip
+from app.documentary import opening_block as OB
 from app.documentary import opening_media as OM
 from app.documentary import storage
 from app.documentary.voice_render import VoiceRenderer
@@ -46,7 +47,7 @@ async def voice_clip(db: Session, row: ShortClip, renderer: VoiceRenderer | None
     folder = clip_dir(row.case_id, row.language)
     voice = {}
     for part in PARTS:
-        voice[part] = await OM.voice_part(db, row.case_id, row.language, part, script[part], renderer, folder=folder, block_id=block_id(row.clip_key, part))
+        voice[part] = await OM.voice_part(db, row.case_id, row.language, part, script[part], renderer, folder=folder, block_id=block_id(row.clip_key, part), tempo=OB.post_speed_for(row.language))
     media = json.loads(row.media_json or "{}")
     if stale := OM.stale_voices({p: script[p] for p in PARTS}, voice):
         raise OM.OpeningMediaError(f"the voice of {', '.join(stale)} was not made from the clip's text")

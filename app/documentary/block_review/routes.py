@@ -128,7 +128,7 @@ def build_router(base: str, kind: str, adapter: ModuleType, parts, finishable: b
         path = adapter.audio_path(db, block, take) if take else None
         if path is None or not path.exists():
             raise HTTPException(status_code=404, detail="Take not found")
-        return serve_file(path, "audio/mpeg")
+        return serve_file(path, "audio/mpeg", headers={"Cache-Control": "no-cache"})          # the file of a take can be made again (another speed): ask the server every time
 
     if finishable:
         @router.post(f"{root}/finish")

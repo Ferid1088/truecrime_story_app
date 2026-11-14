@@ -454,3 +454,24 @@ def four_host_appearances(monkeypatch):
     monkeypatch.setattr(ai_config.host, "max_appearances", 4)
     monkeypatch.setattr(ai_config.host, "short_film_min_appearances", 4)
     monkeypatch.setattr(ai_config.host, "mid_roles", [])
+
+
+@pytest.fixture(autouse=True)
+def _clean_opening_music(request):
+    """The opening tests make music tracks and book them (once per track code): start and end without those rows, so that no test sees another one's tracks or bookings."""
+    if not request.node.fspath.basename.startswith("test_opening"):
+        yield
+        return
+    from app.db.models import OpeningMusicTrack, ProviderCall
+
+    db_session = request.getfixturevalue("db_session")
+
+    def wipe():
+        db_session.rollback()
+        db_session.query(OpeningMusicTrack).delete()
+        db_session.query(ProviderCall).filter(ProviderCall.request_id.like("music_opening:openingbed_%")).delete(synchronize_session=False)
+        db_session.commit()
+
+    wipe()
+    yield
+    wipe()

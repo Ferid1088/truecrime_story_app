@@ -200,15 +200,14 @@ def test_finishing_is_refused_while_a_corrected_block_is_not_voiced(clips):
     assert client.get(base).json()["approved"] is False
 
 
-def test_the_host_and_opening_reviews_have_no_finish_route(clips):
+def test_the_host_review_has_no_finish_route(clips):
     from fastapi.testclient import TestClient
 
     from app.main import app
 
     db, version, _ = clips
     client = TestClient(app)
-    for base in ("host-voice-review", "opening-voice-review"):
-        assert client.post(f"/api/documentary/versions/{version.id}/{base}/finish").status_code in (404, 405)
+    assert client.post(f"/api/documentary/versions/{version.id}/host-voice-review/finish").status_code in (404, 405)
 
 
 def test_the_short_clips_view_lists_each_language_with_parts_voice_state_and_video(clips, tmp_path):

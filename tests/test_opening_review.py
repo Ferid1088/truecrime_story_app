@@ -90,7 +90,7 @@ def test_a_correction_sent_becomes_the_parts_voice_and_words_and_the_audio_is_ma
     assert take.take_no == 2 and [(t.take_no, t.active) for t in S.takes_of(db, block)] == [(1, False), (2, True)]
     assert opening_json["hook"] == "یه نفر اومده تو خونه‌م و زنمو با گلوله کشته." and opening_json["context"] == CONTEXT
     assert media["hook"]["reviewed"] and media["hook"]["path"] != before["hook"]["path"] and media["audio"]["sha256"] != before["audio"]["sha256"]
-    assert media["hook"]["post_speed"] == OB.post_speed_for("fa") == 1.2
+    assert media["hook"]["post_speed"] == OB.opening_post_speed("fa") == 1.3
     assert (voice.requests[-1].settings["stability"], voice.requests[-1].settings["speed"]) == (OB.voice_settings_for("fa")["stability"], OB.voice_settings_for("fa")["speed"])
     assert OT.opening_item(db, row.case_id, "fa")["text"]["hook"] == opening_json["hook"], "the film takes the corrected block"
 
@@ -126,7 +126,7 @@ def test_a_take_is_refused_when_its_settings_are_not_the_openings(opening):
     assert len(voice.requests) == paid
 
 
-def test_the_routes_review_the_opening_and_there_is_no_route_to_assemble_or_approve(opening):
+def test_the_routes_review_the_opening_and_there_is_no_route_to_assemble_the_narration(opening):
     from fastapi.testclient import TestClient
 
     from app.main import app
@@ -137,7 +137,7 @@ def test_the_routes_review_the_opening_and_there_is_no_route_to_assemble_or_appr
     assert client.get(base).json() == {"exists": False, "kind": "opening", "version_id": version.id, "can_open": True}
     opened = client.post(f"{base}/open").json()
     assert opened["kind"] == "opening" and [b["block_id"] for b in opened["blocks"]] == ["opening_hook", "opening_context"]
-    assert opened["blocks"][0]["takes"][0]["voice"]["post_speed"] == 1.2, "the review shows the opening's speed, not the narration's"
+    assert opened["blocks"][0]["takes"][0]["voice"]["post_speed"] == 1.3, "the review shows the opening's speed, not the narration's"
     for path in ("approve", "assemble", "assembled-audio"):
         assert client.request("POST" if path != "assembled-audio" else "GET", f"{base}/{path}").status_code in (404, 405)
     assert client.get(f"{base}/blocks/opening_hook/takes/1/audio").headers["content-type"] == "audio/mpeg"
@@ -151,3 +151,37 @@ def test_a_review_of_an_older_opening_that_nobody_corrected_is_replaced(opening)
     db.add(newer)
     db.commit()
     assert OR.current_review(db, version) is None, "the newest opening has no voice yet: the old review is not shown"
+
+
+def test_the_owner_approves_the_opening_and_any_change_reopens_the_review(opening):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    db, version, _, _ = opening
+    client = TestClient(app)
+    base = f"/api/documentary/versions/{version.id}/opening-voice-review"
+    assert client.post(f"{base}/finish").status_code == 409                       # nothing to approve before the review is open
+    client.post(f"{base}/open")
+    opened = client.get(base).json()
+    assert opened["approved"] is False and opened["status"] == "open"
+    done = client.post(f"{base}/finish").json()
+    assert done["approved"] is True and done["status"] == "approved" and client.get(base).json()["approved"] is True
+    assert client.put(f"{base}/blocks/opening_hook", json={"text": "یه نفر اومده تو خونه‌م و زنمو کشته.", "words": []}).status_code == 200
+    assert client.get(base).json()["approved"] is False                           # a change takes the approval away
+    assert client.post(f"{base}/finish").status_code == 409                       # the corrected block is not voiced yet: send it first
+    assert client.post(f"{base}/reopen").json()["approved"] is False
+
+
+def test_approving_the_opening_is_refused_while_a_corrected_part_is_not_voiced(opening):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    db, version, _, _ = opening
+    client = TestClient(app)
+    base = f"/api/documentary/versions/{version.id}/opening-voice-review"
+    client.post(f"{base}/open")
+    client.put(f"{base}/blocks/opening_context", json={"text": "متن اصلاح‌شده.", "words": []})
+    refused = client.post(f"{base}/finish")
+    assert refused.status_code == 409 and "not voiced yet" in refused.json()["detail"] and client.get(base).json()["approved"] is False

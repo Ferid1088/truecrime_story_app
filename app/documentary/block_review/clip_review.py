@@ -163,7 +163,7 @@ def apply(db: Session, block: VoiceBlock, take: VoiceBlockTake) -> None:
     text = HR.display_text(take.text_sent)
     voice = OM.store_voice(row.case_id, row.language, part, text, stem.with_suffix(".mp3"), meta["alignment"],
                            {"text": take.text_sent, "request_id": meta.get("request_id"), "character_cost": meta.get("character_cost")},
-                           folder=CM.clip_dir(row.case_id, row.language), stem=block.block_id)
+                           folder=CM.clip_dir(row.case_id, row.language), stem=block.block_id, tempo=OB.post_speed_for(row.language))
     media = json.loads(row.media_json)
     media["voice"][part] = {**voice, "reviewed": True, "take_no": take.take_no}
     media["voice_seconds"] = round(sum(v["seconds"] for v in media["voice"].values()), 3)
