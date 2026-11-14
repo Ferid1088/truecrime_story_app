@@ -570,7 +570,7 @@ class VideoRenderer:
         self.fps = cfg.fps
 
     def render(self, script: dict, out_path: Path, max_seconds: float | None = None,
-               progress=None) -> dict:
+               progress=None, burn_subtitles: bool | None = None) -> dict:
         W, H, fps = self.W, self.H, self.fps
         duration = script["duration"]
         if max_seconds:
@@ -625,7 +625,7 @@ class VideoRenderer:
             "-c:s", "mov_text", "-metadata:s:s:0", f"language={iso3}",
             "-t", f"{duration + pre:.3f}", "-movflags", "+faststart", str(part),
         ]
-        overlays = Overlays(script, W, H, cfg.burn_subtitles)
+        overlays = Overlays(script, W, H, cfg.burn_subtitles if burn_subtitles is None else burn_subtitles)
         logo = LogoBug(script, W, H)
         watermark = Watermark(script, W, H)
         drawing = DrawingLayer(script, W, H)

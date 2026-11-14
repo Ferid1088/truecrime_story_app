@@ -574,7 +574,8 @@
     "crf": 20,
     "preset": "veryfast",
     "subtitle_language_codes": {"en": "eng", "de": "ger", "fa": "per", "ar": "ara", "es": "spa", "it": "ita", "fr": "fre", "pt": "por", "tr": "tur"},
-    "burn_subtitles": false,
+    "burn_subtitles": true,
+    "burn_subtitles_except_cases": [15],
     "subtitle_max_chars": 42,
     "subtitle_max_seconds": 6.0
   },

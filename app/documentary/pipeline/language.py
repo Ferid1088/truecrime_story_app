@@ -379,7 +379,7 @@ class LanguageChain:
             else:
                 async with slot("render"):
                     cap = render_cap_seconds(bp, focus_beats, pilot_seconds, script) if pilot else None
-                    info = await asyncio.to_thread(VideoRenderer().render, script, out, cap)
+                    info = await asyncio.to_thread(VideoRenderer().render, script, out, cap, None, ai_config.render.burns_subtitles(case.id))
                 info["script_sha256"] = script_sha
                 ps.render_json = json.dumps(info)
                 ps.status = "rendered"

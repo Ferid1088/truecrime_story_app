@@ -4035,11 +4035,16 @@ class RenderConfig(BaseModel):
     fps: int = Field(default=25, ge=10, le=60)
     crf: int = Field(default=20, ge=10, le=40)
     preset: str = "veryfast"
+    # The film's subtitles are drawn into the picture (every player shows them) besides the subtitle stream; the cases listed here keep a picture without them.
     burn_subtitles: bool = False
+    burn_subtitles_except_cases: list[int] = []
     subtitle_max_chars: int = Field(default=42, ge=10)
     subtitle_max_seconds: float = Field(default=6.0, gt=0)
     # The language tag of the film's subtitle stream (ISO 639-2): a language missing here is stored as "und" (undetermined).
     subtitle_language_codes: dict[str, str] = {}
+
+    def burns_subtitles(self, case_id: int) -> bool:
+        return self.burn_subtitles and case_id not in self.burn_subtitles_except_cases
 
 
 class DocumentaryCriticsConfig(BaseModel):
