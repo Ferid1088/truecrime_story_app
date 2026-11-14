@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 
 import numpy as np
+import pytest
 from PIL import Image
 from test_visual_production import _jpg, needs_ffmpeg
 
@@ -59,3 +60,15 @@ def test_a_rendered_film_shows_its_subtitle_in_the_picture_when_burning_is_asked
     streams = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(burned)],
                              capture_output=True, text=True).stdout.split()
     assert streams == ["video", "audio", "subtitle"]
+
+
+def test_no_film_is_rendered_without_subtitles(tmp_path):
+    from app.documentary.render.engine import RenderError
+
+    script = {"language": "en", "duration": 3.0, "audio": {"path": str(tmp_path / "a.wav")}, "overlays": [], "subtitles": [],
+              "shots": [{"index": 0, "start": 0, "end": 3.0, "kind": "black", "motion": "NONE", "transition_in": "CROSSFADE"}]}
+    with pytest.raises(RenderError, match="no film is made without them"):
+        VideoRenderer(320, 180).render(script, tmp_path / "out.mp4")
+    script["subtitles"] = [{"start": 5.0, "end": 6.0, "text": "after the end"}]
+    with pytest.raises(RenderError, match="no film is made without them"):
+        VideoRenderer(320, 180).render(script, tmp_path / "out.mp4")

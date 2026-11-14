@@ -578,6 +578,8 @@ class VideoRenderer:
         shots = [s for s in script["shots"] if s["start"] < duration]
         if not shots:
             raise RenderError("production script has no shots")
+        if not [s for s in script.get("subtitles") or [] if s["start"] < duration]:
+            raise RenderError("production script has no subtitles: no film is made without them")
         audio = storage.resolve((script.get("audio") or {}).get("path"))
         if audio is None or not audio.exists():
             raise RenderError("documentary audio is missing; render the voice first")
