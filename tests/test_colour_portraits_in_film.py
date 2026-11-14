@@ -5,7 +5,6 @@ from __future__ import annotations
 import cv2
 import numpy as np
 import pytest
-
 from test_portrait_drawing import _saturation, colour_photo_file
 
 from app.core.ai_config import ai_config
@@ -24,9 +23,36 @@ def _saturation_in_the_window(made, at=19.5):
     return _saturation(cv2.cvtColor(frame[:75, :60], cv2.COLOR_RGB2BGR))      # the film's frames are RGB
 
 
-def test_the_config_makes_every_new_portrait_in_colour():
-    assert ai_config.drawing_settings().style == "colour"
-    assert S.drawing_class() is ColourPortraitDrawing
+class _Session:
+    """The test's session as the worker's own: `with SessionLocal() as db`, closed by nobody."""
+
+    def __init__(self, db):
+        self.db = db
+
+    def __enter__(self):
+        return self.db
+
+    def __exit__(self, *_):
+        return False
+
+
+def test_the_app_makes_the_colour_portrait_only(db_session, tmp_path, monkeypatch):
+    from app.db.models import Case, VisualAsset
+
+    assert not hasattr(ai_config.drawing_settings(), "style") and not hasattr(S, "drawing_class"), "there is no way to ask for the grey drawing"
+    case = Case(canonical_title="Portrait", slug="portrait-colour-only", language="en")
+    db_session.add(case)
+    db_session.commit()
+    asset = VisualAsset(case_id=case.id, asset_code="PORT", asset_type="photo", local_path=str(colour_photo_file(tmp_path)), spec_json="{}")
+    db_session.add(asset)
+    db_session.commit()
+    drawn_with = []
+    monkeypatch.setattr(S, "SessionLocal", lambda: _Session(db_session))
+    monkeypatch.setattr(S, "folder", lambda case_id, code: tmp_path)
+    monkeypatch.setattr(ColourPortraitDrawing, "render", lambda self, *a, **k: drawn_with.append(type(self).__name__) or (_ for _ in ()).throw(RuntimeError("stop")))
+    monkeypatch.setattr(PD.PortraitDrawing, "render", lambda self, *a, **k: drawn_with.append("grey") or (_ for _ in ()).throw(RuntimeError("stop")))
+    S.make(asset.id)
+    assert drawn_with == ["ColourPortraitDrawing"]
 
 
 @pytest.fixture(autouse=True)

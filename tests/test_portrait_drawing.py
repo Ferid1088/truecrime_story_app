@@ -189,16 +189,6 @@ def test_the_wash_comes_in_over_the_end_of_the_drawing_and_the_pencils_path_is_w
     assert _saturation(last) > _saturation(middle) + 3, "the wash makes the end of the drawing more colourful than its middle"
 
 
-def test_the_style_in_the_config_decides_which_drawing_is_made(monkeypatch):
-    from app.core.ai_config import ai_config
-    from app.documentary.drawing.portrait_colour import ColourPortraitDrawing
-
-    monkeypatch.setattr(ai_config.drawing_settings(), "style", "colour")
-    assert S.drawing_class() is ColourPortraitDrawing
-    monkeypatch.setattr(ai_config.drawing_settings(), "style", "graphite")
-    assert S.drawing_class() is PD.PortraitDrawing
-
-
 def test_the_faster_colour_image_equals_the_plain_formula(tmp_path):
     from app.documentary.drawing.portrait_colour import ColourPortraitDrawing
 

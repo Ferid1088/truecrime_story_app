@@ -3406,9 +3406,7 @@ class DrawingConfig(BaseModel):
     grow_seconds: float = Field(gt=0.0)
     fade_seconds: float = Field(gt=0.0)
     pencil: DrawingPencilConfig
-    # "colour": the portraits are drawn in coloured pencil (the photo's colours); "graphite": the grey pencil drawing. A portrait is made once per
-    # photo, for the films of every language, in the style set when it is made.
-    style: Literal["graphite", "colour"]
+    # Every portrait is drawn in coloured pencil (the photo's colours), once per photo, for the films of every language.
     colour: DrawingColourConfig
 
     @model_validator(mode="after")

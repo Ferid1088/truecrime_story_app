@@ -24,7 +24,6 @@
     "creation_wait_seconds": 2400.0,
     "poll_seconds": 10.0,
     "picture_between_gaps_seconds": 15.0,
-    "style": "colour",
     "colour": {
       "pencil_saturation": 1.5,
       "pencil_saturation_add": 25.0,
