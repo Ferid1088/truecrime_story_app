@@ -71,11 +71,11 @@ def test_a_language_shows_its_covers_their_scene_descriptions_and_the_cost_book(
 def test_the_owner_changes_a_title_and_a_scene_into_a_newer_version_a_title_keeps_the_picture(covers):
     case, client, provider = covers
     press_image(client, case, "C1", provider)
-    kept = client.put(url(case, "en", "C1"), json={"title": "Who opened it"}).json()
-    assert kept["version"] == 2 and kept["source"] == "owner" and kept["title"] == "Who opened it" and kept["image"] is not None          # the picture does not depend on the title
+    kept = client.put(url(case, "en", "C1"), json={"title": "Who opened it first"}).json()
+    assert kept["version"] == 2 and kept["source"] == "owner" and kept["title"] == "Who opened it first" and kept["image"] is not None          # the picture does not depend on the title
     dropped = client.put(url(case, "en", "C1"), json={"scene": "A garage door raised halfway on a snowy night, light spilling out"}).json()
     assert dropped["image"] is None and dropped["status"] == "proposed"
-    assert client.put(url(case, "en", "C1"), json={"title": "one two three four five"}).status_code == 422
+    assert client.put(url(case, "en", "C1"), json={"title": "one two three four five six seven eight nine ten eleven"}).status_code == 422
     assert client.put(url(case, "en", "C1"), json={"scene": "A man with a pistol in a hall"}).status_code == 422
     assert client.put(url(case, "en", "C1"), json={"scene": ""}).json()["status"] == "open"
 
@@ -121,7 +121,7 @@ def test_changing_an_approved_cover_takes_the_approval_away_and_needs_a_new_prev
     press_image(client, case, "C1", provider)
     client.post(url(case, "en", "C1", "preview"))
     client.post(url(case, "en", "C1", "approve"))
-    changed = client.put(url(case, "en", "C1"), json={"title": "Another title"}).json()
+    changed = client.put(url(case, "en", "C1"), json={"title": "Another title again"}).json()
     assert changed["status"] == "proposed" and changed["approved_url"] is None and changed["preview_url"] is None
     assert client.post(url(case, "en", "C1", "approve")).status_code == 409
 

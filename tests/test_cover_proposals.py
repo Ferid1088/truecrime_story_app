@@ -1,4 +1,4 @@
-"""The cover planner: the checks of a proposal (a title of one to four words that gives nothing away, a symbolic scene description, a stated certainty), what stays open
+"""The cover planner: the checks of a proposal (a title of three to ten words that gives nothing away, a symbolic scene description, a stated certainty), what stays open
 for the owner, and the agent with a scripted model. Nothing is approved by the planner."""
 
 import asyncio
@@ -34,9 +34,9 @@ def test_a_good_proposal_has_no_issue_and_is_proposed():
 
 def test_a_long_title_a_late_detail_a_short_scene_and_no_certainty_are_refused():
     s = story()
-    found = types(P.item_issues(item(title="one two three four five", scene="a door", confidence=None, reason=""), s, 3, "en"))
+    found = types(P.item_issues(item(title="one two three four five six seven eight nine ten eleven", scene="a door", confidence=None, reason=""), s, 3, "en"))
     assert {"title_length", "scene_length", "no_confidence", "reason"} <= found
-    assert "tells_what_comes_later" in types(P.item_issues(item(title="Wexford lock"), s, 3, "en"))
+    assert "tells_what_comes_later" in types(P.item_issues(item(title="Wexford lock opened"), s, 3, "en"))
     assert "greeting" in types(P.item_issues(item(title="Hello and welcome"), s, 3, "en"))
 
 
@@ -54,7 +54,7 @@ def test_an_uncertain_or_missing_scene_or_an_issue_leaves_the_cover_open():
 
 def test_the_set_needs_every_cover_with_its_own_title_and_scene():
     keys = ["long", "C1", "C2"]
-    assert P.set_issues([item(), item("C1", "Other title", SCENE + " and a hall"), item("C2", "Third", SCENE + " in snow")], keys) == []
+    assert P.set_issues([item(), item("C1", "Other title for it", SCENE + " and a hall"), item("C2", "Third title for it", SCENE + " in snow")], keys) == []
     found = types(P.set_issues([item(), item("C1", "The open door", SCENE), item("C9", "x", "another")], keys))
     assert {"missing_cover", "unknown_cover", "same_title", "same_scene"} <= found
 
@@ -69,7 +69,7 @@ class CoverGen(ClipGen):
             return await super().generate_structured(role, system, user, images)
         data = json.loads(user)
         self.calls.append((role, data))
-        covers = [item(c["key"], f"Title {n}", f"{SCENE} number {n}", 0.4 if c["key"] in self.unsure else 0.9) for n, c in enumerate(data["covers"])]
+        covers = [item(c["key"], f"Title number {n} here", f"{SCENE} number {n}", 0.4 if c["key"] in self.unsure else 0.9) for n, c in enumerate(data["covers"])]
         if self.bad_first and "problems_to_fix" not in data:
             covers[0]["scene"] = "A man with a pistol stands in the doorway of the dark house at night"
         return {"covers": covers}, GenerationResult(text="{}", model="m/cover_planner", provider="fake")

@@ -1,6 +1,6 @@
 """The cover planner's proposals: what a title and a scene of a cover must be, the checks of an answer, and the rows.
 
-A proposal is a title (1 to 4 words, spoilers and greetings refused like the host's) and a scene description (what the image model paints: symbolic, never a person or a
+A proposal is a title (a hook of the configured number of words that can be set large enough to read, spoilers and greetings refused like the host's) and a scene description (what the image model paints: symbolic, never a person or a
 weapon). The planner states its certainty that the scene carries the title: a cover whose scene is missing or uncertain stays open for the owner. Nothing here approves."""
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import re
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.covers.compose import title_issues
+from app.covers.compose import CoverError, display_title, fit_title, title_issues
 from app.covers.images import scene_issues
 from app.db.models import CoverProposal
 from app.documentary.host_firewall import reveal_issues
@@ -51,6 +51,11 @@ def item_issues(item: dict, story: HostStory, cutoff: int, language: str) -> lis
     issues: list[dict] = []
     if problems := title_issues(item["title"]):
         issues.append({"type": "title_length", "fix": problems[0]})
+    elif item["key"]:
+        try:
+            fit_title(display_title(item["title"], language), language, "long" if item["key"] == "long" else "short")
+        except CoverError as e:
+            issues.append({"type": "title_unreadable", "fix": f"{e}; keep the idea and use fewer or shorter words"})
     for issue in reveal_issues(story, cutoff, item["title"]):
         issues.append({**issue, "part": "title"})
     rules = ai_config.host.language_rules.get(language)

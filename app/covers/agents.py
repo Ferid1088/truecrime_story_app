@@ -1,4 +1,4 @@
-"""The cover planner: for one language it writes the title of the film's cover and of each short's cover and describes the scene (a symbolic picture the image model
+"""The cover planner: for one language it writes the hook title of the film's cover and of each short's cover and describes the scene (a symbolic picture the image model
 paints) that carries each title, with a reason and its certainty. It proposes; it never approves and makes no picture. The English covers are planned first; every
 other language writes its titles again in its own language (not a translation) with the English covers as a reference."""
 
@@ -55,7 +55,7 @@ class CoverPlanner:
                        "reason_max_words": self.cfg["reason_max_words"]}}
         if language != "en":
             payload["english_covers"] = [{"key": k, "title": r.title, "scene": r.scene_prompt} for k, r in P.current(db, case.id, "en").items()]
-        system = prompt("covers/cover_planner")
+        system = "\n\n".join([prompt("covers/cover_planner"), prompt("covers/hooks/hook_rules"), prompt(f"covers/hooks/{language}")])
 
         async def ask(extra: dict):
             with track_run(db, case.id, f"Cover Planner ({language})", input_summary=language) as run:

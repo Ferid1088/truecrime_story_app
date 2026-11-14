@@ -1,5 +1,5 @@
 """The cover of a film or of a short, drawn in code over the scene picture the image model made: a calm scrim in the theme's colour where the words go, the channel's
-logo, the localized title of a few words and the avatar's portrait. The title and the logo are exact in every script because no image model draws them.
+logo, the localized title of a few words and the avatar's portrait. The title, the logo and the channel mark ("TrueCrime", on the calmest free field, in a colour that reads on the picture under it) are exact in every script because no image model draws them.
 
 Sizes and fractions come from config/parameters/covers.json. For a right-to-left language (Persian, Arabic) the places of the logo, title and portrait are mirrored;
 the scene picture itself is never flipped (the model is told to keep the right side empty for these languages)."""
@@ -7,16 +7,18 @@ the scene picture itself is never flipped (the model is told to keep the right s
 from __future__ import annotations
 
 import io
+import itertools
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 from app.core.ai_config import ai_config
 from app.documentary.visuals import typography as TY
 from app.thumbnails.compose import RTL
 
 TURKISH_UPPER = str.maketrans({"i": "İ", "ı": "I"})
+LINE_HEIGHT = 1.18                               # a line of a title is this many times its font size high
 
 
 class CoverError(ValueError):
@@ -95,15 +97,36 @@ def _veil(canvas: Image.Image, theme_color: tuple[int, int, int], kind: str, rtl
         peak = min(peak + cfg.scrim["step"], cfg.scrim["max_peak"])
 
 
-def _title_lines(text: str, language: str, width: int, size: int, max_lines: int):
-    """The font size (shrunk until the title fits) and the lines of the title."""
-    while size >= 12:
-        font = TY.font(language, "sans", "bold", size)
-        lines = TY.wrap(text, font, language, width)
-        if len(lines) <= max_lines and all(TY.text_width(line, font, language) <= width for line in lines):
-            return font, lines, size
-        size = round(size * 0.92)
-    raise CoverError(f"the title {text!r} does not fit its place")
+def _splits(words: list[str], lines: int):
+    """Every way to cut the words into `lines` non-empty runs."""
+    for cuts in itertools.combinations(range(1, len(words)), lines - 1):
+        edges = (0, *cuts, len(words))
+        yield [" ".join(words[a:b]) for a, b in zip(edges, edges[1:])]
+
+
+def fit_title(text: str, language: str, kind: str, *, scale: float = 1.0) -> tuple[ImageFont.FreeTypeFont, list[str], int]:
+    """How a title is set so that it reads: of the one, two or three lines (as many as the layout allows) the one that lets the words be the largest, each line
+    with about as many words as the others (no single word left alone), the block never taller than the layout's `max_height` and the size never below its `min_size`.
+    Raises CoverError when the title cannot be set that large: it is too long for a cover in this language."""
+    cfg = ai_config.covers_settings()
+    layout, height = cfg.layout[kind]["title"], round(cfg.formats[kind].height * scale)
+    box_w, words = round(layout["width"] * cfg.formats[kind].width * scale), text.split()
+    floor = round(layout["min_size"] * height)
+    best = None
+    for lines in range(1, min(layout["max_lines"], len(words)) + 1):
+        size = min(round(layout["size"] * height), int(layout["max_height"] * height / (LINE_HEIGHT * lines)))
+        while size >= floor:
+            font = TY.font(language, "sans", "bold", size)
+            fitting = [c for c in _splits(words, lines) if all(TY.text_width(line, font, language) <= box_w for line in c)]
+            if fitting:
+                chosen = min(fitting, key=lambda c: max(TY.text_width(line, font, language) for line in c))
+                if best is None or size > best[2]:
+                    best = (font, chosen, size)
+                break
+            size = min(size - 1, round(size * 0.96))
+    if best is None:
+        raise CoverError(f"the title {text!r} is too long to read on a {kind} cover in {language}: shorten it")
+    return best
 
 
 def _place(layout: dict, rtl: bool) -> float:
@@ -126,21 +149,19 @@ def compose(kind: str, language: str, scene: Path, portrait: Image.Image, logo: 
         canvas = ImageOps.fit(picture.convert("RGB"), (width, height), Image.LANCZOS).convert("RGBA")
     title_cfg = layout["title"]
     box_w = round(title_cfg["width"] * width)
-    font, lines, size = _title_lines(display_title(title, language), language, box_w, round(title_cfg["size"] * height), title_cfg["max_lines"])
-    line_h = round(size * 1.18)
+    font, lines, size = fit_title(display_title(title, language), language, kind, scale=scale)
+    line_h = round(size * LINE_HEIGHT)
     title_x = round(_place(title_cfg, rtl) * width)
     title_y = round(title_cfg["y"] * height)
     title_box = (title_x, title_y, box_w, line_h * len(lines))
     ink, accent = _rgb(theme.ink), _rgb(theme.accent)
     canvas, veil, title_contrast = _veil(canvas, _rgb(theme.background), kind, rtl, title_box, ink)
-    accent_ok = _worst_contrast(canvas, title_box, accent) >= cfg.min_accent_contrast
     draw = ImageDraw.Draw(canvas)
     elements: dict[str, list[int]] = {}
     centred = kind == "short"
     for i, line in enumerate(lines):
-        color = accent if i == len(lines) - 1 and len(lines) > 1 and kind == "long" and accent_ok else ink
         tx = title_x + (box_w / 2 if centred else box_w if rtl else 0)
-        TY.draw_text(draw, (tx, title_y + i * line_h), line, font, language, fill=color, anchor="ma" if centred else "ra" if rtl else "la")
+        TY.draw_text(draw, (tx, title_y + i * line_h), line, font, language, fill=ink, anchor="ma" if centred else "ra" if rtl else "la")
     elements["title"] = list(title_box)
 
     av = layout["avatar"]
@@ -164,6 +185,10 @@ def compose(kind: str, language: str, scene: Path, portrait: Image.Image, logo: 
     canvas.paste(mark.convert("RGBA"), (logo_x, logo_y), _mask(mark.size, lambda dr, s: dr.rounded_rectangle((0, 0, mark.width * s, mark.height * s), radius=round(mark.width * 0.12) * s, fill=255)))
     elements["logo"] = [logo_x, logo_y, mark.width, mark.height]
 
+    mark = _watermark(canvas, kind, rtl, theme, [elements["title"], elements["avatar"], elements["logo"]])
+    if mark is not None:
+        elements["watermark"] = mark["box"]
+
     out.parent.mkdir(parents=True, exist_ok=True)
     rgb = canvas.convert("RGB")
     for quality in (fmt.quality, 86, 80, 72, 64):
@@ -173,21 +198,118 @@ def compose(kind: str, language: str, scene: Path, portrait: Image.Image, logo: 
             break
     out.write_bytes(buffer.getvalue())
     result = {"kind": kind, "language": language, "size": [width, height], "scale": scale, "elements": elements, "bytes": buffer.tell(), "title_font_px": size, "title_lines": lines,
-              "title_contrast": round(title_contrast, 2), "veil_strength": round(veil, 2)}
+              "title_contrast": round(title_contrast, 2), "veil_strength": round(veil, 2), "watermark": mark}
     result["problems"] = layout_problems(result)
     return result
 
 
+def _colour(token: str, theme) -> tuple[int, int, int]:
+    return _rgb({"ink": theme.ink, "accent": theme.accent}.get(token, token))
+
+
+def _busyness(canvas: Image.Image, box: tuple[int, int, int, int]) -> float:
+    """How much is going on in a box: the mean change of brightness from pixel to pixel; a plain colour is 0."""
+    x, y, w, h = box
+    light = _luminance(np.asarray(canvas.crop((x, y, x + w, y + h)).convert("RGB"), dtype=np.float64) / 255.0)
+    return float(np.abs(np.diff(light, axis=0)).mean() + np.abs(np.diff(light, axis=1)).mean())
+
+
+def _blocked(box: tuple[int, int, int, int], others: list[list[int]], gap: int) -> bool:
+    x, y, w, h = box
+    return any(x < ox + ow + gap and ox < x + w + gap and y < oy + oh + gap and oy < y + h + gap for ox, oy, ow, oh in others)
+
+
+def _on_badge(box: tuple[int, int, int, int], kind: str, size: tuple[int, int]) -> bool:
+    """A field that reaches the corner the video's length badge covers on a long cover."""
+    corner = ai_config.covers_settings().safe_zones["long"]["corner_free_fraction"]
+    x, y, w, h = box
+    return kind == "long" and x + w > size[0] * (1 - corner[0]) and y + h > size[1] * (1 - corner[1])
+
+
+def _reads(canvas: Image.Image, box: tuple[int, int, int, int], colour: tuple[int, int, int], opacity: float) -> float:
+    """The contrast the mark reaches in `colour` at `opacity`: the colour mixed with the picture under it against that picture's worst few percent of pixels."""
+    x, y, w, h = box
+    under = np.asarray(canvas.crop((x, y, x + w, y + h)).convert("RGB"), dtype=np.float64).mean(axis=(0, 1))
+    shown = opacity * np.array(colour, dtype=np.float64) + (1 - opacity) * under
+    return _worst_contrast(canvas, box, tuple(shown))
+
+
+def _soft_veil(canvas: Image.Image, box: tuple[int, int, int, int], colour: tuple[int, int, int], peak: float) -> Image.Image:
+    """The picture with a soft patch of `colour` behind the box, strongest in the middle and fading out to its edges."""
+    x, y, w, h = box
+    pad = round(h * ai_config.covers_settings().watermark["veil"]["spread"])
+    mask = Image.new("L", canvas.size, 0)
+    ImageDraw.Draw(mask).rectangle((x - pad // 2, y - pad // 2, x + w + pad // 2, y + h + pad // 2), fill=round(255 * peak))
+    mask = mask.filter(ImageFilter.GaussianBlur(pad))
+    layer = Image.new("RGBA", canvas.size, colour + (0,))
+    layer.putalpha(mask)
+    return Image.alpha_composite(canvas, layer)
+
+
+def _watermark(canvas: Image.Image, kind: str, rtl: bool, theme, taken: list[list[int]]) -> dict | None:
+    """The channel mark drawn on the calmest of the configured fields that is clear of the other elements; returns where and in which colour (None when no field is free).
+    Its colour is chosen for this picture: the first configured colour that reads on it, else the theme's ink in full colour over a soft veil of the theme's background that is made stronger until it does."""
+    cfg = ai_config.covers_settings().watermark
+    width, height = canvas.size
+    fields = []
+    for f in cfg["fields"][kind]:
+        x = 1 - f["x"] - f["width"] if rtl else f["x"]
+        box = (round(x * width), round(f["y"] * height), round(f["width"] * width), round(f["height"] * height))
+        if not _blocked(box, taken, round(cfg["clearance"] * width)) and not _on_badge(box, kind, canvas.size):
+            fields.append(box)
+    if not fields:
+        return None
+    box = min(fields, key=lambda b: _busyness(canvas, b))
+    size = box[3]
+    while True:                                       # the largest size at which the word fits its field
+        font = TY.font("en", "sans", "bold", size)
+        left, top, right, bottom = ImageDraw.Draw(canvas).textbbox((0, 0), cfg["text"], font=font, anchor="ls")
+        if (right - left <= box[2] and bottom - top <= box[3]) or size <= 8:
+            break
+        size = max(8, min(size - 1, round(size * 0.95)))
+    text_box = (box[0] + (box[2] - (right - left)) // 2, box[1] + (box[3] - (bottom - top)) // 2, right - left, bottom - top)
+    opacity, floor = cfg["opacity"], cfg["min_contrast"]
+    reached = {token: _reads(canvas, text_box, _colour(token, theme), opacity) for token in cfg["colors"]}
+    token = next((t for t in cfg["colors"] if reached[t] >= floor), None)
+    veil = 0.0
+    if token is None:
+        token, peak, opacity = "ink", cfg["veil"]["start_peak"], 1.0           # over a veil the mark is drawn in full colour
+        while True:
+            veiled = _soft_veil(canvas, text_box, _rgb(theme.background), peak)
+            contrast_now = _reads(veiled, text_box, _colour(token, theme), opacity)
+            if contrast_now >= floor or peak >= cfg["veil"]["max_peak"] - 1e-9:
+                break
+            peak = min(peak + cfg["veil"]["step"], cfg["veil"]["max_peak"])
+        canvas.paste(veiled)
+        veil, reached[token] = peak, contrast_now
+    ink = _colour(token, theme)
+    layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    ImageDraw.Draw(layer).text((text_box[0] - left, text_box[1] - top), cfg["text"], font=font, fill=ink + (round(255 * opacity),), anchor="ls")
+    canvas.alpha_composite(layer)
+    return {"text": cfg["text"], "box": list(text_box), "color": "#%02x%02x%02x" % ink, "token": token, "contrast": round(reached[token], 2), "veil_strength": round(veil, 2)}
+
+
 def layout_problems(made: dict) -> list[str]:
-    """What breaks the covers' rules: a title or logo in the platforms' reserved margins, a title too faint for its background, a portrait that reaches the bottom margin."""
+    """What breaks the covers' rules: a title or logo in the platforms' reserved margins, a title or the channel mark too faint for its background, a portrait that reaches the bottom margin."""
     cfg = ai_config.covers_settings()
     width, height = made["size"]
     problems: list[str] = []
     if made["title_contrast"] < cfg.min_title_contrast:
         problems.append(f"the title's contrast is {made['title_contrast']}, at least {cfg.min_title_contrast} is needed")
+    names = ("title", "avatar", "logo")
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            (ax, ay, aw, ah), (bx, by, bw, bh) = made["elements"][a], made["elements"][b]
+            if ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah:
+                problems.append(f"the {a} and the {b} overlap")
+    mark = made["watermark"]
+    if mark is None:
+        problems.append("no free field is left for the channel mark")
+    elif mark["contrast"] < cfg.watermark["min_contrast"]:
+        problems.append(f"the channel mark's contrast is {mark['contrast']}, at least {cfg.watermark['min_contrast']} is needed")
     if made["kind"] == "short":
         zone = cfg.safe_zones["short"]
-        for name in ("title", "logo", "avatar"):
+        for name in made["elements"]:
             x, y, w, h = made["elements"][name]
             bottom = zone["avatar_bottom_fraction"] if name == "avatar" else zone["bottom_fraction"]       # the portrait sits in the bottom corner (owner decision)
             if y < zone["top_fraction"] * height or y + h > (1 - bottom) * height:
