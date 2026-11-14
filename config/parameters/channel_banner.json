@@ -1,0 +1,23 @@
+{
+  "banner": {
+    "size": [2560, 1440],
+    "safe": [1546, 423],
+    "logo_height": 410,
+    "mark": "TrueCrime",
+    "text_size": 58,
+    "min_text_size": 38,
+    "ivory": "#f1e8d4",
+    "copper": "#e9a36a",
+    "languages": {
+      "fa": {"logo": "Persian", "lines": ["پرونده‌های واقعی", "ردی که خاموش ماند"]},
+      "ar": {"logo": "Arabic", "lines": ["قضايا حقيقية", "أثرٌ التزم الصمت"]},
+      "en": {"logo": "English", "lines": ["Real Cases", "The Trace That Stayed Silent"]},
+      "de": {"logo": "German", "lines": ["Echte Fälle", "Die Spur, die schwieg"]},
+      "es": {"logo": "Spanish", "lines": ["Casos reales", "La huella que guardó silencio"]},
+      "fr": {"logo": "French", "lines": ["Affaires réelles", "La trace restée muette"]},
+      "it": {"logo": "Italian", "lines": ["Casi reali", "La traccia rimasta muta"]},
+      "pt": {"logo": "Portuguese", "lines": ["Casos reais", "O rastro que ficou em silêncio"]},
+      "tr": {"logo": "Turkish", "lines": ["Gerçek vakalar", "Sessiz kalan iz"]}
+    }
+  }
+}
