@@ -226,7 +226,7 @@ def test_a_title_too_long_to_read_is_sent_back_to_the_planner_with_the_fix(monke
 
     monkeypatch.setattr(P, "reveal_issues", lambda *args: [])                        # the story's spoilers are not what is tested here
 
-    long_words = " ".join(["Unbelievably"] * 10)
+    long_words = " ".join(["Unbelievably"] * 8)
     with pytest.raises(C.CoverError, match="too long to read"):
         C.fit_title(long_words.upper(), "en", "short")
     item = {"key": "C1", "title": long_words, "scene": "", "confidence": None, "reason": ""}

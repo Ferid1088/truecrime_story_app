@@ -84,7 +84,7 @@
     },
     "title": {
       "min_words": 3,
-      "max_words": 10
+      "max_words": 8
     },
     "scene": {
       "source": "generated",
