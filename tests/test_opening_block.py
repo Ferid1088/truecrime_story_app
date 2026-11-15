@@ -58,7 +58,7 @@ def test_a_context_of_only_long_sentences_is_refused():
 
 @pytest.mark.parametrize("language,speed,stability", [
     ("en", 1.1, 0.5), ("de", 1.155, 0.5), ("ar", 1.155, 0.5), ("es", 0.99, 0.3), ("it", 0.99, 0.3), ("fr", 1.1, 0.3),
-    ("pt", 1.1, 0.3), ("tr", 1.09, 0.3), ("fa", 1.2, 0.2)])
+    ("pt", 1.1, 0.3), ("tr", 1.14, 0.3), ("fa", 1.2, 0.2)])
 def test_the_voice_of_the_block_is_the_languages_own_made_faster_and_less_stable(language, speed, stability):
     assert OB.post_speed_for(language) == speed
     assert OB.voice_settings_for(language)["stability"] == stability

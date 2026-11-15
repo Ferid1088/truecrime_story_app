@@ -198,7 +198,7 @@ def test_replace_in_all_blocks_previews_first_then_corrects_every_block_that_has
 
 def test_a_block_voiced_again_gets_the_same_settings_and_the_same_post_speed_as_every_other_block(narration, monkeypatch):
     """The take the review makes must sound like the rest of the narration: the voice settings of the original take (speed 1.2, stability 0.2 for Persian)
-    and the language's post speed (1.1) when the finished file is made."""
+    and the language's post speed (1.155) when the finished file is made."""
     from app.documentary import voice_render as VR
 
     tempos: list[float] = []
@@ -213,14 +213,14 @@ def test_a_block_voiced_again_gets_the_same_settings_and_the_same_post_speed_as_
     assert json.loads(new.request_json)["settings"] == json.loads(old.request_json)["settings"], "the same voice settings as the original take"
     sent = voice.requests[-1]
     assert (sent.model_id, sent.settings["speed"], sent.settings["stability"]) == ("eleven_v4", 1.2, 0.2), "what ElevenLabs gets: speed 1.2, stability 0.2"
-    assert tempos == [ai_config.voice.post_speed["fa"]] == [1.1], "the finished block is the raw take played 1.1 times faster, like every other block"
+    assert tempos == [ai_config.voice.post_speed["fa"]] == [1.155], "the finished block is the raw take played 1.155 times faster, like every other block"
 
 
 def test_a_block_is_voiced_only_with_the_required_speed_stability_and_post_speed_and_nothing_is_paid_otherwise(narration, monkeypatch):
     db, _, version, voice = narration
     review = S.open_review(db, version)
     want = ai_config.voice.review_required["fa"]
-    assert (want.speed, want.stability, want.post_speed) == (1.2, 0.2, 1.1), "the owner's values, in the config"
+    assert (want.speed, want.stability, want.post_speed) == (1.2, 0.2, 1.155), "the owner's values, in the config"
     sent = len(voice.requests)
     # 1. the take it copies the settings from has another speed: refused before anything is voiced
     first = S.takes_of(db, S.block_of(db, review, "FA_B01_g01_01"))[0]
@@ -237,12 +237,12 @@ def test_a_block_is_voiced_only_with_the_required_speed_stability_and_post_speed
     db.commit()
     # 2. the film's post speed is not the required one
     monkeypatch.setattr(ai_config.voice, "post_speed", {"fa": 1.0})
-    with pytest.raises(S.ReviewError, match="post_speed 1.0 instead of 1.1"):
+    with pytest.raises(S.ReviewError, match="post_speed 1.0 instead of 1.155"):
         asyncio.run(S.send_block(db, review, "FA_B01_g01_01", provider=voice, again=True))
     assert len(voice.requests) == sent and voice.dictionaries == [], "nothing was sent to the voice, nothing was paid"
     assert [t.take_no for t in S.takes_of(db, S.block_of(db, review, "FA_B01_g01_01"))] == [1]
     # 3. with the required values it is voiced, and the take says what it was voiced with
-    monkeypatch.setattr(ai_config.voice, "post_speed", {"fa": 1.1})
+    monkeypatch.setattr(ai_config.voice, "post_speed", {"fa": 1.155})
     take = asyncio.run(S.send_block(db, review, "FA_B01_g01_01", provider=voice, again=True))
     assert take.take_no == 2 and (voice.requests[-1].settings["speed"], voice.requests[-1].settings["stability"]) == (1.2, 0.2)
 

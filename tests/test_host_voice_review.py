@@ -94,7 +94,7 @@ def test_a_correction_sent_becomes_the_scenes_voice_with_the_alias_post_speed_an
     assert voice.dictionaries[0]["rules"] == [{"string_to_replace": "Gutten", "type": "alias", "alias": "guten"}]
     assert (scene.voice_path, scene.voice_sha256) != before
     meta = json.loads(scene.voice_meta_json)
-    assert meta["reviewed"] and meta["post_speed"] == 1.1 and (meta["settings"]["speed"], meta["settings"]["stability"]) == (1.2, 0.2)
+    assert meta["reviewed"] and meta["post_speed"] == 1.155 and (meta["settings"]["speed"], meta["settings"]["stability"]) == (1.2, 0.2)
     assert (scene.provider_asset_id, scene.avatar_video_path, scene.status) == (None, None, "voice_ready"), "the avatar is made again from the new voice"
     assert json.loads(scene.voice_checks_json)["tts_text"] == "Gutten Abend. Heute geht es um eine Tür." and scene.text.startswith("Gutten"), "the scene's words are the corrected ones"
 

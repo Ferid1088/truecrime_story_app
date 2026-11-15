@@ -1,4 +1,4 @@
-"""Stability 0.7 and speed 0.9 are the voice's setting for de, en and ar; Persian alone has stability 0.2, speed 1.2 and post-speed 1.1; German and Arabic are played 1.05 times faster after the voice (their pauses too)."""
+"""Stability 0.7 and speed 0.9 are the voice's setting for de, en and ar; Persian alone has stability 0.2, speed 1.2 and post-speed 1.155; German and Arabic are played 1.05 times faster after the voice (their pauses too)."""
 
 import pytest
 
@@ -24,7 +24,7 @@ def test_german_english_and_arabic_have_stability_07_and_speed_09_in_every_style
 def test_only_fa_has_the_fast_pace():
     assert ai_config.voice.settings_for("factual", "fa")["speed"] == 1.2
     assert ai_config.voice.post_speed == {
-        "fa": 1.1, "ar": 1.05, "de": 1.05, "es": 0.9,
+        "fa": 1.155, "ar": 1.05, "de": 1.05, "es": 0.9,
         "it": 0.9, "fr": 1.0, "pt": 1.0, "tr": 0.945,
     }
     assert ai_config.voice.post_speed_gaps == ["ar", "de", "es"], "only calibrated pause speeds alter the planned gaps"

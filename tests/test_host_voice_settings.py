@@ -1,4 +1,4 @@
-"""The avatar's voice has the story voice's parameters in every language: stability 0.2 everywhere, speed 1.2 and the 1.1 post speed for Persian, the
+"""The avatar's voice has the story voice's parameters in every language: stability 0.2 everywhere, speed 1.2 and the 1.155 post speed for Persian, the
 narration's pace for the others; a host style that differs is refused before anything is paid; a voice made under other values is made again."""
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ def test_the_host_style_has_the_story_voices_stability_and_the_language_pace(lan
     story = ai_config.voice.settings_for(ai_config.voice.default_style, language)
     assert host["stability"] == story["stability"] == (0.2 if language == "fa" else 0.7) and host["speed"] == story["speed"]
     assert HS.required_voice(language, host) == ai_config.voice.post_speed.get(language, 1.0)
-    assert (HS.required_voice("fa", ai_config.voice.settings_for(ai_config.host.voice_style, "fa")), host["speed"] == 1.2) == (1.1, language == "fa")
+    assert (HS.required_voice("fa", ai_config.voice.settings_for(ai_config.host.voice_style, "fa")), host["speed"] == 1.2) == (1.155, language == "fa")
 
 
 @pytest.mark.parametrize("language,settings", [("fa", {"stability": 0.2, "speed": 1.02}), ("en", {"stability": 0.4, "speed": 0.9}), ("ar", {"stability": 0.5, "speed": 1.02})])
@@ -53,7 +53,7 @@ def test_the_host_audio_is_sped_up_by_the_post_speed_and_its_times_with_it(tmp_p
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is required for audio tests")
-def test_the_persian_host_voice_is_made_at_12_02_and_sped_up_by_11_and_an_older_one_gets_the_speed_up_without_a_new_take(db_session, tmp_path, monkeypatch):
+def test_the_persian_host_voice_is_made_at_12_02_and_sped_up_by_1_155_and_an_older_one_gets_the_speed_up_without_a_new_take(db_session, tmp_path, monkeypatch):
     from app.documentary.host_scenes import plan_host_scenes, run_scene
 
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
@@ -61,7 +61,7 @@ def test_the_persian_host_voice_is_made_at_12_02_and_sped_up_by_11_and_an_older_
     voice = FakeVoice()
     asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))
     meta = json.loads(scene.voice_meta_json)
-    assert (meta["settings"]["speed"], meta["settings"]["stability"], meta["post_speed"]) == (1.2, 0.2, 1.1)
+    assert (meta["settings"]["speed"], meta["settings"]["stability"], meta["post_speed"]) == (1.2, 0.2, 1.155)
     asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))
     assert voice.calls == 1, "the same voice is kept"
     del meta["post_speed"]                                  # a voice made before the post speed existed
@@ -70,4 +70,4 @@ def test_the_persian_host_voice_is_made_at_12_02_and_sped_up_by_11_and_an_older_
     assert storage.resolve(scene.voice_path).exists()
     asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))
     assert voice.calls == 1, "the take is in the cache: the speed-up is made again, nothing is paid"
-    assert json.loads(scene.voice_meta_json)["post_speed"] == 1.1 and scene.voice_sha256 == sha
+    assert json.loads(scene.voice_meta_json)["post_speed"] == 1.155 and scene.voice_sha256 == sha

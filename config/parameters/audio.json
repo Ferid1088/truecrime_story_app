@@ -173,7 +173,7 @@
       "fa"
     ],
     "post_speed": {
-      "fa": 1.1,
+      "fa": 1.155,
       "ar": 1.05,
       "de": 1.05,
       "es": 0.9,
@@ -196,7 +196,7 @@
       "en": {"emergency_numbers": "digits_in_context", "zero_word": "oh", "and_after_hundred": false, "years_2000s": "two_thousand", "years_after_2009": "pairs", "ambiguous_numeric_dates": "month_first", "money_cents": "and_cents", "phone_double_digits": false, "toll_free_800_as_number": true, "roman_numerals": true}
     },
     "review_required": {
-      "fa": {"speed": 1.2, "stability": 0.2, "post_speed": 1.1},
+      "fa": {"speed": 1.2, "stability": 0.2, "post_speed": 1.155},
       "ar": {"speed": 0.9, "stability": 0.7, "post_speed": 1.05},
       "de": {"speed": 0.9, "stability": 0.7, "post_speed": 1.05},
       "en": {"speed": 0.9, "stability": 0.7, "post_speed": 1.0}
