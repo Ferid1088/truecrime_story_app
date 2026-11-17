@@ -34,12 +34,19 @@ def commit_hash() -> str | None:
         return None
 
 
+def health_path() -> Path:
+    """Where the worker reports itself: the live stack's file, unless TRUECRIME_WORKER_HEALTH_FILE names another (a test's worker must never overwrite the live one)."""
+    override = os.environ.get("TRUECRIME_WORKER_HEALTH_FILE")
+    return Path(override) if override else WORKER_HEALTH_PATH
+
+
 def write_worker_health(worker_id: str) -> None:
     """Called once, at worker startup: record which commit and pid are running."""
-    WORKER_HEALTH_PATH.parent.mkdir(parents=True, exist_ok=True)
+    path = health_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
     from app.utils import utc_now
 
-    WORKER_HEALTH_PATH.write_text(json.dumps({
+    path.write_text(json.dumps({
         "worker_id": worker_id,
         "pid": os.getpid(),
         "commit": commit_hash(),
@@ -50,7 +57,7 @@ def write_worker_health(worker_id: str) -> None:
 def read_worker_health() -> dict | None:
     """What the worker last reported about itself, or None if it never has."""
     try:
-        return json.loads(WORKER_HEALTH_PATH.read_text(encoding="utf-8"))
+        return json.loads(health_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
 

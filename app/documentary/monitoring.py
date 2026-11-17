@@ -20,6 +20,7 @@ from app.db.base import get_db
 from app.db.models import Case, DocumentaryJob, MvpFilmReview, ProviderCall, VisualPlan
 from app.documentary import jobs as J
 from app.documentary.progress import progress_view
+from app.publishing.monitoring import connection_issues, publishing_issues
 from app.services.budget import BudgetService
 from app.utils import ensure_utc, utc_now
 
@@ -292,6 +293,7 @@ class CaseMonitor(Monitor):
         # issues are this case's own: its active jobs and its latest job (older stopped jobs are history)
         self.check_jobs([j for j in jobs if j.case_id == self.case.id
                          and (j.status in ACTIVE or (latest and j.id == latest.id))])
+        self.issues.extend(publishing_issues(self.db, self.case.id))
         planning = any(stage_base(j.stage or "") in ("mvp_direct", "mvp_complete", "mvp_portraits")
                        for j in running if j.case_id == self.case.id)
         if not planning:      # while the picture plan is being redone the old gap list is out of date
@@ -338,6 +340,8 @@ class AppMonitor(Monitor):
             budgets.append({"case_id": case_id, "title": case.case.canonical_title, **found["budget"]})
             cases.append({"id": case_id, "title": case.case.canonical_title,
                           "job": (self.views.get(newest[case_id].id) if case_id in newest else None)})
+        self.issues.extend(publishing_issues(self.db, exclude_cases=set(case_ids), with_case_title=True))
+        self.issues.extend(connection_issues())
         running = [j for j in active if j.status != "queued"]
         providers = self.providers()
         services = self.services(running)

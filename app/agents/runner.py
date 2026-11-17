@@ -28,10 +28,11 @@ def agent_def(name: str):
 async def run_agent(name: str, gen, user: str, *, system: str | None = None,
                     role: str | None = None, images: list[str] | None = None,
                     prefix: str | None = None, cache_key: str | None = None,
-                    **fmt: Any):
+                    output: str | None = None, **fmt: Any):
     """Structured agents return (data, result), text agents return the result —
     exactly what the generation provider returns. `prefix` is the stable text
-    that repeated calls share (sent first, so the provider can cache it)."""
+    that repeated calls share (sent first, so the provider can cache it). `output` ("text" or "structured") overrides the agent's own output kind for one call:
+    a stage that wants the plain answer of an agent that normally returns JSON (the host writer's fallback) says so here instead of calling the provider itself."""
     d = agent_def(name)
     if system is None:
         if d.prompt is None:
@@ -42,6 +43,6 @@ async def run_agent(name: str, gen, user: str, *, system: str | None = None,
     extra: dict[str, Any] = {"images": images} if images else {}
     if prefix or cache_key:
         extra.update({k: v for k, v in (("prefix", prefix), ("cache_key", cache_key)) if v})
-    if d.output == "text":
+    if (output or d.output) == "text":
         return await gen.generate_text(use_role, system, user, **extra)
     return await gen.generate_structured(use_role, system, user, **extra)

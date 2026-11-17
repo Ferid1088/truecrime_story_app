@@ -7,8 +7,10 @@ import json
 
 from sqlalchemy.orm import Session
 
+from app.core.files import file_sha256
 from app.db.models import ApprovalBundle, ApprovalBundleItem, PolicyEvent, RenderedShort, Video
 from app.documentary import storage
+from app.publishing.hashing import cached_file_sha256
 from app.services.upload_adapter import (
     SandboxUploadAdapter,
     UploadAdapterError,
@@ -21,11 +23,12 @@ def _digest(value: object) -> str:
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
 
-def film_hash(row: Video) -> str:
+def film_hash(row: Video, db: Session | None = None) -> str:
+    """The film file's sha256, streamed (a film is hundreds of megabytes) and, with a session, kept by path, size and modification time."""
     if row.file_path:
         path = storage.resolve(row.file_path)
         if path is not None and path.exists():
-            return hashlib.sha256(path.read_bytes()).hexdigest()
+            return cached_file_sha256(db, path) if db is not None else file_sha256(path)
     return _digest({"type": "film", "id": row.id, "language": row.language,
                     "title": row.title, "file_path": row.file_path,
                     "metadata": row.metadata_json})
@@ -47,7 +50,7 @@ def _current_items(db: Session, bundle: ApprovalBundle) -> list[tuple[str, int, 
     result: list[tuple[str, int, str, str]] = []
     if films:
         film = films[0]
-        result.append(("film", film.id, film.title or f"Film {film.id}", film_hash(film)))
+        result.append(("film", film.id, film.title or f"Film {film.id}", film_hash(film, db)))
         shorts = (db.query(RenderedShort)
                   .filter(RenderedShort.film_job_id == film.job_id,
                           RenderedShort.language == bundle.language)

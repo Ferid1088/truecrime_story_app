@@ -36,6 +36,7 @@ from app.lifecycle import videos as V
 from app.lifecycle.monitor import UnsolvedCaseMonitor, check_dict, run_dict
 from app.lifecycle.selection import candidate_dict, case_legal_risk_flags
 from app.lifecycle.status import history, history_dict, set_resolution
+from app.publishing.registry import PublicationRegistry, PublishingRefused
 from app.services import approval_bundles
 
 router = APIRouter(tags=["lifecycle"])
@@ -212,8 +213,10 @@ def publish_film(video_id: int, payload: PublishRequest, db: Session = Depends(g
     if blockers:
         raise HTTPException(status_code=409, detail={
             "message": "Not publishable: " + "; ".join(blockers), "blockers": blockers})
-    V.publish(db, v, published_at=payload.published_at, youtube_url=payload.youtube_url,
-              episode_number=payload.episode_number)
+    try:
+        PublicationRegistry(db).record_film_published(v, url=payload.youtube_url, published_at=payload.published_at, episode_number=payload.episode_number)
+    except PublishingRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return get_film(video_id, db)
 
 

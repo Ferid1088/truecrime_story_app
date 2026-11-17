@@ -7,7 +7,7 @@ and saved without starting or interrupting the documentary/short production work
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -21,6 +21,7 @@ from app.db.models import (
     ShortCandidate,
     ShortFormPublishingPlan,
 )
+from app.publishing.config import publishing_config
 
 CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "social_distribution.json"
 PLATFORM_LABELS = {
@@ -132,7 +133,7 @@ def build_release_document(db: Session, case_id: int, *,
                 current = language_renders.get(render.language)
                 if current is None or render.id > current.id:
                     language_renders[render.language] = render
-        representative = next((row for row in rows if row.language == review_language), rows[0])
+        representative = rows[0]          # a candidate is language-neutral (ShortCandidate has no language); its renders are per language
         render_maps[key] = language_renders
         representatives[key] = representative
         candidate_items.append({
@@ -149,15 +150,27 @@ def build_release_document(db: Session, case_id: int, *,
                           for language, render in sorted(language_renders.items())],
         })
 
-    timezone = ZoneInfo(config["campaign"].get("timezone", "UTC"))
-    clock = time.fromisoformat(config["campaign"].get("publish_time_local", "18:00"))
-    now_local = datetime.now(timezone)
-    base_date = start_date or (now_local.date() + timedelta(
-        days=int(config["campaign"].get("start_offset_days", 0))))
-    if base_date < now_local.date():
-        raise ValueError("Release plan start date cannot be in the past")
-    if base_date == now_local.date() and now_local.time() >= clock:
-        base_date += timedelta(days=1)
+    # The time of day and the zone of every language come from config/publishing.json (the one schedule source); the campaign's own time and zone are no longer read.
+    schedule_config = publishing_config()
+    now_utc = datetime.now(UTC)
+    base_dates: dict[str, date] = {}
+    for language in sorted({language for renders_of in render_maps.values() for language in renders_of}):
+        lang = schedule_config.languages.get(language)
+        if lang is None or not lang.enabled:
+            continue
+        zone = ZoneInfo(lang.timezone)
+        clock = time.fromisoformat(lang.publish_time_local)
+        now_local = now_utc.astimezone(zone)
+        base = start_date or (now_local.date() + timedelta(days=int(config["campaign"].get("start_offset_days", 0))))
+        if base < now_local.date():
+            raise ValueError("Release plan start date cannot be in the past")
+        if base == now_local.date() and now_local.time() >= clock:
+            base += timedelta(days=1)
+        base_dates[language] = base
+    shown = next((language for language in schedule_config.languages if language in base_dates), None)
+    shown_lang = schedule_config.languages.get(shown) if shown else None
+    timezone = ZoneInfo(shown_lang.timezone) if shown_lang else ZoneInfo("UTC")
+    base_date = base_dates.get(shown) if shown else (start_date or now_utc.date())
     platforms = config.get("platforms", {})
     accounts = config.get("accounts", {})
     template = config["schedule_template"]
@@ -170,23 +183,28 @@ def build_release_document(db: Session, case_id: int, *,
             continue
         representative = representatives[group_key]
         language_renders = render_maps[group_key]
-        publish_date = base_date + timedelta(days=int(slot["day"]) - 1)
-        publish_at = datetime.combine(publish_date, clock, tzinfo=timezone)
         for language, render in sorted(language_renders.items()):
+            language_base = base_dates.get(language)
+            publish_at = None
+            if language_base is not None:
+                language_zone = ZoneInfo(schedule_config.languages[language].timezone)
+                publish_at = schedule_config.slot_utc(language, language_base + timedelta(days=int(slot["day"]) - 1)).astimezone(language_zone)
             for platform in slot.get("platforms", []):
                 if not platforms.get(platform, {}).get("enabled", False):
                     continue
                 account = (accounts.get(platform) or {}).get(language) or {}
-                if render is None or render.status != "done":
+                if publish_at is None:
+                    slot_status = "language_not_scheduled"
+                elif render is None or render.status != "done":
                     slot_status = "render_not_ready"
                 elif account.get("credential_ref"):
                     slot_status = "configured"
                 else:
                     slot_status = "account_not_connected"
                 slots.append({
-                    "slot_key": f"{anchor.id}:{group_key}:{language}:{platform}:{publish_at.isoformat()}",
+                    "slot_key": f"{anchor.id}:{group_key}:{language}:{platform}:{publish_at.isoformat() if publish_at else 'unscheduled'}",
                     "day": int(slot["day"]),
-                    "publish_at": publish_at.isoformat(),
+                    "publish_at": publish_at.isoformat() if publish_at else None,
                     "candidate_id": representative.id,
                     "short_number": int(slot["short"]),
                     "language": language,
@@ -207,7 +225,9 @@ def build_release_document(db: Session, case_id: int, *,
         "film_job_ids": job_ids,
         "timezone": str(timezone),
         "start_date": base_date.isoformat(),
-        "publish_time_local": clock.isoformat(timespec="minutes"),
+        "publish_time_local": shown_lang.publish_time_local if shown_lang else None,
+        "schedules": {language: {"timezone": schedule_config.languages[language].timezone, "publish_time_local": schedule_config.languages[language].publish_time_local,
+                                 "start_date": base.isoformat()} for language, base in base_dates.items()},
         "review_language": review_language,
         "accounts_configured": bool(slots) and all(s["credential_ref"] for s in slots),
         "can_publish": False,

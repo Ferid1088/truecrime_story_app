@@ -81,7 +81,7 @@ class HostDirector:
                 if e.kind != "invalid_output" or role not in set(self.cfg.writer_agents.values()):
                     raise
                 # A writer that answers with the dialogue alone, without the JSON around it, has still written it: the whole answer is the dialogue.
-                res = await self.gen.generate_text(role, system, json.dumps(payload, ensure_ascii=False))
+                res = await run_agent(role, self.gen, json.dumps(payload, ensure_ascii=False), system=system, output="text")
                 raw = self._dialogue_answer(res.text)
             stamp_run(run, res, ai_config.agents[role].role)
         return raw, res

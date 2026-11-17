@@ -1,0 +1,53 @@
+{
+  "live_enabled": true,
+  "channels": {
+    "fa": {"label": "Persian", "name": "ردِ خاموش"},
+    "en": {"label": "English", "name": "ClueVera"},
+    "de": {"label": "German"},
+    "ar": {"label": "Arabic"},
+    "es": {"label": "Spanish"},
+    "it": {"label": "Italian"},
+    "fr": {"label": "French"},
+    "pt": {"label": "Portuguese"},
+    "tr": {"label": "Turkish"}
+  },
+  "oauth": {
+    "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
+    "token_url": "https://oauth2.googleapis.com/token",
+    "revoke_url": "https://oauth2.googleapis.com/revoke",
+    "scopes": [
+      "https://www.googleapis.com/auth/youtube.upload",
+      "https://www.googleapis.com/auth/youtube.readonly",
+      "https://www.googleapis.com/auth/youtube.force-ssl"
+    ],
+    "redirect_path": "/api/youtube-publishing/oauth/callback",
+    "state_ttl_seconds": 600,
+    "refresh_margin_seconds": 120,
+    "client_secret_env": "TRUECRIME_YOUTUBE_OAUTH_CLIENT_FILE",
+    "client_secret_file": "~/.truecrime/youtube/client_secret.json",
+    "token_file": "~/.truecrime/youtube/token_{language}.json"
+  },
+  "api": {
+    "base_url": "https://www.googleapis.com/youtube/v3",
+    "upload_url": "https://www.googleapis.com/upload/youtube/v3",
+    "timeout_seconds": 60,
+    "upload_timeout_seconds": 300
+  },
+  "upload": {
+    "initial_privacy": "private",
+    "category_id": "25",
+    "self_declared_made_for_kids": false,
+    "contains_synthetic_media": true,
+    "chunk_bytes": 8388608,
+    "max_retries": 5,
+    "retry_base_seconds": 2.0,
+    "retry_max_seconds": 60.0,
+    "processing_poll_seconds": 15,
+    "processing_max_wait_seconds": 1800,
+    "session_max_age_hours": 168,
+    "caption_languages": ["fa", "en", "de", "ar", "es", "it", "fr", "pt", "tr"],
+    "evidence": "Endpoints, scopes, quotas and limits were read on developers.google.com/youtube/v3 (videos.insert, resumable upload protocol, thumbnails.set, captions.insert, videos resource) on 2026-11-16; channels.list and videos.list scopes are not named on their pages and are confirmed by the live connection test."
+  },
+  "ui_base_url": "http://127.0.0.1:3001",
+  "api_public_url": "http://127.0.0.1:8001"
+}

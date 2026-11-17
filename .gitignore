@@ -110,3 +110,12 @@ data/_archive_*/
 reports/persian_reset_case15_20261104/run_v290/
 reports/persian_reset_case15_20261104/*.log
 reports/persian_reset_case15_20261104/blocks_sent_to_elevenlabs.json
+
+# Google OAuth client files and tokens: secrets, never committed (the app reads them from ~/.truecrime/youtube/)
+client_secret*.json
+OAuth-Client*.json
+**/client_secret.json
+**/token_*.json
+
+# third-party Shorts titles and captions collected as few-shot examples (public repository: not committed)
+data/publishing_examples/

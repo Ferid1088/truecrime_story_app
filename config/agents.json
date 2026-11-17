@@ -734,6 +734,34 @@
       "output": "json",
       "description": "Writes the YouTube tags of one case in one language from the verified case dossier: localized names, search phrases, verified geography, classification and a few genre terms, each with its category and the evidence behind it.",
       "used_by": "app/tags/generator.py"
+    },
+    "publishing_planner": {
+      "role": "publishing_planner",
+      "prompt": "publishing/planner",
+      "output": "json",
+      "description": "Judges the short clips of one case for publishing (hook in the first three seconds, appeal, curiosity, spoiler risk, follower and full-film conversion, platform fit), proposes the order of the Shorts on each platform, a calendar and the viewer routing, with reasons. Never edits a video.",
+      "used_by": "app/publishing/intelligence/agents.py"
+    },
+    "publishing_metadata_writer": {
+      "role": "publishing_metadata_writer",
+      "prompt": "publishing/metadata",
+      "output": "json",
+      "description": "Writes the native-language metadata of one platform (title, description or caption, hashtags, keywords, chapters, call to action) for the film and the Shorts of one case, from the verified dossier, the clips' own scripts and the film's story before its answer.",
+      "used_by": "app/publishing/intelligence/agents.py"
+    },
+    "publishing_hook_critic": {
+      "role": "publishing_hook_critic",
+      "prompt": "publishing/hook_critic",
+      "output": "json",
+      "description": "Judges the hooks (the title of a Short, or the first line of a caption where there is no title) written by the publishing metadata writer against the real top-viewed Shorts of the language: stakes, an open question, a concrete detail. Its verdict decides which hooks are sent back for a rewrite.",
+      "used_by": "app/publishing/intelligence/agents.py"
+    },
+    "publishing_orthography_fixer": {
+      "role": "publishing_orthography_fixer",
+      "prompt": "publishing/orthography",
+      "output": "json",
+      "description": "Puts the missing half-spaces (U+200C) into Persian texts that the publishing metadata writer spelled without them, changing nothing else; the app refuses any answer that changes more than half-spaces.",
+      "used_by": "app/publishing/intelligence/agents.py"
     }
   }
 }

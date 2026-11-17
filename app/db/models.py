@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Float,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     event,
     false,
     select,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
@@ -3606,3 +3608,161 @@ class VideoDescription(Base):
     cost_json: Mapped[str] = mapped_column(Text, default="{}")
     resolved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     edited_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
+class PublicationAccount(Base):
+    """One destination account of the publishing layer: a platform and a language. The secret is never here: `secret_ref` only names where the owner keeps it."""
+
+    __tablename__ = "publication_accounts"
+    __table_args__ = (UniqueConstraint("platform", "language", name="uq_publication_account"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    platform: Mapped[str] = mapped_column(String(20))
+    language: Mapped[str] = mapped_column(String(20))
+    external_id: Mapped[str] = mapped_column(String(80), default="")
+    display_name: Mapped[str] = mapped_column(String(200), default="")
+    secret_ref: Mapped[str] = mapped_column(String(120), default="")
+    status: Mapped[str] = mapped_column(String(20), default="not_connected")
+    auto_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_verified_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class Publication(Base):
+    """One asset (a film or a Short) for one destination (platform and language): what is planned for it, its two approvals, and how far a live operation got.
+    `content_hash` is the sha256 of the video file; `publication_hash` binds the approval to the file, the cover, the caption, the links and the settings.
+    A file that is `published` (or whose publish outcome is unknown) on an account is never published there again."""
+
+    __tablename__ = "publications"
+    __table_args__ = (
+        UniqueConstraint("case_id", "language", "platform", "kind", "asset_key", name="uq_publication_item"),
+        Index("uq_publication_once", "platform", "account_id", "content_hash", unique=True,
+              postgresql_where=text("status IN ('published', 'publish_uncertain')"),
+              sqlite_where=text("status IN ('published', 'publish_uncertain')")),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20), index=True)
+    platform: Mapped[str] = mapped_column(String(20))
+    kind: Mapped[str] = mapped_column(String(10), default="short")
+    asset_key: Mapped[str] = mapped_column(String(10))
+    video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id"), nullable=True, index=True)
+    short_clip_id: Mapped[int | None] = mapped_column(ForeignKey("short_clips.id"), nullable=True)
+    account_ref_id: Mapped[int | None] = mapped_column(ForeignKey("publication_accounts.id"), nullable=True)
+    account_id: Mapped[str] = mapped_column(String(80), default="")
+    content_hash: Mapped[str] = mapped_column(String(64), default="", index=True)
+    video_path: Mapped[str] = mapped_column(Text, default="")
+    caption: Mapped[str] = mapped_column(Text, default="")
+    cover_ref: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    cover_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    visibility: Mapped[str] = mapped_column(String(20), default="private")
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+    metadata_source: Mapped[str] = mapped_column(String(10), default="default")
+    sequence: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mode: Mapped[str] = mapped_column(String(12), default="manual")
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    scheduled_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True, index=True)
+    window_ends_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    publication_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    hash_inputs_json: Mapped[str] = mapped_column(Text, default="{}")
+    content_approved_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    content_approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    publication_approved_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    publication_approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    container_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    remote_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    remote_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class RoutingLink(Base):
+    """How viewers of one Short reach a film: a method, what is known about it (recorded, created, verified by a person) and the evidence. A stored URL is not a working link."""
+
+    __tablename__ = "routing_links"
+    __table_args__ = (UniqueConstraint("publication_id", "target_destination", "method", name="uq_routing_link"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    publication_id: Mapped[int] = mapped_column(ForeignKey("publications.id"), index=True)
+    target_destination: Mapped[str] = mapped_column(String(30))
+    method: Mapped[str] = mapped_column(String(24))
+    status: Mapped[str] = mapped_column(String(26), default="manual_action_required")
+    url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence_note: Mapped[str] = mapped_column(Text, default="")
+    verified_by: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class FileHashCache(Base):
+    """The sha256 of a large file, kept by path, size and modification time so that a page view does not read a film again. A live operation always hashes the file afresh."""
+
+    __tablename__ = "file_hash_cache"
+
+    path: Mapped[str] = mapped_column(String(1000), primary_key=True)
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    mtime_ns: Mapped[int] = mapped_column(BigInteger)
+    sha256: Mapped[str] = mapped_column(String(64))
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class PublishingPlanRun(Base):
+    """One run of the AI publishing plan of a case and language: its progress, the recommendations it made (hook analysis, the order of the Shorts per platform, the schedule and its
+    reasons, the routing advice, the metadata of every destination), the models and the calls it used. Reopening the Studio shows the newest finished run; nothing is generated again
+    unless the owner asks."""
+
+    __tablename__ = "publishing_plan_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20), index=True)
+    status: Mapped[str] = mapped_column(String(12), default="running", index=True)
+    input_fingerprint: Mapped[str] = mapped_column(String(64), default="")
+    progress_json: Mapped[str] = mapped_column(Text, default="[]")
+    result_json: Mapped[str] = mapped_column(Text, default="{}")
+    agent_run_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    applied_json: Mapped[str] = mapped_column(Text, default="{}")
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class YouTubeUploadSession(Base):
+    """One resumable upload of one publication to YouTube: the session address Google gave (a secret: never returned by the API), how many bytes Google has, and what
+    YouTube reported after the upload. At most one session per publication is active at a time (a partial unique index), so a second upload of the same publication can only
+    resume the first. The video is uploaded private; nothing here publishes."""
+
+    __tablename__ = "youtube_upload_sessions"
+    __table_args__ = (
+        Index("uq_youtube_session_active", "publication_id", unique=True,
+              postgresql_where=text("status IN ('created', 'uploading', 'interrupted', 'uploaded', 'processing')"),
+              sqlite_where=text("status IN ('created', 'uploading', 'interrupted', 'uploaded', 'processing')")),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    publication_id: Mapped[int] = mapped_column(ForeignKey("publications.id"), index=True)
+    status: Mapped[str] = mapped_column(String(12), default="created", index=True)
+    session_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    channel_id: Mapped[str] = mapped_column(String(40), default="")
+    content_hash: Mapped[str] = mapped_column(String(64), default="")
+    metadata_hash: Mapped[str] = mapped_column(String(64), default="")
+    privacy: Mapped[str] = mapped_column(String(10), default="private")
+    total_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+    bytes_sent: Mapped[int] = mapped_column(BigInteger, default=0)
+    remote_video_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    upload_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    processing_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    processing_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    thumbnail_status: Mapped[str] = mapped_column(String(30), default="pending")
+    captions_status: Mapped[str] = mapped_column(String(30), default="pending")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    required_action: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)

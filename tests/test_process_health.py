@@ -54,3 +54,12 @@ def test_commit_hash_ignores_a_malformed_env_override(monkeypatch):
     # Falls back to the real `git rev-parse HEAD` — still a 40-char hash.
     value = ph.commit_hash()
     assert value is None or len(value) == 40
+
+
+def test_an_environment_override_sends_the_health_report_elsewhere(tmp_path, monkeypatch):
+    live = tmp_path / "live.json"
+    other = tmp_path / "other.json"
+    monkeypatch.setattr(ph, "WORKER_HEALTH_PATH", live)
+    monkeypatch.setenv("TRUECRIME_WORKER_HEALTH_FILE", str(other))
+    ph.write_worker_health("host:1:aaaaaa")
+    assert other.is_file() and not live.exists() and ph.read_worker_health()["worker_id"] == "host:1:aaaaaa"

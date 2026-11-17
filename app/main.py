@@ -50,6 +50,8 @@ async def _lifespan(_app):
         # the outfit library mirrors data/outfits on every start
         from app.outfits.library import scan_library
         scan_library(db, trigger="startup")
+        from app.youtube_publishing.uploader import sweep_interrupted
+        sweep_interrupted(db)
     except Exception as e:  # never block the app from starting
         logging.getLogger(__name__).error("startup recovery failed: %s", e)
     finally:
@@ -119,6 +121,10 @@ from app.documentary.studio_api import router as studio_router  # noqa: E402
 from app.lifecycle.api import router as lifecycle_router  # noqa: E402
 from app.longform.api import router as longform_router  # noqa: E402
 from app.naming.api import router as naming_router  # noqa: E402
+from app.meta_publishing.api import router as meta_publishing_router  # noqa: E402
+from app.publishing.api import router as publishing_router  # noqa: E402
+from app.publishing.intelligence.api import router as publishing_intelligence_router  # noqa: E402
+from app.youtube_publishing.api import router as youtube_publishing_router  # noqa: E402
 from app.shortform.api import router as shortform_router  # noqa: E402
 from app.shortform.closing_api import router as closing_router  # noqa: E402
 from app.shortform.clips_api import router as short_clips_router  # noqa: E402
@@ -142,6 +148,10 @@ for _router in (
     shortform_router,
     closing_router,
     short_clips_router,
+    meta_publishing_router,
+    publishing_router,
+    publishing_intelligence_router,
+    youtube_publishing_router,
     autopilot_router,
     orchestrator_router,
     block_review_router,

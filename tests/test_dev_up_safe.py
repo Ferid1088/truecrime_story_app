@@ -44,3 +44,16 @@ def test_a_frontend_process_that_already_exited_does_not_stop_dev_up():
         cwd=ROOT, capture_output=True, text=True,
     )
     assert result.returncode == 0 and result.stdout.strip() == "reached"
+
+
+def test_a_test_worker_never_overwrites_the_live_stacks_health_file(tmp_path, monkeypatch):
+    """The safe-start worker is a real `python -m app.worker`: it used to write data/dev/worker.health.json, so the Monitoring page and /health blamed a dead test process."""
+    from app.core import process_health
+
+    live = process_health.WORKER_HEALTH_PATH
+    before = live.read_bytes() if live.exists() else None
+    database = tmp_path / "safe-start.db"
+    command.upgrade(migrate.alembic_config(f"sqlite:///{database}"), "head")
+    monkeypatch.setenv("TRUECRIME_SAFE_START_SECONDS", "3")
+    db_reconcile.safe_start(database)
+    assert (live.read_bytes() if live.exists() else None) == before

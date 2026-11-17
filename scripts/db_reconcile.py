@@ -335,6 +335,9 @@ def safe_start(path: Path) -> None:
         "TRUECRIME_JOB_MAX_AUTO_RESUMES": "0",
         "TRUECRIME_DISABLE_SCHEDULER": "1",
     })
+    scratch = tempfile.mkdtemp(prefix="truecrime-safe-worker-")      # this worker is a test: it must not touch the live stack's health or alive file
+    environment["TRUECRIME_WORKER_HEALTH_FILE"] = str(Path(scratch) / "worker.health.json")
+    environment["WORKER_ALIVE_FILE"] = str(Path(scratch) / "alive")
     with tempfile.NamedTemporaryFile(prefix="truecrime-worker-", suffix=".log") as log_file:
         process = subprocess.Popen(
             [sys.executable, "-m", "app.worker"],

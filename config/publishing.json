@@ -1,0 +1,617 @@
+{
+  "version": 1,
+  "vocabulary": {
+    "platforms": [
+      "youtube",
+      "facebook",
+      "instagram",
+      "tiktok"
+    ],
+    "kinds": [
+      "film",
+      "short"
+    ],
+    "legacy_names": {
+      "youtube": {
+        "platform": "youtube",
+        "kind": "film"
+      },
+      "youtube_long": {
+        "platform": "youtube",
+        "kind": "film"
+      },
+      "youtube_short": {
+        "platform": "youtube",
+        "kind": "short"
+      },
+      "facebook_long": {
+        "platform": "facebook",
+        "kind": "film"
+      },
+      "facebook_reel": {
+        "platform": "facebook",
+        "kind": "short"
+      },
+      "instagram_reel": {
+        "platform": "instagram",
+        "kind": "short"
+      },
+      "tiktok": {
+        "platform": "tiktok",
+        "kind": "short"
+      },
+      "tiktok_video": {
+        "platform": "tiktok",
+        "kind": "short"
+      }
+    }
+  },
+  "destinations": [
+    {
+      "platform": "youtube",
+      "kind": "film",
+      "automation_allowed": true,
+      "reason": "Uploads stay private until the YouTube API project passes its audit; the verified live test is still required.",
+      "capabilities": {
+        "native_scheduling": {
+          "value": true,
+          "evidence": "confirmed",
+          "note": "videos.insert: status.publishAt"
+        },
+        "ai_disclosure_field": {
+          "value": "status.containsSyntheticMedia",
+          "evidence": "confirmed",
+          "note": "listed as settable on videos.insert"
+        },
+        "public_posting": {
+          "value": "audit_required",
+          "evidence": "unverified",
+          "note": "videos from an unverified API project created after 2020-07-28 are locked private until its audit; this project's status is unknown"
+        },
+        "person_required_per_post": {
+          "value": false,
+          "evidence": "unverified"
+        },
+        "post_publication_metadata_update": {
+          "value": true,
+          "evidence": "unverified",
+          "note": "videos.update; not re-read in this project"
+        }
+      },
+      "restrictions": [
+        "private_until_audit"
+      ]
+    },
+    {
+      "platform": "youtube",
+      "kind": "short",
+      "automation_allowed": true,
+      "reason": "As for the film. The Related Video link has no API field and stays a manual step.",
+      "capabilities": {
+        "native_scheduling": {
+          "value": true,
+          "evidence": "confirmed",
+          "note": "videos.insert: status.publishAt"
+        },
+        "ai_disclosure_field": {
+          "value": "status.containsSyntheticMedia",
+          "evidence": "confirmed"
+        },
+        "public_posting": {
+          "value": "audit_required",
+          "evidence": "unverified",
+          "note": "as for the film"
+        },
+        "person_required_per_post": {
+          "value": false,
+          "evidence": "unverified"
+        },
+        "post_publication_metadata_update": {
+          "value": true,
+          "evidence": "unverified"
+        }
+      },
+      "restrictions": [
+        "private_until_audit",
+        "no_api_related_video"
+      ]
+    },
+    {
+      "platform": "facebook",
+      "kind": "film",
+      "automation_allowed": true,
+      "reason": "The long-video upload route and its limits are not verified; the live test decides.",
+      "capabilities": {
+        "native_scheduling": {
+          "value": null,
+          "evidence": "unverified",
+          "note": "the Page video route's page does not mention scheduling"
+        },
+        "ai_disclosure_field": {
+          "value": null,
+          "evidence": "unverified"
+        },
+        "public_posting": {
+          "value": "open",
+          "evidence": "unverified"
+        },
+        "person_required_per_post": {
+          "value": false,
+          "evidence": "unverified"
+        },
+        "post_publication_metadata_update": {
+          "value": null,
+          "evidence": "unverified"
+        }
+      },
+      "restrictions": [
+        "long_video_limits_unverified"
+      ]
+    },
+    {
+      "platform": "facebook",
+      "kind": "short",
+      "automation_allowed": true,
+      "reason": "Page Reels API, 3 to 90 seconds.",
+      "capabilities": {
+        "native_scheduling": {
+          "value": true,
+          "evidence": "confirmed",
+          "note": "video_reels: video_state SCHEDULED, 10 minutes to 29 days ahead"
+        },
+        "ai_disclosure_field": {
+          "value": "is_ai_generated",
+          "evidence": "confirmed",
+          "note": "video_reels finish call"
+        },
+        "public_posting": {
+          "value": "open",
+          "evidence": "confirmed",
+          "note": "Page reels are public"
+        },
+        "person_required_per_post": {
+          "value": false,
+          "evidence": "unverified"
+        },
+        "post_publication_metadata_update": {
+          "value": null,
+          "evidence": "unverified"
+        }
+      },
+      "restrictions": []
+    },
+    {
+      "platform": "instagram",
+      "kind": "short",
+      "automation_allowed": true,
+      "reason": "Reels API; the AI label through the API is unconfirmed.",
+      "capabilities": {
+        "native_scheduling": {
+          "value": null,
+          "evidence": "unverified",
+          "note": "no scheduling parameter on the container page"
+        },
+        "ai_disclosure_field": {
+          "value": null,
+          "evidence": "unverified",
+          "note": "not on the content-publishing page"
+        },
+        "public_posting": {
+          "value": "open",
+          "evidence": "unverified"
+        },
+        "person_required_per_post": {
+          "value": false,
+          "evidence": "unverified"
+        },
+        "post_publication_metadata_update": {
+          "value": null,
+          "evidence": "unverified"
+        }
+      },
+      "restrictions": [
+        "no_clickable_caption_links",
+        "page_publishing_authorization_may_block"
+      ]
+    },
+    {
+      "platform": "tiktok",
+      "kind": "short",
+      "automation_allowed": false,
+      "reason": "An unaudited client may only post privately and TikTok's posting UX needs a person for every post; automatic public posting needs the audit and the owner's review of the rules.",
+      "capabilities": {
+        "native_scheduling": {
+          "value": null,
+          "evidence": "unverified"
+        },
+        "ai_disclosure_field": {
+          "value": "is_aigc",
+          "evidence": "confirmed",
+          "note": "Direct Post reference"
+        },
+        "public_posting": {
+          "value": "audit_required",
+          "evidence": "confirmed",
+          "note": "unaudited clients post privately (SELF_ONLY) only"
+        },
+        "person_required_per_post": {
+          "value": true,
+          "evidence": "confirmed",
+          "note": "content sharing guidelines: the user sets title, privacy and interactions"
+        },
+        "post_publication_metadata_update": {
+          "value": false,
+          "evidence": "unverified"
+        }
+      },
+      "restrictions": [
+        "private_until_audit",
+        "person_required_per_post"
+      ]
+    }
+  ],
+  "languages": {
+    "fa": {
+      "enabled": true,
+      "timezone": "Asia/Tehran",
+      "publish_time_local": "20:30"
+    },
+    "en": {
+      "enabled": false
+    },
+    "de": {
+      "enabled": false
+    },
+    "ar": {
+      "enabled": false
+    },
+    "es": {
+      "enabled": false
+    },
+    "it": {
+      "enabled": false
+    },
+    "fr": {
+      "enabled": false
+    },
+    "pt": {
+      "enabled": false
+    },
+    "tr": {
+      "enabled": false
+    }
+  },
+  "automatic_publishing": {
+    "default_enabled": false,
+    "missed_window_minutes": 60,
+    "automatic_retries": 0
+  },
+  "approval": {
+    "max_age_days": 7,
+    "scope": "destination",
+    "required": [
+      "content",
+      "publication"
+    ],
+    "invalidated_by": [
+      "video",
+      "cover",
+      "caption",
+      "links",
+      "settings"
+    ],
+    "unaffected_after_publication": [
+      "description_links"
+    ]
+  },
+  "modes": {
+    "default": "manual",
+    "automatic_requires": [
+      "global_switch_on",
+      "platform_language_switch_on",
+      "destination_auto_eligible",
+      "destination_automation_allowed",
+      "content_approved",
+      "publication_approved_and_fresh",
+      "inside_publication_window",
+      "emergency_stop_clear"
+    ]
+  },
+  "scheduling": {
+    "store_as": "utc",
+    "film_before_shorts": true,
+    "queue_order": [
+      "scheduled_at",
+      "queue_position"
+    ]
+  },
+  "routing": {
+    "methods": [
+      "related_video",
+      "link_post",
+      "description_link",
+      "profile_link",
+      "plain_text_cta",
+      "comment_to_dm"
+    ],
+    "statuses": [
+      "url_recorded",
+      "link_created",
+      "clickability_verified",
+      "manual_action_required",
+      "unsupported"
+    ],
+    "rules": [
+      {
+        "source": "youtube/short",
+        "target": "youtube/film",
+        "method": "related_video",
+        "automatable": false,
+        "evidence": "unverified",
+        "after_publication": false,
+        "note": "Set by hand in YouTube Studio; no API field was found. Needs Advanced features on the channel (third-party sources only)."
+      },
+      {
+        "source": "facebook/short",
+        "target": "facebook/film",
+        "method": "link_post",
+        "automatable": false,
+        "evidence": "unverified",
+        "after_publication": false,
+        "note": "How a Reel can lead to the film is not verified; test on a scratch Page."
+      },
+      {
+        "source": "facebook/short",
+        "target": "youtube/film",
+        "method": "link_post",
+        "automatable": false,
+        "evidence": "unverified",
+        "after_publication": false,
+        "note": "A separate link post; not verified."
+      },
+      {
+        "source": "facebook/film",
+        "target": "youtube/film",
+        "method": "description_link",
+        "automatable": false,
+        "evidence": "unverified",
+        "after_publication": false,
+        "note": "Clickability in Facebook descriptions is not verified."
+      },
+      {
+        "source": "youtube/film",
+        "target": "facebook/film",
+        "method": "description_link",
+        "automatable": false,
+        "evidence": "unverified",
+        "after_publication": true,
+        "note": "Added after the Facebook film exists (a post-publication metadata update)."
+      },
+      {
+        "source": "instagram/short",
+        "target": "youtube/film",
+        "method": "profile_link",
+        "automatable": false,
+        "evidence": "unverified",
+        "after_publication": false,
+        "note": "Reel captions are not dependable links; the profile link is a one-time account step."
+      },
+      {
+        "source": "instagram/short",
+        "target": "youtube/film",
+        "method": "plain_text_cta",
+        "automatable": true,
+        "evidence": "confirmed",
+        "after_publication": false,
+        "note": "Text only: never reported as a clickable link."
+      },
+      {
+        "source": "instagram/short",
+        "target": "youtube/film",
+        "method": "comment_to_dm",
+        "automatable": false,
+        "evidence": "unverified",
+        "after_publication": false,
+        "note": "Later: needs the Messaging API and its review."
+      },
+      {
+        "source": "tiktok/short",
+        "target": "youtube/film",
+        "method": "profile_link",
+        "automatable": false,
+        "evidence": "unverified",
+        "after_publication": false,
+        "note": "Needs a Business account or enough followers (not verified)."
+      },
+      {
+        "source": "tiktok/short",
+        "target": "youtube/film",
+        "method": "plain_text_cta",
+        "automatable": true,
+        "evidence": "confirmed",
+        "after_publication": false,
+        "note": "Text only: never reported as a clickable link."
+      }
+    ]
+  },
+  "monitoring": {
+    "area": "publishing",
+    "events": {
+      "publication_scheduled": {
+        "severity": "info",
+        "alert": false
+      },
+      "publication_started": {
+        "severity": "info",
+        "alert": false
+      },
+      "publication_published": {
+        "severity": "info",
+        "alert": false
+      },
+      "publication_failed": {
+        "severity": "problem",
+        "alert": true
+      },
+      "publication_uncertain": {
+        "severity": "problem",
+        "alert": true
+      },
+      "approval_expired": {
+        "severity": "attention",
+        "alert": true
+      },
+      "approval_voided": {
+        "severity": "attention",
+        "alert": true
+      },
+      "window_missed": {
+        "severity": "attention",
+        "alert": true
+      },
+      "automatic_blocked": {
+        "severity": "attention",
+        "alert": true
+      },
+      "emergency_stop_blocked": {
+        "severity": "attention",
+        "alert": true
+      },
+      "account_needs_reauth": {
+        "severity": "problem",
+        "alert": true
+      },
+      "routing_action_required": {
+        "severity": "attention",
+        "alert": true
+      },
+      "rate_limited": {
+        "severity": "attention",
+        "alert": false
+      },
+      "quota_exhausted": {
+        "severity": "problem",
+        "alert": true
+      },
+      "plan_generation_running": {
+        "severity": "info",
+        "alert": false
+      },
+      "plan_generation_failed": {
+        "severity": "problem",
+        "alert": true
+      },
+      "youtube_upload_running": {
+        "severity": "info",
+        "alert": false
+      },
+      "youtube_upload_needs_action": {
+        "severity": "problem",
+        "alert": true
+      },
+      "instagram_connection_problem": {
+        "severity": "problem",
+        "alert": true
+      },
+      "instagram_connection_expiring": {
+        "severity": "attention",
+        "alert": false
+      }
+    }
+  },
+  "plan": {
+    "default_visibility": "private",
+    "start_offset_days": 1
+  },
+  "readiness": {
+    "require_approved_cover": true
+  },
+  "intelligence": {
+    "generation": {
+      "repairs": 2,
+      "film_excerpt_chars": 6000,
+      "concurrency": 2,
+      "running_timeout_seconds": 900, "examples_dir": "data/publishing_examples", "examples_per_call": 30, "example_caption_chars": 220, "hook_min_score": 7, "hook_critic_examples": 12
+    },
+    "scheduling": {
+      "earliest_local_time": "08:00",
+      "latest_local_time": "23:30",
+      "max_shorts_per_platform_per_day": 1,
+      "min_days_between_films": 1,
+      "horizon_days": 21,
+      "data_notice": "No audience analytics have been collected by this application: the proposed dates and times follow the configured Persian audience time zone and the 20:30 preference, the film-first rule and spacing, not measured audience behaviour."
+    },
+    "metadata_limits": {
+      "youtube/film": {
+        "title_max": 100,
+        "text_max": 5000,
+        "hashtags_max": 15,
+        "hashtags_recommended": 3,
+        "keywords_max_chars": 500,
+        "chapters": true,
+        "evidence": "unverified",
+        "note": "Title (100 characters), description (5000 BYTES, not characters) and tags (500 characters) and the ban on < and > were read on the videos resource page (developers.google.com/youtube/v3/docs/videos) on 2026-11-16; the hashtag counts are not from that page.",
+        "title_required": true,
+        "text_max_bytes": 5000,
+        "forbidden_chars": "<>"
+      },
+      "youtube/short": {
+        "title_max": 100,
+        "text_max": 5000,
+        "hashtags_max": 15,
+        "hashtags_recommended": 3,
+        "keywords_max_chars": 500,
+        "chapters": false,
+        "evidence": "unverified",
+        "note": "Title (100 characters), description (5000 BYTES, not characters) and tags (500 characters) and the ban on < and > were read on the videos resource page (developers.google.com/youtube/v3/docs/videos) on 2026-11-16; the hashtag counts are not from that page.",
+        "title_required": true,
+        "text_max_bytes": 5000,
+        "forbidden_chars": "<>"
+      },
+      "facebook/film": {
+        "title_max": 100,
+        "text_max": 5000,
+        "hashtags_max": 10,
+        "hashtags_recommended": 3,
+        "keywords_max_chars": 0,
+        "chapters": true,
+        "evidence": "unverified",
+        "note": "No limit was found on the Page video pages read for this project; conservative values.",
+        "title_required": true
+      },
+      "facebook/short": {
+        "title_max": 100,
+        "text_max": 2200,
+        "hashtags_max": 10,
+        "hashtags_recommended": 3,
+        "keywords_max_chars": 0,
+        "chapters": false,
+        "evidence": "unverified",
+        "note": "No limit was found on the Reels publishing page; conservative values.",
+        "title_required": false
+      },
+      "instagram/short": {
+        "title_max": 0,
+        "text_max": 2200,
+        "hashtags_max": 30,
+        "hashtags_recommended": 5,
+        "keywords_max_chars": 0,
+        "chapters": false,
+        "evidence": "unverified",
+        "note": "Instagram captions hold 2200 characters and 30 hashtags (general knowledge, not re-read); the recommendation is far lower, as Meta warns against many hashtags.",
+        "title_required": false
+      },
+      "tiktok/short": {
+        "title_max": 2200,
+        "text_max": 2200,
+        "hashtags_max": 20,
+        "hashtags_recommended": 5,
+        "keywords_max_chars": 0,
+        "chapters": false,
+        "evidence": "confirmed",
+        "note": "The TikTok Direct Post reference states a title of at most 2200 UTF-16 runes; the hashtag limit is not stated.",
+        "title_required": false
+      }
+    }
+  }
+}

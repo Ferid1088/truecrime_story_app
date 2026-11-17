@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "sources": {
+    "instagram_reel": "https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-user/media (read 2026-11-15)",
+    "facebook_reel": "https://developers.facebook.com/docs/video-api/guides/reels-publishing (read 2026-11-15)"
+  },
+  "preflight": {
+    "case_id": 15,
+    "language": "fa",
+    "ffprobe_timeout_s": 60,
+    "gop_tolerance_s": 0.5
+  },
+  "platforms": {
+    "instagram_reel": {
+      "label": "Instagram Reels",
+      "containers": [
+        "mp4",
+        "mov"
+      ],
+      "video_codecs": [
+        "h264",
+        "hevc"
+      ],
+      "pix_fmts": [
+        "yuv420p",
+        "yuvj420p"
+      ],
+      "audio_codecs": [
+        "aac"
+      ],
+      "audio_channels": [
+        1,
+        2
+      ],
+      "min_seconds": 3.0,
+      "max_seconds": 900.0,
+      "max_bytes": 314572800,
+      "min_fps": 23.0,
+      "max_fps": 60.0,
+      "max_width": 1920,
+      "min_aspect": 0.01,
+      "max_aspect": 10.0,
+      "max_audio_sample_rate": 48000,
+      "max_video_bitrate_bps": 25000000,
+      "recommended_aspect": [
+        9,
+        16
+      ],
+      "recommended_min_width": null,
+      "recommended_min_height": null,
+      "min_audio_bitrate_bps": 128000,
+      "max_gop_seconds": null,
+      "levels": {
+        "containers": "confirmed",
+        "video_codecs": "confirmed",
+        "pix_fmts": "confirmed",
+        "audio_codecs": "confirmed",
+        "audio_channels": "confirmed",
+        "duration": "confirmed",
+        "max_bytes": "confirmed",
+        "fps": "confirmed",
+        "max_width": "confirmed",
+        "aspect_range": "confirmed",
+        "audio_sample_rate": "confirmed",
+        "video_bitrate": "confirmed",
+        "recommended_aspect": "recommended",
+        "resolution_floor": "unverified",
+        "audio_bitrate": "unverified",
+        "gop": "unverified",
+        "closed_gop": "confirmed",
+        "faststart": "confirmed",
+        "edit_list": "confirmed"
+      }
+    },
+    "facebook_reel": {
+      "label": "Facebook Page Reels",
+      "containers": [
+        "mp4"
+      ],
+      "video_codecs": [
+        "h264",
+        "hevc",
+        "vp9",
+        "av1"
+      ],
+      "pix_fmts": [
+        "yuv420p",
+        "yuvj420p"
+      ],
+      "audio_codecs": [
+        "aac"
+      ],
+      "audio_channels": [
+        2
+      ],
+      "min_seconds": 3.0,
+      "max_seconds": 90.0,
+      "max_bytes": null,
+      "min_fps": 24.0,
+      "max_fps": 60.0,
+      "max_width": null,
+      "min_aspect": 0.5625,
+      "max_aspect": 0.5625,
+      "max_audio_sample_rate": 48000,
+      "max_video_bitrate_bps": null,
+      "recommended_aspect": [
+        9,
+        16
+      ],
+      "recommended_min_width": 540,
+      "recommended_min_height": 960,
+      "min_audio_bitrate_bps": 128000,
+      "max_gop_seconds": 5.0,
+      "levels": {
+        "containers": "recommended",
+        "video_codecs": "confirmed",
+        "pix_fmts": "confirmed",
+        "audio_codecs": "confirmed",
+        "audio_channels": "confirmed",
+        "duration": "confirmed",
+        "max_bytes": "unverified",
+        "fps": "confirmed",
+        "max_width": "unverified",
+        "aspect_range": "confirmed",
+        "audio_sample_rate": "confirmed",
+        "video_bitrate": "unverified",
+        "recommended_aspect": "recommended",
+        "resolution_floor": "confirmed",
+        "audio_bitrate": "confirmed",
+        "gop": "confirmed",
+        "closed_gop": "confirmed",
+        "faststart": "unverified",
+        "edit_list": "unverified"
+      }
+    }
+  },
+  "instagram": {
+    "default_mode": "DRY_RUN",
+    "live_enabled": false,
+    "graph_host": "https://graph.facebook.com",
+    "upload_host": "https://rupload.facebook.com",
+    "api_version": "v27.0",
+    "language": "fa",
+    "account": {
+      "ig_account_id": "17841431693135313",
+      "username": "fe.rashidi.tc.fa",
+      "brand": "رد خاموش"
+    },
+    "required_permissions": [
+      "instagram_basic",
+      "instagram_content_publish",
+      "pages_read_engagement"
+    ],
+    "token_env": "TRUECRIME_META_ACCESS_TOKEN",
+    "token_file": "~/.config/truecrime/meta_access_token",
+    "prepared_copy_dir": "meta",
+    "request_timeout_s": 60,
+    "upload_timeout_s": 600,
+    "retry_attempts": 3,
+    "retry_backoff_s": 2.0,
+    "poll_interval_s": 60,
+    "poll_max_s": 300,
+    "connection": {
+      "live_enabled": true,
+      "app_env": "TRUECRIME_META_APP_FILE",
+      "app_file": "~/.truecrime/meta/app.json",
+      "state_file": "~/.truecrime/meta/instagram_{language}.json",
+      "authorize_url": "https://www.facebook.com/{version}/dialog/oauth",
+      "redirect_path": "/api/meta-publishing/oauth/callback",
+      "api_public_url": "http://127.0.0.1:8001",
+      "ui_base_url": "http://127.0.0.1:3001",
+      "state_ttl_seconds": 600,
+      "expiry_warning_days": 7,
+      "evidence": "Facebook Login web flow (dialog/oauth, oauth/access_token, fb_exchange_token for the 60-day token), /me/permissions and debug_token as documented at developers.facebook.com/docs/facebook-login/guides/access-tokens and /docs/graph-api/reference/user/permissions; not yet exercised against a live Meta app."
+    }
+  },
+  "prepare": {
+    "video_crf": 17,
+    "video_preset": "slow",
+    "video_profile": "high",
+    "keyframe_seconds": 3.0,
+    "min_psnr_db": 45.0,
+    "timeout_s": 900
+  }
+}

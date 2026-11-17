@@ -6,6 +6,7 @@ turn a download endpoint into a way to read arbitrary files, so every path is re
 """
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -42,3 +43,15 @@ def serve(path: Path | None, media_type: str, filename: str | None = None, missi
     if path is None or not is_allowed(path) or not path.is_file():
         raise HTTPException(status_code=404, detail=missing)
     return FileResponse(path, media_type=media_type, filename=filename, headers=headers)
+
+
+CHUNK_BYTES = 1024 * 1024
+
+
+def file_sha256(path: Path) -> str:
+    """The sha256 of a file, read in 1 MB chunks: a film of hundreds of megabytes never sits in memory."""
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(CHUNK_BYTES), b""):
+            digest.update(chunk)
+    return digest.hexdigest()

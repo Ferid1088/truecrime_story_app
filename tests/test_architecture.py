@@ -169,3 +169,61 @@ def test_stage_agents_resolve_without_building():
     for name in STAGE_AGENTS:
         cls = stage_agent_class(name)
         assert isinstance(cls, type), name
+
+
+def test_run_agent_can_ask_a_structured_agent_for_its_plain_answer():
+    """The host writer's fallback (an answer that is the dialogue without the JSON around it) goes through run_agent, not straight to the provider."""
+    import asyncio
+
+    from app.agents.runner import run_agent
+
+    seen = []
+
+    class Gen:
+        async def generate_structured(self, role, system, user, images=None):
+            seen.append(("structured", role))
+            return {"ok": 1}, "res"
+
+        async def generate_text(self, role, system, user, images=None):
+            seen.append(("text", role))
+            return "plain"
+
+    assert asyncio.run(run_agent("language.inspect.en", Gen(), "u", system="S", output="text")) == "plain"
+    assert seen == [("text", "language_inspector")]          # the agent's own model role, not its name
+    assert asyncio.run(run_agent("language.inspect.en", Gen(), "u", system="S"))[0] == {"ok": 1}
+
+
+def test_the_host_writer_fallback_asks_run_agent_for_text(monkeypatch):
+    import asyncio
+
+    from app.agents import host as H
+    from app.providers.generation.base import GenerationError
+
+    calls = []
+
+    async def fake_run_agent(name, gen, user, **kw):
+        calls.append((name, kw.get("output")))
+        if kw.get("output") == "text":
+            return type("R", (), {"text": "just the dialogue", "usage": None})()
+        raise GenerationError("invalid_output", "no json")
+
+    monkeypatch.setattr(H, "run_agent", fake_run_agent)
+    monkeypatch.setattr(H, "get_generation_provider", lambda: object())
+    monkeypatch.setattr(H, "persona_prompt", lambda cfg: "PERSONA")
+    monkeypatch.setattr(H, "stamp_run", lambda *a, **k: None)
+
+    class Run:
+        pass
+
+    class Tracker:
+        def __enter__(self):
+            return Run()
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(H, "track_run", lambda *a, **k: Tracker())
+    director = H.HostDirector()
+    writer = sorted(set(director.cfg.writer_agents.values()))[0]
+    raw, _ = asyncio.run(director._json(None, 1, "label", writer, "PERSONA system", {"a": 1}))
+    assert raw == {"dialogue": "just the dialogue"} and calls == [(writer, None), (writer, "text")]

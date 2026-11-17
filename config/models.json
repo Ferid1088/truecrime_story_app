@@ -95,6 +95,8 @@
         "short_clip_native_writer": "premium",
         "cover_planner": "premium",
         "tag_generator": "writer",
+        "publishing_planner": "premium",
+        "publishing_metadata_writer": "premium",
         "opening_native_writer": "premium",
         "host_writer": "premium",
         "host_writer_fa_ar": "premium",
@@ -136,7 +138,9 @@
         "detective_text_analyser": "writer",
         "detective_card_maker": "writer",
         "detective_card_inspector": "writer",
-        "semantic_audio_reviewer": "audio_listener"
+        "semantic_audio_reviewer": "audio_listener",
+        "publishing_hook_critic": "premium",
+        "publishing_orthography_fixer": "premium"
       },
       "fallbacks": {
         "cheap": [
@@ -298,6 +302,16 @@
     "tag_generator": {
       "temperature": 0.3,
       "max_tokens": 6000,
+      "reasoning_effort": "low"
+    },
+    "publishing_planner": {
+      "temperature": 0.3,
+      "max_tokens": 12000,
+      "reasoning_effort": "low"
+    },
+    "publishing_metadata_writer": {
+      "temperature": 0.7,
+      "max_tokens": 12000,
       "reasoning_effort": "low"
     },
     "short_clip_native_writer": {
@@ -495,6 +509,16 @@
     "semantic_audio_reviewer": {
       "temperature": 0.0,
       "max_tokens": 6000
+    },
+    "publishing_hook_critic": {
+      "temperature": 0.2,
+      "max_tokens": 6000,
+      "reasoning_effort": "low"
+    },
+    "publishing_orthography_fixer": {
+      "temperature": 0.0,
+      "max_tokens": 12000,
+      "reasoning_effort": "low"
     }
   }
 }

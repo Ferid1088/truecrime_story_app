@@ -27,6 +27,7 @@ import { VideosTab } from "./tabs/videos";
 import { CorpusSearchTab } from "./tabs/corpus-search";
 import { StatusTab } from "./tabs/status";
 import { FilmsTab } from "./tabs/films";
+import { PublishingTab } from "./tabs/publishing";
 import { AuditTab } from "./tabs/audit";
 import { NamingTab } from "./tabs/naming";
 import { ThumbnailTab } from "./tabs/thumbnail";
@@ -41,6 +42,7 @@ const TABS = [
   "Naming",
   "Thumbnail",
   "Films",
+  "Publishing",
   "Sources",
   "Corpus Search",
   "Facts",
@@ -242,6 +244,7 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
       {tab === "Naming" && <NamingTab caseId={caseId} />}
       {tab === "Thumbnail" && <ThumbnailTab caseId={caseId} />}
       {tab === "Films" && <FilmsTab caseId={caseId} />}
+      {tab === "Publishing" && <PublishingTab caseId={caseId} />}
       {tab === "Sources" && <SourcesTab caseId={caseId} refreshKey={researchTick} />}
       {tab === "Corpus Search" && <CorpusSearchTab caseId={caseId} />}
       {tab === "Facts" && <FactsTab caseId={caseId} refreshKey={researchTick} />}

@@ -1427,3 +1427,152 @@ export const autopilotApi = {
   setHandle: (language: string, platform: string, handle: string) =>
     put<ChannelSettingRow>(`/api/channel-settings/${language}/${platform}`, { handle }),
 };
+
+export type MetaStep = { name: string; status: "ok" | "failed" | "skipped" | "planned"; detail: string };
+export type MetaOperation = {
+  id: number; clip_key: string; language: string; status: string; container_id: string | null; media_id: string | null;
+  permalink: string | null; error: string | null; content_hash: string; updated_at: string | null;
+};
+export type MetaClip = {
+  clip_key: string; file: string | null; seconds: number | null; verdict: "PASS" | "WARNING" | "FAIL"; error: string | null;
+  failing: { name: string; actual: string; expected: string; action: string | null }[];
+};
+export type MetaStatus = {
+  case_id: number; language: string; account: { ig_account_id: string; username: string; brand: string };
+  default_mode: "DRY_RUN" | "UPLOAD_ONLY" | "PUBLISH"; live_enabled: boolean; token: { configured: boolean; source: string | null };
+  clips: MetaClip[]; operations: MetaOperation[]; confirmation_template: string;
+};
+export type MetaReport = { mode: string; clip_key: string; steps: MetaStep[]; manual_steps: { action: string; where: string; reason: string }[] };
+
+export type InstagramConnection = {
+  language: string; brand: string; expected_account: { id: string; username: string }; app_configured: boolean; live_enabled: boolean; publishing_live_enabled: boolean;
+  token_source: string | null; connected: boolean; verified: boolean; connected_at: string | null; expires_at: string | null; days_left: number | null; expired: boolean; expiring_soon: boolean;
+  last_test: { ok: boolean; at: string; error: string | null } | null; required_permissions: string[]; redirect_uri: string;
+};
+export type InstagramTest = { ok: boolean; account: { id: string; username: string }; permissions: string[]; quota_usage: number | null; checked_at: string };
+
+/** The owner's test interface of the Instagram Reels publisher (Farsi account only). */
+export const metaPublishingApi = {
+  connection: () => request<InstagramConnection>("/api/meta-publishing/connection"),
+  connect: (returnTo: string) => post<{ authorization_url: string }>("/api/meta-publishing/connection/connect", { return_to: returnTo }),
+  testConnection: () => post<InstagramTest>("/api/meta-publishing/connection/test"),
+  disconnect: () => post<{ disconnected: boolean; still_set_by_environment: boolean }>("/api/meta-publishing/connection/disconnect"),
+  status: () => request<MetaStatus>("/api/meta-publishing/status"),
+  authorization: () => post<{ steps: MetaStep[] }>("/api/meta-publishing/authorization"),
+  dryRun: (clipKey: string) =>
+    post<MetaReport>("/api/meta-publishing/operations", { clip_key: clipKey, language: "fa", mode: "DRY_RUN" }),
+  start: (clipKey: string, mode: "UPLOAD_ONLY" | "PUBLISH", confirm?: string) =>
+    post<{ started: boolean }>("/api/meta-publishing/operations", { clip_key: clipKey, language: "fa", mode, confirm }),
+};
+
+export type PublicationLink = {
+  id: number; target: string; method: string; status: string; url: string | null; evidence_note: string;
+  verified_at: string | null; automatable: boolean; note: string;
+};
+export type PublicationView = {
+  id: number; platform: string; kind: string; asset_key: string; status: string; visibility: string; mode: string; caption: string;
+  scheduled_at: string | null; scheduled_local: string | null; window_ends_at: string | null; content_approved_at: string | null;
+  publication_approved_at: string | null; approval_valid: boolean; content_approved: boolean;
+  eligibility: { edit: boolean; approve_content: boolean; approve_publication: boolean; schedule: boolean; withdraw: boolean }; approval_expires_at: string | null; blockers: string[]; warnings: string[];
+  schedule_blockers: string[]; remote_url: string | null; error: string | null; content_hash: string; publication_hash: string;
+  cover: { ref: string | null; approved: boolean }; file: string; prepared_copy: boolean; links: PublicationLink[];
+  metadata: PublicationMetadata; metadata_source: "default" | "ai" | "owner"; sequence: number | null; limit: MetadataLimit;
+  metadata_findings: { severity: "error" | "warning"; type: string; message: string }[]; suggestion: (PublicationMetadata & { text: string }) | null;
+};
+export type PublicationMetadata = {
+  title: string; hashtags: string[]; keywords: string[]; chapters: { time: string; title: string }[]; cta: string; routing_note: string; facts_used: string[];
+};
+export type MetadataLimit = {
+  title_max: number; title_required: boolean; text_max: number; hashtags_max: number; hashtags_recommended: number; keywords_max_chars: number; chapters: boolean;
+  evidence: "confirmed" | "unverified"; note: string;
+};
+export type StudioAsset = {
+  kind: "film" | "short"; key: string; label: string; file: string | null; bytes: number | null; video_id: number | null; state: string | null;
+  cover_state: string; cover_ref: string | null; preview_url: string | null; cover_url: string | null; publications: PublicationView[];
+};
+export type StudioSnapshot = {
+  case_id: number; language: string; scheduled: boolean; schedule: { timezone: string; publish_time_local: string } | null;
+  approval_max_age_days: number; missed_window_minutes: number; default_start: string | null; planned: boolean;
+  accounts: { platform: string; external_id: string; display_name: string; status: string; auto_eligible: boolean }[];
+  assets: StudioAsset[];
+};
+
+/** The Publishing Studio of a case and language: plan, edits, approvals and routing links. Nothing here uploads or publishes. */
+export type LampState = "published" | "waiting" | "failed" | "uncertain" | "unscheduled";
+export type PublicationLamp = { id: number; language: string; platform: string; kind: string; asset_key: string; status: string; state: LampState; scheduled_at: string | null; error: string | null };
+
+export const publishingApi = {
+  overview: (caseId: number) => request<{ publications: PublicationLamp[] }>(`/api/cases/${caseId}/publishing-overview`),
+  studio: (caseId: number, language: string) => request<StudioSnapshot>(`/api/cases/${caseId}/publishing/${language}`),
+  plan: (caseId: number, language: string, body: { start_date?: string; reset_schedule?: boolean }) =>
+    post<StudioSnapshot>(`/api/cases/${caseId}/publishing/${language}/plan`, body),
+  edit: (id: number, body: { caption?: string; scheduled_local?: string; clear_schedule?: boolean; visibility?: string; metadata?: Partial<PublicationMetadata> }) =>
+    patch<PublicationView>(`/api/publications/${id}`, body),
+  approveContent: (id: number) => post<PublicationView>(`/api/publications/${id}/content-approval`),
+  approvePublication: (id: number) => post<PublicationView>(`/api/publications/${id}/publication-approval`),
+  revoke: (id: number) => post<PublicationView>(`/api/publications/${id}/revoke`),
+  schedule: (id: number) => post<PublicationView>(`/api/publications/${id}/schedule`),
+  routing: (linkId: number, body: { status: string; evidence_note?: string }) =>
+    patch<PublicationView>(`/api/routing-links/${linkId}`, body),
+};
+
+export type AiStep = { step: string; label: string; status: "pending" | "running" | "done" | "failed"; detail: string };
+export type AiClip = {
+  clip_key: string; scores: Record<string, number>; platform_fit: Record<string, number>; strengths: string; risks: string;
+};
+export type AiRunResult = {
+  fingerprint: string; plan_start: string;
+  analysis: { clips: AiClip[]; sequences: Record<string, { clip_key: string; reason: string }[]>; routing: Record<string, { method: string; reason: string }>; warnings: string[]; notes: string[] };
+  schedule: { slots: { destination: string; asset: string; local_date: string; local_time: string; reason: string; moved: string | null }[]; summary: string; assumptions: string[]; notice: string };
+  metadata: Record<string, { item: PublicationMetadata & { text: string }; findings: { severity: string; type: string; message: string }[] }>;
+  platform_errors: Record<string, string>; unresolved: Record<string, string[]>;
+  models: { planner: string | null; writers: Record<string, string | null> };
+  usage: AiUsage;
+};
+export type AiUsage = { calls: number; failed_calls: number; input_tokens: number; output_tokens: number; cost_usd: number; cost_eur: number; priced_calls: number; models: string[]; agent_run_ids: number[] };
+export type AiRun = {
+  id: number; status: "running" | "done" | "failed" | "interrupted"; started_at: string; finished_at: string | null; progress: AiStep[]; error: string | null; usage: AiUsage | null;
+  applied: { applied?: number[]; kept?: { id: number; destination: string; asset: string; why: string }[] }; result: AiRunResult | null;
+};
+export type AiState = {
+  language: string; scheduled: boolean; latest: AiRun | null; running: AiRun | null; failed: AiRun | null; emergency_stop: boolean; stale: boolean; up_to_date?: boolean; reason: string | null;
+  data_notice: string; estimate: { calls: number; eur_low: number; eur_high: number; models: Record<string, string>; basis: string } | null;
+};
+export type PlanApprovalRow = { id: number; platform: string; kind: string; asset_key: string; status: string; scheduled_local: string | null; reasons: string[]; notes: string[] };
+export type PlanApproval = { stopped: boolean; approve: PlanApprovalRow[]; excluded: PlanApprovalRow[]; already_approved: PlanApprovalRow[] };
+export type PlanApprovalResult = { approved: PlanApprovalRow[]; excluded: PlanApprovalRow[]; already_approved: PlanApprovalRow[] };
+
+/** The AI publishing plan: reading never calls a model; `generate` is the owner's click and the only paid step. */
+export const publishingAiApi = {
+  state: (caseId: number, language: string) => request<AiState>(`/api/cases/${caseId}/publishing/${language}/ai`),
+  generate: (caseId: number, language: string, force = false) => post<AiRun>(`/api/cases/${caseId}/publishing/${language}/ai/generate`, { force }),
+  run: (caseId: number, language: string, runId: number) => request<AiRun>(`/api/cases/${caseId}/publishing/${language}/ai/runs/${runId}`),
+  order: (caseId: number, language: string, platform: string, order: string[]) => post<StudioSnapshot>(`/api/cases/${caseId}/publishing/${language}/order`, { platform, order }),
+  approvalPreview: (caseId: number, language: string) => request<PlanApproval>(`/api/cases/${caseId}/publishing/${language}/approve-plan`),
+  approvePlan: (caseId: number, language: string) => post<PlanApprovalResult>(`/api/cases/${caseId}/publishing/${language}/approve-plan`),
+  useSuggestion: (id: number) => post<PublicationView>(`/api/publications/${id}/use-suggestion`),
+};
+
+export type YouTubeChannel = {
+  language: string; label: string; name: string; registered: boolean; live_enabled: boolean; client_configured: boolean; connected: boolean; expected_channel_id: string | null;
+  channel_id: string | null; channel_title: string | null; channel_matches: boolean; scopes_ok: boolean; connected_at: string | null; redirect_uri: string; privacy: string;
+};
+export type YouTubeChannels = { channels: YouTubeChannel[]; live_enabled: boolean; privacy: string };
+export type YouTubeSession = {
+  id: number; status: string; bytes_sent: number; total_bytes: number; percent: number; video_id: string | null; privacy: string; upload_status: string | null;
+  processing_status: string | null; processing_percent: number | null; thumbnail: string; captions: string; error: string | null; required_action: string | null; updated_at: string | null;
+};
+export type YouTubeUploads = {
+  channel_id: string | null; live_enabled: boolean;
+  uploads: Record<string, { publication_id: number; asset_key: string; kind: string; confirmation: string | null; session: YouTubeSession | null; remote_url: string | null }>;
+};
+export const youtubeApi = {
+  channels: () => request<YouTubeChannels>("/api/youtube-publishing/channels"),
+  register: (language: string, channelId: string) => post<YouTubeChannel>(`/api/youtube-publishing/channels/${language}/register`, { channel_id: channelId }),
+  connect: (language: string, returnTo: string) => post<{ authorization_url: string }>(`/api/youtube-publishing/channels/${language}/connect`, { return_to: returnTo }),
+  test: (language: string) => post<{ ok: boolean; language: string; channel_id: string; channel_title: string; scopes: string[]; checked_at: string }>(`/api/youtube-publishing/channels/${language}/test`),
+  disconnect: (language: string) => post<{ disconnected: boolean; language: string; revoked: boolean; kept_connected: string[] }>(`/api/youtube-publishing/channels/${language}/disconnect`),
+  uploads: (caseId: number, language: string) => request<YouTubeUploads>(`/api/youtube-publishing/cases/${caseId}/${language}/uploads`),
+  upload: (publicationId: number, confirm: string) => post<{ started: boolean }>(`/api/youtube-publishing/publications/${publicationId}/upload`, { confirm }),
+  checkProcessing: (publicationId: number) => post<{ session: YouTubeSession | null }>(`/api/youtube-publishing/publications/${publicationId}/check-processing`),
+};
