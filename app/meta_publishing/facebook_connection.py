@@ -29,10 +29,12 @@ SECRET_REF = "meta/system_user_token"
 
 
 class FacebookConnection:
-    def __init__(self, settings: InstagramSettings | None = None, facebook: FacebookSettings | None = None, *, tokens: TokenStore | None = None,
+    def __init__(self, settings: InstagramSettings | None = None, facebook: FacebookSettings | None = None, *, language: str | None = None, tokens: TokenStore | None = None,
                  transport: httpx.AsyncBaseTransport | None = None, now=utc_now):
+        """The connection of one language's Page (`language`; the first configured Page when not given). A language without a Page raises ValueError."""
         config = meta_config()
-        self.s, self.f = settings or config.instagram, facebook or config.facebook
+        facebook = facebook or config.facebook
+        self.s, self.f = settings or config.instagram, facebook.for_language(language) if language else facebook
         self.tokens = tokens or TokenStore(self.s)
         self.transport, self.now = transport, now
 
@@ -76,7 +78,7 @@ class FacebookConnection:
             error = ConnectError("token_expired" if exc.kind == "token_expired" else "token_invalid" if exc.kind == "token_invalid" else "meta_error", f"Meta answered: {exc}")
             self._remember_failure(facts, error)
             raise error from exc
-        facts.update({"page_id": result["page"]["id"], "page_name": result["page"]["name"], "tasks": result["tasks"], "granted": result["permissions"], "upload_limits": result["upload_limits"],
+        facts.update({"page_id": result["page"]["id"], "page_name": result["page"]["name"], "tasks": result["tasks"], "granted": sorted({*result["permissions"], *result["cover_permissions"]}), "upload_limits": result["upload_limits"],
                       "last_test": {"ok": True, "at": result["checked_at"], "error": None}})
         self._write_facts(facts)
         return result
@@ -103,7 +105,8 @@ class FacebookConnection:
             raise ConnectError("page_token_mismatch", "The Page access token does not identify as the configured Page.")
         limits = await client.upload_limits()
         return {"page": {"id": expected.page_id, "name": page.get("name") or expected.brand}, "linked_instagram": {"id": linked["id"], "username": linked.get("username")},
-                "permissions": sorted(p for p in granted if p in self.f.required_permissions), "tasks": sorted(managed.get("tasks") or []), "page_token": "obtained and verified",
+                "permissions": sorted(p for p in granted if p in self.f.required_permissions),
+                "cover_permissions": sorted(p for p in granted if p in self.f.cover.required_permissions), "tasks": sorted(managed.get("tasks") or []), "page_token": "obtained and verified",
                 "upload_limits": limits, "checked_at": self.now().isoformat()}
 
     def _remember_failure(self, facts: dict, error: ConnectError) -> None:

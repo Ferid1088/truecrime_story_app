@@ -15,6 +15,7 @@ from test_publication_safeguards import approve_both, meet_every_film_requiremen
 from app.db.models import AgentRun, Publication, PublishingPlanRun
 from app.providers.generation.base import GenerationResult
 from app.publishing.config import publishing_config
+from app.publishing.film_link import without_reserved_rows
 from app.publishing.intelligence import schedule as SCH
 from app.publishing.intelligence import service as S
 from app.publishing.intelligence import validate as V
@@ -144,7 +145,7 @@ def test_a_run_saves_its_recommendations_and_writes_them_into_the_publications(w
     assert result["usage"]["models"] == ["fake-publishing_hook_critic", "fake-publishing_metadata_writer", "fake-publishing_planner"] and len(result["usage"]["agent_run_ids"]) == 9
     assert [s["status"] for s in json.loads(run.progress_json)] == ["done"] * 6
     short = pub(world, "instagram", "short", "C1")
-    assert short.metadata_source == "ai" and short.caption.startswith("سطر اول جذاب برای C1") and "ElevenLabs" in short.caption
+    assert short.metadata_source == "ai" and without_reserved_rows(short.caption).startswith("سطر اول جذاب برای C1") and "ElevenLabs" in short.caption
     meta = json.loads(short.metadata_json)
     assert meta["hashtags"] == ["#پرونده_جنایی", "#رد_خاموش"] and meta["cta"] == "فیلم کامل در یوتیوب." and short.sequence == 5       # the planner ranked C5 first
     assert pub(world, "instagram", "short", "C5").sequence == 1
@@ -269,11 +270,14 @@ def test_the_validators_catch_the_bad_things_and_say_which(world):
         return {f["type"] for f in V.metadata_findings(item, "short", limit, **ok)}
 
     assert kinds() == set()
-    assert "web_address" in kinds(text="ببینید www.example.com") and "web_address" in kinds(text="https://x.org/y")
-    short = CFG.intelligence.metadata_limits["youtube/short"]                                       # a YouTube Short may carry the link to its film in the description
-    item, _ = V.tidy({**base, "text": "فیلم کامل را ببینید\nhttps://www.youtube.com/watch?v=vcxqTGeT5Ss"})
-    assert short.web_address_allowed and not limit.web_address_allowed
-    assert not {f["type"] for f in V.metadata_findings(item, "short", short, **ok)} & {"web_address", "unknown_name"}
+    tiktok = CFG.intelligence.metadata_limits["tiktok/short"]                                       # a link in a caption is no route there and is refused
+    for text in ("ببینید www.example.com", "https://x.org/y"):
+        item, _ = V.tidy({**base, "text": text})
+        assert "web_address" in {f["type"] for f in V.metadata_findings(item, "short", tiktok, **ok)}
+    item, _ = V.tidy({**base, "text": "فیلم کامل را ببینید\nhttps://www.youtube.com/watch?v=vcxqTGeT5Ss"})            # YouTube, Facebook and Instagram Shorts may carry the address of their film
+    assert not tiktok.web_address_allowed and all(CFG.intelligence.metadata_limits[d].web_address_allowed for d in ("youtube/short", "facebook/short", "instagram/short"))
+    for destination in ("youtube/short", "facebook/short", "instagram/short"):
+        assert not {f["type"] for f in V.metadata_findings(item, "short", CFG.intelligence.metadata_limits[destination], **ok)} & {"web_address", "unknown_name"}
     assert "unknown_name" in kinds(text="Zorro was there") and "unknown_name" not in kinds(text="Nancy گفت") and "unknown_name" not in kinds(text="در YouTube")
     assert "keywords_not_supported" in kinds(keywords=["a"]) and "chapters_not_supported" in kinds(chapters=[{"time": "00:00", "title": "x"}])
     assert "unknown_fact" in kinds(facts_used=["F99"]) and "unknown_fact" not in kinds(facts_used=["F1", "clip:C1", "film"])
@@ -312,12 +316,13 @@ def test_metadata_written_by_the_owner_is_kept_and_the_ai_version_is_offered(wor
     assert pub(world, "instagram", "short", "C2").metadata_source == "owner"
     run = generate(world, Model(), force=True)
     kept = pub(world, "instagram", "short", "C2")
-    assert kept.caption == "کپشن خودم" and json.loads(kept.metadata_json)["hashtags"] == ["#خودم"]
+    note = world.registry.cfg.routing.bio_link_note["fa"]
+    assert without_reserved_rows(kept.caption) == f"کپشن خودم\n\n{note}" and json.loads(kept.metadata_json)["hashtags"] == ["#خودم"]       # the film rows on top and the bio line below are the app's, the text is the owner's
     assert any(k["id"] == kept.id and "edited by you" in k["why"] for k in json.loads(run.applied_json)["kept"])
     view = world.registry.view(kept, world.registry.suggestions(world.case.id, "fa"))
     assert view["suggestion"]["text"].startswith("سطر اول جذاب برای C2")
     used = world.registry.use_suggestion(kept.id)
-    assert used.metadata_source == "ai" and used.caption.startswith("سطر اول جذاب برای C2")
+    assert used.metadata_source == "ai" and without_reserved_rows(used.caption).startswith("سطر اول جذاب برای C2") and used.caption.startswith("{{film:")
 
 
 def test_editing_only_the_caption_makes_the_text_yours(world):
@@ -327,7 +332,7 @@ def test_editing_only_the_caption_makes_the_text_yours(world):
     world.registry.update(target.id, caption="کپشن من")
     assert pub(world, "facebook", "short", "C1").metadata_source == "owner"
     generate(world, Model(), force=True)
-    assert pub(world, "facebook", "short", "C1").caption == "کپشن من"
+    assert without_reserved_rows(pub(world, "facebook", "short", "C1").caption) == "کپشن من"
 
 
 def test_an_approved_publication_is_not_changed_behind_its_approval(world):
@@ -339,7 +344,7 @@ def test_an_approved_publication_is_not_changed_behind_its_approval(world):
     after = pub(world, "youtube", "short", "C1")
     assert after.status == "publication_approved" and (after.caption, after.scheduled_at) == before
     assert any(k["id"] == after.id and "publication approved" in k["why"] for k in json.loads(run.applied_json)["kept"])
-    assert pub(world, "youtube", "short", "C2").caption.startswith("متن کاملاً تازه")
+    assert without_reserved_rows(pub(world, "youtube", "short", "C2").caption).startswith("متن کاملاً تازه")
 
 
 def test_an_edit_of_the_metadata_voids_an_approval(world):
@@ -520,7 +525,7 @@ def test_the_api_uses_a_suggestion_and_refuses_when_there_is_none(world, client)
     target = pub(world, "youtube", "short", "C1")
     client.patch(f"/api/publications/{target.id}", json={"caption": "من نوشتم"})
     used = client.post(f"/api/publications/{target.id}/use-suggestion").json()
-    assert used["caption"].startswith("سطر اول جذاب برای C1") and used["metadata_source"] == "ai"
+    assert without_reserved_rows(used["caption"]).startswith("سطر اول جذاب برای C1") and used["metadata_source"] == "ai"
 
 
 def test_the_planner_and_the_writer_are_two_distinct_roles_on_the_model_that_kept_to_json():

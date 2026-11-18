@@ -136,6 +136,19 @@ class FacebookClient(MetaGraphClient):
                                 timeout=self.s.request_timeout_s, retry=True)
         return [{"id": str(t["id"]), "uri": t.get("uri"), "width": t.get("width"), "height": t.get("height"), "is_preferred": bool(t.get("is_preferred"))} for t in body.get("data") or [] if t.get("id")]
 
+    async def update_description(self, video_id: str, description: str) -> None:
+        """Changes the description of a video (or Reel) that is already on the Page (POST /{video}); the video itself is not touched."""
+        body = await self._send("POST", self._url(video_id), headers=self._bearer_of(await self.page_token()), json={"description": description}, timeout=self.s.request_timeout_s, retry=False)
+        if body.get("success") is not True:
+            raise MetaError("invalid_request", "Meta did not confirm the new description.")
+
+    async def comment(self, video_id: str, message: str) -> str:
+        """Posts a comment as the Page on a video or Reel (POST /{video}/comments; pages_manage_engagement). Never retried, so a comment is never posted twice. Returns the comment id."""
+        body = await self._send("POST", self._url(video_id, "comments"), headers=self._bearer_of(await self.page_token()), json={"message": message}, timeout=self.s.request_timeout_s, retry=False)
+        if not body.get("id"):
+            raise MetaError("invalid_request", "Meta did not return a comment id.")
+        return str(body["id"])
+
     async def set_thumbnail(self, video_id: str, picture: Path) -> None:
         """Posts `picture` as the preferred thumbnail (the cover) of an uploaded video (POST /{video}/thumbnails; pages_read_user_content and pages_manage_engagement). A thumbnail posted this way
         cannot be changed or deleted through the API, so the caller shows it to the owner before it is sent."""
@@ -150,39 +163,53 @@ class FacebookClient(MetaGraphClient):
         if body.get("success") is not True:
             raise MetaError("invalid_request", "Meta did not confirm the cover.")
 
-    # -- films (system-user token for the upload, Page token for the video) ---------------------------------
-    async def film_session(self, file_name: str, size: int) -> str:
-        body = await self._send("POST", self._url(self.f.app_id, "uploads"), headers=self._bearer(), params={"file_name": file_name, "file_length": str(size), "file_type": "video/mp4"},
-                                timeout=self.s.request_timeout_s, retry=False)
-        if not body.get("id"):
-            raise MetaError("invalid_request", "Meta did not return an upload session id.")
-        return str(body["id"])
+    # -- films: Meta's chunked Page-video upload (start, transfer, finish), all with the Page token -----------------------
+    @staticmethod
+    def _multipart(fields: dict[str, str], files: dict[str, tuple[str, bytes, str]] | None = None) -> tuple[str, bytes]:
+        """A multipart form: (content type with its boundary, body). Meta takes these fields in a form, not in the address."""
+        boundary = uuid.uuid4().hex
+        body = b"".join(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode() for name, value in fields.items())
+        for name, (filename, data, mime) in (files or {}).items():
+            body += f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"; filename="{filename}"\r\nContent-Type: {mime}\r\n\r\n'.encode() + data + b"\r\n"
+        return f"multipart/form-data; boundary={boundary}", body + f"--{boundary}--\r\n".encode()
 
-    async def film_offset(self, session_id: str) -> int:
-        body = await self._send("GET", self._url(session_id), headers=self._oauth(self.tokens.get()), timeout=self.s.request_timeout_s, retry=True)
-        return int(body.get("file_offset", 0))
+    async def _film_post(self, fields: dict[str, str], files: dict[str, tuple[str, bytes, str]] | None = None, *, timeout: float, retry: bool) -> dict:
+        content_type, body = self._multipart(fields, files)
+        headers = {**self._bearer_of(await self.page_token()), "Content-Type": content_type}
+        url = f"{self.f.video_host.rstrip('/')}/{self.s.api_version}/{self.f.page.page_id}/videos"
+        return await self._send("POST", url, headers=headers, content=body, timeout=timeout, retry=retry)
 
-    async def film_chunk(self, session_id: str, offset: int, chunk: bytes) -> str | None:
-        """One chunk at `offset`. Returns the file handle when Meta answers with it (the file is complete), else None."""
-        body = await self._send("POST", self._url(session_id), headers=self._oauth(self.tokens.get(), file_offset=str(offset)), timeout=self.f.film.chunk_timeout_s, retry=True, content=chunk)
-        return str(body["h"]) if body.get("h") else None
+    async def film_start(self, size: int) -> dict:
+        """Opens an upload for a file of `size` bytes: {video_id, upload_session_id, start_offset, end_offset} (the first chunk is start_offset..end_offset)."""
+        body = await self._film_post({"upload_phase": "start", "file_size": str(size)}, timeout=self.s.request_timeout_s, retry=False)
+        if not body.get("upload_session_id") or not body.get("video_id"):
+            raise MetaError("invalid_request", "Meta did not return an upload session and a video id.")
+        return {"video_id": str(body["video_id"]), "upload_session_id": str(body["upload_session_id"]), "start_offset": int(body["start_offset"]), "end_offset": int(body["end_offset"])}
 
-    async def film_create(self, handle: str, *, title: str, description: str, draft: bool, public: bool) -> str:
-        """The Page video from an uploaded file: a hidden DRAFT, or public. Never retried."""
-        params = {"title": title, "description": description, "fbuploader_video_file_chunk": handle}
+    async def film_transfer(self, session_id: str, offset: int, chunk: bytes) -> tuple[int, int]:
+        """One chunk at `offset`; Meta answers with where the next chunk starts and ends (equal when the file is complete)."""
+        body = await self._film_post({"upload_phase": "transfer", "upload_session_id": session_id, "start_offset": str(offset)}, {"video_file_chunk": ("chunk", chunk, "application/octet-stream")},
+                                     timeout=self.f.film.chunk_timeout_s, retry=True)
+        if "start_offset" not in body or "end_offset" not in body:
+            raise MetaError("upload_failed", "Meta did not say where the next chunk goes.")
+        return int(body["start_offset"]), int(body["end_offset"])
+
+    async def film_finish(self, session_id: str, *, title: str, description: str, draft: bool, public: bool, thumb: Path | None = None) -> None:
+        """Turns the uploaded file into the Page video: a hidden DRAFT, or public. Never retried. With `thumb` the cover picture goes along as the video's thumbnail (the `thumb` field), which Meta
+        then holds as the preferred one (measured 2026-11-18)."""
+        fields = {"upload_phase": "finish", "upload_session_id": session_id, "title": title, "description": description}
         if draft:
-            params |= {"published": "false", "unpublished_content_type": "DRAFT"}
+            fields |= {"published": "false", "unpublished_content_type": "DRAFT"}
         elif public:
-            params |= {"published": "true"}
+            fields |= {"published": "true"}
         else:
             raise MetaError("invalid_request", "A film is created either as a draft or public.")
-        url = f"{self.f.video_host.rstrip('/')}/{self.s.api_version}/{self.f.page.page_id}/videos"
+        files = {"thumb": (thumb.name, thumb.read_bytes(), "image/jpeg")} if thumb is not None else None
         try:
-            body = await self._send("POST", url, headers=self._bearer_of(await self.page_token()), params=params, timeout=self.s.request_timeout_s, retry=False)
+            body = await self._film_post(fields, files, timeout=self.s.request_timeout_s, retry=False)
         except MetaError as exc:
             if exc.kind in ("timeout", "network", "server"):
                 raise PublishOutcomeUnknown(exc.kind, str(exc), code=exc.code) from exc
             raise
-        if not body.get("id"):
-            raise MetaError("invalid_request", "Meta did not return a video id.")
-        return str(body["id"])
+        if body.get("success") is not True:
+            raise MetaError("invalid_request", "Meta did not confirm the film.")

@@ -43,9 +43,15 @@ async def publish_due(db: Session, *, publisher_factory=None) -> list[int]:
         return []
     started = []
     for pub in due(db, registry):
-        publisher = (publisher_factory or FacebookPublisher)(db)
         try:
+            publisher = (publisher_factory or FacebookPublisher)(db, language=pub.language)
             await publisher.run(pub.id, Mode.PUBLISH, None)
+        except ValueError as exc:                                                    # a language with no Page of its own: nothing is published for it
+            if (pub.id, "no_page") not in _reported:
+                _reported.add((pub.id, "no_page"))
+                registry.event(pub, "automatic_blocked", f"no_page: {exc}", "automatic")
+                db.commit()
+            continue
         except Refused as exc:
             if (pub.id, exc.reason) not in _reported:
                 _reported.add((pub.id, exc.reason))

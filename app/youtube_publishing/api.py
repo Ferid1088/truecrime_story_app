@@ -199,6 +199,15 @@ async def replace_thumbnail(publication_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=502, detail={"message": str(exc), "reason": exc.reason}) from exc
 
 
+@router.post("/cases/{case_id}/{language}/film-addresses")
+async def film_addresses(case_id: int, language: str, db: Session = Depends(get_db)):
+    """Put the film addresses into the first rows of the description of the language's YouTube Shorts that are public (the rest of each video is untouched)."""
+    try:
+        return {"youtube": await YouTubeUploader(db, _channels(db).oauth(language)).add_film_addresses(case_id, language)}
+    except ChannelError as exc:
+        raise _problem(exc) from exc
+
+
 @router.post("/publications/{publication_id}/sync")
 async def sync_visibility(publication_id: int, db: Session = Depends(get_db)):
     """Read the video's visibility from YouTube (a read) and bring the application's record in line, for a video that was made public or unlisted in Studio."""

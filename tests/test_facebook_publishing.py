@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 
 import httpx
 import pytest
@@ -49,14 +50,47 @@ class FakeMeta:
         self.error: dict | None = None
         self.fail_next: list[Exception] = []
         self.upload_failures = 0
-        self.film_offset = 0
-        self.film_handle = "HANDLE_cccccccccccc"
+        self.descriptions: list[str] = []
+        self.comments: list[str] = []
+        self.fail_after_chunks: int | None = None          # the connection drops once this many film chunks are stored (and stays down until it is set to None)
         self.chunks: list[tuple[int, int]] = []
         self.finish_exception: Exception | None = None
         self.bytes_transferred = 0
 
     def calls(self, method: str, tail: str) -> list[tuple[str, str, str, dict, bytes]]:
         return [r for r in self.requests if r[0] == method and r[2].endswith(tail)]
+
+    @staticmethod
+    def form_of(request_or_body, content_type: str | None = None) -> dict[str, bytes]:
+        """The parts of a multipart form: {name: bytes}."""
+        if isinstance(request_or_body, tuple):
+            content_type, request_or_body = request_or_body[3]["content-type"], request_or_body[4]
+        boundary = content_type.split("boundary=")[1].encode()
+        out = {}
+        for part in request_or_body.split(b"--" + boundary)[1:-1]:
+            head, _, value = part.partition(b"\r\n\r\n")
+            name = re.search(rb'name="([^"]+)"', head).group(1).decode()
+            out[name] = value[:-2] if value.endswith(b"\r\n") else value
+        return out
+
+    def film(self, headers: dict, body: bytes) -> httpx.Response:
+        """Meta's chunked Page-video upload: start names a session and a video, transfer returns where the next chunk goes, finish makes the video."""
+        form = self.form_of(body, headers["content-type"])
+        phase = form["upload_phase"].decode()
+        if phase == "start":
+            return httpx.Response(200, json={"video_id": "VIDEO9", "upload_session_id": "S1", "start_offset": "0", "end_offset": str(min(4096, int(form["file_size"])))})
+        if phase == "transfer":
+            if self.fail_next:
+                raise self.fail_next.pop(0)
+            if self.fail_after_chunks is not None and len(self.chunks) >= self.fail_after_chunks:
+                raise httpx.ConnectError("dropped")
+            offset, size = int(form["start_offset"]), len(form["video_file_chunk"])
+            self.chunks.append((offset, size))
+            done = offset + size
+            return httpx.Response(200, json={"start_offset": str(done), "end_offset": str(min(done + 4096, self.total))})
+        if self.finish_exception:
+            raise self.finish_exception
+        return httpx.Response(200, json={"success": True})
 
     def json_of(self, request) -> dict:
         return json.loads(request[4]) if request[4] else {}
@@ -98,26 +132,19 @@ class FakeMeta:
         if request.method == "GET" and path.endswith("/VIDEO1/thumbnails"):
             return httpx.Response(200, json={"data": [{"id": "T1", "uri": "https://scontent.example/t1.jpg", "width": 1080, "height": 1920, "is_preferred": True},
                                                        {"id": "T2", "uri": "https://scontent.example/t2.jpg", "width": 1080, "height": 1920, "is_preferred": False}]})
+        if request.method == "POST" and path.endswith("/VIDEO1/comments"):
+            self.comments.append(json.loads(body)["message"])
+            return httpx.Response(200, json={"id": f"COMMENT{len(self.comments)}"})
+        if request.method == "POST" and path.endswith("/VIDEO1") and b"description" in body:
+            self.descriptions.append(json.loads(body)["description"])
+            return httpx.Response(200, json={"success": True})
         if path.endswith("/VIDEO1") or path.endswith("/VIDEO9"):
             if "permalink_url" in fields:
                 return httpx.Response(200, json={"permalink_url": "/redsilence/videos/9/"})
             step = self.statuses[0] if len(self.statuses) == 1 else self.statuses.pop(0)
             return httpx.Response(200, json={"status": {"video_status": step, "uploading_phase": {"bytes_transferred": self.bytes_transferred}, "processing_phase": {"error": {"message": "bad"}}}})
-        if request.method == "POST" and path.endswith(f"/{APP}/uploads"):
-            return httpx.Response(200, json={"id": "upload:S1"})
-        if request.method == "GET" and path.endswith("/upload:S1"):
-            return httpx.Response(200, json={"id": "upload:S1", "file_offset": self.film_offset})
-        if request.method == "POST" and path.endswith("/upload:S1"):
-            if self.fail_next:
-                raise self.fail_next.pop(0)
-            offset = int(headers["file_offset"])
-            self.chunks.append((offset, len(body)))
-            self.film_offset = offset + len(body)
-            return httpx.Response(200, json={"h": self.film_handle} if self.film_offset >= self.total else {})
         if request.method == "POST" and path.endswith(f"/{PAGE}/videos"):
-            if self.finish_exception:
-                raise self.finish_exception
-            return httpx.Response(200, json={"id": "VIDEO9"})
+            return self.film(headers, body)
         return httpx.Response(404, json={"error": {"message": "unexpected route", "code": 1}})
 
     total = 0
@@ -179,6 +206,34 @@ def session_of(fb, p: Publication) -> FacebookUploadSession:
 
 def connection(meta) -> FacebookConnection:
     return FacebookConnection(meta.instagram, meta.facebook, tokens=meta.tokens, transport=meta.transport)
+
+
+def test_the_cover_permissions_are_read_from_the_token_and_the_status_says_whether_the_cover_can_be_set(meta):
+    assert connection(meta).status()["cover_ready"] is False
+    asyncio.run(connection(meta).test())
+    assert connection(meta).status()["cover_ready"] is False and "pages_manage_engagement" in connection(meta).status()["cover_missing_permissions"]       # the token lacks them
+    meta.fake.granted += ["pages_manage_engagement", "pages_read_user_content"]
+    result = asyncio.run(connection(meta).test())
+    status = connection(meta).status()
+    assert status["cover_ready"] is True and status["cover_missing_permissions"] == [] and set(result["cover_permissions"]) >= {"pages_manage_engagement", "pages_read_user_content"}
+
+
+def test_each_language_has_its_own_page_and_a_language_without_one_is_refused_clearly(meta, client):
+    from app.meta_publishing.config import FacebookPage
+
+    settings = meta.facebook.model_copy(update={"pages": {**meta.facebook.pages, "de": FacebookPage(page_id="999000111", brand="Stille Spur", linked_instagram_id="17800000000000001")}})
+    assert settings.language == "fa" and settings.page.page_id == PAGE                                                  # not chosen: the first configured Page
+    german = settings.for_language("de")
+    assert german.language == "de" and german.page.page_id == "999000111" and german.state_file == settings.state_file
+    assert FacebookConnection(meta.instagram, settings, language="de", tokens=meta.tokens).state_path.name == "facebook_de.json"
+    assert FacebookConnection(meta.instagram, settings, language="de", tokens=meta.tokens).status()["page"]["id"] == "999000111"
+    with pytest.raises(ValueError, match="no Facebook Page is configured for 'tr'"):
+        settings.for_language("tr")
+    with pytest.raises(ValueError):
+        FacebookConnection(meta.instagram, meta.facebook, language="tr", tokens=meta.tokens)
+    refused = client.get("/api/facebook-publishing/connection", params={"language": "tr"})
+    assert refused.status_code == 409 and refused.json()["detail"]["reason"] == "no_page"
+    assert client.get("/api/facebook-publishing/cases/1/tr/uploads").json()["detail"]["reason"] == "no_page"
 
 
 def test_the_connection_test_checks_permissions_page_instagram_link_task_page_token_and_limits_and_reveals_no_token(meta):
@@ -253,7 +308,8 @@ def test_the_status_says_what_blocks_an_upload_and_the_registry_row_mirrors_the_
         assert any("switched off" in b for b in conn.status()["upload_blockers"])
     finally:
         row = world.db.query(PublicationAccount).filter_by(platform="facebook", language="fa").one()
-        row.status, row.external_id, row.display_name, row.secret_ref = "not_connected", "", "", ""      # the account row is shared by every test: leave it as the registry first makes it
+        page = meta_config().facebook.pages["fa"]
+        row.status, row.external_id, row.display_name, row.secret_ref = "not_connected", page.page_id, page.brand, ""      # the account row is shared by every test: leave it as the registry first makes it
         world.db.commit()
 
 
@@ -376,10 +432,100 @@ def test_public_publishing_needs_its_own_switch_and_then_one_click_uploads_and_p
     assert [fb.m.fake.json_of(r)["upload_phase"] for r in fb.m.fake.calls("POST", "/video_reels")] == ["start", "finish"]
     assert fb.m.fake.json_of(fb.m.fake.calls("POST", "/video_reels")[-1])["video_state"] == "PUBLISHED"
     published = pub(fb.w, "facebook", "short", "C1")
-    assert session.status == "published" and published.status == "published" and published.remote_url == "https://www.facebook.com/redsilence/videos/9/" and published.published_at is not None
+    assert session.status == "published" and published.status == "published" and published.remote_url == "https://www.facebook.com/redsilence/videos/9/" and published.published_at is not None and published.visibility == "public"
     with pytest.raises(Refused) as caught:
         go(fb, p, Mode.PUBLISH, confirm=None)
     assert caught.value.reason == "already_uploaded"
+
+
+def test_the_films_addresses_are_added_to_the_description_of_a_reel_that_is_public_and_to_nothing_else(fb):
+    p = approved(fb)
+    fb.m.facebook.allow_public_publish = True
+    go(fb, p, Mode.PUBLISH, confirm=None)
+    assert asyncio.run(fb.publisher.add_film_addresses(fb.w.case.id, "fa")) == []                          # no film has an address yet: nothing to add
+    film = pub(fb.w, "youtube", "film", f"V{fb.w.film.id}")
+    film.remote_url = "https://www.youtube.com/watch?v=FILM123"
+    fb.w.db.commit()
+    done = asyncio.run(fb.publisher.add_film_addresses(fb.w.case.id, "fa"))
+    assert done == [{"publication_id": p.id, "updated": True, "video_id": "VIDEO1"}]
+    assert "https://www.youtube.com/watch?v=FILM123" in fb.m.fake.descriptions[-1] and "#truecrime" in fb.m.fake.descriptions[-1]
+    assert pub(fb.w, "facebook", "short", "C1").caption.startswith("https://www.youtube.com/watch?v=FILM123\n\n") and fb.m.fake.descriptions[-1].startswith("https://www.youtube.com/watch?v=FILM123\n")
+    assert asyncio.run(fb.publisher.add_film_addresses(fb.w.case.id, "fa")) == [] and len(fb.m.fake.descriptions) == 1       # nothing is sent twice
+
+
+def test_a_reel_that_goes_public_gets_its_approved_cover_and_the_film_comment_without_a_step_of_the_owner(fb):
+    from PIL import Image
+
+    from app.db.models import CoverVariant, PolicyEvent
+
+    cover = fb.w.tmp / "tri_C1_reel_v1.jpg"
+    Image.new("RGB", (1080, 1920), (200, 30, 30)).save(cover, quality=90)
+    fb.w.db.add(CoverVariant(case_id=fb.w.case.id, language="fa", cover_key="C1", shape="reel", version=1, status="approved", title="t", highlight="h", subject_name="n", file_path=str(cover),
+                             file_hash="abc", width=1080, height=1920, elements_json="{}", problems_json="[]", evidence_json="{}", approved_by="owner"))
+    fb.w.db.commit()
+    p = approved(fb)
+    youtube = pub(fb.w, "youtube", "film", f"V{fb.w.film.id}")
+    youtube.remote_url = "https://www.youtube.com/watch?v=FILM123"
+    fb.w.db.commit()
+    fb.m.fake.granted += ["pages_manage_engagement", "pages_read_user_content"]
+    fb.m.facebook.allow_public_publish = True
+    go(fb, p, Mode.PUBLISH, confirm=None)
+    assert len(fb.m.fake.calls("POST", "/VIDEO1/thumbnails")) == 1 and fb.m.fake.comments == ["https://www.youtube.com/watch?v=FILM123"]
+    events = [e.decision for e in fb.w.db.query(PolicyEvent).filter_by(case_id=fb.w.case.id).order_by(PolicyEvent.id).all()]
+    assert "facebook_cover_set" in events and "facebook_film_comment" in events and not any(e.endswith("_failed") for e in events)
+    asyncio.run(fb.publisher.follow_up_reel(pub(fb.w, "facebook", "short", "C1")))
+    assert len(fb.m.fake.calls("POST", "/VIDEO1/thumbnails")) == 1 and len(fb.m.fake.comments) == 1                 # each is done once
+
+
+def test_a_reel_whose_cover_or_comment_cannot_be_set_is_still_public_and_the_failure_is_recorded(fb):
+    from app.db.models import PolicyEvent
+
+    p = approved(fb)
+    youtube = pub(fb.w, "youtube", "film", f"V{fb.w.film.id}")
+    youtube.remote_url = "https://www.youtube.com/watch?v=FILM123"
+    fb.w.db.commit()
+    fb.m.facebook.allow_public_publish = True
+    go(fb, p, Mode.PUBLISH, confirm=None)                                                                   # the token here lacks pages_manage_engagement
+    assert pub(fb.w, "facebook", "short", "C1").status == "published"
+    assert "facebook_film_comment_failed" in [e.decision for e in fb.w.db.query(PolicyEvent).filter_by(case_id=fb.w.case.id).all()]
+
+
+def test_the_film_addresses_are_commented_under_a_public_reel_once_each_and_only_with_the_permission(fb):
+    p = approved(fb)
+    with pytest.raises(Refused) as caught:
+        asyncio.run(fb.publisher.add_film_comment(p.id))
+    assert caught.value.reason == "not_a_public_reel"                                                       # a Reel that is not public gets no comment
+    fb.m.facebook.allow_public_publish = True
+    go(fb, p, Mode.PUBLISH, confirm=None)
+    assert asyncio.run(fb.publisher.add_film_comment(p.id))["posted"] is False                              # no film has an address yet
+    youtube = pub(fb.w, "youtube", "film", f"V{fb.w.film.id}")
+    youtube.remote_url = "https://www.youtube.com/watch?v=FILM123"
+    fb.w.db.commit()
+    with pytest.raises(Refused) as caught:
+        asyncio.run(fb.publisher.add_film_comment(p.id))
+    assert caught.value.reason == "comment_permission_missing" and fb.m.fake.comments == []
+    fb.m.fake.granted += ["pages_manage_engagement"]
+    first = asyncio.run(fb.publisher.add_film_comment(p.id))
+    assert first == {"publication_id": p.id, "posted": True, "comment_id": "COMMENT1", "addresses": ["https://www.youtube.com/watch?v=FILM123"]}
+    assert asyncio.run(fb.publisher.add_film_comment(p.id))["posted"] is False and len(fb.m.fake.comments) == 1       # nothing is posted twice
+    facebook = pub(fb.w, "facebook", "film", f"V{fb.w.film.id}")
+    facebook.remote_url = "https://www.facebook.com/reel/777/"
+    fb.w.db.commit()
+    second = asyncio.run(fb.publisher.add_film_comment(p.id))
+    assert second["addresses"] == ["https://www.facebook.com/reel/777/"] and fb.m.fake.comments[-1] == "https://www.facebook.com/reel/777/"     # a later address is posted alone
+
+
+def test_a_reel_is_refused_until_both_films_are_published_and_its_approval_stays(fb):
+    p = approved(fb)
+    fb.m.facebook.allow_public_publish = True
+    fb.w.registry.cfg.scheduling.film_before_shorts = True
+    try:
+        with pytest.raises(Refused) as caught:
+            go(fb, p, Mode.PUBLISH, confirm=None)
+    finally:
+        fb.w.registry.cfg.scheduling.film_before_shorts = False
+    assert caught.value.reason == "film_first" and "youtube/film film is not published yet" in str(caught.value) and fb.m.fake.requests == []
+    assert pub(fb.w, "facebook", "short", "C1").status == "publication_approved"                                  # only the order was wrong: the approval is untouched
 
 
 def test_publish_after_an_upload_only_finishes_the_same_upload_without_a_second_one(fb):
@@ -508,25 +654,53 @@ def film_world(fb, monkeypatch) -> Publication:
     return p
 
 
-def test_a_film_goes_up_in_resumable_chunks_to_a_file_handle_and_nothing_is_created_on_the_page(fb, monkeypatch):
+def phases(fb) -> list[str]:
+    """The upload phases sent to the Page's video endpoint, in order."""
+    return [fb.m.fake.form_of(r)["upload_phase"].decode() for r in fb.m.fake.calls("POST", f"/{PAGE}/videos")]
+
+
+def test_a_film_goes_up_in_chunks_of_the_size_meta_asks_for_and_nothing_is_created_on_the_page(fb, monkeypatch):
     p = film_world(fb, monkeypatch)
     session = go(fb, p, Mode.UPLOAD_ONLY)
     size = fb.w.film_file.stat().st_size
-    assert session.status == "ready" and session.file_handle == "HANDLE_cccccccccccc" and session.bytes_sent == size
+    assert session.status == "ready" and session.file_handle == "VIDEO9" and session.upload_ref == "S1" and session.bytes_sent == size
     offsets = fb.m.fake.chunks
     assert offsets[0][0] == 0 and sum(n for _, n in offsets) == size and all(o2 == o1 + n1 for (o1, n1), (o2, _) in zip(offsets, offsets[1:], strict=False)) and len(offsets) > 1
-    created = fb.m.fake.calls("POST", f"/{PAGE}/videos")
-    assert created == [] and fb.m.fake.calls("POST", f"/{APP}/uploads")[0][2].endswith(f"/{APP}/uploads")
+    assert phases(fb) == ["start", *["transfer"] * len(offsets)] and pub(fb.w, "facebook", "film", f"V{fb.w.film.id}").remote_id is None      # no video is made before the finish call
 
 
-def test_a_film_draft_is_created_hidden_with_the_handle_and_followed_until_meta_is_ready(fb, monkeypatch):
+def test_a_film_draft_is_finished_hidden_and_followed_until_meta_is_ready(fb, monkeypatch):
     p = film_world(fb, monkeypatch)
     fb.m.fake.statuses = ["processing", "ready"]
     session = go(fb, p, Mode.SAVE_DRAFT)
-    created = fb.m.fake.calls("POST", f"/{PAGE}/videos")
-    assert len(created) == 1 and created[0][1] == "graph-video.facebook.com"
+    assert phases(fb)[0] == "start" and phases(fb)[-1] == "finish" and phases(fb).count("finish") == 1 and {r[1] for r in fb.m.fake.calls("POST", f"/{PAGE}/videos")} == {"graph-video.facebook.com"}
     assert session.status == "drafted" and session.remote_video_id == "VIDEO9" and pub(fb.w, "facebook", "film", f"V{fb.w.film.id}").remote_id == "VIDEO9"
     assert pub(fb.w, "facebook", "film", f"V{fb.w.film.id}").status == "ready"
+
+
+def test_the_approved_film_cover_goes_along_with_the_film_as_its_thumbnail(fb, monkeypatch):
+    from PIL import Image
+
+    from app.db.models import CoverVariant
+
+    cover = fb.w.tmp / "tri_long_film_v1.jpg"
+    Image.new("RGB", (1920, 1080), (200, 30, 30)).save(cover, quality=90)
+    fb.w.db.add(CoverVariant(case_id=fb.w.case.id, language="fa", cover_key="long", shape="film", version=1, status="approved", title="t", highlight="h", subject_name="n", file_path=str(cover),
+                             file_hash="abc", width=1920, height=1080, elements_json="{}", problems_json="[]", evidence_json="{}", approved_by="owner"))
+    fb.w.db.commit()
+    p = film_world(fb, monkeypatch)
+    sent: list[httpx.Request] = []
+    original = fb.m.transport.handler
+
+    def spy(request):
+        sent.append(request)
+        return original(request)
+
+    fb.publisher.client.transport = httpx.MockTransport(spy)
+    go(fb, p, Mode.SAVE_DRAFT)
+    finish = next(r for r in sent if r.url.path.endswith(f"/{PAGE}/videos") and b'name="upload_phase"\r\n\r\nfinish' in r.content)
+    assert finish.headers["content-type"].startswith("multipart/form-data") and b'name="thumb"' in finish.content and cover.read_bytes() in finish.content
+    assert pub(fb.w, "facebook", "film", f"V{fb.w.film.id}").cover_ref.startswith("film:")
 
 
 def test_the_film_draft_request_carries_published_false_and_the_draft_type_and_the_page_token(fb, monkeypatch):
@@ -540,10 +714,11 @@ def test_the_film_draft_request_carries_published_false_and_the_draft_type_and_t
 
     fb.publisher.client.transport = httpx.MockTransport(spy)
     go(fb, p, Mode.SAVE_DRAFT)
-    create = next(r for r in sent if r.url.path.endswith(f"/{PAGE}/videos"))
-    params = dict(create.url.params)
-    assert params["published"] == "false" and params["unpublished_content_type"] == "DRAFT" and params["fbuploader_video_file_chunk"] == "HANDLE_cccccccccccc" and params["title"] == "A Persian title"
-    assert create.headers["authorization"] == f"Bearer {PAGE_TOKEN}"
+    finish = next(r for r in sent if r.url.path.endswith(f"/{PAGE}/videos") and b'name="upload_phase"\r\n\r\nfinish' in r.content)
+    form = fb.m.fake.form_of(finish.content, finish.headers["content-type"])
+    assert not dict(finish.url.params) and finish.headers["content-type"].startswith("multipart/form-data")                       # the fields travel in the form, not in the address
+    assert {k: form[k].decode() for k in ("published", "unpublished_content_type", "upload_session_id", "title")} == {"published": "false", "unpublished_content_type": "DRAFT", "upload_session_id": "S1", "title": "A Persian title"}
+    assert finish.headers["authorization"] == f"Bearer {PAGE_TOKEN}"
 
 
 def test_a_film_larger_or_longer_than_metas_limit_is_refused_before_any_byte(fb, monkeypatch):
@@ -551,22 +726,21 @@ def test_a_film_larger_or_longer_than_metas_limit_is_refused_before_any_byte(fb,
     fb.m.fake.limits = {"length": 14460, "size": 100}
     with pytest.raises(Refused) as caught:
         go(fb, p, Mode.UPLOAD_ONLY)
-    assert caught.value.reason == "film_too_large" and not fb.m.fake.calls("POST", f"/{APP}/uploads")
+    assert caught.value.reason == "film_too_large" and not fb.m.fake.calls("POST", f"/{PAGE}/videos")
     fb.m.fake.limits = {"length": 1, "size": 28633115306}
     with pytest.raises(Refused) as caught:
         go(fb, p, Mode.UPLOAD_ONLY)
-    assert caught.value.reason == "film_too_long" and not fb.m.fake.calls("POST", f"/{APP}/uploads")
+    assert caught.value.reason == "film_too_long" and not fb.m.fake.calls("POST", f"/{PAGE}/videos")
 
 
-def test_an_interrupted_film_upload_resumes_from_the_offset_meta_reports_and_never_resends_what_it_has(fb, monkeypatch):
+def test_an_interrupted_film_upload_resumes_from_the_last_confirmed_offset_and_never_resends_what_meta_has(fb, monkeypatch):
     p = film_world(fb, monkeypatch)
-    fb.m.fake.fail_next = [httpx.ConnectError("dropped")] * 5
+    fb.m.fake.fail_after_chunks = 1                                                 # the first chunk is stored, then the connection drops
     session = go(fb, p, Mode.UPLOAD_ONLY)
-    assert session.status == "interrupted" and session.upload_ref == "upload:S1"
-    fb.m.fake.fail_next = []
-    fb.m.fake.film_offset = 4096                                                    # Meta already holds the first chunk
+    assert session.status == "interrupted" and session.upload_ref == "S1" and session.bytes_sent == 4096 and len(fb.m.fake.chunks) == 1
+    fb.m.fake.fail_after_chunks = None
     session = go(fb, p, Mode.UPLOAD_ONLY)
-    assert session.status == "ready" and fb.m.fake.chunks[0][0] == 4096 and len(fb.m.fake.calls("POST", f"/{APP}/uploads")) == 1
+    assert session.status == "ready" and [o for o, _ in fb.m.fake.chunks][:2] == [0, 4096] and phases(fb).count("start") == 1      # the resume goes on at 4096 in the same upload
 
 
 def test_the_emergency_stop_pauses_a_film_upload_between_chunks_and_it_can_be_resumed(fb, monkeypatch):
@@ -576,15 +750,14 @@ def test_the_emergency_stop_pauses_a_film_upload_between_chunks_and_it_can_be_re
     session = go(fb, p, Mode.UPLOAD_ONLY)
     assert session.status == "interrupted" and session.required_action == "resume" and "Emergency Stop" in session.error and len(fb.m.fake.chunks) < 10
     monkeypatch.setattr(fb.publisher.registry, "_stopped", lambda: False)
-    fb.m.fake.film_offset = sum(n for _, n in fb.m.fake.chunks)
-    assert go(fb, p, Mode.UPLOAD_ONLY).status == "ready"
+    assert go(fb, p, Mode.UPLOAD_ONLY).status == "ready" and phases(fb).count("start") == 1
 
 
 # --- 5. the interface and Monitoring -------------------------------------------------------------------------------------------------------------------------
 
 def test_the_api_shows_the_connection_and_the_uploads_without_any_secret_and_refuses_what_is_not_allowed(fb, client, monkeypatch):
     p = approved(fb)
-    monkeypatch.setattr("app.meta_publishing.facebook_api._publisher", lambda db: FacebookPublisher(db, fb.m.instagram, fb.m.facebook, client=fb.m.client, tokens=fb.m.tokens, sleep=fb.m.client.sleep))
+    monkeypatch.setattr("app.meta_publishing.facebook_api._publisher", lambda db, language=None: FacebookPublisher(db, fb.m.instagram, fb.m.facebook, client=fb.m.client, tokens=fb.m.tokens, sleep=fb.m.client.sleep))
     shown = client.get(f"/api/facebook-publishing/cases/{fb.w.case.id}/fa/uploads")
     assert shown.status_code == 200
     entry = shown.json()["uploads"][str(p.id)]
@@ -671,7 +844,7 @@ def make_due(fb, p: Publication, *, minutes_ago: int = 5, window: int = 55) -> N
 
 
 def run_due(fb):
-    return asyncio.run(automatic.publish_due(fb.w.db, publisher_factory=lambda db: fb.publisher))
+    return asyncio.run(automatic.publish_due(fb.w.db, publisher_factory=lambda db, language=None: fb.publisher))
 
 
 def test_the_automatic_publisher_does_nothing_while_it_is_switched_off(fb):
@@ -759,7 +932,7 @@ def test_the_shipped_configuration_approves_persian_by_hand_and_every_other_lang
 
 
 def test_the_api_reads_which_thumbnail_meta_uses_without_changing_anything_and_without_a_secret(fb, client, monkeypatch):
-    monkeypatch.setattr("app.meta_publishing.facebook_api._publisher", lambda db: FacebookPublisher(db, fb.m.instagram, fb.m.facebook, client=fb.m.client, tokens=fb.m.tokens, sleep=fb.m.client.sleep))
+    monkeypatch.setattr("app.meta_publishing.facebook_api._publisher", lambda db, language=None: FacebookPublisher(db, fb.m.instagram, fb.m.facebook, client=fb.m.client, tokens=fb.m.tokens, sleep=fb.m.client.sleep))
     p = approved(fb)
     none_yet = client.get(f"/api/facebook-publishing/publications/{p.id}/thumbnails")
     assert none_yet.status_code == 409 and none_yet.json()["detail"]["reason"] == "no_upload" and fb.m.fake.requests == []
@@ -777,7 +950,7 @@ def test_the_api_reads_which_thumbnail_meta_uses_without_changing_anything_and_w
 
 
 def test_a_text_corrected_after_the_video_was_finished_on_facebook_is_flagged_because_the_draft_keeps_the_old_one(fb, client, monkeypatch):
-    monkeypatch.setattr("app.meta_publishing.facebook_api._publisher", lambda db: FacebookPublisher(db, fb.m.instagram, fb.m.facebook, client=fb.m.client, tokens=fb.m.tokens, sleep=fb.m.client.sleep))
+    monkeypatch.setattr("app.meta_publishing.facebook_api._publisher", lambda db, language=None: FacebookPublisher(db, fb.m.instagram, fb.m.facebook, client=fb.m.client, tokens=fb.m.tokens, sleep=fb.m.client.sleep))
     p = approved(fb)
     url = f"/api/facebook-publishing/cases/{fb.w.case.id}/fa/uploads"
     go(fb, p, Mode.UPLOAD_ONLY)

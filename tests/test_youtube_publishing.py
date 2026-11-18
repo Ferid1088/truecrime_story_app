@@ -367,7 +367,6 @@ def test_a_public_film_is_recorded_as_published_and_its_shorts_carry_its_address
     connect(google)
     google.cfg.upload.public_after_processing = True
     planned(world)
-    short = pub(world, "youtube", "short", "C1")
     film = pub(world, "youtube", "film", f"V{world.film.id}")
     world.registry.update(film.id, metadata={"title": "The film", "hashtags": [], "keywords": ["k"], "chapters": [{"time": "00:00", "title": "Start"}, {"time": "01:00", "title": "Next"}]})
     approve_both(world, pub(world, "youtube", "film", f"V{world.film.id}"))
@@ -1011,3 +1010,19 @@ def test_with_default_approvals_a_youtube_upload_needs_no_approval_click_but_sti
     world.registry.update(p.id, metadata={"title": "A Persian title", "hashtags": [], "keywords": [], "cta": ""})
     assert run(world, google, pub(world, "youtube", "short", "C1")).status == "processed"
     assert {json.loads(e.context_json)["actor"] for e in events(world, "publication_approved")} == {"default"}
+
+
+def test_the_film_address_goes_to_the_first_rows_of_a_public_shorts_description_on_youtube_and_the_rest_of_the_video_is_kept(world, google):
+    connect(google)
+    google.cfg.upload.public_after_processing = True
+    p = approved_short(world)
+    run(world, google, p)
+    film = pub(world, "youtube", "film", f"V{world.film.id}")
+    film.remote_url = "https://www.youtube.com/watch?v=FILM123"
+    world.db.commit()
+    done = asyncio.run(uploader(world, google).add_film_addresses(world.case.id, "fa"))
+    assert done == [{"publication_id": p.id, "updated": True, "video_id": "VID123abc"}]
+    sent = google.fake.snippet_updates[-1]["snippet"]
+    assert sent["description"].startswith("https://www.youtube.com/watch?v=FILM123\n\n") and sent["title"] == "T" and sent["tags"] == ["a"] and sent["categoryId"] == google.fake.category      # nothing else was lost
+    assert pub(world, "youtube", "short", "C1").caption.startswith("https://www.youtube.com/watch?v=FILM123\n\n")
+    assert asyncio.run(uploader(world, google).add_film_addresses(world.case.id, "fa")) == [] and len(google.fake.snippet_updates) == 1       # nothing is sent twice

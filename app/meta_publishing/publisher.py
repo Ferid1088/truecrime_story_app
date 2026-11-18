@@ -219,6 +219,8 @@ class InstagramReelsPublisher:
         op = db.query(Publication).filter_by(case_id=target.case_id, language=language, platform=PLATFORM, kind="short", asset_key=clip_key).first()
         if op is None:
             raise Refused("not_planned", "This clip has no publication yet: make the publishing plan for this case and language in the Publishing Studio first.")
+        if waiting := registry.film_blockers(op):
+            raise Refused("film_first", " ".join(waiting))                    # the approval is left as it is: only the order is wrong
         registry.refresh(op)
         db.commit()                                         # an expiry or a void the refresh found is saved before anything else happens
         try:

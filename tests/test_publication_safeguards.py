@@ -1,5 +1,5 @@
 # ruff: noqa: F811  (the `world` fixture is imported from test_publication_registry and used by name)
-"""The approval safeguards of the Publishing Studio, enforced by the backend: a preview-only film cannot be approved; a missing, unapproved or unusable cover blocks approval
+"""The approval safeguards of the Publishing Studio, enforced by the backend: a film that does not meet the publish rules (an approved episode title, a public case status) cannot be approved; a missing, unapproved or unusable cover blocks approval
 (covers are required by default); every requirement is checked again when scheduling and before an upload or a publish, so that an earlier approval is never trusted on its own;
 an approval found to be expired is saved at once. Scratch cases and generated media only; no production file is touched. The `world` fixture approves a valid cover for every
 asset; tests that need a missing or bad one remove or spoil it."""
@@ -69,15 +69,16 @@ def reason_text(response) -> str:
     return detail["message"] if isinstance(detail, dict) else detail
 
 
-# --- 1. a preview-only film ---------------------------------------------------------------------------------------------------------------------------------------
+# --- 1. a film that does not meet the publish rules (the render profile is no rule: the owner removed it on 2026-11-18) ---------------------------------------------------------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("platform", ["youtube", "facebook"])
-def test_a_preview_film_gets_neither_approval(world, platform):
+def test_a_film_that_does_not_meet_the_publish_rules_gets_neither_approval(world, platform):
     planned(world)
     film = film_pub(world, platform)
-    assert world.film.render_profile == "preview"
-    with pytest.raises(PublishingRefused, match="preview profile"):
+    assert world.film.render_profile == "preview"                                              # a preview render is no reason to refuse it, but the missing episode title is
+    with pytest.raises(PublishingRefused, match="no approved episode title") as refused:
         world.registry.approve_content(film.id)
+    assert "preview profile" not in str(refused.value)
     with pytest.raises(PublishingRefused, match="Approve the content first"):
         world.registry.approve_publication(film.id)
     assert film_pub(world, platform).status == "draft" and film_pub(world, platform).content_approved_hash is None
@@ -88,16 +89,17 @@ def test_a_forced_content_approval_still_cannot_become_a_publication_approval(wo
     film = film_pub(world, "youtube")
     film.status, film.content_approved_hash = "content_approved", json.loads(film.hash_inputs_json)["content"]       # as if the content approval had been written around the rules
     world.db.commit()
-    with pytest.raises(PublishingRefused, match="preview profile"):
+    with pytest.raises(PublishingRefused, match="no approved episode title"):
         world.registry.approve_publication(film.id)
     assert film_pub(world, "youtube").publication_approved_hash is None
 
 
-def test_the_api_refuses_a_preview_film_at_every_step_and_lists_each_reason(world, client):
+def test_the_api_refuses_a_film_that_does_not_meet_the_rules_at_every_step_and_lists_each_reason(world, client):
     planned(world)
     film = film_pub(world, "facebook")
     first = client.post(f"/api/publications/{film.id}/content-approval")
-    assert first.status_code == 409 and first.json()["detail"]["reasons"][0] == "rendered with the preview profile — render again with the publish profile"
+    reasons = first.json()["detail"]["reasons"]
+    assert first.status_code == 409 and any("no approved episode title" in r for r in reasons) and not any("preview profile" in r for r in reasons)
     assert len(first.json()["detail"]["reasons"]) >= 2 and all(isinstance(r, str) for r in first.json()["detail"]["reasons"])         # each reason on its own, not one run-on sentence
     for step, expected in (("publication-approval", "Approve the content first"), ("schedule", "current, unexpired approval")):
         response = client.post(f"/api/publications/{film.id}/{step}")
@@ -110,7 +112,7 @@ def test_the_studio_view_tells_the_user_why_the_film_is_blocked_and_what_may_be_
     view = client.get(f"/api/cases/{world.case.id}/publishing/fa").json()
     film = next(a for a in view["assets"] if a["kind"] == "film")
     for publication in film["publications"]:
-        assert any("preview profile" in b for b in publication["blockers"]), publication["platform"]
+        assert any("no approved episode title" in b for b in publication["blockers"]) and not any("preview profile" in b for b in publication["blockers"]), publication["platform"]
         assert publication["eligibility"]["approve_content"] is False and publication["eligibility"]["schedule"] is False
 
 
@@ -205,6 +207,7 @@ def test_with_every_requirement_met_film_and_shorts_can_be_approved_on_every_des
 
 def test_with_every_requirement_met_the_release_order_still_holds(world, monkeypatch):
     meet_every_film_requirement(world, monkeypatch)
+    monkeypatch.setattr(world.registry.cfg.scheduling, "film_before_shorts", True)
     planned(world)
     short = pub(world, "youtube", "short", "C1")
     approve_both(world, short)
@@ -217,11 +220,20 @@ def test_with_every_requirement_met_the_release_order_still_holds(world, monkeyp
     short = pub(world, "youtube", "short", "C1")
     assert short.status == "voided"                                                          # its link changed once the film's URL was known
     approve_both(world, short)
+    with pytest.raises(PublishingRefused, match="facebook/film film is not published yet"):   # its text points to the Facebook film too: that one comes first as well
+        world.registry.schedule(short.id)
+    facebook = film_pub(world, "facebook")
+    facebook.status, facebook.remote_url = "published", "https://www.facebook.com/reel/SAFE/"
+    world.db.commit()
+    short = pub(world, "youtube", "short", "C1")
+    if short.status != "publication_approved":                                                # the second address changed its text: approved again
+        approve_both(world, short)
     assert world.registry.schedule(short.id).status == "scheduled"
 
 
 def test_the_buttons_follow_backend_eligibility_for_every_publication(world, client, monkeypatch):
     """`eligibility` in the view is what the Studio's buttons use: it must agree with what the backend does when the action is asked for."""
+    monkeypatch.setattr(world.registry.cfg.scheduling, "film_before_shorts", True)
     meet_every_film_requirement(world, monkeypatch)
     planned(world)
     cover_path(world, "C2").write_bytes(b"spoiled")                                          # one Short whose cover stopped being usable
@@ -262,11 +274,11 @@ def test_every_stage_blocks_when_the_film_stops_meeting_the_publish_rules(world,
     planned(world)
     film = film_pub(world, "facebook")
     approve_both(world, film)
-    world.film.render_profile = "preview"                                                     # not a change of the file: the hashes cannot tell
+    world.case.resolution_status = "UNKNOWN"                                                  # not a change of the file: the hashes cannot tell
     world.db.commit()
-    with pytest.raises(ReadinessChanged, match="preview profile") as raised:
+    with pytest.raises(ReadinessChanged, match="no public status") as raised:
         world.registry.assert_ready(film_pub(world, "facebook"), stage)
-    assert raised.value.reasons == ["rendered with the preview profile — render again with the publish profile"]
+    assert len(raised.value.reasons) == 1 and "no public status" in raised.value.reasons[0]
     assert film_pub(world, "facebook").status == "voided"
     assert json.loads(events(world, "readiness_blocked")[-1].context_json)["stage"] == stage
 

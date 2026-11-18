@@ -183,11 +183,12 @@
   "facebook": {
     "live_enabled": true,
     "allow_public_publish": false,
-    "language": "fa",
-    "page": {
-      "page_id": "1524968800689127",
-      "brand": "رد خاموش",
-      "linked_instagram_id": "17841431693135313"
+    "pages": {
+      "fa": {
+        "page_id": "1524968800689127",
+        "brand": "رد خاموش",
+        "linked_instagram_id": "17841431693135313"
+      }
     },
     "app_id": "1441358334321247",
     "video_host": "https://graph-video.facebook.com",

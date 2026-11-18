@@ -105,6 +105,8 @@ class YouTubeUploader:
             raise Refused(exc.reason, str(exc)) from exc
         if need_confirmation and confirm != confirmation_text(pub.id, channel_id):
             raise Refused("confirmation_missing", "The upload needs the owner's confirmation text for this publication and channel.")
+        if waiting := self.registry.film_blockers(pub):
+            raise Refused("film_first", " ".join(waiting))                       # the approval is left as it is: only the order is wrong
         self.registry.refresh(pub)
         self.db.commit()
         if pub.status not in ("uploading", "processing", "ready", "published"):
@@ -368,12 +370,35 @@ class YouTubeUploader:
             video = await self.client.video(session.remote_video_id)
             if video["snippet"].get("categoryId") == self.cfg.upload.category_id:
                 return False
-            await self.client.set_category(video, self.cfg.upload.category_id)
+            await self.client.update_snippet(video, categoryId=self.cfg.upload.category_id)
         except (YouTubeError, OAuthError) as exc:
             raise Refused("category_failed", self.oauth.tokens.redact(str(exc))) from exc
         self._event(pub, "youtube_category_set", self.cfg.upload.category_id, session_id=session.id)
         self.db.commit()
         return True
+
+    async def add_film_addresses(self, case_id: int, language: str) -> list[dict]:
+        """Put the film addresses into the first rows of the description of every YouTube Short of the language that is public already (a Short still being prepared gets them when the film is
+        uploaded). YouTube is changed first; this application's text follows only when YouTube accepted it. The rest of the video is untouched."""
+        done = []
+        for pub, text in self.registry.published_shorts_with_film_addresses(case_id, language, "youtube"):
+            session = self.session_of(pub.id)
+            if session is None or not session.remote_video_id:
+                continue
+            before, pub.caption = pub.caption, text
+            description = compose_description(pub)
+            pub.caption = before
+            try:
+                video = await self.client.video(session.remote_video_id)
+                await self.client.update_snippet(video, description=description)
+            except (YouTubeError, OAuthError) as exc:
+                done.append({"publication_id": pub.id, "updated": False, "error": self.oauth.tokens.redact(str(exc))})
+                continue
+            pub.caption = text
+            self._event(pub, "youtube_description_updated", "film addresses added", session_id=session.id)
+            self.db.commit()
+            done.append({"publication_id": pub.id, "updated": True, "video_id": session.remote_video_id})
+        return done
 
     async def replace_thumbnail(self, publication_id: int) -> YouTubeUploadSession:
         """Put the publication's current approved cover on the video that is already on YouTube (thumbnails.set; the video itself is not touched). The cover is taken from the registry again, so a cover
@@ -424,13 +449,10 @@ class YouTubeUploader:
 
         if not pub.cover_ref:
             return None
-        shape, _, ident = pub.cover_ref.partition(":")
-        if shape in ("film", "reel"):                                  # a cover made in the new style and approved (CoverVariant)
-            from app.db.models import CoverVariant
+        if pub.cover_ref.partition(":")[0] in ("film", "reel"):        # a cover made in the new style and approved (CoverVariant)
+            from app.covers import variants as CV
 
-            made = self.db.get(CoverVariant, int(ident))
-            picture = storage.resolve(made.file_path) if made is not None and made.status == "approved" else None
-            return picture if picture is not None and picture.is_file() else None
+            return CV.file_of_ref(self.db, pub.cover_ref)
         final = CS.covers_dir(pub.case_id, pub.language) / ("long.jpg" if pub.kind == "film" else f"short_{pub.asset_key}.jpg")
         return final if final.is_file() else None
 

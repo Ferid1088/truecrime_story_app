@@ -25,6 +25,7 @@ from app.meta_publishing.graph import MetaGraphClient
 from app.meta_publishing.publisher import InstagramReelsPublisher, Mode, Refused, confirmation_text
 from app.meta_publishing.token import TokenError, TokenStore
 from app.publishing.registry import PublicationRegistry
+from app.youtube_publishing.uploader import compose_description
 
 pytestmark = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is needed to make the test video")
 TOKEN = "FAKE_TEST_TOKEN_aaaaaaaaaaaaaaaaaaaaaaaa"
@@ -102,6 +103,8 @@ def world(db_session, tmp_path, monkeypatch):
     db_session.commit()
     Image.new("RGB", (36, 64), (30, 60, 90)).save(covers_service.covers_dir(case.id, "fa") / "short_C1.jpg")
     registry = PublicationRegistry(db_session)
+    monkeypatch.setattr(registry.cfg.plan, "make_delivery_copies", False)       # these tests upload the clip as it is; the delivery copy has its own test
+    monkeypatch.setattr(registry.cfg.scheduling, "film_before_shorts", False)   # these tests upload a Reel with no film; the film-first rule has its own tests
     registry.plan(case.id, "fa")
     plan_row = db_session.query(Publication).filter_by(case_id=case.id, platform="instagram", asset_key="C1").one()
     registry.approve_content(plan_row.id)
@@ -218,7 +221,7 @@ async def test_upload_only_makes_the_container_uploads_and_waits_but_never_publi
     assert row.status == "ready" and row.container_id == "CONTAINER1" and row.remote_id is None
     assert world.fake.calls("POST", "media_publish") == []
     media = world.fake.calls("POST", f"/{IG_ID}/media")[0]
-    assert json.loads(media.content) == {"media_type": "REELS", "upload_type": "resumable", "caption": row.caption, "thumb_offset": 0}
+    assert json.loads(media.content) == {"media_type": "REELS", "upload_type": "resumable", "caption": compose_description(row), "thumb_offset": 0}        # the text sent holds no reserved film row
     assert media.headers["authorization"] == f"Bearer {TOKEN}"
     upload = world.fake.calls("POST", "/CONTAINER1")[0]
     assert upload.url.host == "rupload.facebook.com" and upload.url.path == "/ig-api-upload/v27.0/CONTAINER1"

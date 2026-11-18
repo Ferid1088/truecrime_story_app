@@ -137,17 +137,20 @@ def connection_issues() -> list:
 
 
 def facebook_connection_issues() -> list:
-    """The findings about the Facebook Page's connection (a read of the stored facts: no call to Meta). A connection that was never tested is not a finding; one that broke is."""
+    """The findings about the Facebook Pages' connections, one Page per language (a read of the stored facts: no call to Meta). A connection that was never tested is not a finding; one that broke is."""
     from app.documentary.monitoring import Action, Issue
+    from app.meta_publishing.config import meta_config
     from app.meta_publishing.facebook_connection import FacebookConnection
 
-    status = FacebookConnection().status()
-    last = status["last_test"]
-    if last is None or last["ok"]:
-        return []
-    cfg = publishing_config()
-    return [Issue(cfg.monitoring.events[EventCategory.FACEBOOK_CONNECTION_PROBLEM].severity.value, cfg.monitoring.area, f"Facebook Page {status['page']['name']}: the last connection test failed",
-                  f"{last['error']} Fix it and press Test connection in the Publishing Studio.", [Action("Open Publishing", "href", f"/cases/{meta_case_id()}?tab=Publishing&language={status['language']}")])]
+    cfg, out = publishing_config(), []
+    for language in meta_config().facebook.pages:
+        status = FacebookConnection(language=language).status()
+        last = status["last_test"]
+        if last is None or last["ok"]:
+            continue
+        out.append(Issue(cfg.monitoring.events[EventCategory.FACEBOOK_CONNECTION_PROBLEM].severity.value, cfg.monitoring.area, f"Facebook Page {status['page']['name']}: the last connection test failed",
+                         f"{last['error']} Fix it and press Test connection in the Publishing Studio.", [Action("Open Publishing", "href", f"/cases/{meta_case_id()}?tab=Publishing&language={status['language']}")]))
+    return out
 
 
 def meta_case_id() -> int:

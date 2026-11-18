@@ -24,6 +24,7 @@ from pathlib import Path
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.covers import variants as CV
 from app.db.models import FacebookUploadSession, Publication
 from app.documentary import storage
 from app.meta_publishing.config import FacebookSettings, InstagramSettings, meta_config
@@ -93,12 +94,14 @@ class Step:
 
 
 class FacebookPublisher:
-    def __init__(self, db: Session, settings: InstagramSettings | None = None, facebook: FacebookSettings | None = None, *, client: FacebookClient | None = None,
+    def __init__(self, db: Session, settings: InstagramSettings | None = None, facebook: FacebookSettings | None = None, *, language: str | None = None, client: FacebookClient | None = None,
                  registry: PublicationRegistry | None = None, tokens: TokenStore | None = None, transport=None, sleep=None):
+        """The publisher of one language's Page (`language`; the first configured Page when not given). A language without a Page raises ValueError."""
         import asyncio
 
         config = meta_config()
-        self.db, self.s, self.f = db, settings or config.instagram, facebook or config.facebook
+        facebook = facebook or config.facebook
+        self.db, self.s, self.f = db, settings or config.instagram, facebook.for_language(language) if language else facebook
         self.tokens = tokens or TokenStore(self.s)
         self.sleep = sleep or asyncio.sleep
         self.client = client or FacebookClient(self.s, self.f, self.tokens, transport=transport, sleep=self.sleep)
@@ -123,6 +126,8 @@ class FacebookPublisher:
             raise Refused("already_drafted", "This publication is already a draft on the Page. Publish it by hand in Meta Business Suite, or cancel it here after deleting the draft there.")
         if session is not None and session.status in ("published", "uncertain"):
             raise Refused("already_uploaded", f"This publication is already on the Page ({pub.remote_url or pub.remote_id}).")
+        if mode is not Mode.DRY_RUN and (waiting := self.registry.film_blockers(pub)):
+            raise Refused("film_first", " ".join(waiting))                       # the approval is left as it is: only the order is wrong
         if mode is not Mode.DRY_RUN:
             try:
                 self.registry.ensure_approved(pub)
@@ -395,7 +400,7 @@ class FacebookPublisher:
                     pub.status = "publishing"
                     self.db.commit()
                 try:
-                    video_id = await self.client.film_create(session.file_handle, title=target.title, description=target.description, draft=not public, public=public)
+                    await self.client.film_finish(session.upload_ref, title=target.title, description=target.description, draft=not public, public=public, thumb=CV.file_of_ref(self.db, pub.cover_ref))
                 except PublishOutcomeUnknown as exc:
                     self._uncertain(session, pub, exc)
                     return
@@ -404,8 +409,8 @@ class FacebookPublisher:
                         pub.status = "ready"
                         self.db.commit()
                     raise
-                self._save(session, remote_video_id=video_id, status="processing")
-                pub.remote_id = video_id
+                self._save(session, remote_video_id=session.file_handle, status="processing")
+                pub.remote_id = session.file_handle
                 self.db.commit()
             if await self._follow(session, pub):
                 await self._finished(session, pub, session.publish_status == "requested_public")
@@ -414,12 +419,18 @@ class FacebookPublisher:
         pub.remote_id, pub.error = session.remote_video_id, None
         if public:
             self._save(session, status="published", publish_status="published", error=None)
-            pub.status, pub.published_at = "published", utc_now()
+            pub.status, pub.visibility, pub.published_at = "published", "public", utc_now()
             try:
                 pub.remote_url = await self.client.permalink(session.remote_video_id)
             except MetaError:
                 pub.remote_url = None
             self._event(pub, "facebook_published", session.remote_video_id, session_id=session.id)
+            self.db.commit()
+            if pub.kind == "film":
+                self.registry.link_shorts_to_film(pub)
+                await self.follow_up_film(pub.case_id, pub.language)
+            else:
+                await self.follow_up_reel(pub)
         else:
             self._save(session, status="drafted", publish_status="draft", error=None, required_action="publish_in_business_suite")
             pub.status = "ready"
@@ -428,38 +439,34 @@ class FacebookPublisher:
 
     # -- film upload --------------------------------------------------------------------------------
     async def _film_upload(self, session: FacebookUploadSession, target: Target) -> None:
+        """Meta's chunked upload: start (Meta names the upload session and the video it will become, kept in `upload_ref` and `file_handle`), then chunks of the size Meta asks for, then `film_finish`
+        makes the Page video. `bytes_sent` is the offset Meta last confirmed, so a resume sends only the rest."""
         pub = target.publication
         resumed = session.upload_ref is not None
         if not resumed:
-            session_id = await self.client.film_session(target.path.name, session.total_bytes)
-            self._save(session, upload_ref=session_id, status="uploading", error=None, required_action=None)
+            started = await self.client.film_start(session.total_bytes)
+            self._save(session, upload_ref=started["upload_session_id"], file_handle=started["video_id"], status="uploading", error=None, required_action=None, bytes_sent=started["start_offset"])
+            offset, end = started["start_offset"], started["end_offset"]
             pub.status, pub.error, pub.account_id = "uploading", None, self.page_id
             self._event(pub, "facebook_upload_started", f"{session.total_bytes} bytes (film)", session_id=session.id)
             self.db.commit()
-            offset = 0
         else:
-            offset = await self.client.film_offset(session.upload_ref)
-            self._save(session, status="uploading", error=None, required_action=None, bytes_sent=offset)
+            offset = end = session.bytes_sent
+            self._save(session, status="uploading", error=None, required_action=None)
             pub.status = "uploading"
             self._event(pub, "facebook_upload_resumed", f"from byte {offset}", session_id=session.id)
             self.db.commit()
-        handle = None
-        chunk = self.f.film.chunk_bytes
+        limit = self.f.film.chunk_bytes
         with target.path.open("rb") as stream:
             while offset < session.total_bytes:
                 self._halt()
                 stream.seek(offset)
-                data = stream.read(chunk)
-                handle = await self.client.film_chunk(session.upload_ref, offset, data) or handle
-                offset += len(data)
+                data = stream.read(min(limit, end - offset) if end > offset else limit)
+                offset, end = await self.client.film_transfer(session.upload_ref, offset, data)
                 self._save(session, bytes_sent=offset)
-        if handle is None:
-            handle = session.file_handle
-        if handle is None:
-            raise MetaError("upload_failed", "Meta did not give a file handle for the uploaded film.")
-        self._save(session, file_handle=handle, status="ready", bytes_sent=session.total_bytes, error=None, required_action=None)
+        self._save(session, status="ready", bytes_sent=session.total_bytes, error=None, required_action=None)
         pub.status = "ready"
-        self._event(pub, "facebook_upload_ready", "file handle", session_id=session.id)
+        self._event(pub, "facebook_upload_ready", "all chunks sent", session_id=session.id)
         self.db.commit()
 
     # -- checking, cancelling, failures, restart ------------------------------------------------------
@@ -508,6 +515,94 @@ class FacebookPublisher:
         self._event(pub, "facebook_cover_set", f"reel cover v{variant.version}", session_id=session.id, video_id=session.remote_video_id, cover_variant_id=variant.id, cover_sha256=variant.file_hash)
         self.db.commit()
         return {"video_id": session.remote_video_id, "variant_id": variant.id, "thumbnails": rows, "preferred_id": next((t["id"] for t in rows if t["is_preferred"]), None)}
+
+    async def add_film_addresses(self, case_id: int, language: str) -> list[dict]:
+        """Put the addresses of the language's films into the description of every Reel that is public already (the Reels still being prepared get them when the film is published). The description is
+        changed on Facebook first; this application's text follows only when Meta confirmed it."""
+        from app.youtube_publishing.uploader import compose_description
+
+        done = []
+        for pub, text in self.registry.published_shorts_with_film_addresses(case_id, language, "facebook"):
+            session = latest_session(self.db, pub.id)
+            if session is None or not session.remote_video_id:
+                continue
+            before = pub.caption
+            pub.caption = text
+            description = compose_description(pub)
+            pub.caption = before
+            try:
+                await self.client.update_description(session.remote_video_id, description)
+            except MetaError as exc:
+                done.append({"publication_id": pub.id, "updated": False, "error": self.tokens.redact(str(exc))})
+                continue
+            pub.caption = text
+            self._event(pub, "facebook_description_updated", "film addresses added", session_id=session.id, video_id=session.remote_video_id)
+            self.db.commit()
+            done.append({"publication_id": pub.id, "updated": True, "video_id": session.remote_video_id})
+        return done
+
+    def _cover_set(self, pub: Publication) -> set[int]:
+        """The cover variants already posted as the cover of this publication's Reel (a cover posted to Meta cannot be changed, so each is posted once)."""
+        from app.db.models import PolicyEvent
+
+        rows = self.db.query(PolicyEvent).filter(PolicyEvent.case_id == pub.case_id, PolicyEvent.policy == "publication", PolicyEvent.decision == "facebook_cover_set").all()
+        return {int(context["cover_variant_id"]) for row in rows if (context := json.loads(row.context_json)).get("publication_id") == pub.id and context.get("cover_variant_id") is not None}
+
+    async def follow_up_reel(self, pub: Publication) -> None:
+        """After a Reel is public, with no step of the owner: its approved reel cover becomes its cover on Facebook, and the film addresses are commented under it. A failure of either is recorded and
+        never undoes the Reel."""
+        from app.covers import variants as CV
+
+        cover = CV.approved_cover(self.db, pub.case_id, pub.language, pub.asset_key)
+        steps = []
+        if cover is not None and cover.id not in self._cover_set(pub):
+            steps.append(("facebook_cover_failed", self.set_cover(pub.id, cover.id)))
+        steps.append(("facebook_film_comment_failed", self.add_film_comment(pub.id)))
+        for failure, step in steps:
+            try:
+                await step
+            except (Refused, MetaError) as exc:
+                self._event(pub, failure, self.tokens.redact(str(exc))[:300])
+                self.db.commit()
+
+    def _commented(self, pub: Publication) -> set[str]:
+        """The film addresses that were already posted as a comment under this publication's Reel."""
+        from app.db.models import PolicyEvent
+
+        rows = self.db.query(PolicyEvent).filter(PolicyEvent.case_id == pub.case_id, PolicyEvent.policy == "publication", PolicyEvent.decision == "facebook_film_comment").all()
+        return {url for row in rows if json.loads(row.context_json).get("publication_id") == pub.id for url in json.loads(row.context_json).get("addresses", [])}
+
+    async def add_film_comment(self, publication_id: int) -> dict:
+        """Posts the addresses of the language's films as a comment under a Reel that is public (a link in a comment is the usual way to make one tappable on Facebook; whether it is tappable inside a
+        Reel is checked by the owner). Only the addresses not yet commented are posted, so nothing is posted twice. Refused without the permission, an upload or an address."""
+        pub = self.registry.get(publication_id)
+        session = latest_session(self.db, publication_id)
+        if pub.platform != "facebook" or pub.kind != "short" or pub.status != "published" or session is None or not session.remote_video_id:
+            raise Refused("not_a_public_reel", "Only a Reel that is public on Facebook gets a comment.")
+        new = [a for a in self.registry.film_addresses_for(pub.case_id, pub.language, "facebook") if a not in self._commented(pub)]
+        if not new:
+            return {"publication_id": pub.id, "posted": False, "reason": "no new film address"}
+        if "pages_manage_engagement" not in await self.client.granted_permissions():
+            raise Refused("comment_permission_missing", "The token does not hold pages_manage_engagement: generate the system-user token again with it.")
+        try:
+            comment_id = await self.client.comment(session.remote_video_id, "\n".join(new))
+        except MetaError as exc:
+            raise Refused("comment_failed", self.tokens.redact(str(exc))) from exc
+        self._event(pub, "facebook_film_comment", "film addresses commented", session_id=session.id, video_id=session.remote_video_id, comment_id=comment_id, addresses=new)
+        self.db.commit()
+        return {"publication_id": pub.id, "posted": True, "comment_id": comment_id, "addresses": new}
+
+    async def follow_up_film(self, case_id: int, language: str) -> None:
+        """After a film is public: its address goes into the description and a comment of every Reel that is public. A failure here never undoes the film: it is recorded."""
+        try:
+            await self.add_film_addresses(case_id, language)
+            for pub in self.db.query(Publication).filter_by(case_id=case_id, language=language, platform="facebook", kind="short", status="published").all():
+                await self.add_film_comment(pub.id)
+        except (Refused, MetaError) as exc:
+            film = self.db.query(Publication).filter_by(case_id=case_id, language=language, platform="facebook", kind="film").first()
+            if film is not None:
+                self._event(film, "facebook_film_follow_up_failed", self.tokens.redact(str(exc))[:300])
+                self.db.commit()
 
     def cancel(self, publication_id: int) -> FacebookUploadSession:
         """Forget an active or drafted upload here. Nothing is deleted on Facebook: a video that exists there must be deleted by hand (the session says so)."""

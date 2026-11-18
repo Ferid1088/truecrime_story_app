@@ -88,6 +88,8 @@ def world(db_session, tmp_path, monkeypatch):
     sleeps = {"now": utc_now()}
     registry = PublicationRegistry(db_session, now=lambda: sleeps["now"])
     monkeypatch.setattr(registry.cfg.approval, "default_approved", False)         # these tests are about the owner's own approvals; the default approval has its own tests
+    monkeypatch.setattr(registry.cfg.plan, "make_delivery_copies", False)         # these tests send the clips as they are; the delivery copies have their own test below
+    monkeypatch.setattr(registry.cfg.scheduling, "film_before_shorts", False)     # most tests publish a Short with no film; the film-first rule has its own tests
     yield type("World", (), {"case": case, "film": film, "film_file": film_file, "clips": base / "clips" / "fa", "db": db_session, "registry": registry, "clock": sleeps, "tmp": tmp_path})
     db_session.rollback()
     ids = [p.id for p in db_session.query(Publication).filter_by(case_id=case.id).all()]
@@ -401,6 +403,7 @@ def test_editing_rules(world):
 # --- the order of release and the routing links -----------------------------------------------------------------------------------------------------------------------
 
 def test_a_short_waits_for_its_film_and_then_can_be_scheduled(world, monkeypatch):
+    monkeypatch.setattr(world.registry.cfg.scheduling, "film_before_shorts", True)
     ready_film(monkeypatch)
     planned(world)
     short = pub(world, "youtube", "short", "C1")
@@ -418,7 +421,12 @@ def test_a_short_waits_for_its_film_and_then_can_be_scheduled(world, monkeypatch
     assert short.status == "voided"                           # the link it was approved with changed: it must be approved again
     world.registry.approve_content(short.id)
     world.registry.approve_publication(short.id)
-    assert world.registry.schedule(short.id).status == "scheduled"
+    with pytest.raises(PublishingRefused, match="facebook/film film is not published yet"):                # its text points to the Facebook film too
+        world.registry.schedule(short.id)
+    facebook = pub(world, "facebook", "film", f"V{world.film.id}")
+    facebook.status, facebook.remote_url = "published", "https://www.facebook.com/reel/FILM1/"
+    world.db.commit()
+    assert world.registry.schedule(pub(world, "youtube", "short", "C1").id).status == "scheduled"
     assert events(world, "scheduled")
 
 
@@ -545,7 +553,8 @@ def test_the_migration_copies_published_films_and_changes_nothing_in_videos(worl
 
 # --- the API and the Monitoring page -----------------------------------------------------------------------------------------------------------------------
 
-def test_the_studio_api_end_to_end(world, client):
+def test_the_studio_api_end_to_end(world, client, monkeypatch):
+    monkeypatch.setattr(world.registry.cfg.scheduling, "film_before_shorts", True)
     base = f"/api/cases/{world.case.id}/publishing/fa"
     before = client.get(base).json()
     assert before["planned"] is False and [a["key"] for a in before["assets"]] == [f"V{world.film.id}", "C1", "C2", "C3", "C4", "C5"]
@@ -688,7 +697,27 @@ def test_a_release_plan_start_date_in_the_past_is_still_refused(world):
         world.db.commit()
 
 
-def test_a_films_youtube_address_is_put_into_the_text_of_its_editable_youtube_shorts_only(world):
+def test_each_film_address_goes_into_the_shorts_the_routing_config_names_and_a_public_short_is_only_offered_its_new_text(world):
+    planned(world)
+    youtube_film = pub(world, "youtube", "film", f"V{world.film.id}")
+    facebook_film = pub(world, "facebook", "film", f"V{world.film.id}")
+    youtube_film.remote_url, facebook_film.remote_url = "https://www.youtube.com/watch?v=FILM123", "https://www.facebook.com/page/videos/77/"
+    world.db.commit()
+    public = pub(world, "instagram", "short", "C2")
+    public.status, public.remote_id = "published", "IGMEDIA"
+    world.db.commit()
+    world.registry.link_shorts_to_film(youtube_film)
+    world.registry.link_shorts_to_film(facebook_film)
+    rows = lambda platform: pub(world, platform, "short", "C1").caption.split("\n")                           # noqa: E731
+    for platform in ("youtube", "facebook", "instagram"):                                                              # every Short and Reel points to both films, in its first two rows
+        assert rows(platform)[:2] == [youtube_film.remote_url, facebook_film.remote_url]
+    assert pub(world, "tiktok", "short", "C1").caption.count("http") == 0                                         # a platform the config does not name is left alone
+    offered = world.registry.published_shorts_with_film_addresses(world.case.id, "fa", "instagram")
+    assert [(p.id, youtube_film.remote_url in text and facebook_film.remote_url in text) for p, text in offered] == [(public.id, True)]
+    assert pub(world, "instagram", "short", "C2").caption.count("http") == 0                                      # offered, not written
+
+
+def test_a_films_youtube_address_is_put_into_the_text_of_its_editable_shorts_only_and_never_twice(world):
     planned(world)
     film = pub(world, "youtube", "film", f"V{world.film.id}")
     film.remote_url = "https://www.youtube.com/watch?v=FILM123"
@@ -696,15 +725,15 @@ def test_a_films_youtube_address_is_put_into_the_text_of_its_editable_youtube_sh
     first, second = pub(world, "youtube", "short", "C1"), pub(world, "youtube", "short", "C2")
     first_id, second.status = first.id, "published"
     world.db.commit()
-    before = pub(world, "facebook", "short", "C1").caption
-    others = {p.id for p in world.db.query(Publication).filter_by(case_id=world.case.id, platform="youtube", kind="short") if p.asset_key not in ("C1", "C2")}
+    tiktok = pub(world, "tiktok", "short", "C1").caption
     changed = world.registry.link_shorts_to_film(film)
-    assert first_id in changed and set(changed) == {first_id} | others and second.id not in changed          # the published one and the other platforms are left alone
+    assert first_id in changed and second.id not in changed                                                    # a public Short's text is not edited here
     assert film.remote_url in pub(world, "youtube", "short", "C1").caption and film.remote_url not in pub(world, "youtube", "short", "C2").caption
-    assert pub(world, "facebook", "short", "C1").caption == before
-    assert world.registry.link_shorts_to_film(film) == []                                                 # nothing is added twice
+    assert pub(world, "tiktok", "short", "C1").caption == tiktok                                               # a platform the config does not name is not touched
+    assert world.registry.link_shorts_to_film(film) == []                                                       # nothing is added twice
     film.remote_url = None
     assert world.registry.link_shorts_to_film(film) == []
+
 
 
 def test_every_shorts_delivery_copy_is_prepared_with_its_approved_reel_cover_and_made_again_only_when_something_changed(world):
@@ -724,3 +753,85 @@ def test_every_shorts_delivery_copy_is_prepared_with_its_approved_reel_cover_and
     assert second[0]["cover"].startswith("reel:") and second[0]["made_now"]                     # the cover came: the copy is made again, with it
     third = prepare_shorts(world.db, world.case.id, "fa")
     assert third[0]["made_now"] is False and third[0]["file"] == "delivery_C1.mp4"              # nothing changed: nothing is made
+
+
+def test_planning_makes_the_delivery_copies_with_the_approved_reel_cover_and_the_publications_send_them(world, monkeypatch):
+    from app.db.models import CoverVariant
+
+    monkeypatch.setattr(world.registry.cfg.plan, "make_delivery_copies", True)
+    for key in ("C2", "C3", "C4", "C5"):
+        (world.clips / f"clip_{key}.mp4").unlink()
+    picture = world.tmp / "reel.jpg"
+    Image.new("RGB", (1080, 1920), (200, 20, 20)).save(picture)
+    world.db.add(CoverVariant(case_id=world.case.id, language="fa", cover_key="C1", shape="reel", version=1, status="approved", title="t", highlight="h", subject_name="n", file_path=str(picture),
+                              file_hash="abc", width=1080, height=1920, elements_json="{}", problems_json="[]", evidence_json="{}", approved_by="owner"))
+    world.db.commit()
+    planned(world)
+    assert (world.clips / "delivery_C1.mp4").is_file()
+    assert {pub(world, platform, "short", "C1").video_path.rsplit("/", 1)[-1] for platform in ("youtube", "facebook", "instagram", "tiktok")} == {"delivery_C1.mp4"}
+    monkeypatch.setattr("app.shortform.delivery.prepare_shorts", lambda *a, **k: (_ for _ in ()).throw(OSError("disk")))
+    planned(world)                                                                                          # a copy that cannot be made never stops the plan
+
+
+def test_a_shorts_caption_is_planned_with_the_film_rows_on_top_whether_or_not_the_films_have_addresses(world):
+    from app.youtube_publishing.uploader import compose_description
+
+    planned(world)
+    rows = lambda platform: pub(world, platform, "short", "C1").caption.split("\n")                           # noqa: E731
+    for platform in ("youtube", "facebook", "instagram"):
+        assert rows(platform)[:3] == ["{{film:youtube}}", "{{film:facebook}}", ""]
+    assert pub(world, "tiktok", "short", "C1").caption.count("{{film") == 0                                      # a platform the config does not name has no film rows
+    assert "{{film" not in compose_description(pub(world, "facebook", "short", "C1"))                         # a reserved row is never sent
+    youtube_film = pub(world, "youtube", "film", f"V{world.film.id}")
+    youtube_film.remote_url = "https://www.youtube.com/watch?v=FILM123"
+    world.db.commit()
+    world.registry.link_shorts_to_film(youtube_film)
+    assert rows("facebook")[:3] == ["https://www.youtube.com/watch?v=FILM123", "{{film:facebook}}", ""] and rows("youtube")[:2] == ["https://www.youtube.com/watch?v=FILM123", "{{film:facebook}}"]
+    assert any("A film has no address yet" in w for w in world.registry.warnings(pub(world, "facebook", "short", "C1")))      # the Reel would go out without its second link
+    assert not any("A film has no address yet" in w for w in world.registry.warnings(pub(world, "tiktok", "short", "C1")))
+    planned(world)                                                                                          # planning again changes nothing that is already in place
+    assert rows("facebook")[:2] == ["https://www.youtube.com/watch?v=FILM123", "{{film:facebook}}"] and pub(world, "facebook", "short", "C1").caption.count("film123".upper()) == 1
+
+
+def test_every_language_has_its_bio_line_and_only_instagram_reels_carry_it_before_the_music_credit(world):
+    from app.youtube_publishing.uploader import compose_description
+
+    config = world.registry.cfg.routing
+    assert set(config.bio_link_note) == {"fa", "en", "de", "ar", "es", "it", "fr", "pt", "tr"} and all(config.bio_link_note.values())
+    planned(world)
+    note = config.bio_link_note["fa"]
+    instagram = pub(world, "instagram", "short", "C1").caption
+    assert instagram.count(note) == 1 and instagram.split("\n\n")[0].startswith("{{film:youtube}}") and instagram.endswith(note)          # this test caption holds its credit inside one line, so the note ends the text
+    assert all(note not in pub(world, platform, "short", "C1").caption for platform in ("youtube", "facebook", "tiktok"))
+    assert note in compose_description(pub(world, "instagram", "short", "C1"))                                  # it is sent, unlike a reserved row
+    planned(world)
+    assert pub(world, "instagram", "short", "C1").caption == instagram                                         # planning again changes nothing
+
+
+def test_a_short_waits_for_every_film_whose_address_is_in_its_text_unless_the_language_has_no_account_there(world, monkeypatch):
+    from app.db.models import PublicationAccount
+
+    monkeypatch.setattr(world.registry.cfg.scheduling, "film_before_shorts", True)
+    planned(world)
+    instagram = pub(world, "instagram", "short", "C1")
+    assert [b.split(" film")[0].removeprefix("The ") for b in world.registry.film_blockers(instagram)] == ["youtube/film", "facebook/film"]
+    assert world.registry.film_blockers(pub(world, "youtube", "film", f"V{world.film.id}")) == []                           # a film waits for nothing
+    for platform in ("youtube", "facebook"):
+        film = pub(world, platform, "film", f"V{world.film.id}")
+        film.status, film.remote_url = "published", f"https://example.test/{platform}/1"
+        world.db.commit()
+        assert len(world.registry.film_blockers(pub(world, "instagram", "short", "C1"))) == (1 if platform == "youtube" else 0)
+    assert world.registry.schedule_blockers(pub(world, "youtube", "short", "C1")) in ([], ["No publication time is set."])      # both films are out: nothing is left to wait for
+    film = pub(world, "facebook", "film", f"V{world.film.id}")
+    film.status, film.remote_url = "draft", None
+    world.db.commit()
+    assert len(world.registry.film_blockers(pub(world, "instagram", "short", "C1"))) == 1 and "facebook/film" in world.registry.film_blockers(pub(world, "instagram", "short", "C1"))[0]
+    account = world.db.query(PublicationAccount).filter_by(platform="facebook", language="fa").one()
+    page_id = account.external_id
+    account.external_id = ""                                                                                              # a language with no Facebook Page has no Facebook film to wait for
+    world.db.commit()
+    try:
+        assert world.registry.film_blockers(pub(world, "instagram", "short", "C1")) == []
+    finally:
+        account.external_id = page_id                                                                                     # the account row is shared by every test: put it back
+        world.db.commit()

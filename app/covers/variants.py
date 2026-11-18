@@ -45,6 +45,16 @@ def approved_cover(db: Session, case_id: int, language: str, key: str) -> CoverV
     return row
 
 
+def file_of_ref(db: Session, ref: str | None) -> Path | None:
+    """The picture of a cover reference a publication holds (`film:{id}` or `reel:{id}`, see `approved_cover`), when that cover is approved and its file is there; None for any other reference."""
+    shape, _, ident = (ref or "").partition(":")
+    if shape not in ("film", "reel") or not ident.isdigit():
+        return None
+    row = db.get(CoverVariant, int(ident))
+    picture = storage.resolve(row.file_path) if row is not None and row.status == "approved" and row.shape == shape else None
+    return picture if picture is not None and picture.is_file() else None
+
+
 def shapes_of(key: str) -> tuple[str, ...]:
     """The shapes a cover key has: the three of a Short, or the one 16:9 shape of the full film (key "long")."""
     return T.FILM_SHAPES if key == "long" else T.SHORT_SHAPES

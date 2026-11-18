@@ -202,6 +202,9 @@ class RoutingConfig(BaseModel):
     methods: list[RoutingMethod]
     statuses: list[RoutingStatus]
     rules: list[RoutingRule]
+    bio_link_note: dict[str, str]                    # language -> the line that points to the link in the profile bio (Instagram's tappable link)
+    bio_link_platforms: list[str]                    # the platforms whose Shorts carry that line
+    film_address_in_text: dict[str, list[str]]       # a film's address goes into the text of the Shorts of these platforms ('youtube/film' -> ['youtube', 'facebook', 'instagram'])
 
     @model_validator(mode="after")
     def _complete(self):
@@ -244,6 +247,7 @@ class PlanConfig(BaseModel):
 
     default_visibility: Literal["private", "unlisted", "public"]
     start_offset_days: int = Field(ge=0)
+    make_delivery_copies: bool        # planning makes each Short's delivery copy, opening with its approved reel cover (shortform.delivery.prepare_shorts), so the files exist before anything is approved
 
 
 class ReadinessConfig(BaseModel):

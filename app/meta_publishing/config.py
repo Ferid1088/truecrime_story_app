@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "meta_publishing.json"
 Level = Literal["confirmed", "recommended", "unverified"]
@@ -152,8 +152,8 @@ class FacebookSettings(BaseModel):
 
     live_enabled: bool
     allow_public_publish: bool
-    language: str
-    page: FacebookPage
+    pages: dict[str, FacebookPage]       # one Page per language; all of them are reached with the one system-user token
+    language: str = ""                   # the language this view serves (`for_language`); the first configured one when not chosen
     app_id: str
     video_host: str
     required_permissions: list[str]
@@ -163,6 +163,24 @@ class FacebookSettings(BaseModel):
     film: FacebookFilm
     cover: FacebookCover
     evidence: dict[str, str]
+
+    @model_validator(mode="after")
+    def _chosen_language(self):
+        if not self.language:
+            self.language = next(iter(self.pages))
+        if self.language not in self.pages:
+            raise ValueError(f"no Facebook Page is configured for '{self.language}'")
+        return self
+
+    @property
+    def page(self) -> FacebookPage:
+        return self.pages[self.language]
+
+    def for_language(self, language: str) -> FacebookSettings:
+        """The same settings for the Page of one language. Raises ValueError for a language that has no Page."""
+        if language not in self.pages:
+            raise ValueError(f"no Facebook Page is configured for '{language}'")
+        return self.model_copy(update={"language": language})
 
 
 class PrepareSettings(BaseModel):

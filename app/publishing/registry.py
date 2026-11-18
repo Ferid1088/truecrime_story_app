@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import difflib
 import json
+import logging
 import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -32,9 +33,12 @@ from app.db.models import (
 from app.documentary import storage
 from app.meta_publishing.config import meta_config
 from app.publishing.config import PublishingConfig, publishing_config
+from app.publishing.film_link import RESERVED
 from app.publishing.hashing import cached_file_sha256, composite_hash, fresh_file_sha256
 from app.publishing.vocabulary import CapabilityKey, Destination, Kind, Platform, RoutingStatus
 from app.utils import utc_now
+
+log = logging.getLogger(__name__)
 
 PLAN_STATUSES = ("draft", "content_approved", "publication_approved", "scheduled", "voided", "expired")
 LIVE_STATUSES = ("uploading", "processing", "ready", "publishing")
@@ -104,6 +108,8 @@ class PublicationRegistry:
         ig = meta_config().instagram
         if language == ig.language:
             known["instagram"] = (ig.account.ig_account_id, f"@{ig.account.username}", "not_connected")      # known, not yet verified: the connection check decides
+        if (page := meta_config().facebook.pages.get(language)) is not None:
+            known["facebook"] = (page.page_id, page.brand, "not_connected")
         out = {}
         for platform in Platform:
             row = self.db.query(PublicationAccount).filter_by(platform=platform.value, language=language).first()
@@ -182,6 +188,28 @@ class PublicationRegistry:
                 out.setdefault((int(slot["short"]), str(dest)), int(slot["day"]))
         return out
 
+    def _film_rows(self, pub: Publication, *, approved_too: bool = False) -> None:
+        """A Short's caption starts with the rows of the films it points to, from the day it is planned: the address of a film that has one, a reserved row for one that has none yet. A caption that is
+        approved is not touched here (an address that arrives later does change it, and voids the approval like any edit)."""
+        if pub.kind != Kind.SHORT.value or pub.status not in (EDITABLE if approved_too else AI_WRITABLE):          # an approved text is never changed behind its approval
+            return
+        text = self.framed(pub.caption, self.film_rows_for(pub.case_id, pub.language, pub.platform), pub.language, pub.platform)
+        if text != pub.caption:
+            pub.caption = text
+
+    def _delivery_copies(self, case_id: int, language: str) -> None:
+        """Make the delivery copy of every Short with its approved reel cover (config plan.make_delivery_copies). A copy that cannot be made (no ffmpeg, a broken clip) is logged and the Short goes
+        out as it was before: planning never fails for it."""
+        if not self.cfg.plan.make_delivery_copies:
+            return
+        from app.shortform.clip_video import ClipVideoError
+        from app.shortform.delivery import prepare_shorts
+
+        try:
+            prepare_shorts(self.db, case_id, language)
+        except (ClipVideoError, OSError) as exc:
+            log.warning("delivery copies of case %s (%s) could not be made: %s", case_id, language, exc)
+
     def default_start(self, language: str) -> date:
         zone = ZoneInfo(self.cfg.languages[language].timezone or "UTC")
         return self.now().astimezone(zone).date() + timedelta(days=self.cfg.plan.start_offset_days)
@@ -213,6 +241,7 @@ class PublicationRegistry:
             raise PublishingRefused(f"Language '{language}' has no publishing schedule (config/publishing.json): its publishing is not active.")
         accounts = self.ensure_accounts(language)
         self._default_covers(case_id, language)
+        self._delivery_copies(case_id, language)
         assets = self.assets(case_id, language)
         start = start_date or self.default_start(language)
         rotation = self._rotation()
@@ -240,6 +269,7 @@ class PublicationRegistry:
                 if pub.status in PLAN_STATUSES or fresh:
                     path = self._path_for(asset, dest.platform)
                     pub.video_path = storage.rel(path) if path else ""
+                self._film_rows(pub)
                 self.refresh(pub, asset=asset)
                 made.append(pub)
         self.db.commit()
@@ -414,6 +444,9 @@ class PublicationRegistry:
         destination = self.cfg.destination(pub.platform, pub.kind)
         if destination is not None and not destination.automation_allowed:
             out.append("Automatic publishing is not allowed for this destination.")
+        if pub.kind == Kind.SHORT.value and pub.status != "published" and any(RESERVED.match(line.strip()) for line in pub.caption.split("\n")):
+            out.append("A film has no address yet: this text goes out without its link, and the platform may not allow the text of a public post to be changed later (Instagram: only by hand in the app). "
+                       "Publish the film first.")
         return out
 
     # -- editing and approval --------------------------------------------------------------------
@@ -584,16 +617,29 @@ class PublicationRegistry:
         self.db.commit()
         return pub
 
+    def film_blockers(self, pub: Publication) -> list[str]:
+        """The films a Short has to wait for (config scheduling.film_before_shorts): every film its routing links point to and every film whose address is in its text
+        (`routing.film_address_in_text`), each of which must be published with an address, unless the language has no account on that film's platform. Why: the film comes first, so the Short
+        can carry its links from the start."""
+        if not self.cfg.scheduling.film_before_shorts or pub.kind != Kind.SHORT.value:
+            return []
+        wanted = [link.target_destination for link in self.db.query(RoutingLink).filter_by(publication_id=pub.id).all()]
+        wanted += [destination for destination, platforms in self.cfg.routing.film_address_in_text.items() if pub.platform in platforms]
+        out = []
+        for destination in dict.fromkeys(wanted):
+            account = self.db.query(PublicationAccount).filter_by(platform=destination.split("/")[0], language=pub.language).first()
+            if account is None or not account.external_id:                 # a language with no Page or channel there has no film to wait for (its row in the text stays reserved and is not sent)
+                continue
+            film = self.film_publication(pub, destination)
+            if film is None or film.status != "published" or not film.remote_url:
+                out.append(f"The {destination} film is not published yet (the film comes before its Shorts).")
+        return out
+
     def schedule_blockers(self, pub: Publication) -> list[str]:
         out = []
         if pub.scheduled_at is None:
             out.append("No publication time is set.")
-        if self.cfg.scheduling.film_before_shorts and pub.kind == Kind.SHORT.value:
-            for link in self.db.query(RoutingLink).filter_by(publication_id=pub.id).all():
-                film = self.film_publication(pub, link.target_destination)
-                if film is None or film.status != "published" or not film.remote_url:
-                    out.append(f"The {link.target_destination} film is not published yet (the film comes before its Shorts).")
-        return list(dict.fromkeys(out))
+        return list(dict.fromkeys([*out, *self.film_blockers(pub)]))
 
     def assert_ready(self, pub: Publication, stage: str, actor: str = "system") -> None:
         """Check, now, that an approved publication still meets every requirement; an earlier approval is never trusted on its own. `stage` is `schedule`, `upload` or `publish`.
@@ -700,6 +746,7 @@ class PublicationRegistry:
                 kept.append("metadata edited by you: kept")
             else:
                 pub.caption = item["text"]
+                self._film_rows(pub)
                 self._set_metadata(pub, item, "ai")
                 changed = True
         if scheduled_at is not None:
@@ -721,6 +768,7 @@ class PublicationRegistry:
         if not found:
             raise PublishingRefused("There is no AI suggestion for this destination.")
         pub.caption = found["text"]
+        self._film_rows(pub, approved_too=True)                                  # the owner took this text: it voids the approval like every edit, so the film rows may go in
         self._set_metadata(pub, found, "ai")
         pub.metadata_source = "ai"
         self.event(pub, "ai_suggestion_used", actor=actor)
@@ -875,22 +923,70 @@ class PublicationRegistry:
         return result
 
     def link_shorts_to_film(self, film: Publication) -> list[int]:
-        """Put the address of the film (its YouTube publication) into the text of every YouTube Short of the same case and language whose text can still be edited. Returns the ids that changed;
-        a changed text voids that Short's approval, as every edit does."""
-        from app.publishing.film_link import with_film_link
-
-        if film.platform != "youtube" or film.kind != Kind.FILM.value or not film.remote_url:
+        """Put the address of the film (its YouTube or Facebook publication) into the text of the Shorts of the same case and language on the platforms `routing.film_address_in_text` names, when the
+        text can still be edited (each address on a line of its own, so a Short that points to both films holds both). Returns the ids that changed; a changed text voids that Short's approval, as every
+        edit does."""
+        platforms = self.cfg.routing.film_address_in_text.get(f"{film.platform}/{film.kind}", [])
+        if not platforms or film.kind != Kind.FILM.value or not film.remote_url:
             return []
         changed: list[int] = []
-        for short in self.db.query(Publication).filter(Publication.case_id == film.case_id, Publication.language == film.language, Publication.platform == "youtube",
+        for short in self.db.query(Publication).filter(Publication.case_id == film.case_id, Publication.language == film.language, Publication.platform.in_(platforms),
                                                        Publication.kind == Kind.SHORT.value, Publication.status.in_(TEXT_EDITABLE)).order_by(Publication.id).all():
-            text = with_film_link(short.caption, json.loads(short.metadata_json or "{}").get("cta", ""), film.remote_url)
+            text = self.framed(short.caption, self.film_rows_for(film.case_id, film.language, short.platform), short.language, short.platform)
             if text != short.caption:
                 self.update(short.id, caption=text, actor="film link")
                 self.sync_routing(short)
                 changed.append(short.id)
         self.db.commit()
         return changed
+
+    def framed(self, text: str, rows: list[str], language: str, platform: str) -> str:
+        """A Short's text in its frame: the film rows first and, on the platforms named in `routing.bio_link_platforms`, the line that points to the link in the bio just before the music credit."""
+        from app.core.ai_config import ai_config
+        from app.publishing.film_link import with_bio_note, with_film_links
+
+        text = with_film_links(text, rows) if rows else text
+        note = self.cfg.routing.bio_link_note.get(language, "")
+        if platform in self.cfg.routing.bio_link_platforms and note:
+            text = with_bio_note(text, note, ai_config.shorts_host_led.music_attribution_text.get(language, ""))
+        return text
+
+    def film_rows_for(self, case_id: int, language: str, platform: str) -> list[str]:
+        """The first rows of a Short's caption on a platform, in the order of `routing.film_address_in_text`: the address of each film that has one, the reserved row of each that has none yet."""
+        from app.publishing.film_link import reserved_row
+
+        out = []
+        for destination, platforms in self.cfg.routing.film_address_in_text.items():
+            film_platform, _, kind = destination.partition("/")
+            if platform in platforms:
+                film = (self.db.query(Publication).filter(Publication.case_id == case_id, Publication.language == language, Publication.platform == film_platform, Publication.kind == kind,
+                                                          Publication.remote_url.isnot(None)).order_by(Publication.id.desc()).first())
+                out.append(film.remote_url if film is not None else reserved_row(film_platform))
+        return out
+
+    def film_addresses_for(self, case_id: int, language: str, platform: str) -> list[str]:
+        """The addresses of the language's films that `routing.film_address_in_text` puts into the text of a platform's Shorts, in the order of the config (a film without an address is left out)."""
+        out = []
+        for destination, platforms in self.cfg.routing.film_address_in_text.items():
+            film_platform, _, kind = destination.partition("/")
+            if platform in platforms:
+                film = (self.db.query(Publication).filter(Publication.case_id == case_id, Publication.language == language, Publication.platform == film_platform, Publication.kind == kind,
+                                                          Publication.remote_url.isnot(None)).order_by(Publication.id.desc()).first())
+                if film is not None:
+                    out.append(film.remote_url)
+        return out
+
+    def published_shorts_with_film_addresses(self, case_id: int, language: str, platform: str) -> list[tuple[Publication, str]]:
+        """For each Short of the platform that is public already: the text it would have with every film address added (only those whose text would change). The text of a public Short cannot be edited
+        here; the platform decides whether it can be changed at all (Facebook: its API; Instagram: only in the app)."""
+        addresses = self.film_addresses_for(case_id, language, platform)
+        found = []
+        for short in self.db.query(Publication).filter(Publication.case_id == case_id, Publication.language == language, Publication.platform == platform, Publication.kind == Kind.SHORT.value,
+                                                       Publication.status == "published").order_by(Publication.id).all():
+            text = self.framed(short.caption, addresses, language, platform)
+            if text != short.caption:
+                found.append((short, text))
+        return found
 
     # -- the read model --------------------------------------------------------------------------
     def latest_run(self, case_id: int, language: str) -> PublishingPlanRun | None:

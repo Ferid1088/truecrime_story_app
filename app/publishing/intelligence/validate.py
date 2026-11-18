@@ -84,8 +84,10 @@ def clean_planner(raw: dict, clip_keys: list[str], platforms: dict[str, list[str
 # --- the metadata ------------------------------------------------------------------------------------------------------------------------------------------------
 
 def composed_text(text: str, hashtags: list[str]) -> str:
-    """The text as it is posted: the body, then the hashtags (they count against the platform's limit together)."""
-    return text + ("\n\n" + " ".join(hashtags) if hashtags else "")
+    """The text as it is posted: the body without the reserved rows of films that have no address yet, then the hashtags (they count against the platform's limit together)."""
+    from app.publishing.film_link import without_reserved_rows
+
+    return without_reserved_rows(text) + ("\n\n" + " ".join(hashtags) if hashtags else "")
 
 
 def tidy(item: dict) -> tuple[dict, list[str]]:

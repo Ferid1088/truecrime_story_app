@@ -332,6 +332,22 @@
     ]
   },
   "routing": {
+    "bio_link_platforms": ["instagram"],
+    "bio_link_note": {
+      "fa": "لینک فیلم کامل را در بیوی پروفایل ما پیدا می‌کنید.",
+      "en": "The full film: link in our bio.",
+      "de": "Der ganze Film: Link in unserer Bio.",
+      "ar": "الفيلم الكامل: الرابط في النبذة التعريفية لحسابنا.",
+      "es": "La película completa: enlace en nuestra bio.",
+      "it": "Il film completo: link nella nostra bio.",
+      "fr": "Le film complet : lien dans notre bio.",
+      "pt": "O filme completo: link na nossa bio.",
+      "tr": "Tam film: bağlantı profilimizin biyografisinde."
+    },
+    "film_address_in_text": {
+      "youtube/film": ["youtube", "facebook", "instagram"],
+      "facebook/film": ["youtube", "facebook", "instagram"]
+    },
     "methods": [
       "related_video",
       "link_post",
@@ -539,7 +555,8 @@
   },
   "plan": {
     "default_visibility": "private",
-    "start_offset_days": 1
+    "start_offset_days": 1,
+    "make_delivery_copies": true
   },
   "readiness": {
     "require_approved_cover": true
@@ -609,7 +626,8 @@
         "chapters": false,
         "evidence": "unverified",
         "note": "No limit was found on the Reels publishing page; conservative values.",
-        "title_required": false
+        "title_required": false,
+        "web_address_allowed": true
       },
       "instagram/short": {
         "title_max": 0,
@@ -620,7 +638,8 @@
         "chapters": false,
         "evidence": "unverified",
         "note": "Instagram captions hold 2200 characters and 30 hashtags (general knowledge, not re-read); the recommendation is far lower, as Meta warns against many hashtags.",
-        "title_required": false
+        "title_required": false,
+        "web_address_allowed": true
       },
       "tiktok/short": {
         "title_max": 2200,

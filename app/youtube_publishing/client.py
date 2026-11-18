@@ -152,10 +152,10 @@ class YouTubeClient:
         if response.status_code != 200:
             raise _problem(response)
 
-    async def set_category(self, video: dict, category_id: str) -> None:
-        """videos.update of the snippet part with the video's own current title, description, tags and language and the new category: an update that leaves a field out would delete it."""
+    async def update_snippet(self, video: dict, **changes: str) -> None:
+        """videos.update of the snippet part with the video's own current title, description, tags, language and category, and `changes` on top: an update that leaves a field out would delete it."""
         snippet = video["snippet"]
-        body = {"id": video["id"], "snippet": {key: snippet[key] for key in ("title", "description", "tags", "defaultLanguage") if key in snippet} | {"categoryId": category_id}}
+        body = {"id": video["id"], "snippet": {key: snippet[key] for key in ("title", "description", "tags", "defaultLanguage", "categoryId") if key in snippet} | changes}
         response = await self._send("PUT", f"{self.cfg.api.base_url}/videos", params={"part": "snippet"}, headers={"Content-Type": "application/json; charset=UTF-8"},
                                     content=json.dumps(body, ensure_ascii=False).encode("utf-8"))
         if response.status_code != 200:
