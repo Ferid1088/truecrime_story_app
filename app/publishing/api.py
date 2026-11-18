@@ -68,6 +68,22 @@ def make_plan(case_id: int, language: str, body: PlanBody, db: Session = Depends
     return registry.snapshot(case_id, language)
 
 
+@router.post("/api/cases/{case_id}/publishing/{language}/prepare-files")
+def prepare_files(case_id: int, language: str, db: Session = Depends(get_db)):
+    """Make the delivery copy of every Short of the language, each opening with its approved reel cover (the same for every language; nothing is made twice), then plan again so the
+    publications send those files. Uploads and publishes nothing."""
+    from app.shortform.delivery import prepare_shorts
+
+    _case(db, case_id)
+    registry = PublicationRegistry(db)
+    try:
+        files = prepare_shorts(db, case_id, language)
+        registry.plan(case_id, language)
+    except PublishingRefused as exc:
+        raise _refuse(exc) from exc
+    return {"files": files, **registry.snapshot(case_id, language)}
+
+
 def _act(db: Session, publication_id: int, action: str):
     registry = PublicationRegistry(db)
     try:
@@ -81,11 +97,13 @@ def _act(db: Session, publication_id: int, action: str):
 def edit_publication(publication_id: int, body: EditBody, db: Session = Depends(get_db)):
     registry = PublicationRegistry(db)
     try:
+        before = registry.text_state(registry.get(publication_id))
         pub = registry.update(publication_id, caption=body.caption, scheduled_local=body.scheduled_local, clear_schedule=body.clear_schedule, visibility=body.visibility,
                                  metadata=body.metadata)
+        propagation = registry.propagate_correction(pub.id, before)
     except PublishingRefused as exc:
         raise _refuse(exc) from exc
-    return registry.view(pub)
+    return {**registry.view(pub), "propagation": propagation}
 
 
 @router.post("/api/publications/{publication_id}/content-approval")

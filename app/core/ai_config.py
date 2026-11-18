@@ -101,6 +101,7 @@ REQUIRED_ROLES = {
     "publishing_metadata_writer",
     "publishing_hook_critic",
     "publishing_orthography_fixer",
+    "publishing_proofreader",
     "host_writer",
     "host_writer_fa_ar",
     "host_critic",
@@ -3478,6 +3479,22 @@ class ClipMusicConfig(BaseModel):
         return self
 
 
+class ClipDeliveryConfig(BaseModel):
+    """What the platforms ask of the file itself (Meta's Reels publishing guide: a fixed frame rate, a closed GOP of 2 to 5 seconds, AAC-LC stereo at 48 kHz and at least 128 kbps) and the
+    loudness of the sound: the video is encoded at constant quality up to `maxrate`; the sound is brought to `lufs` with a true peak target of `true_peak` dB (the AAC encode adds a little), and a finished
+    file may peak at `peak_ceiling` dB at most, so the platforms' own re-encode cannot clip it."""
+
+    gop_seconds: float = Field(ge=2.0, le=5.0)
+    maxrate: str
+    bufsize: str
+    audio_bitrate: str
+    lufs: float = Field(le=-10.0, ge=-23.0)
+    true_peak: float = Field(le=-1.0, ge=-9.0)
+    peak_ceiling: float = Field(le=0.0, ge=-3.0)
+    lra: float = Field(gt=0.0)
+    cover_lead_seconds: float = Field(ge=0.0, le=3.0)       # the cover as the first picture of a delivery copy that is made with one (Facebook takes its first frame as the thumbnail); 0 = none
+
+
 class ClipVideoConfig(BaseModel):
     """How a short clip is assembled (1080x1920): the avatar for the hook and the reaction, the film's pictures for the middle (each `picture_seconds` long, slowly zoomed),
     captions from the first word and the music bed. `avatar_framing` lists the looks to prefer (the film's own, closest first)."""
@@ -3498,6 +3515,7 @@ class ClipVideoConfig(BaseModel):
     picture_forbidden_kinds: list[str]
     crf: int = Field(ge=0, le=51)
     preset: str
+    delivery: ClipDeliveryConfig
 
 
 class ShortClipsConfig(BaseModel):
@@ -3689,6 +3707,7 @@ class CoversConfig(BaseModel):
     min_title_contrast: float = Field(gt=1.0)
     watermark: dict
     themes: dict[str, CoverThemeConfig]
+    triptych: dict
 
     @model_validator(mode="after")
     def _parts(self):

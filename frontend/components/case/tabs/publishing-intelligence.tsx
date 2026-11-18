@@ -38,6 +38,8 @@ export function AiPanel({ caseId, language, studio, data, error, refetch, onChan
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [proofing, setProofing] = useState(false);
+  const [proofread, setProofread] = useState<string | null>(null);
   const wasRunning = useRef(false);
   const running = Boolean(data?.running);
 
@@ -58,6 +60,14 @@ export function AiPanel({ caseId, language, studio, data, error, refetch, onChan
   const start = async (force: boolean) => {
     setBusy(true); setProblem(null); setConfirming(false);
     try { await publishingAiApi.generate(caseId, language, force); } catch (e) { setProblem(message(e)); } finally { setBusy(false); refetch(); onChanged(); }
+  };
+  const proofreadNow = async () => {
+    setProofing(true); setProblem(null); setProofread(null);
+    try {
+      const r = await publishingAiApi.proofread(caseId, language);
+      const pieces = r.changed.flatMap((c) => c.changes).length;
+      setProofread(`Proofread ${r.checked} texts: ${r.changed.length} corrected (${pieces} corrections), ${r.refused.length} answers refused and left as they were. ${r.usage.calls} model calls, EUR ${r.usage.cost_eur.toFixed(4)}.`);
+    } catch (e) { setProblem(message(e)); } finally { setProofing(false); refetch(); onChanged(); }
   };
   const label = latest ? (upToDate ? "Regenerate Publishing Plan" : "Update Publishing Plan") : "Generate Publishing Plan";
   const blocked = !data.scheduled || data.emergency_stop || running || busy || !data.estimate;
@@ -84,6 +94,10 @@ export function AiPanel({ caseId, language, studio, data, error, refetch, onChan
           ) : (
             <Button type="button" size="sm" className={DISABLED} disabled={blocked} onClick={() => (latest && upToDate ? setConfirming(true) : void start(false))}>{label}</Button>
           )}
+          {language === "fa" && !confirming && (
+            <Button type="button" size="sm" variant="outline" className={DISABLED} disabled={!data.scheduled || data.emergency_stop || running || proofing} data-testid="proofread-now" onClick={() => void proofreadNow()}
+              title="Sends every Persian text of the Publishing tab to Sonnet to be corrected (spelling, half-spaces, punctuation, grammar, stray English words). Paid: one call for all of them.">{proofing ? "Proofreading…" : "Proofread the Persian texts"}</Button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
@@ -96,6 +110,7 @@ export function AiPanel({ caseId, language, studio, data, error, refetch, onChan
           </p>
         )}
         {problem && <p role="alert" className="text-rose-700 dark:text-rose-400">{problem}</p>}
+        {proofread && <p role="status" className="text-xs text-emerald-700 dark:text-emerald-400" data-testid="proofread-result">{proofread}</p>}
         {running && data.running && <div><p className="mb-2 font-medium">Generating… (this page updates by itself)</p><Steps run={data.running} /></div>}
         {data.failed && !running && (
           <div role="alert" className="space-y-1 text-rose-700 dark:text-rose-400" data-testid="ai-failed">

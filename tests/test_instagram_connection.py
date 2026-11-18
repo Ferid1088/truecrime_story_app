@@ -50,7 +50,9 @@ class FakeMeta:
 
 
 @pytest.fixture
-def meta(tmp_path, db_session):
+def meta(tmp_path, db_session, monkeypatch):
+    for name in (meta_config().instagram.token_env, meta_config().instagram.account_id_env, "TRUECRIME_META_ACCESS_TOKEN"):
+        monkeypatch.delenv(name, raising=False)                                      # the owner's real token in .env never reaches a test
     settings = meta_config().instagram.model_copy(deep=True)
     settings.token_file, settings.connection.state_file = str(tmp_path / "token"), str(tmp_path / "state_{language}.json")
     settings.connection.app_file = str(tmp_path / "app.json")
@@ -134,6 +136,33 @@ def test_the_connection_test_is_read_only_and_checks_permissions_account_and_lim
     assert result["account"] == {"id": IG_ID, "username": USER} and result["quota_usage"] == 2 and result["permissions"] == meta.settings.required_permissions
     assert {method for method, _, _ in meta.fake.requests} == {"GET"} and [p.rsplit("/", 1)[-1] for _, p, _ in meta.fake.requests] == ["permissions", IG_ID, "content_publishing_limit"]
     assert meta.conn.status()["last_test"]["ok"] is True
+
+
+def test_a_token_without_the_publishing_only_permission_still_connects_and_says_what_is_missing(meta, monkeypatch):
+    monkeypatch.setenv(meta.settings.token_env, "ENV_TOKEN_cccccccccccccccccccccccc")
+    meta.fake.granted = ["instagram_basic", "instagram_content_publish"]
+    result = asyncio.run(meta.conn.test())
+    assert result["missing_for_publishing"] == ["pages_read_engagement"] and result["permissions"] == ["instagram_basic", "instagram_content_publish"]
+    status = meta.conn.status()
+    assert status["verified"] is True and status["missing_for_publishing"] == ["pages_read_engagement"] and status["last_test"]["ok"] is True
+
+
+def test_a_token_without_a_connection_permission_is_refused(meta, monkeypatch):
+    monkeypatch.setenv(meta.settings.token_env, "ENV_TOKEN_cccccccccccccccccccccccc")
+    meta.fake.granted = ["instagram_basic"]
+    with pytest.raises(ConnectError) as caught:
+        asyncio.run(meta.conn.test())
+    assert caught.value.reason == "permission_missing" and "instagram_content_publish" in str(caught.value)
+
+
+def test_an_account_id_in_the_environment_must_name_the_configured_account(meta, monkeypatch):
+    monkeypatch.setenv(meta.settings.token_env, "ENV_TOKEN_cccccccccccccccccccccccc")
+    monkeypatch.setenv(meta.settings.account_id_env, "999")
+    with pytest.raises(ConnectError) as caught:
+        asyncio.run(meta.conn.test())
+    assert caught.value.reason == "account_mismatch" and meta.conn.status()["verified"] is False
+    monkeypatch.setenv(meta.settings.account_id_env, IG_ID)
+    assert asyncio.run(meta.conn.test())["account"]["id"] == IG_ID
 
 
 def test_a_failed_test_is_remembered_with_its_reason_and_no_token(meta):

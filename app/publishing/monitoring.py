@@ -7,7 +7,14 @@ import json
 
 from sqlalchemy.orm import Session
 
-from app.db.models import Case, Publication, PublishingPlanRun, RoutingLink, YouTubeUploadSession
+from app.db.models import (
+    Case,
+    FacebookUploadSession,
+    Publication,
+    PublishingPlanRun,
+    RoutingLink,
+    YouTubeUploadSession,
+)
 from app.publishing.config import publishing_config
 from app.publishing.vocabulary import EventCategory, RoutingStatus
 from app.utils import utc_now
@@ -85,6 +92,21 @@ def publishing_issues(db: Session, case_id: int | None = None, *, exclude_cases:
         else:
             raise_issue(EventCategory.YOUTUBE_UPLOAD_RUNNING, pub, f"Uploading privately to YouTube: {what}",
                         f"{row.status}: {round(100 * row.bytes_sent / row.total_bytes) if row.total_bytes else 0}% sent" + (f", processing {row.processing_percent}%" if row.processing_percent is not None else "") + ".")
+    facebook = db.query(FacebookUploadSession).filter(FacebookUploadSession.publication_id.in_([p.id for p in pubs]),
+                                                      FacebookUploadSession.status.in_(["uploading", "interrupted", "processing", "ready", "drafted", "uncertain"])).all() if pubs else []
+    for row in facebook:
+        pub, what = by_id[row.publication_id], f"facebook {by_id[row.publication_id].kind} {by_id[row.publication_id].asset_key}"
+        if row.status == "drafted":
+            raise_issue(EventCategory.FACEBOOK_UPLOAD_NEEDS_ACTION, pub, f"A Facebook draft waits for you: {what}",
+                        "It was saved as a draft on the Page. Look at it in Meta Business Suite; this application never publishes a draft.")
+        elif row.status == "uncertain":
+            raise_issue(EventCategory.FACEBOOK_UPLOAD_NEEDS_ACTION, pub, f"Facebook finish outcome unknown: {what}",
+                        "Meta gave no answer to the finish call: the video may be public or a draft. Check the Page in Meta Business Suite; this file is blocked from a second upload.")
+        elif row.status == "interrupted" or row.required_action:
+            raise_issue(EventCategory.FACEBOOK_UPLOAD_NEEDS_ACTION, pub, f"The Facebook upload needs you: {what}", (row.error or "The upload stopped.") + f" Required action: {(row.required_action or 'resume').replace('_', ' ')}.")
+        else:
+            raise_issue(EventCategory.FACEBOOK_UPLOAD_RUNNING, pub, f"Uploading to Facebook (not published): {what}",
+                        f"{row.status}: {round(100 * row.bytes_sent / row.total_bytes) if row.total_bytes else 0}% sent" + (f", Meta: {row.video_status}" if row.video_status else "") + ".")
     return issues
 
 
@@ -110,6 +132,20 @@ def connection_issues() -> list:
         return [Issue(cfg.monitoring.events[EventCategory.INSTAGRAM_CONNECTION_EXPIRING].severity.value, cfg.monitoring.area, f"{where}: the access token expires in {status['days_left']:g} days",
                       "Connect Instagram again before it ends.", studio)]
     return []
+
+
+def facebook_connection_issues() -> list:
+    """The findings about the Facebook Page's connection (a read of the stored facts: no call to Meta). A connection that was never tested is not a finding; one that broke is."""
+    from app.documentary.monitoring import Action, Issue
+    from app.meta_publishing.facebook_connection import FacebookConnection
+
+    status = FacebookConnection().status()
+    last = status["last_test"]
+    if last is None or last["ok"]:
+        return []
+    cfg = publishing_config()
+    return [Issue(cfg.monitoring.events[EventCategory.FACEBOOK_CONNECTION_PROBLEM].severity.value, cfg.monitoring.area, f"Facebook Page {status['page']['name']}: the last connection test failed",
+                  f"{last['error']} Fix it and press Test connection in the Publishing Studio.", [Action("Open Publishing", "href", f"/cases/{meta_case_id()}?tab=Publishing&language={status['language']}")])]
 
 
 def meta_case_id() -> int:

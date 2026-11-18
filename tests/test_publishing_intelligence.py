@@ -26,15 +26,16 @@ CFG = publishing_config()
 class Model:
     """A scripted provider: it answers the planner and the metadata writer from the request itself and counts every call."""
 
-    def __init__(self, planner=None, writer=None, critic=None, fixer=None):
+    def __init__(self, planner=None, writer=None, critic=None, fixer=None, proofreader=None):
         self.calls: list[tuple[str, dict]] = []
-        self.planner, self.writer, self.critic, self.fixer = planner, writer, critic, fixer
+        self.planner, self.writer, self.critic, self.fixer, self.proofreader = planner, writer, critic, fixer, proofreader
 
     async def generate_structured(self, role, system, user, images=None, **extra):
         data = json.loads(user)
         self.calls.append((role, data))
         answer = {"publishing_planner": lambda: (self.planner or self.default_plan)(data), "publishing_hook_critic": lambda: (self.critic or self.default_critic)(data),
-                                                                                                                                                  "publishing_orthography_fixer": lambda: (self.fixer or (lambda d: {"fields": {}}))(data)}.get(role, lambda: (self.writer or self.default_metadata)(data))()
+                                                                                                                                                  "publishing_orthography_fixer": lambda: (self.fixer or (lambda d: {"fields": {}}))(data),
+                                                                                                                                                  "publishing_proofreader": lambda: (self.proofreader or self.default_proof)(data)}.get(role, lambda: (self.writer or self.default_metadata)(data))()
         if isinstance(answer, Exception):
             raise answer
         return answer, GenerationResult(text=json.dumps(answer), model=f"fake-{role}", provider="fake", input_tokens=1000, output_tokens=500, total_tokens=1500, cost_usd=0.01)
@@ -55,6 +56,11 @@ class Model:
                 "warnings": []}
 
     @staticmethod
+    def default_proof(view):
+        """Nothing to correct: every text comes back as it went."""
+        return {"items": [{**{k: i[k] for k in ("key", "title", "text", "hashtags", "keywords", "cta")}, "changes": []} for i in view["items"]]}
+
+    @staticmethod
     def default_critic(view):
         """Every hook is strong: the critic changes nothing unless a test scripts it."""
         return {"items": [{"asset": i["asset"], "stakes": 8, "gap": 8, "concrete": 8, "natural": 8, "risk": "none", "direction": ""} for i in view["items"]]}
@@ -70,6 +76,27 @@ class Model:
                           "chapters": [{"time": c["time"], "title": c["title"]} for c in (view["film"] or {}).get("chapters", [])] if entry["kind"] == "film" and limit["chapters"] else [],
                           "cta": "فیلم کامل در یوتیوب.", "routing_note": "Points to the film.", "facts_used": [f"clip:{entry['asset']}"] if entry["kind"] == "short" else ["film"]})
         return {"platform": view["platform"], "items": items, "warnings": []}
+
+
+@pytest.fixture(autouse=True)
+def _no_proofreading(monkeypatch):
+    """The proofreader has its own tests below; the others count calls without it."""
+    monkeypatch.setattr(CFG.intelligence.generation, "proofread_languages", [])
+
+
+def proofreading(monkeypatch, languages=("fa",)):
+    monkeypatch.setattr(CFG.intelligence.generation, "proofread_languages", list(languages))
+
+
+def fix_word(old: str, new: str):
+    """A scripted proofreader: the same one correction on every text of the asset."""
+    def answer(view):
+        items = []
+        for i in view["items"]:
+            fixed = {k: (i[k].replace(old, new) if isinstance(i[k], str) else [t.replace(old, new) for t in i[k]]) for k in ("title", "text", "hashtags", "keywords", "cta")}
+            items.append({"key": i["key"], **fixed, "changes": [{"field": "text", "old": old, "new": new, "why": "spelling"}] if fixed != {k: i[k] for k in fixed} else []})
+        return {"items": items}
+    return answer
 
 
 def generate(world, model, *, force=False):
@@ -243,6 +270,10 @@ def test_the_validators_catch_the_bad_things_and_say_which(world):
 
     assert kinds() == set()
     assert "web_address" in kinds(text="ببینید www.example.com") and "web_address" in kinds(text="https://x.org/y")
+    short = CFG.intelligence.metadata_limits["youtube/short"]                                       # a YouTube Short may carry the link to its film in the description
+    item, _ = V.tidy({**base, "text": "فیلم کامل را ببینید\nhttps://www.youtube.com/watch?v=vcxqTGeT5Ss"})
+    assert short.web_address_allowed and not limit.web_address_allowed
+    assert not {f["type"] for f in V.metadata_findings(item, "short", short, **ok)} & {"web_address", "unknown_name"}
     assert "unknown_name" in kinds(text="Zorro was there") and "unknown_name" not in kinds(text="Nancy گفت") and "unknown_name" not in kinds(text="در YouTube")
     assert "keywords_not_supported" in kinds(keywords=["a"]) and "chapters_not_supported" in kinds(chapters=[{"time": "00:00", "title": "x"}])
     assert "unknown_fact" in kinds(facts_used=["F99"]) and "unknown_fact" not in kinds(facts_used=["F1", "clip:C1", "film"])
@@ -356,7 +387,7 @@ def test_the_one_click_approval_approves_what_may_be_approved_and_names_what_it_
     approving = {(r["platform"], r["kind"], r["asset_key"]) for r in preview["approve"]}
     assert len(approving) == 20 and all(kind == "short" for _, kind, _ in approving)
     films = [r for r in preview["excluded"] if r["kind"] == "film"]
-    assert len(films) == 2 and all(any("preview profile" in reason for reason in r["reasons"]) for r in films)
+    assert len(films) == 2 and all(r["reasons"] and not any("profile" in reason for reason in r["reasons"]) for r in films)        # a film stays out for its own reasons, never for its render profile
     assert any("platform requires a person" in note for r in preview["approve"] if r["platform"] == "tiktok" for note in r["notes"])
     assert world.db.query(Publication).filter_by(case_id=world.case.id, status="draft").count() == 22                      # a preview changes nothing
     report = world.registry.approve_plan(world.case.id, "fa")
@@ -735,3 +766,139 @@ def test_an_editor_that_finds_no_place_for_a_half_space_turns_the_block_into_a_w
     result = json.loads(generate(world, model).result_json)
     item = result["metadata"]["facebook/short/C1"]
     assert [f["severity"] for f in item["findings"] if f["type"] == "no_half_space"] == ["warning"] and "no half-space needed" in item["fixes"][-1] and "facebook" not in result["unresolved"]
+
+
+# --- the Persian texts go to the proofreader (Sonnet) before they are saved or shown -----------------------------------------------------------------------------
+
+def worded(word: str):
+    """A writer that puts one (mis)spelled word into every text."""
+    def write(view):
+        out = Model.default_metadata(view)
+        for item in out["items"]:
+            item["text"] = f"{item['text']}\nاین {word} است."
+        return out
+    return write
+
+
+def test_the_proofreader_gets_every_text_in_one_call_and_its_corrections_are_saved_everywhere(world, monkeypatch):
+    proofreading(monkeypatch)
+    model = Model(writer=worded("غلطط"), proofreader=fix_word("غلطط", "غلط"))
+    run = generate(world, model)
+    calls = [d for r, d in model.calls if r == "publishing_proofreader"]
+    assert run.status == "done" and len(calls) == 1                                                     # every text of every film, Short and portal goes in ONE call
+    keys = {i["key"] for i in calls[0]["items"]}
+    assert len(keys) == 22 and {"youtube/short/C1", "facebook/short/C1", "instagram/short/C1", "tiktok/short/C1", "youtube/film/film"} <= keys
+    assert {i["asset"] for i in calls[0]["items"]} == {"film", "C1", "C2", "C3", "C4", "C5"} and calls[0]["language"] == "fa" and "known_words" in calls[0]
+    result = json.loads(run.result_json)
+    assert result["proofread"]["checked"] == 22 and result["proofread"]["corrected"] == 22 and result["proofread"]["refused"] == {}
+    for platform in ("youtube", "facebook", "instagram", "tiktok"):
+        assert "غلطط" not in pub(world, platform, "short", "C1").caption and "این غلط است." in pub(world, platform, "short", "C1").caption
+    assert any("proofread" in f for f in result["metadata"]["facebook/short/C1"]["fixes"]) and result["metadata"]["facebook/short/C1"]["proofread"][0]["new"] == "غلط"
+    assert [s["status"] for s in json.loads(run.progress_json) if s["step"] == "proofread"] == ["done"]
+
+
+def test_an_unchanged_text_is_not_reported_as_corrected(world, monkeypatch):
+    proofreading(monkeypatch)
+    result = json.loads(generate(world, Model()).result_json)
+    assert result["proofread"] == {"checked": 22, "corrected": 0, "refused": {}} and not any("proofread" in " ".join(v["fixes"]) for v in result["metadata"].values())
+
+
+@pytest.mark.parametrize("change,why", [
+    (lambda i: {"text": "یک متن کاملا دیگر که چیزی از متن اصلی ندارد و حرف دیگری می‌زند."}, "rewritten"),
+    (lambda i: {"hashtags": i["hashtags"][:1]}, "lost or gained"),
+    (lambda i: {"hashtags": ["پرونده_جنایی", *i["hashtags"][1:]]}, "lost its #"),
+    (lambda i: {"text": i["text"] + " investigators"}, "introduce"),
+])
+def test_an_answer_that_rewrites_loses_a_hashtag_or_adds_an_error_is_refused_and_the_written_text_stays(world, monkeypatch, change, why):
+    proofreading(monkeypatch)
+
+    def proof(view):
+        out = Model.default_proof(view)
+        for item in out["items"]:
+            item.update(change(item))
+            item["changes"] = [{"field": "text", "old": "a", "new": "b", "why": "spelling"}]
+        return out
+
+    run = generate(world, Model(proofreader=proof))
+    result = json.loads(run.result_json)
+    assert run.status == "done" and result["proofread"]["corrected"] == 0 and len(result["proofread"]["refused"]) == 22
+    assert all(why in reason for reason in result["proofread"]["refused"].values()) and "ماینک" not in pub(world, "youtube", "short", "C1").caption
+
+
+def test_a_changed_credit_line_is_refused(world, monkeypatch):
+    from app.core.ai_config import ai_config
+    credit = ai_config.shorts_host_led.music_attribution_text["fa"]
+    proofreading(monkeypatch)
+
+    def proof(view):
+        out = Model.default_proof(view)
+        for item in out["items"]:
+            item["text"] = item["text"].replace(credit, "موسیقی ساخته شده")
+        return out
+
+    result = json.loads(generate(world, Model(proofreader=proof)).result_json)
+    short = {k: v for k, v in result["proofread"]["refused"].items() if "/short/" in k}
+    assert short and all("credit line" in v for v in short.values())
+
+
+def test_only_the_languages_that_are_configured_are_proofread(world, monkeypatch):
+    model = Model()
+    generate(world, model)                                                                         # the fixture switched it off
+    assert not [r for r, _ in model.calls if r == "publishing_proofreader"]
+    proofreading(monkeypatch, languages=("de",))
+    model = Model()
+    run = generate(world, model, force=True)
+    assert not [r for r, _ in model.calls if r == "publishing_proofreader"] and "proofread" not in {s["step"] for s in json.loads(run.progress_json)}
+
+
+def test_a_failed_proofreader_call_keeps_the_written_texts_and_the_plan(world, monkeypatch):
+    proofreading(monkeypatch)
+    run = generate(world, Model(proofreader=lambda view: RuntimeError("the provider is down")))
+    result = json.loads(run.result_json)
+    assert run.status == "done" and "provider is down" in result["proofread"]["error"] and pub(world, "youtube", "short", "C1").caption
+    assert [s["status"] for s in json.loads(run.progress_json) if s["step"] == "proofread"] == ["failed"]
+
+
+def test_the_proofreader_is_a_role_with_its_own_prompt_and_checks_the_texts_it_is_given():
+    from app.core.ai_config import ai_config
+    from app.core.prompts import prompt
+    assert ai_config.alias_for("publishing_proofreader") == "premium" and ai_config.agents["publishing_proofreader"].prompt == "publishing/proofread"
+    text = prompt("publishing/proofread")
+    assert "half-space" in text.lower() and "unchanged" in text and "same mistake gets the same correction" in text and CFG.intelligence.generation.proofread_min_similarity <= 1
+
+
+def test_the_estimate_counts_the_proofreading_calls_for_a_proofread_language(world, monkeypatch):
+    inputs = S.build(world.db, world.registry, world.case, "fa")
+    without = S.estimate(world.registry, inputs)
+    proofreading(monkeypatch)
+    with_it = S.estimate(world.registry, inputs)
+    assert with_it["calls"] == without["calls"] + 1 and with_it["eur_high"] > without["eur_high"]
+
+
+def test_the_proofreading_of_the_texts_the_publications_hold_corrects_the_ai_and_the_owner_texts_keeps_their_source_and_leaves_what_is_public(world, client, monkeypatch):
+    generate(world, Model(writer=worded("غلطط")))                                                       # the run itself did not proofread (switched off): the mistake is in every text
+    proofreading(monkeypatch)
+    facebook, instagram = pub(world, "facebook", "short", "C1"), pub(world, "instagram", "short", "C1")
+    world.registry.update(facebook.id, caption=pub(world, "facebook", "short", "C1").caption + " و غلطط دیگر")      # an owner's text with the same mistake
+    approve_both(world, pub(world, "youtube", "short", "C2"))
+    instagram.status = "published"
+    world.db.commit()
+    model = Model(proofreader=fix_word("غلطط", "غلط"))
+    monkeypatch.setattr("app.publishing.intelligence.agents.get_generation_provider", lambda: model)
+    answer = client.post(f"/api/cases/{world.case.id}/publishing/fa/proofread")
+    assert answer.status_code == 200
+    body = answer.json()
+    assert body["refused"] == [] and body["checked"] == 21 and len(body["changed"]) == 21 and body["usage"]["calls"] == 1          # one call; the published one is not sent
+    assert "غلطط" not in pub(world, "youtube", "short", "C1").caption and "و غلط دیگر" in pub(world, "facebook", "short", "C1").caption
+    assert pub(world, "youtube", "short", "C1").metadata_source == "ai" and pub(world, "facebook", "short", "C1").metadata_source == "owner"      # a correction does not make an AI text the owner's
+    assert pub(world, "instagram", "short", "C1").status == "published" and "غلطط" in pub(world, "instagram", "short", "C1").caption
+    assert pub(world, "youtube", "short", "C2").status == "voided"                                                                    # an edit of an approved text voids its approval
+    assert {json.loads(e.context_json)["actor"] for e in events(world, "proofread")} == {"proofreader"}
+    assert client.post(f"/api/cases/{world.case.id}/publishing/de/proofread").status_code == 409                                      # not a proofread language
+
+
+def test_proofreading_for_a_language_that_is_not_configured_is_refused_before_any_call(world, client, monkeypatch):
+    model = Model()
+    monkeypatch.setattr("app.publishing.intelligence.agents.get_generation_provider", lambda: model)
+    answer = client.post(f"/api/cases/{world.case.id}/publishing/fa/proofread")                      # the fixture switched proofreading off
+    assert answer.status_code == 409 and model.calls == []

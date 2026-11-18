@@ -52,6 +52,8 @@ async def _lifespan(_app):
         scan_library(db, trigger="startup")
         from app.youtube_publishing.uploader import sweep_interrupted
         sweep_interrupted(db)
+        from app.meta_publishing.facebook_publisher import sweep_interrupted as sweep_facebook
+        sweep_facebook(db)
     except Exception as e:  # never block the app from starting
         logging.getLogger(__name__).error("startup recovery failed: %s", e)
     finally:
@@ -66,11 +68,15 @@ async def _lifespan(_app):
         logging.getLogger(__name__).error("backup recovery failed: %s", e)
     finally:
         db.close()
+    from app.publishing import automatic
+
     scheduler.start()
     backup_service.start()
+    automatic.start()
     try:
         yield
     finally:
+        automatic.stop()
         backup_service.stop()
         scheduler.stop()
 
@@ -109,6 +115,7 @@ from app.documentary.block_review.host_api import router as host_voice_review_ro
 from app.documentary.block_review.clip_api import router as clip_voice_review_router  # noqa: E402
 from app.documentary.block_review.opening_api import router as opening_voice_review_router  # noqa: E402
 from app.covers.api import router as covers_router  # noqa: E402
+from app.covers.variants_api import router as cover_variants_router  # noqa: E402
 from app.tags.api import router as tags_router  # noqa: E402
 from app.documentary.youtube_chapters_api import router as youtube_chapters_router  # noqa: E402
 from app.documentary.youtube_description_api import router as youtube_description_router  # noqa: E402
@@ -122,6 +129,7 @@ from app.lifecycle.api import router as lifecycle_router  # noqa: E402
 from app.longform.api import router as longform_router  # noqa: E402
 from app.naming.api import router as naming_router  # noqa: E402
 from app.meta_publishing.api import router as meta_publishing_router  # noqa: E402
+from app.meta_publishing.facebook_api import router as facebook_publishing_router  # noqa: E402
 from app.publishing.api import router as publishing_router  # noqa: E402
 from app.publishing.intelligence.api import router as publishing_intelligence_router  # noqa: E402
 from app.youtube_publishing.api import router as youtube_publishing_router  # noqa: E402
@@ -149,6 +157,7 @@ for _router in (
     closing_router,
     short_clips_router,
     meta_publishing_router,
+    facebook_publishing_router,
     publishing_router,
     publishing_intelligence_router,
     youtube_publishing_router,
@@ -159,6 +168,7 @@ for _router in (
     opening_voice_review_router,
     clip_voice_review_router,
     covers_router,
+    cover_variants_router,
     tags_router,
     youtube_chapters_router,
     youtube_description_router,

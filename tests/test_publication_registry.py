@@ -87,6 +87,7 @@ def world(db_session, tmp_path, monkeypatch):
     db_session.commit()
     sleeps = {"now": utc_now()}
     registry = PublicationRegistry(db_session, now=lambda: sleeps["now"])
+    monkeypatch.setattr(registry.cfg.approval, "default_approved", False)         # these tests are about the owner's own approvals; the default approval has its own tests
     yield type("World", (), {"case": case, "film": film, "film_file": film_file, "clips": base / "clips" / "fa", "db": db_session, "registry": registry, "clock": sleeps, "tmp": tmp_path})
     db_session.rollback()
     ids = [p.id for p in db_session.query(Publication).filter_by(case_id=case.id).all()]
@@ -112,6 +113,109 @@ def ready_film(monkeypatch):
 
 def events(w, decision: str) -> list[PolicyEvent]:
     return w.db.query(PolicyEvent).filter_by(case_id=w.case.id, policy="publication", decision=decision).all()
+
+
+def test_a_plan_approves_by_default_what_is_ready_and_leaves_what_is_not(world, monkeypatch):
+    monkeypatch.setattr(world.registry.cfg.approval, "default_approved", True)
+    monkeypatch.setattr(world.registry.cfg.approval, "manual_languages", [])
+    planned(world)
+    ready = pub(world, "facebook", "short", "C1")
+    assert ready.status == "draft"                                                    # no platform text yet: not ready, so not approved
+    world.registry.update(ready.id, metadata={"title": "A title", "hashtags": [], "keywords": [], "cta": ""})
+    planned(world)
+    assert pub(world, "facebook", "short", "C1").status == "publication_approved" and pub(world, "facebook", "short", "C2").status == "draft"
+    assert {json.loads(e.context_json)["actor"] for e in events(world, "content_approved") + events(world, "publication_approved")} == {"default"}
+    planned(world)
+    assert len(events(world, "publication_approved")) == 1                              # nothing is approved twice
+
+
+def test_a_plan_first_approves_the_planners_covers_that_have_their_picture(world, monkeypatch):
+    seen = []
+    monkeypatch.setattr("app.covers.service.auto_approve", lambda db, case, language: seen.append((case.id, language)) or [])
+    planned(world)
+    assert seen == [(world.case.id, "fa")]
+
+
+def texts(world, **by_platform):
+    """Give the Short C1 of every portal its own text: {platform: (caption, title, hashtags)}."""
+    planned(world)
+    for platform, (caption, title, tags) in by_platform.items():
+        row = pub(world, platform, "short", "C1")
+        world.registry.update(row.id, caption=caption, metadata={"title": title, "hashtags": tags, "keywords": [], "cta": ""})
+
+
+def test_a_word_corrected_on_one_portal_is_corrected_on_the_others_by_the_words_around_it(world):
+    texts(world, youtube=("اشلی در گاراژ بود و تپانچه نداشت", "تپانچه در گاراژ", ["#پرونده"]), facebook=("در گاراژ بود و تپانچه نداشت، پس چرا؟", "تپانچه ای در گاراژ", ["#پرونده"]),
+          instagram=("او تپانچه نداشت", "", ["#پرونده"]), tiktok=("متن دیگر بدون آن کلمه", "", []))
+    source = pub(world, "youtube", "short", "C1")
+    before = world.registry.text_state(source)
+    world.registry.update(source.id, caption="اشلی در گاراژ بود و تپانچهٔ نداشت")
+    out = world.registry.propagate_correction(source.id, before)
+    assert {c["platform"] for c in out["changed"]} == {"facebook", "instagram"} and out["skipped"] == [] and out["unplaced"] == 0
+    assert "تپانچهٔ نداشت" in pub(world, "facebook", "short", "C1").caption and "تپانچهٔ نداشت" in pub(world, "instagram", "short", "C1").caption
+    assert pub(world, "tiktok", "short", "C1").caption == "متن دیگر بدون آن کلمه"                                  # nothing to correct there
+    assert "تپانچه" in pub(world, "youtube", "short", "C1").metadata_json                                          # the source is only what the owner saved
+    assert events(world, "correction_propagated")
+
+
+def test_a_correction_changes_the_other_portals_as_an_owner_edit_and_voids_their_approval(world):
+    texts(world, youtube=("متن اولیه درست است", "عنوان", []), instagram=("متن اولیه درست است و ادامه", "", []))
+    ig = pub(world, "instagram", "short", "C1")
+    world.registry.approve_content(ig.id)
+    assert pub(world, "instagram", "short", "C1").status == "content_approved"
+    source = pub(world, "youtube", "short", "C1")
+    before = world.registry.text_state(source)
+    world.registry.update(source.id, caption="متن اولیه غلط است")
+    world.registry.propagate_correction(source.id, before)
+    ig = pub(world, "instagram", "short", "C1")
+    assert ig.caption == "متن اولیه غلط است و ادامه" and ig.status == "voided" and ig.metadata_source == "owner"
+
+
+def test_a_short_piece_alone_is_never_replaced_and_added_or_deleted_text_is_reported_not_carried(world):
+    texts(world, youtube=("به خانه رفت و به مدرسه", "", []), facebook=("او به مدرسه نرفت", "", []))
+    source = pub(world, "youtube", "short", "C1")
+    before = world.registry.text_state(source)
+    world.registry.update(source.id, caption="با خانه رفت و به مدرسه رسید")
+    out = world.registry.propagate_correction(source.id, before)
+    assert pub(world, "facebook", "short", "C1").caption == "او به مدرسه نرفت"                                      # "به" alone would have hit this sentence
+    assert out["unplaced"] == 1 and out["changed"] == []
+
+
+def test_a_portal_that_is_already_public_is_listed_not_changed(world):
+    texts(world, youtube=("متن قدیمی", "", []), instagram=("متن قدیمی", "", []))
+    ig = pub(world, "instagram", "short", "C1")
+    ig.status = "published"
+    world.db.commit()
+    source = pub(world, "youtube", "short", "C1")
+    before = world.registry.text_state(source)
+    world.registry.update(source.id, caption="متن جدید")
+    out = world.registry.propagate_correction(source.id, before)
+    assert out["changed"] == [] and [(s["platform"], s["reason"]) for s in out["skipped"]] == [("instagram", "it is published")]
+    assert pub(world, "instagram", "short", "C1").caption == "متن قدیمی"
+
+
+def test_the_text_of_an_upload_that_is_not_public_yet_can_still_be_corrected_but_not_its_time(world):
+    planned(world)
+    row = pub(world, "facebook", "short", "C1")
+    world.registry.update(row.id, caption="متن اول")
+    row = pub(world, "facebook", "short", "C1")
+    row.status, was = "ready", row.scheduled_at
+    world.db.commit()
+    done = world.registry.update(row.id, caption="متن دوم", scheduled_local="2031-01-01T10:00", visibility="public")
+    assert done.caption == "متن دوم" and done.scheduled_at == was and done.visibility == "private"
+    assert world.registry.view(done)["eligibility"]["edit"] is True
+    done.status = "published"
+    world.db.commit()
+    with pytest.raises(PublishingRefused):
+        world.registry.update(done.id, caption="متن سوم")
+
+
+def test_the_edit_route_answers_with_what_was_corrected_elsewhere(world, client):
+    texts(world, youtube=("اشلی تپانچه نداشت", "", []), tiktok=("او تپانچه نداشت", "", []))
+    source = pub(world, "youtube", "short", "C1")
+    answer = client.patch(f"/api/publications/{source.id}", json={"caption": "اشلی تپانچهٔ نداشت"})
+    assert answer.status_code == 200 and [c["platform"] for c in answer.json()["propagation"]["changed"]] == ["tiktok"]
+    assert answer.json()["propagation"]["pieces"] == [{"old": "تپانچه", "new": "تپانچهٔ"}]
 
 
 def test_the_overview_gives_every_publication_one_lamp_state(world):
@@ -245,11 +349,12 @@ def test_revoking_an_approval_returns_to_draft(world):
         world.registry.revoke(short.id)
 
 
-def test_a_film_in_a_preview_render_cannot_be_approved(world):
+def test_a_film_in_a_preview_render_is_not_refused_for_its_render_profile(world):
     planned(world)
     film = pub(world, "youtube", "film", f"V{world.film.id}")
-    with pytest.raises(PublishingRefused, match="preview profile"):
+    with pytest.raises(PublishingRefused) as refused:
         world.registry.approve_content(film.id)
+    assert "profile" not in str(refused.value) and "no approved episode title" in str(refused.value)            # it is held back for its own reasons only
 
 
 def test_a_film_that_meets_the_publish_rules_can_be_approved(world, monkeypatch):
@@ -570,3 +675,41 @@ def test_a_release_plan_start_date_in_the_past_is_still_refused(world):
         world.db.query(ShortCandidate).filter_by(case_id=world.case.id).delete()
         world.db.query(DocumentaryJob).filter_by(case_id=world.case.id).delete()
         world.db.commit()
+
+
+def test_a_films_youtube_address_is_put_into_the_text_of_its_editable_youtube_shorts_only(world):
+    planned(world)
+    film = pub(world, "youtube", "film", f"V{world.film.id}")
+    film.remote_url = "https://www.youtube.com/watch?v=FILM123"
+    world.db.commit()
+    first, second = pub(world, "youtube", "short", "C1"), pub(world, "youtube", "short", "C2")
+    first_id, second.status = first.id, "published"
+    world.db.commit()
+    before = pub(world, "facebook", "short", "C1").caption
+    others = {p.id for p in world.db.query(Publication).filter_by(case_id=world.case.id, platform="youtube", kind="short") if p.asset_key not in ("C1", "C2")}
+    changed = world.registry.link_shorts_to_film(film)
+    assert first_id in changed and set(changed) == {first_id} | others and second.id not in changed          # the published one and the other platforms are left alone
+    assert film.remote_url in pub(world, "youtube", "short", "C1").caption and film.remote_url not in pub(world, "youtube", "short", "C2").caption
+    assert pub(world, "facebook", "short", "C1").caption == before
+    assert world.registry.link_shorts_to_film(film) == []                                                 # nothing is added twice
+    film.remote_url = None
+    assert world.registry.link_shorts_to_film(film) == []
+
+
+def test_every_shorts_delivery_copy_is_prepared_with_its_approved_reel_cover_and_made_again_only_when_something_changed(world):
+    from app.db.models import CoverVariant
+    from app.shortform.delivery import prepare_shorts
+
+    for key in ("C2", "C3", "C4", "C5"):
+        (world.clips / f"clip_{key}.mp4").unlink()                                             # a small test: one clip is enough
+    picture = world.tmp / "reel.jpg"
+    Image.new("RGB", (1080, 1920), (200, 20, 20)).save(picture)
+    first = prepare_shorts(world.db, world.case.id, "fa")
+    assert [(r["key"], r["cover"], r["made_now"]) for r in first] == [("C1", None, True)]       # no approved cover: a copy that opens with the clip
+    world.db.add(CoverVariant(case_id=world.case.id, language="fa", cover_key="C1", shape="reel", version=1, status="approved", title="t", highlight="h", subject_name="n", file_path=str(picture),
+                              file_hash="abc", width=1080, height=1920, elements_json="{}", problems_json="[]", evidence_json="{}", approved_by="owner"))
+    world.db.commit()
+    second = prepare_shorts(world.db, world.case.id, "fa")
+    assert second[0]["cover"].startswith("reel:") and second[0]["made_now"]                     # the cover came: the copy is made again, with it
+    third = prepare_shorts(world.db, world.case.id, "fa")
+    assert third[0]["made_now"] is False and third[0]["file"] == "delivery_C1.mp4"              # nothing changed: nothing is made

@@ -3766,3 +3766,72 @@ class YouTubeUploadSession(Base):
     required_action: Mapped[str | None] = mapped_column(String(30), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class FacebookUploadSession(Base):
+    """One upload of one publication to the Farsi Facebook Page: a Reel (start, binary upload, processing, finish) or a long film (resumable upload to a file handle, then the Page video).
+    `ready` means uploaded but not yet finished on Facebook (a Reel Meta has processed, a film's file handle): nothing is on the Page yet. `drafted` and `published` are the two ways to finish (`uncertain`: the finish call got no answer, so the video may be public).
+    At most one session per publication is active (partial unique index), and one file goes to one Page at most once (a second partial unique index over the active, drafted and
+    published sessions), so a second upload of the same file can only resume the first."""
+
+    __tablename__ = "facebook_upload_sessions"
+    __table_args__ = (
+        Index("uq_facebook_session_active", "publication_id", unique=True,
+              postgresql_where=text("status IN ('created', 'uploading', 'interrupted', 'processing', 'ready')"),
+              sqlite_where=text("status IN ('created', 'uploading', 'interrupted', 'processing', 'ready')")),
+        Index("uq_facebook_file_once", "page_id", "content_hash", unique=True,
+              postgresql_where=text("status IN ('created', 'uploading', 'interrupted', 'processing', 'ready', 'drafted', 'published', 'uncertain')"),
+              sqlite_where=text("status IN ('created', 'uploading', 'interrupted', 'processing', 'ready', 'drafted', 'published', 'uncertain')")),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    publication_id: Mapped[int] = mapped_column(ForeignKey("publications.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(10), default="short")
+    status: Mapped[str] = mapped_column(String(12), default="created", index=True)
+    page_id: Mapped[str] = mapped_column(String(40), default="")
+    content_hash: Mapped[str] = mapped_column(String(64), default="")
+    metadata_hash: Mapped[str] = mapped_column(String(64), default="")
+    remote_video_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    upload_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    file_handle: Mapped[str | None] = mapped_column(Text, nullable=True)
+    total_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+    bytes_sent: Mapped[int] = mapped_column(BigInteger, default=0)
+    video_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    publish_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    required_action: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class CoverVariant(Base):
+    """One of the three shapes (reel 9:16, feed 4:5, grid 1:1) of a Short's cover, as one version: rendered in code from the cover's approved or proposed title, the host's studio frame, the
+    channel's logo and, only when the owner has cleared one, a photograph of the person. Each shape is reviewed and approved on its own. A new version never replaces an approved one: the older
+    approved version stays until the owner approves the newer one (then it is `superseded`, its file kept). Nothing here is sent to a platform: which cover a platform gets is the registry's business."""
+
+    __tablename__ = "cover_variants"
+    __table_args__ = (UniqueConstraint("case_id", "language", "cover_key", "shape", "version", name="uq_cover_variant_version"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20), index=True)
+    cover_key: Mapped[str] = mapped_column(String(10))
+    shape: Mapped[str] = mapped_column(String(8))                                         # reel | feed | grid
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(12), default="proposed", index=True)       # proposed | approved | rejected | superseded
+    proposal_id: Mapped[int | None] = mapped_column(ForeignKey("cover_proposals.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(300), default="")
+    highlight: Mapped[str] = mapped_column(String(100), default="")
+    subject_name: Mapped[str] = mapped_column(String(200), default="")
+    photo_asset_id: Mapped[int | None] = mapped_column(ForeignKey("visual_assets.id"), nullable=True)
+    file_path: Mapped[str] = mapped_column(Text, default="")
+    file_hash: Mapped[str] = mapped_column(String(64), default="")
+    width: Mapped[int] = mapped_column(Integer, default=0)
+    height: Mapped[int] = mapped_column(Integer, default=0)
+    elements_json: Mapped[str] = mapped_column(Text, default="{}")
+    problems_json: Mapped[str] = mapped_column(Text, default="[]")
+    evidence_json: Mapped[str] = mapped_column(Text, default="{}")                        # what the validator measured and which photograph (with its rights) was used
+    approved_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+

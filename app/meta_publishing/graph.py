@@ -110,7 +110,7 @@ class MetaGraphClient:
 
     async def create_container(self, caption: str) -> str:
         body = await self._send("POST", self._url(self.s.account.ig_account_id, "media"), headers=self._bearer(), timeout=self.s.request_timeout_s, retry=False,
-                                json={"media_type": "REELS", "upload_type": "resumable", "caption": caption})
+                                json={"media_type": "REELS", "upload_type": "resumable", "caption": caption, "thumb_offset": self.s.thumb_offset_ms})
         if not body.get("id"):
             raise MetaError("invalid_request", "Meta did not return a container id")
         return str(body["id"])

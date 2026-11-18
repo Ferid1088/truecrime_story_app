@@ -283,11 +283,17 @@
   },
   "automatic_publishing": {
     "default_enabled": false,
+    "enabled": false,
+    "poll_seconds": 60,
     "missed_window_minutes": 60,
     "automatic_retries": 0
   },
   "approval": {
     "max_age_days": 7,
+    "default_approved": true,
+    "manual_languages": [
+      "fa"
+    ],
     "scope": "destination",
     "required": [
       "content",
@@ -516,6 +522,18 @@
       "instagram_connection_expiring": {
         "severity": "attention",
         "alert": false
+      },
+      "facebook_upload_running": {
+        "severity": "info",
+        "alert": false
+      },
+      "facebook_upload_needs_action": {
+        "severity": "attention",
+        "alert": true
+      },
+      "facebook_connection_problem": {
+        "severity": "problem",
+        "alert": true
       }
     }
   },
@@ -531,7 +549,9 @@
       "repairs": 2,
       "film_excerpt_chars": 6000,
       "concurrency": 2,
-      "running_timeout_seconds": 900, "examples_dir": "data/publishing_examples", "examples_per_call": 30, "example_caption_chars": 220, "hook_min_score": 7, "hook_critic_examples": 12
+      "running_timeout_seconds": 900, "examples_dir": "data/publishing_examples", "examples_per_call": 30, "example_caption_chars": 220, "hook_min_score": 7, "hook_critic_examples": 12,
+      "proofread_languages": ["fa"],
+      "proofread_min_similarity": 0.8
     },
     "scheduling": {
       "earliest_local_time": "08:00",
@@ -566,7 +586,8 @@
         "note": "Title (100 characters), description (5000 BYTES, not characters) and tags (500 characters) and the ban on < and > were read on the videos resource page (developers.google.com/youtube/v3/docs/videos) on 2026-11-16; the hashtag counts are not from that page.",
         "title_required": true,
         "text_max_bytes": 5000,
-        "forbidden_chars": "<>"
+        "forbidden_chars": "<>",
+        "web_address_allowed": true
       },
       "facebook/film": {
         "title_max": 100,

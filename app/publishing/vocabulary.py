@@ -129,6 +129,9 @@ class EventCategory(StrEnum):
     YOUTUBE_UPLOAD_NEEDS_ACTION = "youtube_upload_needs_action"
     INSTAGRAM_CONNECTION_PROBLEM = "instagram_connection_problem"
     INSTAGRAM_CONNECTION_EXPIRING = "instagram_connection_expiring"
+    FACEBOOK_UPLOAD_RUNNING = "facebook_upload_running"
+    FACEBOOK_UPLOAD_NEEDS_ACTION = "facebook_upload_needs_action"
+    FACEBOOK_CONNECTION_PROBLEM = "facebook_connection_problem"
 
 
 @dataclass(frozen=True)

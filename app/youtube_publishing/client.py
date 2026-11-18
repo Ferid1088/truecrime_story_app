@@ -152,6 +152,14 @@ class YouTubeClient:
         if response.status_code != 200:
             raise _problem(response)
 
+    async def set_privacy(self, video_id: str, privacy: str, *, made_for_kids: bool, synthetic: bool) -> None:
+        """videos.update of the status part (about 50 quota units); the video, its title and its description are not touched."""
+        body = {"id": video_id, "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": made_for_kids, "containsSyntheticMedia": synthetic}}
+        response = await self._send("PUT", f"{self.cfg.api.base_url}/videos", params={"part": "status"}, headers={"Content-Type": "application/json; charset=UTF-8"},
+                                    content=json.dumps(body).encode("utf-8"))
+        if response.status_code != 200:
+            raise _problem(response)
+
     async def insert_caption(self, video_id: str, language: str, name: str, path: Path) -> None:
         boundary = secrets.token_hex(12)
         meta = json.dumps({"snippet": {"videoId": video_id, "language": language, "name": name, "isDraft": False}}, ensure_ascii=False)

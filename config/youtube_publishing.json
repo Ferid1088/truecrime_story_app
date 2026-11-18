@@ -35,6 +35,7 @@
   },
   "upload": {
     "initial_privacy": "private",
+    "public_after_processing": true,
     "category_id": "25",
     "self_declared_made_for_kids": false,
     "contains_synthetic_media": true,

@@ -47,7 +47,7 @@ export function InstagramConnectionPanel({ returnTo, language }: { returnTo: str
   const connect = () => act(async () => { const { authorization_url } = await metaPublishingApi.connect(returnTo); window.location.assign(authorization_url); return "Opening Facebook…"; });
   const test = () => act(async () => {
     const r = await metaPublishingApi.testConnection();
-    return `Connection test passed at ${new Date(r.checked_at).toLocaleTimeString()}: the token works, the permissions (${r.permissions.join(", ")}) are granted, the account is @${r.account.username} (${r.account.id}), the configured one. Publishing quota used: ${r.quota_usage ?? "n/a"}.`;
+    return `Connection test passed at ${new Date(r.checked_at).toLocaleTimeString()}: the token works, the permissions (${r.permissions.join(", ")}) are granted, the account is @${r.account.username} (${r.account.id}), the configured one. Publishing quota used: ${r.quota_usage ?? "n/a"}.${r.missing_for_publishing.length ? ` Not ready to publish: Meta documents ${r.missing_for_publishing.join(", ")} for publishing and the token does not hold it.` : ""}`;
   });
   const disconnect = () => act(async () => { setConfirming(false); const r = await metaPublishingApi.disconnect(); return r.still_set_by_environment ? "The stored token was removed, but another token is still set by the environment." : "Instagram disconnected: the stored token was removed. Facebook's grant for the app is untouched (remove the app in your Facebook settings to end it)."; });
   const [label, tone] = stateOf(c);
@@ -64,6 +64,11 @@ export function InstagramConnectionPanel({ returnTo, language }: { returnTo: str
       <CardContent className="space-y-2 text-xs">
         <p className="text-muted-foreground">Expected account: @{c.expected_account.username} ({c.expected_account.id}), {c.language}. Required permissions: {c.required_permissions.join(", ")}. Connecting only reads; no Reel is made or published.</p>
         {c.connected_at && <p className="text-muted-foreground">Connected {new Date(c.connected_at).toLocaleString()}{c.expires_at ? `, the token ends ${new Date(c.expires_at).toLocaleDateString()}` : ""}.{c.last_test && ` Last test: ${c.last_test.ok ? "passed" : `failed (${c.last_test.error})`} at ${new Date(c.last_test.at).toLocaleTimeString()}.`}</p>}
+        {c.verified && c.missing_for_publishing.length > 0 && (
+          <p data-testid="instagram-publish-gap" className="rounded border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-amber-700 dark:text-amber-400">
+            Connected, but not ready to publish: Meta documents {c.missing_for_publishing.join(", ")} for publishing and this token does not hold it. The Reels publisher refuses until it is granted.
+          </p>
+        )}
         {!c.app_configured && !c.connected && (
           <div className="space-y-1 rounded border border-dashed border-border p-2" data-testid="instagram-setup">
             <p className="font-medium">One-time setup by the owner (Meta):</p>

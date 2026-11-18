@@ -9,5 +9,6 @@
 - **Secrets:** never commit keys, tokens, `.env`, cached third-party pages or private data. Run `scripts/secret_scan.py` before every commit batch.
 - **Code:** clean OO, no dead code, no commented-out code. Every bug fix gets a test. Every new config value goes into `config/`. Every new DB column/table gets an Alembic migration.
 - **Honesty:** never claim something you did not run. Distinguish "verified live" / "verified by test" / "not verified". Don't assume provider capabilities — read the provider's real docs/API response first.
+- **Platform specs:** before you make, change or publish a Short, a cover or a video, read `docs/platform_specs.md` and `config/platform_specs.json` (official file rules, which cover goes where, our audit, sources). Never state a platform number that the config does not hold as `official` or `measured`; say it is unresolved and test it on the real account. Encode clips with `clip_video.encode_args`/`loudness_filter`, and publish the delivery copy (`delivery_<key>.mp4`), checked with `platform_specs.check_video`.
 - **Languages:** research runs in all configured languages; Persian is the output language. A case with zero Persian sources is valid.
 - **Destructive/failure-path testing** uses scratch cases, never case 5 or other real cases.

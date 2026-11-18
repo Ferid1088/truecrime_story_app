@@ -20,7 +20,11 @@ from app.db.base import get_db
 from app.db.models import Case, DocumentaryJob, MvpFilmReview, ProviderCall, VisualPlan
 from app.documentary import jobs as J
 from app.documentary.progress import progress_view
-from app.publishing.monitoring import connection_issues, publishing_issues
+from app.publishing.monitoring import (
+    connection_issues,
+    facebook_connection_issues,
+    publishing_issues,
+)
 from app.services.budget import BudgetService
 from app.utils import ensure_utc, utc_now
 
@@ -342,6 +346,7 @@ class AppMonitor(Monitor):
                           "job": (self.views.get(newest[case_id].id) if case_id in newest else None)})
         self.issues.extend(publishing_issues(self.db, exclude_cases=set(case_ids), with_case_title=True))
         self.issues.extend(connection_issues())
+        self.issues.extend(facebook_connection_issues())
         running = [j for j in active if j.status != "queued"]
         providers = self.providers()
         services = self.services(running)

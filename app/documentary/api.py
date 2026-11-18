@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.core.env import env_value
 from app.core.files import serve as serve_file
+from app.core.files import versioned_url
 from app.db.base import get_db
 from app.db.models import (
     Artifact,
@@ -302,7 +303,7 @@ def production_dict(ps: ProductionScript, full: bool = True) -> dict:
         "critique": _loads(ps.critique_json, None),
         "audit": _loads(ps.audit_json, None),
         "render": _loads(ps.render_json, None),
-        "video_url": f"/api/documentary/production/{ps.id}/video.mp4" if ps.render_json else None,
+        "video_url": versioned_url(f"/api/documentary/production/{ps.id}/video.mp4", storage.resolve((_loads(ps.render_json, None) or {}).get("path"))) if ps.render_json else None,
         "subtitles_url": f"/api/documentary/production/{ps.id}/subtitles.srt" if ps.render_json else None,
         "created_at": ps.created_at,
     }

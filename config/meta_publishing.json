@@ -146,14 +146,20 @@
       "username": "fe.rashidi.tc.fa",
       "brand": "رد خاموش"
     },
+    "connection_permissions": [
+      "instagram_basic",
+      "instagram_content_publish"
+    ],
     "required_permissions": [
       "instagram_basic",
       "instagram_content_publish",
       "pages_read_engagement"
     ],
-    "token_env": "TRUECRIME_META_ACCESS_TOKEN",
+    "token_env": "TRUECRIME_INSTAGRAM_ACCESS_TOKEN",
+    "account_id_env": "TRUECRIME_INSTAGRAM_ACCOUNT_ID",
     "token_file": "~/.config/truecrime/meta_access_token",
     "prepared_copy_dir": "meta",
+    "thumb_offset_ms": 0,
     "request_timeout_s": 60,
     "upload_timeout_s": 600,
     "retry_attempts": 3,
@@ -172,6 +178,52 @@
       "state_ttl_seconds": 600,
       "expiry_warning_days": 7,
       "evidence": "Facebook Login web flow (dialog/oauth, oauth/access_token, fb_exchange_token for the 60-day token), /me/permissions and debug_token as documented at developers.facebook.com/docs/facebook-login/guides/access-tokens and /docs/graph-api/reference/user/permissions; not yet exercised against a live Meta app."
+    }
+  },
+  "facebook": {
+    "live_enabled": true,
+    "allow_public_publish": false,
+    "language": "fa",
+    "page": {
+      "page_id": "1524968800689127",
+      "brand": "رد خاموش",
+      "linked_instagram_id": "17841431693135313"
+    },
+    "app_id": "1441358334321247",
+    "video_host": "https://graph-video.facebook.com",
+    "required_permissions": [
+      "pages_show_list",
+      "pages_read_engagement",
+      "pages_manage_posts"
+    ],
+    "required_task": "CREATE_CONTENT",
+    "state_file": "~/.truecrime/meta/facebook_{language}.json",
+    "reels": {
+      "poll_interval_s": 5,
+      "poll_max_s": 300,
+      "upload_timeout_s": 600,
+      "max_posts_per_24h": 30
+    },
+    "film": {
+      "chunk_bytes": 16777216,
+      "poll_interval_s": 30,
+      "poll_max_s": 1800,
+      "chunk_timeout_s": 300
+    },
+    "evidence": {
+      "reels": "confirmed: developers.facebook.com/docs/video-api/guides/reels-publishing (read 2026-11-17): POST {page}/video_reels upload_phase=start, binary POST to the returned rupload address (headers offset and file_size), GET {video}?fields=status until video_status is ready, POST {page}/video_reels upload_phase=finish with video_state DRAFT, SCHEDULED or PUBLISHED. What a DRAFT is, and whether and how a draft can be published later, is NOT documented there: the first controlled draft test shows it.",
+      "film": "partly confirmed: developers.facebook.com/docs/video-api/guides/publishing (read 2026-11-17): Resumable Upload API (POST {app}/uploads, POST upload:<id> with file_offset, GET upload:<id> to resume) gives a file handle; POST graph-video.facebook.com/{page}/videos with fbuploader_video_file_chunk=<handle>; published and unpublished_content_type (DRAFT) are parameters of the Page videos reference. Not exercised against Meta with a system-user token yet.",
+      "cover": "documented, not yet exercised: POST {video}/thumbnails with source (an image file, at most 10 MB) and is_preferred=true, a Page token, permissions pages_read_user_content, pages_manage_engagement and pages_show_list (developers.facebook.com/docs/graph-api/reference/video/thumbnails, read 2026-11-17); the Reels guide links to it as 'Add a custom cover photo for your reel'. Meta says nothing about Reels, drafts or processing state there, and says a thumbnail cannot be updated or deleted through the API, so it is posted once per file. GET {video}/thumbnails (pages_read_engagement) works on a Reel draft (confirmed live).",
+      "limits": "confirmed live 2026-11-17 (GET /me?fields=video_upload_limits with the system-user token): length 14460 seconds, size 28633115306 bytes. The app reads the limits again before every film upload."
+    },
+    "cover": {
+      "required_permissions": [
+        "pages_read_user_content",
+        "pages_manage_engagement",
+        "pages_show_list"
+      ],
+      "max_mb": 10,
+      "source": "https://developers.facebook.com/docs/graph-api/reference/video/thumbnails/ (read 2026-11-17: POST /{video}/thumbnails takes `source` and `is_preferred`, at most 10 MB; the page does not mention Reels, so it is tested live)"
     }
   },
   "prepare": {

@@ -1,0 +1,184 @@
+{
+  "version": 1,
+  "verified_on": "2026-11-17",
+  "read_me": "docs/platform_specs.md. Every value says how well it is known: official (a platform's own developer or help page, read on verified_on), measured (measured by this project on the real account or files), third_party (blogs and vendor guides, which contradict each other), unresolved. Enforce official and measured values; treat the rest as advice and never as a fact. Meta's own preflight lives in config/meta_publishing.json and app/meta_publishing/validator.py; the encode targets of our clips (GOP, loudness, true peak) live in config/parameters/short_clips.json (short_clips.video.delivery).",
+  "platforms": {
+    "facebook_reels": {
+      "label": "Facebook Reels",
+      "video": {
+        "status": "official",
+        "aspect": "9:16",
+        "width": 1080,
+        "height": 1920,
+        "min_width": 540,
+        "min_height": 960,
+        "fps_min": 24,
+        "fps_max": 60,
+        "fixed_fps": true,
+        "seconds_min": 3,
+        "seconds_max": 90,
+        "codecs": [
+          "h264",
+          "hevc"
+        ],
+        "pix_fmt": "yuv420p",
+        "gop_seconds_min": 2,
+        "gop_seconds_max": 5,
+        "closed_gop": true,
+        "audio_codec": "aac",
+        "audio_channels": 2,
+        "audio_rate": 48000,
+        "audio_kbps_min": 128,
+        "notes": "A reel published as a Page story cannot exceed 60 seconds. Error 1363040: the aspect ratio must lie between 16:9 and 9:16."
+      },
+      "cover": {
+        "status": "measured",
+        "shape": "reel",
+        "how": "A separate Graph API call (POST /{video}/thumbnails). It needs pages_read_user_content and pages_manage_engagement, which the current token lacks. A posted thumbnail cannot be changed or deleted through the API. GET /{video}/thumbnails works on drafts."
+      },
+      "sources": [
+        "https://developers.facebook.com/docs/video-api/guides/reels-publishing"
+      ]
+    },
+    "instagram_reels": {
+      "label": "Instagram Reels",
+      "video": {
+        "status": "official_shared_with_facebook",
+        "notes": "The Instagram content-publishing page that could be read has no numbers; Meta's Reels guide above is used for both. Reels are published as a container with media_type=REELS and, for large files, a resumable upload to rupload.facebook.com.",
+        "rules_official": "MOV or MP4, no edit lists, moov atom at the front, AAC at most 48 kHz mono or stereo, HEVC or H.264 progressive with a closed GOP, 4:2:0, 23-60 fps, at most 1920 px wide, VBR up to 25 Mbps, 3 s to 15 min, 300 MB (source: ig-user/media reference)"
+      },
+      "cover": {
+        "status": "measured",
+        "shape": "reel",
+        "grid_crop_candidates": [
+          "3:4 (1080x1440)",
+          "4:5 (1080x1350)",
+          "1:1 (1080x1080)"
+        ],
+        "advice": "Sources contradict each other and none is official. The newest and most repeated claim is a 3:4 profile grid. A 1080x1080 centre square survives every candidate. Check the grid preview in the Instagram app on the real account before relying on any crop.",
+        "advisory_safe_zone_fraction": {
+          "top": 0.125,
+          "bottom": 0.125
+        },
+        "how": "Official (Graph API reference, ig-user/media, read 2026-11-17): `thumb_offset` = the frame in milliseconds used as the cover; `cover_url` (a public JPEG URL, 8 MB, sRGB, 9:16 recommended, otherwise cropped to the middle 9:16) is the cover for the Reels tab. Measured 2026-11-17 on the real account: a delivery copy that opens with the cover (thumb_offset 0) became the Reel's thumbnail. The profile grid crop stays unresolved."
+      },
+      "sources": [
+        "https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/content-publishing",
+        "https://www.hopperhq.com/blog/instagram-reel-size/",
+        "https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-user/media"
+      ]
+    },
+    "tiktok": {
+      "label": "TikTok",
+      "video": {
+        "status": "official",
+        "aspect": "9:16",
+        "min_pixels": 360,
+        "max_pixels": 4096,
+        "fps_min": 23,
+        "fps_max": 60,
+        "seconds_max": 180,
+        "codecs": [
+          "h264",
+          "hevc",
+          "vp8",
+          "vp9"
+        ],
+        "recommended_codec": "h264",
+        "max_file_mb": 4096,
+        "notes": "Every creator can post 3 minutes; some can post 5 or 10. 1080x1920 is the common size in the guides, not in the API page."
+      },
+      "cover": {
+        "status": "unresolved",
+        "shape": "reel",
+        "how": "No custom-image cover option was found in the Content Posting API page; TikTok takes a frame of the video. So the frame that should act as the cover has to be in the video itself. A guide says the thumbnail rarely decides a view from the For You feed and matters most on the profile grid and in search.",
+        "advisory_safe_zone_px": {
+          "top": 130,
+          "bottom": 270,
+          "right": 150
+        }
+      },
+      "sources": [
+        "https://developers.tiktok.com/doc/content-posting-api-media-transfer-guide",
+        "https://quso.ai/blog/tiktok-dimensions"
+      ]
+    },
+    "youtube_shorts": {
+      "label": "YouTube Shorts",
+      "video": {
+        "status": "official",
+        "seconds_max": 180,
+        "notes": "Vertical videos up to 3 minutes; 'maximum resolution 1080p' is the short side, so 1080x1920 is allowed. The help page does not state an aspect ratio.",
+        "max_short_side": 1080
+      },
+      "cover": {
+        "status": "measured",
+        "shape": "reel",
+        "thumbnails_set": {
+          "max_file_mb": 50,
+          "mime_types": [
+            "image/jpeg",
+            "image/png"
+          ],
+          "quota_units": 50,
+          "call_after_processing_succeeded": true
+        },
+        "advice": "Blogs say a custom thumbnail on a Short may be limited to some accounts and that text should stay out of the top and bottom 15 percent; both are unverified. Test on the real channel.",
+        "measured_2026-11-18": "thumbnails.set worked on a Short of the real Persian channel: YouTube's `shortsAspectRatio` thumbnail (1080x1920) of the video is the reel cover. A link to the film in the description is accepted by videos.insert; whether it is clickable in the Shorts feed is unverified (the supported route is the related-video field set by hand in Studio)."
+      },
+      "sources": [
+        "https://support.google.com/youtube/answer/10059070",
+        "https://developers.google.com/youtube/v3/docs/thumbnails/set"
+      ]
+    }
+  },
+  "cover_use": {
+    "reel": "The only upload candidate: Facebook Reels, Instagram Reels, YouTube Shorts, and the first frames of the TikTok video. Platforms take one cover per video.",
+    "feed": "A preview, and the picture for a Facebook or Instagram feed post. No source says a platform takes 4:5 as a reel cover.",
+    "grid": "A preview of a square profile grid. No source says a platform takes 1:1 as a reel cover."
+  },
+  "audit_2026_11_17": {
+    "scope": "49 finished clip files of case 15 (8 languages, clips C1 to C5, and some music variants)",
+    "found": {
+      "gop_seconds": "up to 8.3 (the encoder had no GOP setting, so x264 used 250 frames); Meta asks for 2 to 5",
+      "true_peak_db": "at or above 0 in almost every clip (limiter at 0.95 and an AAC encode on top)",
+      "video_kbps": "1700 to 2800 at 1080x1920",
+      "loudness_lufs": "-12 to -15, with no common target",
+      "opening": "the host is small in a wide studio shot for the first 3 seconds and the first frame carries no title"
+    },
+    "fixed": "short_clips.video.delivery (a 2 s closed GOP, -14 LUFS, a -2 dB true-peak target, a -1 dB ceiling) is used by every new clip; delivery copies of the C1 clips of 8 languages were made beside the originals (delivery_C1.mp4). The originals are never replaced.",
+    "not_done": [
+      "a closer host crop for the first seconds",
+      "a title frame at the very start of the video",
+      "caption wrapping of long Persian lines over a photo"
+    ]
+  },
+  "creative_rules": [
+    {
+      "rule": "Open with one concrete, striking fact of the case in the first 2 to 3 seconds; never with an introduction such as 'today I want to talk about a case'.",
+      "status": "third_party"
+    },
+    {
+      "rule": "Burn the captions in; many people watch without sound, so the caption is often the real hook. Highlight word by word.",
+      "status": "third_party"
+    },
+    {
+      "rule": "One case per video; hook, context, escalation, turn, then the answer or an open question that invites comments.",
+      "status": "third_party"
+    },
+    {
+      "rule": "Judge a hook by the early-retention curve of the platform's own analytics, not by taste; post different openers and compare.",
+      "status": "third_party"
+    },
+    {
+      "rule": "Keep text, faces and logos inside the middle of the picture so that any crop and any platform overlay leaves them visible.",
+      "status": "third_party"
+    }
+  ],
+  "open_questions": [
+    "Which crop does the Instagram profile grid use on the real account (3:4, 4:5 or 1:1)?",
+    "Can the real YouTube channel set a custom thumbnail on a Short?",
+    "Does the TikTok Content Posting API take a cover timestamp or image?",
+    "What do the largest true-crime channels do in their first seconds? No source with real data was found; it needs their videos or an analytics tool."
+  ]
+}

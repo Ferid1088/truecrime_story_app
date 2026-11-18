@@ -33,9 +33,9 @@ class CoverPlanner:
         bp = latest_blueprint(db, version.master_version_id) if version.master_version_id else None
         return load_story(db, case, version, _pack(db, case.id), bp)
 
-    async def propose(self, db: Session, case: Case, language: str) -> list[CoverProposal]:
+    async def propose(self, db: Session, case: Case, language: str, only: set[str] | None = None) -> list[CoverProposal]:
         """The proposals of one language, written as new rows (version after the earlier ones). The language needs its short clips; its scenes are the
-        pictures its film shows."""
+        pictures its film shows. With `only`, the planner still sees every cover (the set has to fit together) but only those keys are stored, so a cover that already exists is left as it is."""
         clips = C.clips_of(db, case.id, language)
         if not clips:
             raise P.ProposalError(f"{language} has no short clips yet: the covers follow them")
@@ -83,7 +83,7 @@ class CoverPlanner:
             raw, res = await ask({"previous": raw, "problems_to_fix": problems})
             items = P.parse_items(raw)
             problems = problems_of(items)
-        return self._store(db, case, language, keys, items, problems, repairs, getattr(res, "model", None), options)
+        return self._store(db, case, language, [k for k in keys if only is None or k in only], items, problems, repairs, getattr(res, "model", None), options)
 
     def _store(self, db: Session, case: Case, language: str, keys: list[str], items: list[dict], problems: dict, repairs: int, model: str | None,
                options: dict[str, dict] | None = None) -> list[CoverProposal]:

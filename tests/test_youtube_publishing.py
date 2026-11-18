@@ -49,6 +49,8 @@ class FakeGoogle:
         self.expired_sessions: set[str] = set()
         self.video_id = "VID123abc"
         self.gone = False
+        self.updates: list[dict] = []
+        self.refuse_public = False
 
     def client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(transport=httpx.MockTransport(self.handle))
@@ -80,6 +82,13 @@ class FakeGoogle:
             return httpx.Response(200, headers={"Location": location})
         if url.host == "upload.example":
             return self._session(request, str(url))
+        if path == "/youtube/v3/videos" and request.method == "PUT":
+            body = json.loads(request.content)
+            if self.refuse_public:
+                return httpx.Response(403, json={"error": {"errors": [{"reason": "forbidden"}], "message": "no"}})
+            self.privacy = body["status"]["privacyStatus"]
+            self.updates.append(body)
+            return httpx.Response(200, json={"id": body["id"], "status": body["status"]})
         if path == "/youtube/v3/videos":
             step = self.processing[0] if len(self.processing) == 1 else self.processing.pop(0)
             if self.gone:
@@ -136,6 +145,7 @@ def google(tmp_path, monkeypatch, db_session):
     client_file.write_text(json.dumps({"web": {"client_id": "client-id-1", "client_secret": SECRET_TOKENS[2], "redirect_uris": [cfg.redirect_uri]}}))
     cfg.oauth.client_secret_file, cfg.oauth.token_file = str(client_file), str(tmp_path / "token_{language}.json")
     cfg.live_enabled, cfg.upload.chunk_bytes, cfg.upload.processing_poll_seconds, cfg.upload.retry_base_seconds = True, 2048, 0, 0
+    cfg.upload.public_after_processing = False                 # most tests look at the private end state; the public step has its own tests
     monkeypatch.setattr("app.youtube_publishing.client.CHUNK_STEP", 1024)
     fake = FakeGoogle()
     oauth = YouTubeOAuth("fa", CHANNEL, cfg, http=fake.client)
@@ -343,12 +353,59 @@ def test_the_film_gets_its_chapters_and_its_subtitle_file(world, google, monkeyp
     assert pub(world, "youtube", "film", f"V{world.film.id}").remote_url == "https://www.youtube.com/watch?v=VID123abc"
 
 
+def test_a_public_film_is_recorded_as_published_and_its_shorts_carry_its_address_from_the_upload_on(world, google, monkeypatch):
+    from test_publication_safeguards import meet_every_film_requirement
+
+    meet_every_film_requirement(world, monkeypatch)
+    connect(google)
+    google.cfg.upload.public_after_processing = True
+    planned(world)
+    short = pub(world, "youtube", "short", "C1")
+    film = pub(world, "youtube", "film", f"V{world.film.id}")
+    world.registry.update(film.id, metadata={"title": "The film", "hashtags": [], "keywords": ["k"], "chapters": [{"time": "00:00", "title": "Start"}, {"time": "01:00", "title": "Next"}]})
+    approve_both(world, pub(world, "youtube", "film", f"V{world.film.id}"))
+    run(world, google, pub(world, "youtube", "film", f"V{world.film.id}"))
+    film = pub(world, "youtube", "film", f"V{world.film.id}")
+    assert (film.status, film.visibility) == ("published", "public") and google.fake.updates and film.published_at is not None
+    assert film.remote_url in pub(world, "youtube", "short", "C1").caption                                  # the Short found the film's address when the film was uploaded
+
+
 def test_a_missing_cover_or_subtitle_is_reported_and_never_undoes_the_upload(world, google):
     connect(google)
     p = approved_short(world)
     google.fake.processing = [{"processingStatus": "succeeded"}]
     session = run(world, google, p)
     assert session.status == "processed" and session.captions_status == "no subtitle file"
+
+
+def test_a_cover_approved_after_the_upload_can_be_put_on_the_video_that_is_already_there(world, google):
+    connect(google)
+    p = approved_short(world)
+    run(world, google, p)
+    assert google.fake.thumbnails == ["VID123abc"]
+    session = asyncio.run(uploader(world, google).replace_thumbnail(p.id))
+    assert google.fake.thumbnails == ["VID123abc", "VID123abc"] and session.thumbnail_status == "done" and len(google.fake.resources) == 1          # the video was not uploaded again
+    assert any(e.decision == "youtube_thumbnail_replaced" for e in world.db.query(PolicyEvent).filter_by(case_id=world.case.id).all())
+    with pytest.raises(Refused) as refused:
+        asyncio.run(uploader(world, google).replace_thumbnail(pub(world, "youtube", "short", "C2").id))
+    assert refused.value.reason == "no_video"
+
+
+def test_a_processed_video_is_made_public_at_once_when_the_config_says_so_and_a_refusal_leaves_it_private(world, google):
+    connect(google)
+    google.cfg.upload.public_after_processing = True
+    p = approved_short(world)
+    session = run(world, google, p)
+    p = pub(world, "youtube", "short", "C1")
+    assert google.fake.updates == [{"id": "VID123abc", "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False, "containsSyntheticMedia": True}}]
+    assert (session.privacy, p.status, p.visibility) == ("public", "published", "public") and p.published_at is not None
+    assert session.thumbnail_status == "done" and session.status == "processed"                      # the thumbnail came first
+    assert [e.decision for e in world.db.query(PolicyEvent).filter_by(case_id=world.case.id).order_by(PolicyEvent.id).all() if e.decision.startswith("youtube_")][-1] == "youtube_made_public"
+    google.fake.refuse_public, google.fake.privacy, google.fake.updates = True, "private", []
+    other = approved_short(world, "C2")
+    session = run(world, google, other)
+    other = pub(world, "youtube", "short", "C2")
+    assert other.status == "ready" and session.privacy == "private" and session.required_action == "make_public" and "could not be made public" in session.error
 
 
 # --- 3. interruption, resume, restart ---------------------------------------------------------------------------------------------------------------------
@@ -522,7 +579,8 @@ def test_an_unapproved_publication_is_never_uploaded(world, google):
     assert caught.value.reason == "not_approved" and not google.fake.resources
 
 
-def test_the_content_approval_alone_is_not_enough(world, google):
+def test_the_content_approval_alone_is_not_enough(world, google, monkeypatch):
+    monkeypatch.setattr(world.registry.cfg.approval, "default_approved", False)          # the owner asks for manual approvals
     connect(google)
     planned(world)
     p = pub(world, "youtube", "short", "C1")
@@ -545,7 +603,8 @@ def test_the_emergency_stop_blocks_the_upload(world, google):
     assert caught.value.reason == "emergency_stop" and not google.fake.resources
 
 
-def test_a_video_file_that_changed_after_the_approval_voids_it_and_nothing_is_uploaded(world, google):
+def test_a_video_file_that_changed_after_the_approval_voids_it_and_nothing_is_uploaded(world, google, monkeypatch):
+    monkeypatch.setattr(world.registry.cfg.approval, "default_approved", False)          # with the default approval a changed file is simply approved again
     connect(google)
     p = approved_short(world)
     (world.clips / "clip_C1.mp4").write_bytes((world.clips / "clip_C1.mp4").read_bytes() + b"changed")
@@ -906,3 +965,17 @@ def test_every_language_of_the_studio_has_its_own_channel_slot_that_stays_closed
     for language in ("de", "ar", "es", "it", "fr", "pt", "tr"):
         world.db.query(PublicationAccount).filter_by(platform="youtube", language=language).delete()
     world.db.commit()
+
+
+def test_with_default_approvals_a_youtube_upload_needs_no_approval_click_but_still_refuses_a_blocker(world, google, monkeypatch):
+    monkeypatch.setattr(world.registry.cfg.approval, "default_approved", True)
+    monkeypatch.setattr(world.registry.cfg.approval, "manual_languages", [])
+    connect(google)
+    planned(world)
+    p = pub(world, "youtube", "short", "C1")
+    with pytest.raises(Refused) as caught:                                              # no platform text yet
+        run(world, google, p)
+    assert caught.value.reason == "not_approved" and "metadata" in str(caught.value) and not google.fake.resources
+    world.registry.update(p.id, metadata={"title": "A Persian title", "hashtags": [], "keywords": [], "cta": ""})
+    assert run(world, google, pub(world, "youtube", "short", "C1")).status == "processed"
+    assert {json.loads(e.context_json)["actor"] for e in events(world, "publication_approved")} == {"default"}

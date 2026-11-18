@@ -8,7 +8,7 @@ import pytest
 from PIL import Image
 
 from app.core.ai_config import ai_config
-from app.core.media_tools import ffmpeg_bin
+from app.core.media_tools import ffmpeg_bin, ffprobe_bin
 from app.documentary import audio as A
 from app.documentary import opening_media as OM
 from app.shortform import clip_video as CV
@@ -145,3 +145,62 @@ def test_a_caption_never_leaves_one_word_alone_on_its_last_line(tmp_path, monkey
     monkeypatch.setattr(CV.TY, "wrap", lambda *a: seen.append(real(*a)) or seen[-1])
     CV.caption_image("the detective found the", "en", tmp_path / "c.png")
     assert len(seen[-1]) == 1 or len(seen[-1][-1].split()) > 1
+
+
+def test_the_encode_follows_the_platforms_file_rules_a_closed_gop_a_fixed_rate_and_aac_stereo_at_48_khz():
+    cfg = ai_config.short_clips_settings().video
+    args = CV.encode_args(cfg)
+    gop = round(cfg.delivery.gop_seconds * cfg.fps)
+    assert 2.0 <= cfg.delivery.gop_seconds <= 5.0                                          # Meta's Reels guide: a closed GOP of 2 to 5 seconds
+    assert args[args.index("-g") + 1] == str(gop) == args[args.index("-keyint_min") + 1] and args[args.index("-sc_threshold") + 1] == "0"
+    assert "open-gop=0" in args and args[args.index("-fps_mode") + 1] == "cfr" and args[args.index("-pix_fmt") + 1] == "yuv420p"
+    assert args[args.index("-ar") + 1] == "48000" and args[args.index("-ac") + 1] == "2" and int(args[args.index("-b:a") + 1].rstrip("k")) >= 128
+    assert f"I={cfg.delivery.lufs}" in CV.loudness_filter(cfg) and f"TP={cfg.delivery.true_peak}" in CV.loudness_filter(cfg)
+
+
+@pytest.mark.skipif(ffmpeg_bin() is None, reason="ffmpeg is not available")
+def test_a_delivery_copy_has_the_gop_and_the_sound_level_the_platforms_ask_for_and_the_original_is_not_touched(tmp_path):
+    import hashlib
+
+    cfg = ai_config.short_clips_settings().video.model_copy(update={"preset": "ultrafast"})
+    source = tmp_path / "clip.mp4"
+    subprocess.run([ffmpeg_bin(), "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=216x384:rate=30", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100", "-af", "volume=6.0,alimiter=limit=1.0",
+                    "-t", "9", "-c:v", "libx264", "-g", "250", "-pix_fmt", "yuv420p", "-c:a", "aac", str(source)], check=True)       # 9 seconds, one key frame, a full-scale sound
+    before = hashlib.sha256(source.read_bytes()).hexdigest()
+    out = tmp_path / "delivery.mp4"
+    CV.assemble(CV.delivery_command(source, out, cfg))
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == before
+    keys = subprocess.run([ffprobe_bin(), "-v", "error", "-select_streams", "v:0", "-skip_frame", "nokey", "-show_entries", "frame=pts_time", "-of", "csv=p=0", str(out)],
+                          capture_output=True, text=True).stdout.split()
+    times = [float(t.rstrip(",")) for t in keys]
+    assert max(b - a for a, b in zip(times, times[1:], strict=False)) <= cfg.delivery.gop_seconds + 0.05
+    meter = subprocess.run([ffmpeg_bin(), "-nostats", "-i", str(out), "-af", "ebur128=peak=true", "-f", "null", "-"], capture_output=True, text=True).stderr
+    peak = float(meter.rsplit("Peak:", 1)[1].split("dBFS")[0])
+    assert peak <= cfg.delivery.peak_ceiling + 0.05
+
+
+@pytest.mark.skipif(ffmpeg_bin() is None, reason="ffmpeg is not available")
+def test_a_delivery_copy_made_with_a_cover_opens_with_it_for_the_configured_seconds_and_still_meets_the_platform_rules(tmp_path):
+    from PIL import Image
+
+    from app.publishing import platform_specs as PS
+
+    cfg = ai_config.short_clips_settings().video.model_copy(update={"preset": "ultrafast"})
+    lead = cfg.delivery.cover_lead_seconds
+    source = tmp_path / "clip.mp4"
+    subprocess.run([ffmpeg_bin(), "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:size=540x960:rate=30", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "4", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                    str(source)], check=True)
+    cover = tmp_path / "cover.jpg"
+    Image.new("RGB", (1080, 1920), (250, 10, 10)).save(cover, quality=95)        # a JPEG is full-range: the copy must still be yuv420p, which Meta asks for
+    out = tmp_path / "delivery.mp4"
+    CV.assemble(CV.delivery_command(source, out, cfg, cover=cover))
+    found = PS.probe(out)
+    assert abs(found["seconds"] - (4 + lead)) < 0.2 and PS.check_video(out, "facebook_reels", found) == []
+
+    def pixel(at: float) -> tuple[int, int, int]:
+        frame = tmp_path / f"f{at}.png"
+        subprocess.run([ffmpeg_bin(), "-v", "error", "-y", "-ss", str(at), "-i", str(out), "-frames:v", "1", str(frame)], check=True)
+        return Image.open(frame).convert("RGB").getpixel((540, 960))
+
+    first, later = pixel(0.0), pixel(lead + 1.0)
+    assert first[0] > 200 and first[2] < 60 and later[2] > 150 and later[0] < 80                      # the cover first, then the clip

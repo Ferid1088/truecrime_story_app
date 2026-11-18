@@ -1447,9 +1447,9 @@ export type MetaReport = { mode: string; clip_key: string; steps: MetaStep[]; ma
 export type InstagramConnection = {
   language: string; brand: string; expected_account: { id: string; username: string }; app_configured: boolean; live_enabled: boolean; publishing_live_enabled: boolean;
   token_source: string | null; connected: boolean; verified: boolean; connected_at: string | null; expires_at: string | null; days_left: number | null; expired: boolean; expiring_soon: boolean;
-  last_test: { ok: boolean; at: string; error: string | null } | null; required_permissions: string[]; redirect_uri: string;
+  last_test: { ok: boolean; at: string; error: string | null } | null; required_permissions: string[]; missing_for_publishing: string[]; redirect_uri: string;
 };
-export type InstagramTest = { ok: boolean; account: { id: string; username: string }; permissions: string[]; quota_usage: number | null; checked_at: string };
+export type InstagramTest = { ok: boolean; account: { id: string; username: string }; permissions: string[]; missing_for_publishing: string[]; quota_usage: number | null; checked_at: string };
 
 /** The owner's test interface of the Instagram Reels publisher (Farsi account only). */
 export const metaPublishingApi = {
@@ -1501,13 +1501,38 @@ export type StudioSnapshot = {
 export type LampState = "published" | "waiting" | "failed" | "uncertain" | "unscheduled";
 export type PublicationLamp = { id: number; language: string; platform: string; kind: string; asset_key: string; status: string; state: LampState; scheduled_at: string | null; error: string | null };
 
+export type CoverShapeKey = "reel" | "feed" | "grid" | "film";
+export type CoverVariantView = {
+  id: number; shape: CoverShapeKey; label: string; version: number; status: "proposed" | "approved" | "rejected" | "superseded"; title: string; highlight: string; subject: string | null; photo_asset_id: number | null;
+  width: number; height: number; problems: string[]; evidence: { title_status?: string; title_confidence?: number | null; plate?: string; measured?: { host_sharpness: number; title_contrast: number; title_px: number };
+    photo?: { code: string; authorized: boolean; why: string; rights_status: string; license: string | null; credit: string | null; source: string | null; copyright_note: string }; paid_calls?: number };
+  image_url: string; approved_by: string | null; approved_at: string | null; created_at: string | null;
+};
+export type CoverPerson = { entity_key: string; name: string; photos: { asset_id: number; code: string; authorized: boolean; why: string; rights_status: string; license: string | null; credit: string | null; source: string | null; width: number | null; height: number | null; editorial_approved_by: string | null; image_url: string }[] };
+export type CoverShapes = {
+  case_id: number; language: string; key: string; rights_note: string; can_render: boolean; people: CoverPerson[];
+  shapes: Record<CoverShapeKey, { label: string; newest: CoverVariantView | null; approved: CoverVariantView | null; history: CoverVariantView[] }>;
+  platforms: { destination: string; takes: string; candidate_shape: CoverShapeKey | null; uploaded_now: string; preview_only: CoverShapeKey[] }[];
+  hook: { title: string | null; status: string | null; confidence: number | null; reason: string | null }; plate: { available: boolean; outfit: string | null; problem: string | null };
+};
+export const coverShapesApi = {
+  overview: (caseId: number, language: string, key: string) => request<CoverShapes>(`/api/cases/${caseId}/covers/${language}/${key}/shapes`),
+  render: (caseId: number, language: string, key: string, body: { shapes?: CoverShapeKey[]; highlight?: string; subject_entity?: string; use_photo?: boolean; photo_asset_id?: number; subject_name?: string }) =>
+    post<CoverShapes>(`/api/cases/${caseId}/covers/${language}/${key}/shapes`, body),
+  approve: (id: number, acknowledgeRights: boolean) => post<CoverVariantView>(`/api/cover-variants/${id}/approve`, { acknowledge_rights: acknowledgeRights }),
+  reject: (id: number) => post<CoverVariantView>(`/api/cover-variants/${id}/reject`),
+  approveEditorial: (assetId: number, approvedBy: string) => post<unknown>(`/api/visuals/${assetId}/approve-editorial`, { approved_by: approvedBy }),
+};
+
+export type Propagation = { changed: { id: number; platform: string; kind: string; fields: string[] }[]; skipped: { id: number; platform: string; kind: string; reason: string }[]; pieces: { old: string; new: string }[]; unplaced: number };
+
 export const publishingApi = {
   overview: (caseId: number) => request<{ publications: PublicationLamp[] }>(`/api/cases/${caseId}/publishing-overview`),
   studio: (caseId: number, language: string) => request<StudioSnapshot>(`/api/cases/${caseId}/publishing/${language}`),
   plan: (caseId: number, language: string, body: { start_date?: string; reset_schedule?: boolean }) =>
     post<StudioSnapshot>(`/api/cases/${caseId}/publishing/${language}/plan`, body),
   edit: (id: number, body: { caption?: string; scheduled_local?: string; clear_schedule?: boolean; visibility?: string; metadata?: Partial<PublicationMetadata> }) =>
-    patch<PublicationView>(`/api/publications/${id}`, body),
+    patch<PublicationView & { propagation: Propagation }>(`/api/publications/${id}`, body),
   approveContent: (id: number) => post<PublicationView>(`/api/publications/${id}/content-approval`),
   approvePublication: (id: number) => post<PublicationView>(`/api/publications/${id}/publication-approval`),
   revoke: (id: number) => post<PublicationView>(`/api/publications/${id}/revoke`),
@@ -1543,7 +1568,9 @@ export type PlanApproval = { stopped: boolean; approve: PlanApprovalRow[]; exclu
 export type PlanApprovalResult = { approved: PlanApprovalRow[]; excluded: PlanApprovalRow[]; already_approved: PlanApprovalRow[] };
 
 /** The AI publishing plan: reading never calls a model; `generate` is the owner's click and the only paid step. */
+export type ProofreadResult = { checked: number; changed: { id: number; destination: string; changes: { field: string; old: string; new: string; why: string }[] }[]; refused: { id: number; destination: string; why: string }[]; usage: { calls: number; cost_eur: number } };
 export const publishingAiApi = {
+  proofread: (caseId: number, language: string) => post<ProofreadResult>(`/api/cases/${caseId}/publishing/${language}/proofread`),
   state: (caseId: number, language: string) => request<AiState>(`/api/cases/${caseId}/publishing/${language}/ai`),
   generate: (caseId: number, language: string, force = false) => post<AiRun>(`/api/cases/${caseId}/publishing/${language}/ai/generate`, { force }),
   run: (caseId: number, language: string, runId: number) => request<AiRun>(`/api/cases/${caseId}/publishing/${language}/ai/runs/${runId}`),
@@ -1565,6 +1592,36 @@ export type YouTubeSession = {
 export type YouTubeUploads = {
   channel_id: string | null; live_enabled: boolean;
   uploads: Record<string, { publication_id: number; asset_key: string; kind: string; confirmation: string | null; session: YouTubeSession | null; remote_url: string | null }>;
+};
+export type FacebookConnection = {
+  language: string; brand: string; page: { id: string; name: string }; linked_instagram_id: string; token_source: string | null; token_shared_with: string; connected: boolean; verified: boolean;
+  last_test: { ok: boolean; at: string; error: string | null } | null; live_enabled: boolean; connection_live_enabled: boolean; allow_public_publish: boolean; required_permissions: string[];
+  granted_permissions: string[]; tasks: string[]; upload_limits: { length: number; size: number } | null; upload_ready: boolean; upload_blockers: string[]; checked_at: string | null;
+  cover_ready: boolean; cover_missing_permissions: string[];
+};
+export type FacebookTest = {
+  ok: boolean; page: { id: string; name: string }; linked_instagram: { id: string; username: string | null }; permissions: string[]; tasks: string[]; page_token: string;
+  upload_limits: { length: number; size: number }; checked_at: string;
+};
+export type FacebookSession = {
+  id: number; kind: string; status: string; bytes_sent: number; total_bytes: number; percent: number; video_id: string | null; video_status: string | null; requested: "public" | "draft" | null;
+  error: string | null; required_action: string | null; updated_at: string | null;
+};
+export type FacebookMode = "UPLOAD_ONLY" | "SAVE_DRAFT" | "PUBLISH";
+export type FacebookUploads = {
+  page_id: string; live_enabled: boolean; allow_public_publish: boolean; automatic_publishing: boolean;
+  uploads: Record<string, { publication_id: number; asset_key: string; kind: string; confirmations: Record<FacebookMode, string>; readiness: string[]; session: FacebookSession | null; remote_url: string | null; text_stale: boolean }>;
+};
+export type FacebookThumbnails = { video_id: string; checked_at: string; preferred_id: string | null; thumbnails: { id: string; uri: string | null; width: number | null; height: number | null; is_preferred: boolean }[] };
+export const facebookApi = {
+  thumbnails: (publicationId: number) => request<FacebookThumbnails>(`/api/facebook-publishing/publications/${publicationId}/thumbnails`),
+  setCover: (publicationId: number, variantId: number) => post<FacebookThumbnails & { variant_id: number }>(`/api/facebook-publishing/publications/${publicationId}/cover`, { variant_id: variantId }),
+  connection: () => request<FacebookConnection>("/api/facebook-publishing/connection"),
+  testConnection: () => post<FacebookTest>("/api/facebook-publishing/connection/test"),
+  uploads: (caseId: number, language: string) => request<FacebookUploads>(`/api/facebook-publishing/cases/${caseId}/${language}/uploads`),
+  upload: (publicationId: number, mode: FacebookMode, confirm: string | null) => post<{ started: boolean }>(`/api/facebook-publishing/publications/${publicationId}/upload`, { mode, confirm }),
+  checkProcessing: (publicationId: number) => post<{ session: FacebookSession | null }>(`/api/facebook-publishing/publications/${publicationId}/check-processing`),
+  cancel: (publicationId: number) => post<{ session: FacebookSession | null }>(`/api/facebook-publishing/publications/${publicationId}/cancel`),
 };
 export const youtubeApi = {
   channels: () => request<YouTubeChannels>("/api/youtube-publishing/channels"),

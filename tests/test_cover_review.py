@@ -12,6 +12,7 @@ from test_host import _plan_story
 
 from app.core import files
 from app.core.ai_config import ai_config
+from app.covers import compose as C
 from app.covers import images as IM
 from app.covers import service as SV
 from app.covers.api import final_path
@@ -31,6 +32,7 @@ def noise() -> bytes:
 @pytest.fixture()
 def covers(db_session, client, monkeypatch, tmp_path):
     case, _, _ = _plan_story(db_session)
+    monkeypatch.setitem(ai_config.covers_settings().proposal, "auto_approve", False)         # the tests below are about the owner's own approval; the default one has its own tests
     monkeypatch.setattr(storage, "case_dir", lambda case_id: tmp_path / "cases" / str(case_id))
     monkeypatch.setattr(files, "is_allowed", lambda path: True)
     monkeypatch.setattr(SV, "film_avatar", lambda db, case_id, language: ("en/navyBlazerBeigeChinos", OUTFIT))
@@ -139,3 +141,48 @@ def test_the_long_cover_is_made_in_the_size_of_the_platforms(covers):
     assert client.post(url(case, "en", "long", "approve")).json()["validation"]["size"] == [3840, 2160]
     assert Image.open(final_path(case.id, "en", "long")).size == (3840, 2160)
     assert final_path(case.id, "en", "long").stat().st_size <= ai_config.covers_settings().formats["long"].max_bytes
+
+
+def test_a_cover_the_planner_proposed_is_approved_by_default_once_it_has_its_picture(covers, monkeypatch):
+    case, client, provider = covers
+    monkeypatch.setitem(ai_config.covers_settings().proposal, "auto_approve", True)
+    made = press_image(client, case, "C1", provider).json()
+    assert made["status"] == "approved" and made["approved_url"] and Image.open(final_path(case.id, "en", "C1")).size == (2160, 3840)
+    other = client.get(url(case, "en")).json()["covers"]
+    assert {c["key"]: c["status"] for c in other} == {"long": "proposed", "C1": "approved"}          # the long cover has no picture yet
+    assert press_image(client, case, "long", provider).json()["status"] == "approved"
+
+
+def test_a_cover_the_owner_changed_is_not_approved_by_default_and_the_owner_can_still_approve_it(covers, monkeypatch):
+    case, client, provider = covers
+    monkeypatch.setitem(ai_config.covers_settings().proposal, "auto_approve", True)
+    press_image(client, case, "C1", provider)
+    changed = client.put(url(case, "en", "C1"), json={"title": "Who opened it first"}).json()
+    assert changed["source"] == "owner" and changed["status"] == "proposed" and changed["approved_url"] is None
+    press_image(client, case, "long", provider)                                            # another picture is made: the owner's cover still waits
+    assert next(c for c in client.get(url(case, "en")).json()["covers"] if c["key"] == "C1")["status"] == "proposed"
+    assert client.post(url(case, "en", "C1", "preview")).status_code == 200
+    assert client.post(url(case, "en", "C1", "approve")).json()["status"] == "approved"
+
+
+def test_the_default_approval_can_be_switched_off_and_leaves_a_cover_that_cannot_be_drawn_proposed(covers, db_session, monkeypatch):
+    case, client, provider = covers
+    assert press_image(client, case, "C1", provider).json()["status"] == "proposed"       # switched off by the fixture
+    monkeypatch.setitem(ai_config.covers_settings().proposal, "auto_approve", True)
+    monkeypatch.setattr(SV, "render_cover", lambda *a, **k: (_ for _ in ()).throw(C.CoverError("the title does not fit")))
+    assert SV.auto_approve(db_session, case, "en") == []
+    assert next(c for c in client.get(url(case, "en")).json()["covers"] if c["key"] == "C1")["status"] == "proposed"
+
+
+def test_a_cover_the_planner_was_only_moderately_sure_of_is_approved_by_default_but_one_with_a_problem_is_not(covers, db_session, monkeypatch):
+    case, client, provider = covers
+    for key in ("long", "C1"):
+        press_image(client, case, key, provider)
+    rows = {r.cover_key: r for r in db_session.query(CoverProposal).filter_by(case_id=case.id, language="en").all()}
+    rows["long"].status, rows["long"].confidence = "open", 0.4
+    rows["C1"].status, rows["C1"].validation_json = "open", '{"issues": [{"message": "gives the answer away"}]}'
+    db_session.commit()
+    monkeypatch.setitem(ai_config.covers_settings().proposal, "auto_approve", True)
+    assert SV.auto_approve(db_session, case, "en") == ["long"]
+    db_session.expire_all()
+    assert {r.cover_key: r.status for r in db_session.query(CoverProposal).filter_by(case_id=case.id, language="en").all()} == {"long": "approved", "C1": "open"}

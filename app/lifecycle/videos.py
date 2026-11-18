@@ -20,7 +20,8 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import Case, DocumentaryJob, FollowUpCandidate, ProductionScript, StoryVersion, Video
-from app.documentary import youtube_chapters, youtube_description
+from app.core.files import versioned_url
+from app.documentary import storage, youtube_chapters, youtube_description
 from app.documentary.production import host_timeline as HT
 from app.identity.titles import (build_youtube_title, get_identity, mark_published,
                                  public_status, sync_identity)
@@ -186,14 +187,12 @@ def next_episode(db: Session, language: str) -> int:
 
 def publish_blockers(db: Session, video: Video) -> list[str]:
     """Why this film must not be marked published (empty = fine). A pilot
-    cut or a preview render (it may hold pictures that still need an
-    editorial decision) is not a publishable film, and the public title
-    must have been approved by an editor."""
+    cut is not a publishable film, and the public title must have been
+    approved by an editor. The render profile is no gate: the owner removed
+    the preview-profile block on 2026-11-18 and takes the rights decision."""
     out: list[str] = []
     if video.mode != "full":
         out.append(f"this is a {video.mode} cut, not the full film")
-    if (video.render_profile or "preview") != "publish":
-        out.append("rendered with the preview profile — render again with the publish profile")
     if ai_config.host.required_for_film and video.production_script_id is not None \
             and not HT.avatar_present(db, video.production_script_id):
         # Owner decision 2026-10-22 (A3): a draft may render without the avatar, but it can
@@ -273,7 +272,7 @@ def video_dict(v: Video) -> dict:
         "opening_strategy": v.opening_strategy, "duration_seconds": v.duration_seconds,
         "state": v.state, "published_at": v.published_at, "youtube_url": v.youtube_url,
         "metadata": json.loads(v.metadata_json or "{}"), "created_at": v.created_at,
-        "video_url": (f"/api/documentary/production/{v.production_script_id}/video.mp4"
+        "video_url": (versioned_url(f"/api/documentary/production/{v.production_script_id}/video.mp4", storage.resolve(v.file_path))
                       if v.production_script_id else None),
         "avatar_used": avatar_used,
     }

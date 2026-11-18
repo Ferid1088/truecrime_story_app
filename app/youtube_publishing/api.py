@@ -187,6 +187,17 @@ async def upload(publication_id: int, body: UploadBody, db: Session = Depends(ge
     return {"started": True, "publication_id": publication_id, "privacy": youtube_config().upload.initial_privacy}
 
 
+@router.post("/publications/{publication_id}/thumbnail")
+async def replace_thumbnail(publication_id: int, db: Session = Depends(get_db)):
+    """Put the publication's current approved cover on its video on YouTube (about 50 quota units); the video is not touched."""
+    try:
+        return {"session": session_view(await uploader_for(db, publication_id).replace_thumbnail(publication_id))}
+    except Refused as exc:
+        raise _refusal(exc) from exc
+    except (OAuthError, YouTubeError) as exc:
+        raise HTTPException(status_code=502, detail={"message": str(exc), "reason": exc.reason}) from exc
+
+
 @router.post("/publications/{publication_id}/check-processing")
 async def check_processing(publication_id: int, db: Session = Depends(get_db)):
     try:

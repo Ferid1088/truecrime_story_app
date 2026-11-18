@@ -139,3 +139,13 @@ def test_another_language_gets_the_english_covers_as_reference_and_needs_its_own
     asyncio.run(planner.propose(db_session, case, "de"))
     payload = gen.calls[-1][1]
     assert payload["language"] == "de" and [c["key"] for c in payload["english_covers"]] == ["long", "C1", "C2", "C3", "C4", "C5"] and payload["english_covers"][0]["scene"]
+
+
+def test_a_run_with_only_stores_just_those_covers_and_leaves_the_others_as_they_are(db_session, clips):
+    case, _, _, _ = clips
+    planner = CAG.CoverPlanner()
+    first = {r.cover_key: r for r in asyncio.run(planner.propose(db_session, case, "en"))}
+    again = asyncio.run(planner.propose(db_session, case, "en", only={"C1"}))
+    assert [r.cover_key for r in again] == ["C1"] and again[0].version == first["C1"].version + 1
+    current = P.current(db_session, case.id, "en")
+    assert current["C1"].id == again[0].id and all(current[k].id == first[k].id for k in first if k != "C1")     # every other cover keeps the version it had

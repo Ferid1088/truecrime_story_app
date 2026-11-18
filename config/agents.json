@@ -762,6 +762,13 @@
       "output": "json",
       "description": "Puts the missing half-spaces (U+200C) into Persian texts that the publishing metadata writer spelled without them, changing nothing else; the app refuses any answer that changes more than half-spaces.",
       "used_by": "app/publishing/intelligence/agents.py"
+    },
+    "publishing_proofreader": {
+      "role": "publishing_proofreader",
+      "prompt": "publishing/proofread",
+      "output": "json",
+      "description": "A careful copy editor for the texts of one film or Short on every portal in a language the owner reads (Persian): spelling, half-spaces, punctuation, grammar and stray words in another script, the same correction on every portal, no change of meaning, facts, names or numbers. Its answer is checked and refused where it rewrites instead of correcting.",
+      "used_by": "app/publishing/intelligence/agents.py"
     }
   }
 }

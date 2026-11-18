@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { metaPublishingApi, youtubeApi, type InstagramConnection, type LampState, type PublicationLamp, type YouTubeChannel } from "@/lib/api";
+import { facebookApi, metaPublishingApi, youtubeApi, type FacebookConnection, type InstagramConnection, type LampState, type PublicationLamp, type YouTubeChannel } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,16 +29,25 @@ function instagramLamp(language: string, c: InstagramConnection | null | undefin
   return { portal: "Instagram", language, ok, why, registered: true };
 }
 
+function facebookLamp(language: string, c: FacebookConnection | null | undefined): Lamp {
+  if (language !== c?.language) return { portal: "Facebook", language, ok: false, why: "no Facebook Page is configured for this language", registered: false };
+  const ok = c.connected && c.verified;
+  const why = !c.connected ? "not connected" : c.last_test && !c.last_test.ok ? "last test failed" : !c.verified ? "not tested yet" : `connected: ${c.page.name}`;
+  return { portal: "Facebook", language, ok, why, registered: true };
+}
+
 /** The connection state of every portal and language: the one source of the lamps, Connect all and Test all. */
 export function usePortalLamps() {
   const youtube = useApi(() => youtubeApi.channels(), [], { keepPrevious: true });
   const instagram = useApi(() => metaPublishingApi.connection(), [], { keepPrevious: true });
+  const facebook = useApi(() => facebookApi.connection(), [], { keepPrevious: true });
   const lamps: Lamp[] = PORTALS.flatMap((portal) => LANGUAGES.map((language): Lamp => {
     if (portal === "YouTube") { const c = youtube.data?.channels.find((x) => x.language === language); return c ? youtubeLamp(c) : { portal, language, ok: false, why: "no channel configured", registered: false }; }
     if (portal === "Instagram") return instagramLamp(language, instagram.data);
+    if (portal === "Facebook") return facebookLamp(language, facebook.data);
     return { portal, language, ok: false, why: NOT_BUILT, registered: false };
   }));
-  return { lamps, youtube, instagram, loaded: !!youtube.data && !!instagram.data, refetch: () => { youtube.refetch(); instagram.refetch(); } };
+  return { lamps, youtube, instagram, facebook, loaded: !!youtube.data && !!instagram.data && !!facebook.data, refetch: () => { youtube.refetch(); instagram.refetch(); facebook.refetch(); } };
 }
 
 function Dot({ lamp }: { lamp: Lamp }) {
@@ -115,7 +124,9 @@ export function ConnectAll({ portals, returnTo, lamps, loaded }: { portals: read
     <Card data-testid={`connect-all-${scope}`}>
       <CardHeader><CardTitle>Connect all{portals.length === 1 ? ` ${portals[0]} channels` : " portals"}</CardTitle></CardHeader>
       <CardContent className="space-y-3 text-xs">
-        <p className="text-muted-foreground">Each language is approved in your browser, one after the other: after every approval you return here and the next one starts. If one fails or picks the wrong account, nothing is stored for it and the rest stop.</p>
+        {portals.every((p) => p === "Facebook")
+          ? <p className="text-muted-foreground" data-testid="connect-all-facebook-note">Facebook has nothing to connect here: the Page «رد خاموش» is reached with the same Meta system-user token as Instagram, so no browser approval is needed. The lamp is green when the last Test connection passed. Press <b>Test all</b> (or Test connection under Languages) to check it again; the Page&apos;s uploads are under <b>Content</b>.</p>
+          : <p className="text-muted-foreground">Each language is approved in your browser, one after the other: after every approval you return here and the next one starts. If one fails or picks the wrong account, nothing is stored for it and the rest stop.</p>}
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" className={DISABLED} disabled={busy || pending.length === 0} onClick={() => void next(pending)} data-testid={`connect-all-start-${scope}`}>
             {pending.length === 0 ? "Nothing left to connect" : `Connect ${pending.length} ${pending.length === 1 ? "account" : "accounts"}`}
@@ -138,7 +149,7 @@ export function ConnectAll({ portals, returnTo, lamps, loaded }: { portals: read
 export function TestAll({ portals, lamps, onDone }: { portals: readonly Portal[]; lamps: Lamp[]; onDone: () => void }) {
   const scope = portals.length === 1 ? portals[0].toLowerCase() : "all";
   const all = lamps.filter((l) => portals.includes(l.portal));
-  const testable = (l: Lamp) => l.registered && l.why !== "not connected" && l.why !== "Meta app not set up" && (l.portal === "YouTube" || l.portal === "Instagram");
+  const testable = (l: Lamp) => l.registered && l.why !== "not connected" && l.why !== "Meta app not set up" && (l.portal === "YouTube" || l.portal === "Instagram" || l.portal === "Facebook");
   const rows = all.filter(testable);
   const untestable = all.filter((l) => !testable(l));
   const [results, setResults] = useState<Record<string, Result>>({});
@@ -150,6 +161,7 @@ export function TestAll({ portals, lamps, onDone }: { portals: readonly Portal[]
       let result: Result;
       try {
         if (l.portal === "YouTube") { const r = await youtubeApi.test(l.language); result = { ok: true, text: `${r.channel_title} (${r.channel_id}): token works, permissions ${r.scopes.join(", ")}` }; }
+        else if (l.portal === "Facebook") { const r = await facebookApi.testConnection(); result = { ok: true, text: `${r.page.name} (${r.page.id}): token works, Page token verified, linked to Instagram @${r.linked_instagram.username}, permissions ${r.permissions.join(", ")}` }; }
         else { const r = await metaPublishingApi.testConnection(); result = { ok: true, text: `@${r.account.username} (${r.account.id}): token works, permissions ${r.permissions.join(", ")}` }; }
       } catch (e) { result = { ok: false, text: message(e) }; }
       setResults((r) => ({ ...r, [key(l)]: result }));

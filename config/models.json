@@ -140,7 +140,8 @@
         "detective_card_inspector": "writer",
         "semantic_audio_reviewer": "audio_listener",
         "publishing_hook_critic": "premium",
-        "publishing_orthography_fixer": "premium"
+        "publishing_orthography_fixer": "premium",
+        "publishing_proofreader": "premium"
       },
       "fallbacks": {
         "cheap": [
@@ -518,6 +519,11 @@
     "publishing_orthography_fixer": {
       "temperature": 0.0,
       "max_tokens": 12000,
+      "reasoning_effort": "low"
+    },
+    "publishing_proofreader": {
+      "temperature": 0.1,
+      "max_tokens": 40000,
       "reasoning_effort": "low"
     }
   }

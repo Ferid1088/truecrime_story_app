@@ -49,6 +49,7 @@ class UploadSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     initial_privacy: Literal["private"]
+    public_after_processing: bool                    # owner decision 2026-11-18: a video that was uploaded private, processed and given its thumbnail and subtitles is made public at once
     category_id: str
     self_declared_made_for_kids: bool
     contains_synthetic_media: bool

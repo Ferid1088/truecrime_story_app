@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import shutil
 import subprocess
 from collections import Counter
 from pathlib import Path
@@ -22,6 +23,7 @@ from app.documentary import opening_block as OB
 from app.documentary import opening_media as OM
 from app.documentary import storage
 from app.documentary.voice_render import VoiceRenderer
+from app.publishing import platform_specs as PS
 from app.shortform import clip_avatar as CA
 from app.shortform import clip_music as CMU
 from app.shortform import clip_pictures as CP
@@ -104,6 +106,14 @@ async def ensure_music(db: Session, row: ShortClip, library=None) -> dict:
     return {"path": track.file_path, "seconds": track.seconds, "track_id": track.id, "code": track.track_code}
 
 
+def _platform_check(video: Path) -> dict:
+    """What each platform's file rules say about the finished video ({platform: what is wrong}; empty lists mean it meets them), kept with the clip so publishing knows before it tries."""
+    try:
+        return PS.check_all(video)
+    except (PS.SpecError, OSError, subprocess.SubprocessError, ValueError, IndexError) as exc:
+        return {"error": f"the file could not be checked: {exc}"}
+
+
 async def make_video(db: Session, case: Case, row: ShortClip, *, renderer: VoiceRenderer | None = None, avatar_provider=None, library=None, sleep=asyncio.sleep) -> dict:
     """The finished 1080x1920 video of one clip (kept in the row's media_json): the voices, the avatar's two videos (hook; reaction and invitation), the film's pictures,
     the captions and the music bed. What was paid for (a voice, an avatar video) is reused when its audio is unchanged."""
@@ -139,6 +149,13 @@ async def make_video(db: Session, case: Case, row: ShortClip, *, renderer: Voice
     pictures = CP.choose(db, case, row.language, json.loads(row.script_json), CV.picture_count(middle["end"] - middle["start"], cfg), used=pictures_of_other_ideas(db, row))
     music = await ensure_music(db, row, library)
     media["music"] = {"track_id": music["track_id"], "code": music["code"]}
+    return await _assemble_video(db, row, media, plan, avatars, crops, pictures, music, cfg)
+
+
+async def _assemble_video(db: Session, row: ShortClip, media: dict, plan, avatars: dict[str, Path], crops: dict, pictures: list[dict], music: dict, cfg) -> dict:
+    """The last step of a clip: one caption picture per word, the ffmpeg assembly, the platform check, and the record in the row. Nothing here is paid for."""
+    voices = media["voice"]
+    folder = clip_dir(row.case_id, row.language)
     captions = []
     for k, chunk in enumerate(CV.chunks(voices, plan, cfg)):
         image = folder / "captions" / f"{row.clip_key}_{k:03d}.png"
@@ -150,7 +167,51 @@ async def make_video(db: Session, case: Case, row: ShortClip, *, renderer: Voice
                                   captions=captions, music=storage.resolve(music["path"]), out=out, cfg=cfg)
     await asyncio.to_thread(CV.assemble, command)
     media["video"] = {"path": storage.rel(out), "seconds": plan.total, "size": [cfg.width, cfg.height], "bytes": out.stat().st_size, "pictures": [{k: p[k] for k in ("code", "what")} for p in pictures],
-                      "music": music, "captions": len(captions), "plan": {"starts": plan.starts, "segments": plan.segments}}
+                      "music": music, "captions": len(captions), "plan": {"starts": plan.starts, "segments": plan.segments}, "platform_check": await asyncio.to_thread(_platform_check, out)}
     row.media_json = json.dumps(media, ensure_ascii=False)
     db.commit()
     return media["video"]
+
+
+class NotRebuildable(RuntimeError):
+    """A clip that cannot be built again without paying or choosing again (a voice, an avatar video, a picture or its music is missing)."""
+
+
+async def reassemble(db: Session, row: ShortClip, *, keep_previous: bool = True) -> dict:
+    """The same clip built again from what it kept: its voices, its two avatar videos, the same pictures in the same order and the same music bed. Only what is made from code changes (the captions, the
+    encode), so a clip made before a caption or encode change gets it without a new voice, a new avatar video or a new choice. The file it replaces is first copied to previous_versions/ beside it."""
+    from app.db.models import VisualAsset
+
+    cfg = ai_config.short_clips_settings().video
+    media = json.loads(row.media_json or "{}")
+    voices, kept = media.get("voice") or {}, media.get("avatars") or {}
+    old = media.get("video") or {}
+    if not voices or not all(p in kept for p in ("hook", "reaction")) or not old.get("pictures") or not (old.get("music") or {}).get("path"):
+        raise NotRebuildable(f"{row.language} {row.clip_key} has no complete voice, avatar videos, pictures and music to build from")
+    folder = clip_dir(row.case_id, row.language)
+    plan = CV.plan_timeline({p: voices[p]["seconds"] for p in CV.ORDER}, cfg)
+    avatars, crops = {}, {}
+    for part in ("hook", "reaction"):
+        avatars[part] = storage.resolve(kept[part]["path"])
+        if not avatars[part].exists():
+            raise NotRebuildable(f"the {part} avatar video of {row.language} {row.clip_key} is missing")
+        frame = _frame(avatars[part], folder / f"frame_{row.clip_key}_{part}.png")
+        x, _y, w, _h = AV.host_face(frame)
+        with Image.open(frame) as picture:
+            crops[part] = CV.avatar_crop(picture.size, x + w / 2, cfg)
+    pictures = []
+    for kept_picture in old["pictures"]:
+        asset = db.query(VisualAsset).filter_by(case_id=row.case_id, asset_code=kept_picture["code"]).first()
+        if asset is None or not asset.local_path or not storage.resolve(asset.local_path).exists():
+            raise NotRebuildable(f"the picture {kept_picture['code']} of {row.language} {row.clip_key} is missing")
+        pictures.append({"code": asset.asset_code, "path": storage.resolve(asset.local_path), "what": kept_picture["what"]})
+    music = old["music"]                                                                  # the bed the clip was built with: its file and length are kept in the clip's record
+    if not storage.resolve(music["path"]).exists():
+        raise NotRebuildable(f"the music bed of {row.language} {row.clip_key} is missing")
+    original = storage.resolve(old["path"]) if old.get("path") else None
+    if keep_previous and original is not None and original.exists():
+        saved = original.parent / "previous_versions" / f"{original.stem}_{int(original.stat().st_mtime)}{original.suffix}"
+        saved.parent.mkdir(exist_ok=True)
+        if not saved.exists():
+            shutil.copy2(original, saved)
+    return await _assemble_video(db, row, media, plan, avatars, crops, pictures, music, cfg)

@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "meta_publishing.json"
 Level = Literal["confirmed", "recommended", "unverified"]
@@ -92,10 +92,13 @@ class InstagramSettings(BaseModel):
     api_version: str
     language: str
     account: InstagramAccount
-    required_permissions: list[str]
+    connection_permissions: list[str]    # what the connection test needs: the token reaches the account and may publish to it
+    required_permissions: list[str]      # what Meta documents for publishing (the Reels publisher refuses without all of them)
     token_env: str
+    account_id_env: str                  # optional: when set, it must name the configured account
     token_file: str
     prepared_copy_dir: str
+    thumb_offset_ms: int = Field(ge=0)   # Meta's `thumb_offset`: the frame (in milliseconds) that is the Reel's cover; 0 is the first frame, where a delivery copy carries its cover
     request_timeout_s: float
     upload_timeout_s: float
     retry_attempts: int
@@ -103,6 +106,63 @@ class InstagramSettings(BaseModel):
     poll_interval_s: float
     poll_max_s: float
     connection: ConnectionSettings
+
+
+class FacebookPage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    page_id: str
+    brand: str
+    linked_instagram_id: str
+
+
+class FacebookReels(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    poll_interval_s: float
+    poll_max_s: float
+    upload_timeout_s: float
+    max_posts_per_24h: int
+
+
+class FacebookFilm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    chunk_bytes: int
+    poll_interval_s: float
+    poll_max_s: float
+    chunk_timeout_s: float
+
+
+class FacebookCover(BaseModel):
+    """Setting a custom cover (a thumbnail) on an uploaded Reel: a separate Graph call that needs more permissions than the upload does (`required_permissions`), so the upload never waits for it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    required_permissions: list[str]
+    max_mb: int
+    source: str
+
+
+class FacebookSettings(BaseModel):
+    """The Farsi Facebook Page. It uses the Instagram section's token and Graph settings (one Meta system-user token, one Meta app): nothing about credentials is repeated here.
+    `live_enabled` allows uploads (the read-only connection test never needs it); `allow_public_publish` is the separate switch that PUBLISH needs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    live_enabled: bool
+    allow_public_publish: bool
+    language: str
+    page: FacebookPage
+    app_id: str
+    video_host: str
+    required_permissions: list[str]
+    required_task: str
+    state_file: str
+    reels: FacebookReels
+    film: FacebookFilm
+    cover: FacebookCover
+    evidence: dict[str, str]
 
 
 class PrepareSettings(BaseModel):
@@ -126,6 +186,7 @@ class MetaPublishingConfig(BaseModel):
     sources: dict[str, str]
     preflight: PreflightSettings
     instagram: InstagramSettings
+    facebook: FacebookSettings
     prepare: PrepareSettings
     platforms: dict[str, PlatformSpec]
 

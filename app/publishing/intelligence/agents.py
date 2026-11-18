@@ -5,6 +5,7 @@ kept with the result for the owner to see, not hidden."""
 from __future__ import annotations
 
 import asyncio
+import difflib
 import json
 from collections.abc import Awaitable, Callable
 
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
+from app.core.prompts import prompt
 from app.db.base import SessionLocal
 from app.documentary.pipeline.errors import JobPaused
 from app.providers.generation import get_generation_provider
@@ -23,13 +25,28 @@ from app.publishing.registry import PublicationRegistry
 from app.services.budget import BudgetStopped
 from app.services.tracking import stamp_run, track_run
 
-PLANNER, WRITER, CRITIC, FIXER = "publishing_planner", "publishing_metadata_writer", "publishing_hook_critic", "publishing_orthography_fixer"
+PLANNER, WRITER, CRITIC, FIXER, PROOFREADER = "publishing_planner", "publishing_metadata_writer", "publishing_hook_critic", "publishing_orthography_fixer", "publishing_proofreader"
 ZWNJ = "\u200c"
 HOOK_SCORES = ("stakes", "gap", "concrete")
 
 
 def _json(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False)
+
+
+def judge_for(registry: PublicationRegistry, inputs: Inputs, platform: str):
+    """The checker of a platform's texts: `judge(kind, item)` lists what is wrong with an item against that platform's limits and the case record."""
+    facts = {f["id"] for f in inputs.dossier["facts"]} | set(inputs.dossier["evidence_refs"])
+
+    def judge(kind: str, item: dict) -> list[dict]:
+        return V.metadata_findings(item, kind, registry.cfg.intelligence.metadata_limits[f"{platform}/{kind}"], fact_ids=facts, clip_keys=set(inputs.clip_keys),
+                                   known_words=inputs.dossier["known_words"], chapter_times=inputs.chapter_times, story=inputs.story, cutoff=inputs.cutoff)
+
+    return judge
+
+
+PROOF_FIELDS = ("title", "text", "hashtags", "keywords", "cta")
+PROOF_TASK = prompt("publishing/proofread_task")
 
 
 class PlanError(RuntimeError):
@@ -71,16 +88,13 @@ class PublishingAI:
         view = metadata_view(registry, inputs, platform, analysis)
         wanted = [(i["kind"], i["asset"]) for i in view["items"]]
         limits = {kind: registry.cfg.intelligence.metadata_limits[f"{platform}/{kind}"] for kind, _ in wanted}
-        facts = {f["id"] for f in inputs.dossier["facts"]} | set(inputs.dossier["evidence_refs"])
         attribution = ai_config.shorts_host_led.music_attribution_text.get(inputs.language)
         db = SessionLocal()
         try:
             extra: dict = {}
             repairs = registry.cfg.intelligence.generation.repairs
 
-            def judge(kind: str, item: dict) -> list[dict]:
-                return V.metadata_findings(item, kind, limits[kind], fact_ids=facts, clip_keys=set(inputs.clip_keys), known_words=inputs.dossier["known_words"],
-                                           chapter_times=inputs.chapter_times, story=inputs.story, cutoff=inputs.cutoff)
+            judge = judge_for(registry, inputs, platform)
 
             for attempt in range(repairs + 1):
                 raw, res = await self._ask(db, inputs.case.id, WRITER, f"Publishing metadata writer ({inputs.language}, {platform})",
@@ -166,6 +180,80 @@ class PublishingAI:
                 parts += [f"risk: {risk}"] if risk != "none" else []
                 weak[str(entry["asset"])] = "; ".join(parts) + (f". Direction: {entry['direction']}" if entry.get("direction") else "")
         return weak
+
+    def _proof_accepted(self, original: dict, corrected: dict, judge, kind: str, attribution: str | None, min_similarity: float) -> str | None:
+        """None when the corrected texts are a correction of the original ones; else why not: a rewrite, a lost credit line or hashtag, or an error the original did not have."""
+        for name in ("title", "text", "cta"):
+            if not isinstance(corrected.get(name), str):
+                return f"{name} is not a text"
+            if original.get(name) and difflib.SequenceMatcher(None, original[name], corrected[name], autojunk=False).ratio() < min_similarity:
+                return f"{name} was rewritten, not corrected"
+        for name in ("hashtags", "keywords"):
+            if not isinstance(corrected.get(name), list) or len(corrected[name]) != len(original.get(name) or []) or not all(isinstance(x, str) for x in corrected[name]):
+                return f"{name} lost or gained an entry"
+        if any(not tag.startswith("#") for tag in corrected["hashtags"]):
+            return "a hashtag lost its #"
+        if attribution and attribution in original.get("text", "") and attribution not in corrected["text"]:
+            return "the credit line was changed"
+        before = set(V.errors(judge(kind, original)))
+        new = [m for m in V.errors(judge(kind, {**original, **{k: corrected[k] for k in PROOF_FIELDS}})) if m not in before]
+        return f"it would introduce: {new[0]}" if new else None
+
+    async def proofread_texts(self, db: Session, registry: PublicationRegistry, inputs: Inputs, entries: list[dict], runs: list[int]) -> dict[str, dict]:
+        """All the texts go to the proofreader in ONE call (so that one mistake gets one correction on every portal and in every film and Short) and come back as corrections. `entries` are
+        {"key": "platform/kind/asset", "platform", "kind", "asset", "item": {title, text, hashtags, keywords, cta, ...}}. Returns {key: {"item": the corrected item, "changes": [...]}} for
+        every entry whose corrected answer was accepted (an unchanged text has no changes), and {key: {"refused": why}} for the others. The answer is checked: a rewrite, a lost credit line
+        or hashtag, or a new error means the original stays."""
+        out: dict[str, dict] = {}
+        if not entries:
+            return out
+        settings = registry.cfg.intelligence.generation
+        attribution = ai_config.shorts_host_led.music_attribution_text.get(inputs.language)
+        payload = {"task": PROOF_TASK, "language": inputs.language, "known_words": sorted(inputs.dossier["known_words"]),
+                   "items": [{"key": e["key"], "asset": e["asset"], **{k: e["item"].get(k) or ([] if k in ("hashtags", "keywords") else "") for k in PROOF_FIELDS}} for e in entries]}
+        raw, _ = await self._ask(db, inputs.case.id, PROOFREADER, f"Publishing proofreader ({inputs.language}, all {len(entries)} texts)", lambda: run_agent("publishing_proofreader", self.gen, _json(payload)), runs)
+        answered = {str(i.get("key")): i for i in (raw.get("items") if isinstance(raw, dict) else None) or [] if isinstance(i, dict)}
+        for entry in entries:
+            got = answered.get(entry["key"])
+            if got is None:
+                out[entry["key"]] = {"refused": "the proofreader returned nothing for it"}
+                continue
+            judge = judge_for(registry, inputs, entry["platform"])
+            why = self._proof_accepted(entry["item"], got, judge, entry["kind"], attribution, settings.proofread_min_similarity)
+            if why:
+                out[entry["key"]] = {"refused": why}
+                continue
+            item = {**entry["item"], **{k: got[k] for k in PROOF_FIELDS}}
+            changes = [c for c in got.get("changes") or [] if isinstance(c, dict)] if any(item[k] != entry["item"].get(k) for k in PROOF_FIELDS) else []
+            out[entry["key"]] = {"item": item, "changes": changes}
+        return out
+
+    async def proofread(self, registry: PublicationRegistry, inputs: Inputs, metadata: dict[str, dict], runs: list[int]) -> dict:
+        """The texts the writers made, for a language the owner reads (config: intelligence.generation.proofread_languages), are proofread before anything is saved or shown. Corrected texts
+        replace the written ones in `metadata` (with their findings checked again); a refused answer leaves the written text. Returns {"checked", "corrected", "refused": {key: why}}."""
+        if inputs.language not in registry.cfg.intelligence.generation.proofread_languages:
+            return {"checked": 0, "corrected": 0, "refused": {}}
+        entries = [{"key": f"{platform}/{key}", "platform": platform, "kind": key.split("/", 1)[0], "asset": key.split("/", 1)[1], "item": result["item"]}
+                   for platform, made in metadata.items() for key, result in made["results"].items()]
+        db = SessionLocal()
+        try:
+            found = await self.proofread_texts(db, registry, inputs, entries, runs)
+        finally:
+            db.close()
+        corrected, refused = 0, {}
+        for entry in entries:
+            answer = found.get(entry["key"], {})
+            if "refused" in answer:
+                refused[entry["key"]] = answer["refused"]
+                continue
+            result = metadata[entry["platform"]]["results"][entry["key"].split("/", 1)[1]]
+            if answer["changes"]:
+                corrected += 1
+                result["item"] = answer["item"]
+                result["findings"] = judge_for(registry, inputs, entry["platform"])(entry["kind"], answer["item"])
+                result["fixes"] = [*result.get("fixes", []), f"proofread: {len(answer['changes'])} corrections"]
+                result["proofread"] = answer["changes"]
+        return {"checked": len(entries), "corrected": corrected, "refused": refused}
 
     async def write_all(self, registry: PublicationRegistry, inputs: Inputs, analysis: dict | None, runs: list[int], on_done=None) -> dict[str, dict]:
         gate = asyncio.Semaphore(registry.cfg.intelligence.generation.concurrency)

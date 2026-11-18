@@ -149,7 +149,10 @@ export function CoversTab({ caseId, settings, language, onLanguageChange, refres
     }
   }, [caseId, language]);
 
-  useEffect(() => { void load(); }, [load, refreshKey]);
+  useEffect(() => {
+    const timer = setTimeout(() => void load(), 0);                                  // loaded after the render: the load sets state
+    return () => clearTimeout(timer);
+  }, [load, refreshKey]);
 
   const propose = async () => {
     setBusy(true);
@@ -176,7 +179,7 @@ export function CoversTab({ caseId, settings, language, onLanguageChange, refres
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p className="text-muted-foreground">
-            {which === "film" ? "The cover of the long film (16:9)." : "One cover for each short (9:16)."} The planner proposes a title and a scene; the image model paints the scene when you press the button (it costs); the logo, title and avatar are added in code. Nothing is approved until you do it. Only approved covers go into the upload plan.
+            {which === "film" ? "The cover of the long film (16:9)." : "One cover for each short (9:16)."} The planner proposes a title and a scene; the image model paints the scene when you press the button (it costs); the logo, title and avatar are added in code. The planner&apos;s covers are approved by default as soon as they have their picture; you can change any of them, and a cover you changed waits for your approval. Only approved covers go into the upload plan.
           </p>
           {mine && summary && (
             <p data-testid="covers-counts">

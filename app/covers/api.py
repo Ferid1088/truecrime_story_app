@@ -1,11 +1,10 @@
 """The routes of the cover review (documentary > Covers): the covers of a language with their proposals, the owner's change of a title or a scene description, the
-scene picture the image model makes (paid, one press of a button, every attempt in the cost book), a preview of the cover, and the decision to approve or skip it. Only an approved cover goes into the upload plan later; the planner approves nothing, and a cover can only be approved
-after its preview (of this very title and scene) was made."""
+scene picture the image model makes (paid, one press of a button, every attempt in the cost book), a preview of the cover, and the decision to approve or skip it. Only an approved cover goes into the upload plan. The planner's own covers are approved by default as soon as they have their picture (`covers.proposal.auto_approve`); a cover the owner
+changed waits for the owner's approval, which needs the preview of that very title and scene first."""
 
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -18,6 +17,7 @@ from app.covers import compose as C
 from app.covers import images as IM
 from app.covers import proposals as P
 from app.covers import service as SV
+from app.covers.service import final_path, preview_path
 from app.db.base import get_db
 from app.db.models import Case, CoverImage, CoverProposal
 from app.documentary import storage
@@ -54,14 +54,6 @@ def _row(db: Session, case: Case, language: str, key: str) -> CoverProposal:
     if row is None:
         raise HTTPException(status_code=404, detail=f"No proposal for the cover {key}")
     return row
-
-
-def preview_path(case_id: int, language: str, row: CoverProposal) -> Path:
-    return SV.covers_dir(case_id, language) / f"preview_{row.cover_key}_{row.id}.jpg"
-
-
-def final_path(case_id: int, language: str, key: str) -> Path:
-    return SV.covers_dir(case_id, language) / ("long.jpg" if key == "long" else f"short_{key}.jpg")
 
 
 def _guard(call):
@@ -165,6 +157,7 @@ async def make_image(case_id: int, language: str, key: str, body: ImageIn | None
         await IM.make_image(db, case, language, row, again=bool(body and body.again))
     except (ImageProviderError, C.CoverError, BudgetStopped) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
+    SV.auto_approve(db, case, language)
     return cover_view(db, case, row)
 
 
@@ -185,7 +178,7 @@ def costs(case_id: int, language: str, db: Session = Depends(get_db)):
 def preview(case_id: int, language: str, key: str, db: Session = Depends(get_db)):
     case = _case(db, case_id)
     row = _row(db, case, _language(language), key)
-    made = _guard(lambda: SV.render_cover(db, case, language, row, preview_path(case.id, language, row), scale=ai_config.covers_settings().proposal["preview_scale"]))
+    made = _guard(lambda: SV.make_preview(db, case, language, row))
     return {**cover_view(db, case, row), "problems": made["problems"]}
 
 
@@ -210,17 +203,7 @@ def approve(case_id: int, language: str, key: str, db: Session = Depends(get_db)
     """Approves the cover as it is: the title and scene whose preview the owner has seen; the cover is then made in its full size."""
     case = _case(db, case_id)
     row = _row(db, case, _language(language), key)
-    if not row.title or row.image_id is None:
-        raise HTTPException(status_code=409, detail="A cover needs a title and its scene picture before it can be approved")
-    if not preview_path(case.id, language, row).exists():
-        raise HTTPException(status_code=409, detail="Look at the preview of this title and scene first")
-    out = final_path(case.id, language, key)
-    made = _guard(lambda: SV.render_cover(db, case, language, row, out, scale=1.0))
-    if made["problems"]:
-        raise HTTPException(status_code=409, detail="; ".join(made["problems"]))
-    row.status = "approved"
-    row.validation_json = json.dumps({**json.loads(row.validation_json or "{}"), "file": storage.rel(out), "size": made["size"], "bytes": made["bytes"]})
-    db.commit()
+    _guard(lambda: SV.approve_cover(db, case, language, row))
     return cover_view(db, case, row)
 
 

@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Publication, YouTubeUploadSession
 from app.documentary import storage
 from app.publishing.intelligence import validate as V
-from app.publishing.registry import PublicationRegistry, ReadinessChanged
+from app.publishing.registry import PublicationRegistry, PublishingRefused, ReadinessChanged
 from app.utils import utc_now
 from app.youtube_publishing.channels import ChannelError, YouTubeChannels
 from app.youtube_publishing.client import SessionExpired, YouTubeClient, YouTubeError
@@ -107,6 +107,11 @@ class YouTubeUploader:
             raise Refused("confirmation_missing", "The upload needs the owner's confirmation text for this publication and channel.")
         self.registry.refresh(pub)
         self.db.commit()
+        if pub.status not in ("uploading", "processing", "ready", "published"):
+            try:
+                self.registry.ensure_approved(pub)                 # approved by default when nothing blocks it (approval.default_approved); a blocker is refused with its reason
+            except PublishingRefused as exc:
+                raise Refused("not_approved", str(exc)) from exc
         if pub.status not in ("publication_approved", "scheduled", "uploading", "processing") or (pub.status in ("publication_approved", "scheduled") and not self.registry.approval_current(pub)):
             if pub.status in ("ready", "published"):
                 raise Refused("already_uploaded", f"This publication is already on YouTube ({pub.remote_url or pub.remote_id}).")
@@ -257,6 +262,8 @@ class YouTubeUploader:
         pub.remote_id, pub.remote_url, pub.status, pub.error = video_id, self.watch_url(pub, video_id), "processing", None
         self._event(pub, "youtube_uploaded_private", video_id, session_id=session.id, video_id=video_id)
         self.db.commit()
+        if pub.kind == "film":
+            self.registry.link_shorts_to_film(pub)
 
     def watch_url(self, pub: Publication, video_id: str) -> str:
         return f"https://www.youtube.com/{'shorts/' if pub.kind == 'short' else 'watch?v='}{video_id}"
@@ -289,6 +296,39 @@ class YouTubeUploader:
         pub.status, pub.error = "ready", None
         self._event(pub, "youtube_processing_done", session.remote_video_id, session_id=session.id)
         self.db.commit()
+        if self.cfg.upload.public_after_processing:
+            await self.make_public(session, pub)
+
+    async def make_public(self, session: YouTubeUploadSession, pub: Publication) -> None:
+        """Make an uploaded and processed video public (config upload.public_after_processing). Never while the Emergency Stop is active; a failure leaves the video private and says so."""
+        if self.registry._stopped():
+            self._event(pub, "youtube_public_skipped", "the Emergency Stop is active", session_id=session.id)
+            self.db.commit()
+            return
+        up = self.cfg.upload
+        try:
+            await self.client.set_privacy(session.remote_video_id, "public", made_for_kids=up.self_declared_made_for_kids, synthetic=up.contains_synthetic_media)
+        except (YouTubeError, OAuthError) as exc:
+            self._save(session, error=f"The video is processed but could not be made public: {self.oauth.tokens.redact(str(exc))[:200]}", required_action="make_public")
+            return
+        pub.visibility, pub.status, pub.published_at = "public", "published", utc_now()
+        self._save(session, privacy="public", error=None, required_action=None)
+        self._event(pub, "youtube_made_public", session.remote_video_id, session_id=session.id)
+        self.db.commit()
+        if pub.kind == "film" and pub.video_id:
+            self._record_film(pub)
+
+    def _record_film(self, pub: Publication) -> None:
+        """Mirror the public film in its `videos` row (its own publish rules apply there). A refusal there never undoes what is public: it is recorded for the owner."""
+        from app.db.models import Video
+        from app.publishing.registry import PublishingRefused
+
+        try:
+            self.registry.record_film_published(self.db.get(Video, pub.video_id), url=pub.remote_url, published_at=pub.published_at, episode_number=None)
+        except (PublishingRefused, ValueError) as exc:
+            self.db.rollback()
+            self._event(self.registry.get(pub.id), "film_record_refused", str(exc)[:300])
+            self.db.commit()
 
     async def check_processing(self, publication_id: int) -> YouTubeUploadSession:
         """Ask YouTube again about an uploaded video that was still processing (a read-only call); finishes the publication when YouTube is done."""
@@ -300,6 +340,27 @@ class YouTubeUploader:
             await self._follow(session, pub)
         except (YouTubeError, OAuthError) as exc:
             self._fail(session, pub, exc)
+        return session
+
+    async def replace_thumbnail(self, publication_id: int) -> YouTubeUploadSession:
+        """Put the publication's current approved cover on the video that is already on YouTube (thumbnails.set; the video itself is not touched). The cover is taken from the registry again, so a cover
+        approved after the upload is the one that goes up."""
+        session, pub = self.session_of(publication_id), self.registry.get(publication_id)
+        if session is None or not session.remote_video_id or session.status not in ("uploaded", "processing", "processed"):
+            raise Refused("no_video", "This publication has no video on YouTube yet.")
+        pub.cover_ref, pub.cover_hash, _, _ = self.registry._cover(pub.case_id, pub.language, "long" if pub.kind == "film" else pub.asset_key)
+        self.db.commit()
+        cover = self._cover_file(pub)
+        if cover is None:
+            raise Refused("no_approved_cover", "This publication has no approved cover to put on the video.")
+        try:
+            await self.client.set_thumbnail(session.remote_video_id, cover)
+        except (YouTubeError, OAuthError) as exc:
+            self._save(session, thumbnail_status=f"failed: {self.oauth.tokens.redact(str(exc))[:120]}")
+            raise Refused("thumbnail_failed", self.oauth.tokens.redact(str(exc))) from exc
+        self._save(session, thumbnail_status="done")
+        self._event(pub, "youtube_thumbnail_replaced", cover.name, session_id=session.id)
+        self.db.commit()
         return session
 
     async def _extras(self, session: YouTubeUploadSession, pub: Publication) -> None:
@@ -330,6 +391,13 @@ class YouTubeUploader:
 
         if not pub.cover_ref:
             return None
+        shape, _, ident = pub.cover_ref.partition(":")
+        if shape in ("film", "reel"):                                  # a cover made in the new style and approved (CoverVariant)
+            from app.db.models import CoverVariant
+
+            made = self.db.get(CoverVariant, int(ident))
+            picture = storage.resolve(made.file_path) if made is not None and made.status == "approved" else None
+            return picture if picture is not None and picture.is_file() else None
         final = CS.covers_dir(pub.case_id, pub.language) / ("long.jpg" if pub.kind == "film" else f"short_{pub.asset_key}.jpg")
         return final if final.is_file() else None
 

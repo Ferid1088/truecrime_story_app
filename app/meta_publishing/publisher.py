@@ -24,7 +24,9 @@ from app.meta_publishing.preflight import ClipReport, ReelsPreflight
 from app.meta_publishing.token import TokenError, TokenStore
 from app.meta_publishing.validator import Verdict
 from app.publishing.hashing import fresh_file_sha256
-from app.publishing.registry import PublicationRegistry, ReadinessChanged
+from app.publishing.registry import PublicationRegistry, PublishingRefused, ReadinessChanged
+from app.shortform.delivery import delivery_of
+from app.youtube_publishing.uploader import compose_description
 
 PLATFORM = "instagram"       # the destination instagram/short; the preflight keys of config/meta_publishing.json keep the older name
 LEGACY_PLATFORM = "instagram_reel"
@@ -100,7 +102,7 @@ class InstagramReelsPublisher:
         return {"ig_account_id": self.s.account.ig_account_id, "username": self.s.account.username, "brand": self.s.account.brand}
 
     def resolve(self, db: Session, language: str, clip_key: str) -> Target:
-        """The clip, its file (a prepared copy beside the original, when one exists), its caption and its preflight. Refuses any other language."""
+        """The clip, its file (the delivery copy, else a prepared copy beside the original, when one exists), its caption and its preflight. Refuses any other language."""
         from app.documentary import storage
         from app.shortform import clips as C
         from app.shortform.publish_manifest import build_publish_manifest
@@ -113,9 +115,11 @@ class InstagramReelsPublisher:
         original = storage.resolve(video) if video else None
         if row is None or original is None:
             raise Refused("clip_not_found", f"Case {case_id} has no finished {language} clip {clip_key}.")
-        path = prepared_copy_of(original) or original
+        path = delivery_of(original) or prepared_copy_of(original) or original
         manifest = build_publish_manifest(LEGACY_PLATFORM, film_id=case_id, short_id=clip_key, language=language, uses_generated_music=True)
-        return Target(clip_key, language, case_id, path, manifest.caption, manifest.manual_steps, self.preflight.check_file(clip_key, path))
+        pub = db.query(Publication).filter_by(case_id=case_id, language=language, platform=PLATFORM, kind="short", asset_key=clip_key).first()
+        caption = compose_description(pub) if pub is not None and pub.caption.strip() else manifest.caption       # the approved text of the publication, with its hashtags
+        return Target(clip_key, language, case_id, path, caption, manifest.manual_steps, self.preflight.check_file(clip_key, path))
 
     def _validation_step(self, target: Target) -> Step:
         report = target.preflight
@@ -157,6 +161,9 @@ class InstagramReelsPublisher:
         info = await self.client.account()
         if str(info.get("id")) != self.s.account.ig_account_id or info.get("username") != self.s.account.username:
             raise Refused("account_mismatch", "The token reaches a different Instagram account than the configured one; nothing was sent.")
+        missing = [p for p in self.s.required_permissions if p not in await self.client.granted_permissions()]
+        if missing:
+            raise Refused("permission_missing", f"Meta documents these permissions for publishing and the token does not hold them: {', '.join(missing)}. Nothing was sent.")
         limit = await self.client.publishing_limit()
         usage = ((limit.get("data") or [{}])[0]).get("quota_usage") if isinstance(limit.get("data"), list) else None
         return [Step("Account", "ok", f"{info.get('username')} ({info.get('id')}) matches the configuration"),
@@ -214,9 +221,13 @@ class InstagramReelsPublisher:
             raise Refused("not_planned", "This clip has no publication yet: make the publishing plan for this case and language in the Publishing Studio first.")
         registry.refresh(op)
         db.commit()                                         # an expiry or a void the refresh found is saved before anything else happens
-        if not registry.approval_current(op):
-            raise Refused("not_approved", "This publication has no current approval (approve its content and publication in the Publishing Studio; an approval is valid for "
-                                          f"{registry.cfg.approval.max_age_days} days and ends when anything approved changes).")
+        try:
+            if op.status not in ("uploading", "processing", "ready", "publishing", "published"):
+                registry.ensure_approved(op)                # approved by default when nothing blocks it (approval.default_approved)
+            elif not registry.approval_current(op):
+                raise PublishingRefused("This publication has no current approval.")
+        except PublishingRefused as exc:
+            raise Refused("not_approved", str(exc)) from exc
         self._readiness(registry, op, "publish" if mode is Mode.PUBLISH else "upload")
         if mode is Mode.PUBLISH and not (op.status == "ready" and op.container_id):
             raise Refused("not_prepared", "No prepared Reel for this file: run UPLOAD_ONLY and wait until it is ready.")

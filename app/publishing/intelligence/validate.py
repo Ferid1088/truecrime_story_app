@@ -145,9 +145,9 @@ def metadata_findings(item: dict, kind: str, limit: MetadataLimit, *, fact_ids: 
             out.append(finding("error", "chapter_without_title", "every chapter needs a title"))
     elif item["chapters"]:
         out.append(finding("error", "chapters_not_supported", "no chapters on this destination: leave the list empty"))
-    if URL.search(posted):
+    if URL.search(posted) and not limit.web_address_allowed:
         out.append(finding("error", "web_address", "no web address in the text: a link in a caption is not a working route to the film"))
-    unknown = sorted({w for w in LATIN_WORD.findall(posted) if w.casefold().strip("'’-") not in known_words | ALLOWED_LATIN}) if known_words is not None else []
+    unknown = sorted({w for w in LATIN_WORD.findall(' '.join(w for w in posted.split() if not URL.search(w))) if w.casefold().strip("'’-") not in known_words | ALLOWED_LATIN}) if known_words is not None else []
     if unknown:
         out.append(finding("error", "unknown_name", f"Latin-script words that are not in the case record: {', '.join(unknown[:6])}"))
     bad_refs = [f for f in item["facts_used"] if f != "film" and f not in fact_ids and not (f.startswith("clip:") and f[5:] in (clip_keys or set()))] if fact_ids is not None else []

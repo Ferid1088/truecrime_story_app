@@ -127,6 +127,8 @@ class AutomaticPublishingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     default_enabled: bool
+    enabled: bool                 # the master switch of the automatic publisher: publications whose time has come are published by the application (off until the owner says go)
+    poll_seconds: int = Field(ge=10)
     missed_window_minutes: int = Field(ge=1)
     automatic_retries: int = Field(ge=0)
 
@@ -137,6 +139,8 @@ class ApprovalConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     max_age_days: int = Field(ge=1)
+    default_approved: bool        # a publication with no blocker is approved by default (both kinds, recorded as the default): the owner publishes by the plan or with one click
+    manual_languages: list[str]   # the exception: a publication in one of these languages (the owner reads Persian) waits for the owner's own approval before it is uploaded or published
     scope: Literal["destination"]
     required: list[ApprovalKind]
     invalidated_by: list[ApprovalInput]
@@ -263,6 +267,8 @@ class GenerationSettings(BaseModel):
     example_caption_chars: int = Field(ge=0, le=1000)
     hook_min_score: int = Field(ge=0, le=10)         # a Short's hook scoring below this (stakes, open question or concrete detail) is sent back for a rewrite; 0 switches the critic off
     hook_critic_examples: int = Field(ge=0, le=30)
+    proofread_languages: list[str]                   # languages whose texts go through the proofreader (Sonnet) before the owner sees them: the ones the owner reads
+    proofread_min_similarity: float = Field(gt=0, le=1)    # a corrected text that differs more than this from the original is a rewrite, not a correction, and is refused
 
 
 class SchedulingSettings(BaseModel):
@@ -299,6 +305,7 @@ class MetadataLimit(BaseModel):
     note: str = ""
     text_max_bytes: int = Field(default=0, ge=0)        # 0: no limit in bytes (YouTube's description limit is in bytes, not characters)
     forbidden_chars: str = ""                            # characters the destination refuses in the title and the text
+    web_address_allowed: bool = False                    # a web address in the text (the link from a Short to its film); everywhere else a link in a caption is no route and is refused
 
 
 class IntelligenceConfig(BaseModel):

@@ -57,7 +57,7 @@ def test_publish_blockers(db_session):
     preview = _video(db_session, case, render_profile="preview")
     full = _video(db_session, case)
     assert any("pilot" in b for b in V.publish_blockers(db_session, pilot))
-    assert any("preview profile" in b for b in V.publish_blockers(db_session, preview))
+    assert not any("profile" in b for b in V.publish_blockers(db_session, preview))                     # a preview render is no longer blocked
     assert V.publish_blockers(db_session, full) == ["no approved episode title (Naming tab)"]
     ident = T.get_identity(db_session, case.id, "de")
     ident.title_approved = True

@@ -28,6 +28,7 @@ from app.publishing.registry import PublicationRegistry
 
 pytestmark = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is needed to make the test video")
 TOKEN = "FAKE_TEST_TOKEN_aaaaaaaaaaaaaaaaaaaaaaaa"
+TOKEN_ENV = meta_config().instagram.token_env
 IG_ID = meta_config().instagram.account.ig_account_id
 USER = meta_config().instagram.account.username
 
@@ -53,6 +54,7 @@ class FakeMeta:
         self.publish_exception: Exception | None = None
         self.publish_error: dict | None = None
         self.on_status = None                       # called when Meta is asked for the container's status
+        self.granted = list(meta_config().instagram.required_permissions)
 
     def calls(self, method: str, tail: str) -> list[httpx.Request]:
         return [r for r in self.requests if r.method == method and r.url.path.endswith(tail)]
@@ -62,6 +64,8 @@ class FakeMeta:
         path = request.url.path
         if "ig-api-upload" in path:
             return self.upload_replies.pop(0) if self.upload_replies else httpx.Response(200, json={"success": True, "message": "Upload successful."})
+        if path.endswith("/me/permissions"):
+            return httpx.Response(200, json={"data": [{"permission": p, "status": "granted"} for p in self.granted]})
         if path.endswith("content_publishing_limit"):
             return httpx.Response(400, json={"error": self.limit_error}) if self.limit_error else httpx.Response(200, json={"data": [{"quota_usage": 2, "config": {}}]})
         if path.endswith(f"/{IG_ID}"):
@@ -102,7 +106,7 @@ def world(db_session, tmp_path, monkeypatch):
     plan_row = db_session.query(Publication).filter_by(case_id=case.id, platform="instagram", asset_key="C1").one()
     registry.approve_content(plan_row.id)
     registry.approve_publication(plan_row.id)
-    monkeypatch.setenv("TRUECRIME_META_ACCESS_TOKEN", TOKEN)
+    monkeypatch.setenv(TOKEN_ENV, TOKEN)
     fake = FakeMeta()
     settings = meta_config().instagram.model_copy(update={"live_enabled": True, "retry_backoff_s": 0, "poll_interval_s": 1, "poll_max_s": 3, "token_file": str(tmp_path / "token")})
     sleeps: list[float] = []
@@ -166,7 +170,7 @@ async def test_live_calls_are_refused_while_live_is_disabled(world):
 
 
 async def test_a_missing_token_is_refused_without_a_request(world, monkeypatch):
-    monkeypatch.delenv("TRUECRIME_META_ACCESS_TOKEN")
+    monkeypatch.delenv(TOKEN_ENV)
     with pytest.raises(Refused) as e:
         await run(world, Mode.UPLOAD_ONLY)
     assert e.value.reason == "token_missing" and world.fake.requests == []
@@ -185,13 +189,36 @@ async def test_a_prepared_copy_beside_the_original_is_the_file_that_is_used(worl
     assert (await run(world, Mode.DRY_RUN)).steps[0].detail.startswith("Instagram preflight: PASS") and prepared.is_file()
 
 
+async def test_the_delivery_copy_is_the_file_that_is_used_before_a_prepared_copy(world):
+    from app.shortform.delivery import delivery_path
+
+    _video(world.video, editlist=True)
+    _video(world.video.parent / "meta" / world.video.name)
+    delivery = _video(delivery_path(world.video))
+    report = await run(world, Mode.DRY_RUN)
+    assert report.steps[0].detail.startswith("Instagram preflight: PASS") and f"({delivery.name})" in report.steps[0].detail
+
+
+async def test_the_reel_is_sent_with_the_publications_approved_text_and_hashtags(world):
+    row = op(world)
+    row.caption = "The approved text of this reel."
+    row.metadata_json = json.dumps({"hashtags": ["#truecrime", "#case15"]})
+    world.db.commit()
+    registry = PublicationRegistry(world.db)
+    registry.approve_content(row.id)
+    registry.approve_publication(row.id)
+    await run(world, Mode.UPLOAD_ONLY)
+    sent = json.loads(world.fake.calls("POST", f"/{IG_ID}/media")[0].content)["caption"]
+    assert sent.startswith("The approved text of this reel.") and "#truecrime" in sent and "#case15" in sent
+
+
 async def test_upload_only_makes_the_container_uploads_and_waits_but_never_publishes(world):
     report = await run(world, Mode.UPLOAD_ONLY)
     row = op(world)
     assert row.status == "ready" and row.container_id == "CONTAINER1" and row.remote_id is None
     assert world.fake.calls("POST", "media_publish") == []
     media = world.fake.calls("POST", f"/{IG_ID}/media")[0]
-    assert json.loads(media.content) == {"media_type": "REELS", "upload_type": "resumable", "caption": row.caption}
+    assert json.loads(media.content) == {"media_type": "REELS", "upload_type": "resumable", "caption": row.caption, "thumb_offset": 0}
     assert media.headers["authorization"] == f"Bearer {TOKEN}"
     upload = world.fake.calls("POST", "/CONTAINER1")[0]
     assert upload.url.host == "rupload.facebook.com" and upload.url.path == "/ig-api-upload/v27.0/CONTAINER1"
@@ -355,7 +382,7 @@ async def test_the_client_cannot_reach_the_real_meta_in_a_test(world):
 
 
 def test_the_token_store_keeps_the_token_owner_only_and_never_reveals_it(tmp_path, monkeypatch):
-    monkeypatch.delenv("TRUECRIME_META_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv(TOKEN_ENV, raising=False)
     store = TokenStore(meta_config().instagram.model_copy(update={"token_file": str(tmp_path / "sub" / "token")}))
     assert store.source() is None
     with pytest.raises(TokenError):
@@ -459,3 +486,23 @@ def _sync(fn):
 for _name, _fn in list(globals().items()):      # the repository has no async test plugin: every async test runs in its own event loop
     if _name.startswith("test_") and inspect.iscoroutinefunction(_fn):
         globals()[_name] = _sync(_fn)
+
+
+def test_publishing_stops_when_a_permission_meta_documents_for_publishing_is_missing(world):
+    world.fake.granted = ["instagram_basic", "instagram_content_publish"]
+    with pytest.raises(Refused) as caught:
+        asyncio.run(world.publisher.authorize())
+    assert caught.value.reason == "permission_missing" and "pages_read_engagement" in str(caught.value)
+    assert not world.fake.calls("POST", f"/{IG_ID}/media")
+
+
+def test_the_token_is_read_from_the_instagram_environment_variable_and_the_old_name_still_works(monkeypatch, tmp_path):
+    settings = meta_config().instagram.model_copy(update={"token_file": str(tmp_path / "none")})
+    assert settings.token_env == "TRUECRIME_INSTAGRAM_ACCESS_TOKEN"
+    monkeypatch.delenv(TOKEN_ENV, raising=False)
+    monkeypatch.delenv("TRUECRIME_META_ACCESS_TOKEN", raising=False)
+    assert TokenStore(settings).source() is None
+    monkeypatch.setenv("TRUECRIME_META_ACCESS_TOKEN", "OLD_NAME_TOKEN_aaaaaaaaaaaaaaaaaaaa")
+    assert TokenStore(settings).source() == "environment" and TokenStore(settings).get().startswith("OLD_NAME")
+    monkeypatch.setenv(TOKEN_ENV, TOKEN)
+    assert TokenStore(settings).get() == TOKEN                                     # the canonical name wins

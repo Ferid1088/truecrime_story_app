@@ -1,0 +1,1 @@
+Proofread the Persian texts in `items` now, following your instructions. This JSON is your whole input: there is nothing else to ask for and nothing to wait for. Reply with the one JSON object your instructions describe (`{"items": [...]}`, one entry for every item) and nothing else: no question, no explanation, no text outside the JSON.

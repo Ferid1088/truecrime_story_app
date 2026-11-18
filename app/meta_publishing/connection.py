@@ -156,23 +156,30 @@ class InstagramConnection:
         expires = self.now() + timedelta(seconds=int(long["expires_in"])) if long.get("expires_in") else None
         self.tokens.set(held.value)
         self._write_facts({"connected_at": self.now().isoformat(), "expires_at": expires.isoformat() if expires else None, "username": info["username"], "ig_account_id": info["id"],
-                           "last_test": {"ok": True, "at": self.now().isoformat(), "error": None}})
+                           "missing_for_publishing": self._missing_for_publishing(info), "last_test": {"ok": True, "at": self.now().isoformat(), "error": None}})
         return {**self.status(), "return_to": pending[1]}
 
     async def _verify(self, client: MetaGraphClient) -> dict:
         """Permissions and the account, with whatever token the client holds. Raises ConnectError; nothing is stored here."""
         try:
             granted = await client.granted_permissions()
-            missing = [p for p in self.s.required_permissions if p not in granted]
+            missing = [p for p in self.s.connection_permissions if p not in granted]
             if missing:
                 raise ConnectError("permission_missing", f"Meta did not grant: {', '.join(missing)}. Connect again and allow every permission.")
             info = await client.account()
         except MetaError as exc:
             raise ConnectError("token_expired" if exc.kind == "token_expired" else "meta_error", f"Meta answered: {exc}") from exc
+        named = env_value(self.s.account_id_env)
+        if named and named != self.s.account.ig_account_id:
+            raise ConnectError("account_mismatch", f"{self.s.account_id_env} names Instagram account {named}, not the configured {self.s.account.ig_account_id}. Nothing was stored.")
         if str(info.get("id")) != self.s.account.ig_account_id or info.get("username") != self.s.account.username:
             raise ConnectError("account_mismatch", f"The token reaches Instagram account '{info.get('username')}' ({info.get('id')}), not the {self.s.language} account "
                                                    f"{self.s.account.username} ({self.s.account.ig_account_id}). Nothing was stored.")
-        return info
+        return {**info, "granted": sorted(granted)}
+
+    def _missing_for_publishing(self, info: dict) -> list[str]:
+        """Permissions Meta documents for publishing that the token does not hold: the connection works without them, the Reels publisher refuses until they are granted."""
+        return [p for p in self.s.required_permissions if p not in info["granted"]]
 
     # -- test, disconnect, status ---------------------------------------------------------------------------
     async def test(self) -> dict:
@@ -195,9 +202,10 @@ class InstagramConnection:
             self._remember_test(facts, error)
             raise error from exc
         usage = ((limit.get("data") or [{}])[0]).get("quota_usage") if isinstance(limit.get("data"), list) else None
-        facts.update({"username": info["username"], "ig_account_id": info["id"], "last_test": {"ok": True, "at": self.now().isoformat(), "error": None}})
+        facts.update({"username": info["username"], "ig_account_id": info["id"], "missing_for_publishing": self._missing_for_publishing(info), "last_test": {"ok": True, "at": self.now().isoformat(), "error": None}})
         self._write_facts(facts)
-        return {"account": {"id": info["id"], "username": info["username"]}, "permissions": list(self.s.required_permissions), "quota_usage": usage, "checked_at": self.now().isoformat()}
+        return {"account": {"id": info["id"], "username": info["username"]}, "permissions": [p for p in info["granted"] if p in self.s.required_permissions or p in self.s.connection_permissions],
+                "missing_for_publishing": self._missing_for_publishing(info), "quota_usage": usage, "checked_at": self.now().isoformat()}
 
     def _remember_test(self, facts: dict, error: ConnectError) -> None:
         facts["last_test"] = {"ok": False, "at": self.now().isoformat(), "error": f"{error.reason}: {self.tokens.redact(str(error))}"[:400]}
@@ -221,7 +229,7 @@ class InstagramConnection:
                 "verified": bool(facts.get("ig_account_id") == self.s.account.ig_account_id and facts.get("username") == self.s.account.username),
                 "connected_at": facts.get("connected_at"), "expires_at": facts.get("expires_at"), "days_left": round(days_left, 1) if days_left is not None else None,
                 "expired": bool(days_left is not None and days_left <= 0), "expiring_soon": bool(days_left is not None and 0 < days_left <= c.expiry_warning_days),
-                "last_test": facts.get("last_test"), "required_permissions": self.s.required_permissions, "redirect_uri": c.redirect_uri}
+                "last_test": facts.get("last_test"), "required_permissions": self.s.required_permissions, "missing_for_publishing": facts.get("missing_for_publishing", []), "redirect_uri": c.redirect_uri}
 
     # -- the account row of the registry -----------------------------------------------------------------------
     def sync(self, db: Session) -> PublicationAccount:

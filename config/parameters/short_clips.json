@@ -68,15 +68,43 @@
         "generated_seconds": 22,
         "library_target": 300,
         "variations": {
-          "texture": ["muted analog synth pad", "bowed double bass drone", "low felt piano notes", "cold glass harmonics", "sub-bass swell with soft noise", "plucked cello pizzicato", "detuned music box", "breathy bass clarinet"],
-          "pulse": ["a slow heartbeat pulse", "a faint ticking clock", "a dull rhythmic knock", "a distant slow metronome", "a soft low throb", "no pulse, only slow swells"],
-          "colour": ["dark and anxious", "cold and hollow", "uneasy and restless", "bleak and solemn", "ominous and creeping", "tense and watchful"],
-          "space": ["in a dry close room", "in a large empty hall", "with long dark reverb", "with a thin metallic echo"]
+          "texture": [
+            "muted analog synth pad",
+            "bowed double bass drone",
+            "low felt piano notes",
+            "cold glass harmonics",
+            "sub-bass swell with soft noise",
+            "plucked cello pizzicato",
+            "detuned music box",
+            "breathy bass clarinet"
+          ],
+          "pulse": [
+            "a slow heartbeat pulse",
+            "a faint ticking clock",
+            "a dull rhythmic knock",
+            "a distant slow metronome",
+            "a soft low throb",
+            "no pulse, only slow swells"
+          ],
+          "colour": [
+            "dark and anxious",
+            "cold and hollow",
+            "uneasy and restless",
+            "bleak and solemn",
+            "ominous and creeping",
+            "tense and watchful"
+          ],
+          "space": [
+            "in a dry close room",
+            "in a large empty hall",
+            "with long dark reverb",
+            "with a thin metallic echo"
+          ]
         },
         "prompt": "Tense suspense bed for a short true-crime clip: a low pulsing heartbeat-like synth pulse and a faint ticking clock, tight dissonant string tremolo slowly rising, dark and anxious, building unease and dread, never calm or soothing, restrained enough to sit under a speaking voice, no melody, no loud drums, no vocals"
       },
       "pictures_max": 6,
-      "crf": 20,
+      "crf": 18,
       "preset": "medium",
       "picture_min_px": [
         900,
@@ -86,7 +114,18 @@
         "victim",
         "suspect",
         "person"
-      ]
+      ],
+      "delivery": {
+        "gop_seconds": 2,
+        "maxrate": "10M",
+        "bufsize": "20M",
+        "audio_bitrate": "192k",
+        "lufs": -14.0,
+        "true_peak": -2.0,
+        "lra": 11.0,
+        "peak_ceiling": -1.0,
+        "cover_lead_seconds": 1.5
+      }
     }
   }
 }

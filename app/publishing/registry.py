@@ -7,7 +7,10 @@ publication state are written only here (`record_film_published`), which mirrors
 
 from __future__ import annotations
 
+import contextlib
+import difflib
 import json
+import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -16,6 +19,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 
 from app.db.models import (
+    Case,
     CoverProposal,
     PolicyEvent,
     Publication,
@@ -36,6 +40,7 @@ PLAN_STATUSES = ("draft", "content_approved", "publication_approved", "scheduled
 LIVE_STATUSES = ("uploading", "processing", "ready", "publishing")
 FINAL_STATUSES = ("published", "failed", "publish_uncertain")
 EDITABLE = (*PLAN_STATUSES, "failed")
+TEXT_EDITABLE = (*EDITABLE, "ready")          # an upload that is not public yet (a draft on the platform): its text can still be corrected here; time and visibility cannot
 CONTENT_APPROVABLE = ("draft", "content_approved", "voided", "expired", "failed")
 PUBLICATION_APPROVABLE = ("content_approved", "voided", "expired", "publication_approved")
 AI_WRITABLE = ("draft", "voided", "expired", "failed")
@@ -129,7 +134,10 @@ class PublicationRegistry:
         image of the right shape; `problem` says what is wrong with a cover that is not usable."""
         from app.covers import proposals as P
         from app.covers import service as CS
+        from app.covers import variants as CV
 
+        if (made := CV.approved_cover(self.db, case_id, language, cover_key)) is not None:       # a cover made in the new style and approved wins over the planner's picture
+            return f"{made.shape}:{made.id}", cached_file_sha256(self.db, storage.resolve(made.file_path)), "approved", None
         proposal: CoverProposal | None = P.current(self.db, case_id, language).get(cover_key)
         if proposal is None:
             return None, None, "none", "The cover is not approved."
@@ -189,12 +197,22 @@ class PublicationRegistry:
         pub.scheduled_at = self.cfg.slot_utc(language, start + timedelta(days=day))
         pub.window_ends_at = pub.scheduled_at + timedelta(minutes=self.cfg.automatic_publishing.missed_window_minutes)
 
+    def _default_covers(self, case_id: int, language: str) -> None:
+        """The planner's covers that have their picture are approved by default (covers.proposal.auto_approve) before the plan reads them; the owner's own changes are left alone."""
+        from app.core.ai_config import ai_config
+        from app.covers import service as covers_service
+
+        case = self.db.get(Case, case_id)
+        if case is not None and language in ai_config.covers_settings().themes:
+            covers_service.auto_approve(self.db, case, language)
+
     def plan(self, case_id: int, language: str, *, start_date: date | None = None, reset_schedule: bool = False) -> list[Publication]:
         """Create the missing publications of the language (every asset on every destination that supports its kind) and refresh the existing ones. A plan can only be made for a
         language that has a publishing schedule. Publications of an older render that were never published are voided."""
         if not self.cfg.language_enabled(language):
             raise PublishingRefused(f"Language '{language}' has no publishing schedule (config/publishing.json): its publishing is not active.")
         accounts = self.ensure_accounts(language)
+        self._default_covers(case_id, language)
         assets = self.assets(case_id, language)
         start = start_date or self.default_start(language)
         rotation = self._rotation()
@@ -228,11 +246,21 @@ class PublicationRegistry:
         for pub in made:
             self.sync_routing(pub)
         self.db.commit()
+        for pub in made:
+            if self.approved_by_default(pub) and pub.status in ("draft", "content_approved", "voided", "expired"):
+                with contextlib.suppress(PublishingRefused):       # not ready (no platform text yet, a blocker): it is approved when it becomes ready, at the next plan or at its publishing
+                    self.ensure_approved(pub)
         return made
 
     @staticmethod
     def _path_for(asset: Asset, platform: str) -> Path | None:
-        """The file a destination gets: Instagram and Facebook get a Short's prepared Reel copy when one exists (config/meta_publishing.json), every other destination the original."""
+        """The file a destination gets: a Short's delivery copy (made to the platforms' file rules, docs/platform_specs.md) when there is one; else Instagram and Facebook get its prepared Reel copy
+        when one exists (config/meta_publishing.json); every other destination the original."""
+        if asset.kind is Kind.SHORT:
+            from app.shortform.delivery import delivery_of
+
+            if (delivery := delivery_of(asset.path)) is not None:
+                return delivery
         if asset.kind is Kind.SHORT and platform in ("instagram", "facebook"):
             from app.meta_publishing.copies import prepared_copy_of
 
@@ -299,6 +327,27 @@ class PublicationRegistry:
     def approval_current(self, pub: Publication) -> bool:
         """The publication approval exists, matches the current hash and is not older than the configured age (whatever the status: a live operation uses this)."""
         return bool(pub.publication_approved_hash and pub.publication_approved_hash == pub.publication_hash and not self.approval_expired(pub))
+
+    def approved_by_default(self, pub: Publication) -> bool:
+        """Whether this publication is approved by the default: the default is on and the language is not one the owner approves by hand (`approval.manual_languages`)."""
+        return self.cfg.approval.default_approved and pub.language not in self.cfg.approval.manual_languages
+
+    def ensure_approved(self, pub: Publication, actor: str = "default") -> None:
+        """The publication has a current approval when this returns. When it has none (never approved, or something approved changed since) and `approval.default_approved` is on, both approvals
+        are given now, by the default, exactly as the owner's two approvals would be (the same checks, the same hash, the same events, `actor` recorded). Raises PublishingRefused with the
+        reasons when the publication is not ready: a default approval never goes around a blocker."""
+        self.refresh(pub)
+        self.db.commit()
+        if self.approval_current(pub):
+            return
+        if not self.approved_by_default(pub):
+            raise PublishingRefused("This publication needs your approval: approve its content and publication in the Publishing Studio first." if self.cfg.approval.default_approved
+                                    else "This publication has no current approval: approve its content and publication first.")
+        reasons = self._why_not_approved(pub)
+        if reasons:
+            raise PublishingRefused("Not ready: " + "; ".join(reasons), reasons)
+        self.approve_content(pub.id, actor)
+        self.approve_publication(pub.id, actor)
 
     def approval_valid(self, pub: Publication) -> bool:
         return pub.status in ("publication_approved", "scheduled") and self.approval_current(pub)
@@ -378,18 +427,20 @@ class PublicationRegistry:
                visibility: str | None = None, metadata: dict | None = None, actor: str = "owner") -> Publication:
         """Edit the caption, the schedule (a local time in the language's zone) or the visibility. Any of these changes what an approval was bound to, so it voids it."""
         pub = self.get(publication_id)
-        if pub.status not in EDITABLE:
+        if pub.status not in TEXT_EDITABLE:
             raise PublishingRefused(f"A publication that is {pub.status} cannot be edited.")
+        if pub.status == "ready":
+            scheduled_local, clear_schedule, visibility = None, False, None          # already uploaded: only the text can change
         changed = []
         if caption is not None and caption != pub.caption:
             if not caption.strip():
                 raise PublishingRefused("The caption cannot be empty.")
             pub.caption = caption
-            if pub.metadata_source == "ai":
+            if pub.metadata_source == "ai" and actor != "proofreader":
                 pub.metadata_source = "owner"                         # a text you changed is yours: a later AI run offers its version, it does not replace yours
             changed.append("caption")
         if metadata is not None:
-            changed += self._set_metadata(pub, metadata, "owner")
+            changed += self._set_metadata(pub, metadata, pub.metadata_source if actor == "proofreader" and pub.metadata_source != "default" else "owner")
         if visibility is not None and visibility != pub.visibility:
             if visibility not in ("private", "unlisted", "public"):
                 raise PublishingRefused("Visibility is private, unlisted or public.")
@@ -425,6 +476,69 @@ class PublicationRegistry:
             return []
         pub.metadata_json, pub.metadata_source = json.dumps(stored, ensure_ascii=False, sort_keys=True), source
         return ["metadata"]
+
+    # -- one correction, every portal ---------------------------------------------------------------------
+    @staticmethod
+    def text_state(pub: Publication) -> dict:
+        """The texts of a publication that a correction can touch: the caption and the title, hashtags, keywords and call to action of its metadata."""
+        stored = json.loads(pub.metadata_json or "{}")
+        return {"caption": pub.caption, "title": stored.get("title") or "", "hashtags": list(stored.get("hashtags") or []), "keywords": list(stored.get("keywords") or []), "cta": stored.get("cta") or ""}
+
+    @staticmethod
+    def _corrections(before: dict, after: dict) -> tuple[list[dict], int]:
+        """What the owner corrected: the pieces of text that were replaced, found word by word, each with the unchanged word before and after it (to find the same spot in another text), and
+        how many pieces were only added or only deleted (those have no place to go in another text, so they are not carried over)."""
+        pieces: list[dict] = []
+        unplaced = 0
+        for key in ("caption", "title", "cta", "hashtags", "keywords"):
+            old, new = ("  ".join(before[key]), "  ".join(after[key])) if isinstance(before[key], list) else (before[key], after[key])
+            a, b = re.split(r"(\s+)", old), re.split(r"(\s+)", new)
+            for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+                was, now = "".join(a[i1:i2]).strip(), "".join(b[j1:j2]).strip()
+                if tag == "replace" and len(was) >= 2 and was != now:
+                    left, right = "".join(a[max(0, i1 - 2):i1]), "".join(a[i2:i2 + 2])
+                    piece = {"old": was, "new": now, "ctx_old": f"{left}{''.join(a[i1:i2])}{right}", "ctx_new": f"{left}{''.join(b[j1:j2])}{right}"}
+                    if piece not in pieces:
+                        pieces.append(piece)
+                elif tag in ("insert", "delete") and (was or now):
+                    unplaced += 1
+        return pieces, unplaced
+
+    def propagate_correction(self, source_id: int, before: dict) -> dict:
+        """A text the owner corrected on one portal is corrected the same way on the other portals of the same film or Short and language: every piece that was replaced (a word, a
+        phrase, a hashtag) is replaced where it stands in their title, caption, hashtags, keywords and call to action, found by the words around it (a short piece alone is never replaced:
+        it would hit other places). Each portal that changes is edited as the owner's edit (it loses its approval, as any edit does); a portal that cannot be edited now (it is being uploaded or
+        is public) is listed, not changed. Returns {changed, skipped, pieces, unplaced}."""
+        source = self.get(source_id)
+        pieces, unplaced = self._corrections(before, self.text_state(source))
+        out: dict = {"changed": [], "skipped": [], "pieces": [{"old": p["old"], "new": p["new"]} for p in pieces], "unplaced": unplaced}
+        if not pieces:
+            return out
+
+        def fix(text: str) -> str:
+            for piece in pieces:
+                if piece["ctx_old"] in text:
+                    text = text.replace(piece["ctx_old"], piece["ctx_new"])
+                elif len(piece["old"]) >= 4 and piece["old"] in text:
+                    text = text.replace(piece["old"], piece["new"])
+            return text
+
+        for other in self.db.query(Publication).filter(Publication.case_id == source.case_id, Publication.language == source.language, Publication.asset_key == source.asset_key,
+                                                       Publication.id != source.id).order_by(Publication.id).all():
+            now = self.text_state(other)
+            fixed = {"caption": fix(now["caption"]), "title": fix(now["title"]), "cta": fix(now["cta"]), "hashtags": [fix(t) for t in now["hashtags"]], "keywords": [fix(k) for k in now["keywords"]]}
+            fields = [k for k in fixed if fixed[k] != now[k]]
+            if not fields:
+                continue
+            if other.status not in TEXT_EDITABLE:
+                out["skipped"].append({"id": other.id, "platform": other.platform, "kind": other.kind, "reason": f"it is {other.status.replace('_', ' ')}"})
+                continue
+            self.update(other.id, caption=fixed["caption"] if "caption" in fields else None, metadata={k: fixed[k] for k in fields if k != "caption"} or None, actor="owner")
+            out["changed"].append({"id": other.id, "platform": other.platform, "kind": other.kind, "fields": fields})
+        if out["changed"]:
+            self.event(source, "correction_propagated", ", ".join(f"{c['platform']}/{c['kind']}" for c in out["changed"]), "owner", pieces=len(pieces))
+            self.db.commit()
+        return out
 
     def approve_content(self, publication_id: int, actor: str = "owner") -> Publication:
         pub = self.refresh(self.get(publication_id))
@@ -760,6 +874,24 @@ class PublicationRegistry:
         self.db.commit()
         return result
 
+    def link_shorts_to_film(self, film: Publication) -> list[int]:
+        """Put the address of the film (its YouTube publication) into the text of every YouTube Short of the same case and language whose text can still be edited. Returns the ids that changed;
+        a changed text voids that Short's approval, as every edit does."""
+        from app.publishing.film_link import with_film_link
+
+        if film.platform != "youtube" or film.kind != Kind.FILM.value or not film.remote_url:
+            return []
+        changed: list[int] = []
+        for short in self.db.query(Publication).filter(Publication.case_id == film.case_id, Publication.language == film.language, Publication.platform == "youtube",
+                                                       Publication.kind == Kind.SHORT.value, Publication.status.in_(TEXT_EDITABLE)).order_by(Publication.id).all():
+            text = with_film_link(short.caption, json.loads(short.metadata_json or "{}").get("cta", ""), film.remote_url)
+            if text != short.caption:
+                self.update(short.id, caption=text, actor="film link")
+                self.sync_routing(short)
+                changed.append(short.id)
+        self.db.commit()
+        return changed
+
     # -- the read model --------------------------------------------------------------------------
     def latest_run(self, case_id: int, language: str) -> PublishingPlanRun | None:
         """The newest finished AI publishing plan of the case and language."""
@@ -783,7 +915,7 @@ class PublicationRegistry:
         schedule_blockers = self.schedule_blockers(pub) if pub.status == "publication_approved" else []
         content_ok = bool(pub.content_approved_hash and pub.content_approved_hash == json.loads(pub.hash_inputs_json or "{}").get("content"))
         # what the buttons may do: decided here, with the rules the actions themselves apply
-        eligibility = {"edit": pub.status in EDITABLE,
+        eligibility = {"edit": pub.status in TEXT_EDITABLE,
                        "approve_content": pub.status in CONTENT_APPROVABLE and not blockers,
                        "approve_publication": content_ok and pub.status in PUBLICATION_APPROVABLE and not blockers,
                        "schedule": self.approval_valid(pub) and pub.status == "publication_approved" and not blockers and not schedule_blockers,
@@ -818,13 +950,20 @@ class PublicationRegistry:
             return None
         if asset.kind is Kind.SHORT:
             return f"/api/cases/{case_id}/short-clips/{language}/{asset.key}/video"
-        return f"/api/documentary/production/{asset.video.production_script_id}/video.mp4" if asset.video is not None and asset.video.production_script_id else None
+        if asset.video is None or not asset.video.production_script_id:
+            return None
+        from app.core.files import versioned_url
+
+        return versioned_url(f"/api/documentary/production/{asset.video.production_script_id}/video.mp4", asset.path)
 
     def _cover_url(self, case_id: int, language: str, cover_key: str) -> str | None:
         """The cover's picture: the approved file, else the preview of the newest proposal, else nothing."""
         from app.covers import proposals as P
+        from app.covers import variants as CV
         from app.covers.api import final_path, preview_path
 
+        if (made := CV.approved_cover(self.db, case_id, language, cover_key)) is not None:
+            return f"/api/cover-variants/{made.id}/image"
         proposal = P.current(self.db, case_id, language).get(cover_key)
         if proposal is None:
             return None

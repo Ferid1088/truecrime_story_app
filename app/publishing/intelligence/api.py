@@ -57,6 +57,16 @@ async def generate(case_id: int, language: str, body: GenerateBody, db: Session 
     return S.run_view(run, registry, with_result=False)
 
 
+@router.post("/api/cases/{case_id}/publishing/{language}/proofread")
+async def proofread(case_id: int, language: str, db: Session = Depends(get_db)):
+    """Proofread the texts the publications hold now with the proofreader (paid; the owner's click). Corrections are saved as edits; the answer says what changed, what was refused and the cost."""
+    case = _case(db, case_id)
+    try:
+        return await S.proofread_existing(db, PublicationRegistry(db), case, language)
+    except (S.PlanRunError, PublishingRefused, BudgetStopped) as exc:
+        raise _refuse(exc) from exc
+
+
 @router.get("/api/cases/{case_id}/publishing/{language}/ai/runs/{run_id}")
 def ai_run(case_id: int, language: str, run_id: int, db: Session = Depends(get_db)):
     run = db.get(PublishingPlanRun, run_id)

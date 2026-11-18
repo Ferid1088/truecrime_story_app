@@ -114,6 +114,35 @@ def avatar_crop(frame_size: tuple[int, int], face_center_x: float, cfg: ClipVide
     return width, left - left % 2
 
 
+def loudness_filter(cfg: ClipVideoConfig) -> str:
+    """The last step of the sound: loudness normalised to the target, back at 48 kHz stereo, and a limiter at the true-peak ceiling (the AAC encode overshoots a limit set at full scale)."""
+    d = cfg.delivery
+    return f"loudnorm=I={d.lufs}:TP={d.true_peak}:LRA={d.lra},aformat=sample_rates=48000:channel_layouts=stereo,alimiter=limit={10 ** (d.true_peak / 20):.3f}:level=disabled"
+
+
+def encode_args(cfg: ClipVideoConfig) -> list[str]:
+    """How the file is encoded for the platforms: H.264 4:2:0 at a fixed frame rate with a closed GOP (a key frame every `gop_seconds`, none added at scene cuts) and AAC-LC stereo at 48 kHz, with the index at the front and no edit list (Instagram refuses a file with one)."""
+    d = cfg.delivery
+    gop = round(d.gop_seconds * cfg.fps)
+    return ["-c:v", "libx264", "-preset", cfg.preset, "-crf", str(cfg.crf), "-maxrate", d.maxrate, "-bufsize", d.bufsize, "-g", str(gop), "-keyint_min", str(gop), "-sc_threshold", "0",
+            "-x264-params", "open-gop=0", "-pix_fmt", "yuv420p", "-r", str(cfg.fps), "-fps_mode", "cfr", "-c:a", "aac", "-b:a", d.audio_bitrate, "-ar", "48000", "-ac", "2", "-movflags", "+faststart+negative_cts_offsets", "-use_editlist", "0"]
+
+
+def delivery_command(source: Path, out: Path, cfg: ClipVideoConfig | None = None, cover: Path | None = None) -> list[str]:
+    """The ffmpeg command that makes a delivery copy of a finished clip (the original is only read): the same picture and words, encoded as the platforms ask and with their sound level.
+    With a `cover` image the copy opens with it for `delivery.cover_lead_seconds` (silent), because Facebook takes the first frame of a Reel as its thumbnail."""
+    cfg = cfg or ai_config.short_clips_settings().video
+    ff = ffmpeg_bin() or "ffmpeg"
+    lead = cfg.delivery.cover_lead_seconds
+    if cover is None or lead <= 0:
+        return [ff, "-y", "-v", "error", "-i", str(source), "-map", "0:v:0", "-map", "0:a:0", "-af", loudness_filter(cfg), *encode_args(cfg), str(out)]
+    W, H, fps = cfg.width, cfg.height, cfg.fps
+    graph = (f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},scale=out_range=tv,setsar=1,fps={fps},format=yuv420p,trim=0:{lead:.3f},setpts=PTS-STARTPTS[c];"
+             f"[1:v]scale={W}:{H}:flags=lanczos,setsar=1,fps={fps},format=yuv420p[v];[c][v]concat=n=2:v=1:a=0[video];"
+             f"[1:a]aformat=sample_rates=48000:channel_layouts=stereo,adelay={round(lead * 1000)}:all=1,{loudness_filter(cfg)}[audio]")
+    return [ff, "-y", "-v", "error", "-loop", "1", "-framerate", str(fps), "-t", f"{lead:.3f}", "-i", str(cover), "-i", str(source), "-filter_complex", graph, "-map", "[video]", "-map", "[audio]", *encode_args(cfg), str(out)]
+
+
 def assemble_command(plan: Plan, *, voices: dict[str, Path], avatars: dict[str, Path], crops: dict[str, tuple[int, int]], pictures: list[Path], captions: list[tuple[Path, dict]],
                      music: Path | None, out: Path, cfg: ClipVideoConfig | None = None) -> list[str]:
     """The ffmpeg command: segments of video one after the other, the captions over them, the voices at their starts, the music bed ducked under the voice."""
@@ -165,11 +194,10 @@ def assemble_command(plan: Plan, *, voices: dict[str, Path], avatars: dict[str, 
         cmd += ["-i", str(music)]
         graph += [f"[{n}:a]aformat=sample_rates=48000:channel_layouts=stereo,atrim=0:{length:.3f},asetpts=PTS-STARTPTS,afade=t=in:st=0:d={m.fade_in},afade=t=out:st={length - fade_out:.3f}:d={fade_out:.3f},"
                   f"adelay={round(plan.music_start * 1000)}:all=1,apad=whole_dur={plan.total:.3f},volume={m.volume}[m]",
-                  "[voice]asplit=2[va][vb]", f"[m][va]sidechaincompress=threshold=0.02:ratio={ratio}:attack=20:release=400[md]", "[vb][md]amix=inputs=2:normalize=0:duration=longest,alimiter=limit=0.95[a]"]
+                  "[voice]asplit=2[va][vb]", f"[m][va]sidechaincompress=threshold=0.02:ratio={ratio}:attack=20:release=400[md]", f"[vb][md]amix=inputs=2:normalize=0:duration=longest,{loudness_filter(cfg)}[a]"]
     else:
-        graph.append("[voice]alimiter=limit=0.95[a]")
-    return cmd + ["-filter_complex", ";".join(graph), "-map", f"[{last}]", "-map", "[a]", "-t", f"{plan.total:.3f}", "-c:v", "libx264", "-preset", cfg.preset, "-crf", str(cfg.crf),
-                  "-pix_fmt", "yuv420p", "-r", str(fps), "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out)]
+        graph.append(f"[voice]{loudness_filter(cfg)}[a]")
+    return cmd + ["-filter_complex", ";".join(graph), "-map", f"[{last}]", "-map", "[a]", "-t", f"{plan.total:.3f}", *encode_args(cfg), str(out)]
 
 
 def assemble(command: list[str]) -> None:

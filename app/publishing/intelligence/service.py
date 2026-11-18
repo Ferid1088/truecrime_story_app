@@ -83,7 +83,11 @@ def estimate(registry: PublicationRegistry, inputs: Inputs) -> dict:
     for platform in judged:
         view = metadata_view(registry, inputs, platform, None)
         total += price("publishing_hook_critic", len(json.dumps(view["items"], ensure_ascii=False)) + len(prompt("publishing/hook_critic")), len(view["items"]) * CRITIC_OUTPUT_TOKENS_PER_ITEM)
-    return {"calls": 1 + len(platforms) + len(judged), "eur_low": round(total * 0.8, 3), "eur_high": round(total * 1.9, 3),
+    texts = len(inputs.destinations) if inputs.language in registry.cfg.intelligence.generation.proofread_languages else 0
+    if texts:
+        total += price("publishing_proofreader", texts * 900 + len(prompt("publishing/proofread")), texts * 750)
+    assets = 1 if texts else 0
+    return {"calls": 1 + len(platforms) + len(judged) + assets, "eur_low": round(total * 0.8, 3), "eur_high": round(total * 1.9, 3),
             "models": {role: pricing["models"][ai_config.alias_for(role)]["provider_model"] for role in ("publishing_planner", "publishing_metadata_writer", "publishing_hook_critic")},
             "basis": "A planning figure from the size of the input and the configured prices, with room for repair rounds (a repair call is billed again). Not a price: the cost of the run is shown after it."}
 
@@ -142,6 +146,7 @@ def start(db: Session, registry: PublicationRegistry, case: Case, language: str,
     platforms = list(dict.fromkeys(d.split("/")[0] for d in inputs.destinations))
     steps = [{"step": "analysis", "label": "Judging the Shorts, ordering them, planning the calendar", "status": "pending", "detail": ""},
              *({"step": f"metadata:{p}", "label": f"Writing the {p.title()} metadata", "status": "pending", "detail": ""} for p in platforms),
+             *([{"step": "proofread", "label": "Proofreading the texts (Sonnet)", "status": "pending", "detail": ""}] if language in registry.cfg.intelligence.generation.proofread_languages else []),
              {"step": "apply", "label": "Saving the plan into the publications", "status": "pending", "detail": ""}]
     run = PublishingPlanRun(case_id=case.id, language=language, status="running", input_fingerprint=inputs.fingerprint, progress_json=json.dumps(steps))
     db.add(run)
@@ -196,6 +201,7 @@ async def execute(run_id: int, gen=None) -> None:
                 made.get("error") or f"{len(made['results'])} destinations" + (f"; {len(made['unresolved'])} points still wrong" if made.get("unresolved") else "")))
             if not any(m["results"] for m in metadata.values()):
                 raise PlanError("no platform produced usable metadata: " + "; ".join(m.get("error", "") for m in metadata.values())[:300])
+            proofread = await _proofread(db, run, ai, registry, inputs, metadata, runs)
             _progress(db, run, "apply", "running")
             lang = registry.cfg.languages[run.language]
             slots = SCH.resolve(analysis["schedule_items"], plan_start=inputs.plan_start, fallback_time=lang.publish_time_local or "20:30", settings=registry.cfg.intelligence.scheduling,
@@ -212,6 +218,7 @@ async def execute(run_id: int, gen=None) -> None:
                 "metadata": {f"{p}/{k}": v for p, made in metadata.items() for k, v in made["results"].items()},
                 "platform_errors": {p: made["error"] for p, made in metadata.items() if made.get("error")},
                 "unresolved": {p: made["unresolved"] for p, made in metadata.items() if made.get("unresolved")},
+                "proofread": proofread,
                 "models": {"planner": analysis.get("model"), "writers": {p: made.get("model") for p, made in metadata.items()}},
                 "usage": usage}, ensure_ascii=False)
             run.applied_json = json.dumps(applied)
@@ -227,6 +234,60 @@ async def execute(run_id: int, gen=None) -> None:
             _fail(db, run_id, f"{type(exc).__name__}: {exc}"[:800], runs)
     finally:
         db.close()
+
+
+async def _proofread(db: Session, run: PublishingPlanRun, ai: PublishingAI, registry: PublicationRegistry, inputs: Inputs, metadata: dict, runs: list[int]) -> dict:
+    """The proofreading step of a run for a language the owner reads: the written texts are corrected before they are saved or shown. A failure of this step never loses the plan: the
+    written texts stay, and the step says so."""
+    if run.language not in registry.cfg.intelligence.generation.proofread_languages:
+        return {"checked": 0, "corrected": 0, "refused": {}}
+    _progress(db, run, "proofread", "running")
+    try:
+        found = await ai.proofread(registry, inputs, metadata, runs)
+    except (BudgetStopped, JobPaused):
+        raise
+    except Exception as exc:  # noqa: BLE001 - recorded on the step; the texts as the writers made them are kept
+        _progress(db, run, "proofread", "failed", f"{type(exc).__name__}: {exc}"[:200])
+        return {"checked": 0, "corrected": 0, "refused": {}, "error": f"{type(exc).__name__}: {exc}"[:300]}
+    _progress(db, run, "proofread", "done", f"{found['corrected']} of {found['checked']} texts corrected" + (f", {len(found['refused'])} answers refused" if found["refused"] else ""))
+    return found
+
+
+async def proofread_existing(db: Session, registry: PublicationRegistry, case: Case, language: str, gen=None) -> dict:
+    """The texts the publications hold now (the AI's and the owner's) go through the proofreader and the corrections are saved, each as one edit that says it was the proofreader's. A text
+    that cannot be edited now (it is being uploaded or is public) is left. Paid, one call for all of them; started only by the owner's click."""
+    from app.publishing.registry import TEXT_EDITABLE
+
+    if language not in registry.cfg.intelligence.generation.proofread_languages:
+        raise PlanRunError(f"Texts in '{language}' are not proofread (config/publishing.json: intelligence.generation.proofread_languages).")
+    inputs = build(db, registry, case, language)
+    pubs = [p for p in registry.db.query(Publication).filter_by(case_id=case.id, language=language).order_by(Publication.id).all() if p.status in TEXT_EDITABLE and p.caption.strip() and p.metadata_source != "default"]
+    entries = []
+    for pub in pubs:
+        state = registry.text_state(pub)
+        stored = json.loads(pub.metadata_json or "{}")
+        asset = "film" if pub.kind == "film" else pub.asset_key
+        entries.append({"key": f"{pub.platform}/{pub.kind}/{asset}", "platform": pub.platform, "kind": pub.kind, "asset": asset, "pub": pub,
+                        "item": {**stored, "title": state["title"], "text": state["caption"], "hashtags": state["hashtags"], "keywords": state["keywords"], "cta": state["cta"]}})
+    runs: list[int] = []
+    started = utc_now()
+    own = SessionLocal()
+    try:
+        found = await PublishingAI(gen).proofread_texts(own, registry, inputs, entries, runs)
+    finally:
+        own.close()
+    changed, refused = [], []
+    for entry in entries:
+        answer = found.get(entry["key"], {})
+        if "refused" in answer:
+            refused.append({"id": entry["pub"].id, "destination": entry["key"], "why": answer["refused"]})
+        elif answer["changes"]:
+            item = answer["item"]
+            registry.update(entry["pub"].id, caption=item["text"], metadata={k: item[k] for k in ("title", "hashtags", "keywords", "cta")}, actor="proofreader")
+            registry.event(entry["pub"], "proofread", f"{len(answer['changes'])} corrections", "proofreader", changes=answer["changes"][:20])
+            changed.append({"id": entry["pub"].id, "destination": entry["key"], "changes": answer["changes"]})
+    db.commit()
+    return {"checked": len(entries), "changed": changed, "refused": refused, "usage": usage_of(db, runs, case.id, started)}
 
 
 def _fail(db: Session, run_id: int, message: str, runs: list[int]) -> None:

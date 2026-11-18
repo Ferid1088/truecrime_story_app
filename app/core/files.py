@@ -39,10 +39,19 @@ def is_allowed(path: Path) -> bool:
 
 
 def serve(path: Path | None, media_type: str, filename: str | None = None, missing: str = "File missing", headers: dict[str, str] | None = None):
-    """FileResponse for a stored file, or 404. A path outside the data folders looks the same as a missing file. `headers` are added to the response."""
+    """FileResponse for a stored file, or 404. A path outside the data folders looks the same as a missing file. `headers` are added to the response.
+    A stored file can be replaced under the same address (a film cut again), so the browser must ask the server each time (the etag answers 304 when nothing changed) and never replays an old copy."""
     if path is None or not is_allowed(path) or not path.is_file():
         raise HTTPException(status_code=404, detail=missing)
-    return FileResponse(path, media_type=media_type, filename=filename, headers=headers)
+    return FileResponse(path, media_type=media_type, filename=filename, headers={"Cache-Control": "no-cache", **(headers or {})})
+
+
+def versioned_url(url: str, path: Path | None) -> str:
+    """The address of a stored file with a version taken from the file itself (its size and time): a file replaced under the same name gets a new address, so a browser never plays an old copy it kept."""
+    if path is None or not path.is_file():
+        return url
+    stat = path.stat()
+    return f"{url}?v={stat.st_size}-{int(stat.st_mtime)}"
 
 
 CHUNK_BYTES = 1024 * 1024

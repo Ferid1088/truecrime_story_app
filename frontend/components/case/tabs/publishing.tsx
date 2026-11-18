@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { api, ApiError, apiFileUrl, publishingAiApi, publishingApi, youtubeApi, type PublicationLamp, type PublicationMetadata, type PublicationView, type StudioAsset, type YouTubeChannel, type YouTubeUploads } from "@/lib/api";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { api, ApiError, apiFileUrl, facebookApi, publishingAiApi, publishingApi, youtubeApi, type FacebookUploads, type Propagation, type PublicationLamp, type PublicationMetadata, type PublicationView, type StudioAsset, type YouTubeChannel, type YouTubeUploads } from "@/lib/api";
 import { AiPanel, ApprovePlanPanel, CalendarPanel, Preview } from "./publishing-intelligence";
 import { InstagramConnectionPanel } from "./instagram-connection";
 import { ConnectAll, LampReport, PORTALS, PublishingStatus, TestAll, usePortalLamps, type Portal } from "./publishing-portals";
 import { TabBar } from "@/components/ui/tabs";
+import { FACEBOOK_ACTIVE, FacebookConnectionPanel, FacebookUpload } from "./facebook-publishing";
+import { CoverTriptych, useNewCovers, type NewCover, type NewCovers } from "./cover-triptych";
+import { PlacementPreviews } from "./placement-previews";
 import { ACTIVE_UPLOAD, YouTubeChannelsPanel, YouTubeUpload } from "./youtube-publishing";
 import { useApi } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +50,19 @@ function megabytes(bytes: number | null) {
 const tagsText = (tags: string[]) => tags.join(" ");
 const parseTags = (text: string) => text.split(/[\s,،]+/).filter(Boolean);
 const chaptersText = (items: { time: string; title: string }[]) => items.map((c) => `${c.time} ${c.title}`).join("\n");
+/** A text field that is as tall as its text, so the whole of a title, caption or hashtag line is visible without scrolling (right to left for Persian and Arabic). `single` keeps a one-line field one line (Enter does nothing). */
+function AutoText({ label, value, onChange, disabled, language, single = false }: { label: string; value: string; onChange: (value: string) => void; disabled: boolean; language: string; single?: boolean }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const fit = () => { const el = ref.current; if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight + 2}px`; } };
+  useLayoutEffect(fit, [value]);
+  useEffect(() => { window.addEventListener("resize", fit); return () => window.removeEventListener("resize", fit); }, []);
+  return (
+    <textarea ref={ref} rows={1} aria-label={label} value={value} disabled={disabled} lang={language} dir={language === "fa" || language === "ar" ? "rtl" : "ltr"} spellCheck={false}
+      onChange={(e) => onChange(single ? e.target.value.replace(/\n/g, " ") : e.target.value)} onKeyDown={(e) => { if (single && e.key === "Enter") e.preventDefault(); }}
+      className="mt-1 block w-full resize-none overflow-hidden rounded border border-border bg-background px-2 py-1 text-sm font-normal leading-7" />
+  );
+}
+
 const parseChapters = (text: string) => text.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => ({ time: l.split(/\s+/)[0], title: l.split(/\s+/).slice(1).join(" ") }));
 const SOURCE_LABEL = { default: "default text", ai: "AI-written", owner: "edited by you" } as const;
 
@@ -90,12 +106,12 @@ function PublicationCard({ pub, language, advice, onChanged, extra }: { pub: Pub
     return reasons.length > 0 ? reasons.join("; ") : `Not available while the publication is ${pub.status.replace("_", " ")}.`;
   };
 
-  const run = async (work: () => Promise<unknown>, done: string) => {
+  const run = async (work: () => Promise<unknown>, done: string | ((result: unknown) => string)) => {
     setBusy(true);
     setMessage(null);
     try {
-      await work();
-      setMessage({ tone: "ok", text: done });
+      const result = await work();
+      setMessage({ tone: "ok", text: typeof done === "function" ? done(result) : done });
     } catch (e) {
       const reasons = e instanceof ApiError && e.data && typeof e.data === "object" && Array.isArray((e.data as { reasons?: unknown }).reasons)
         ? ((e.data as { reasons: string[] }).reasons) : [];
@@ -105,6 +121,15 @@ function PublicationCard({ pub, language, advice, onChanged, extra }: { pub: Pub
       onChanged();
     }
   };
+
+  const named = (c: { platform: string; kind: string }) => `${PLATFORM_LABEL[c.platform] ?? c.platform}${c.kind === "film" ? " film" : ""}`;
+  /** What a save did: the correction is made on the other portals too, and the message names each one (and what could not be carried over). */
+  const saved = (p: Propagation) => [
+    "Saved.",
+    p.changed.length > 0 && `The same correction was made on ${p.changed.map(named).join(", ")}; ${p.changed.length === 1 ? "that text is" : "those texts are"} yours now and need${p.changed.length === 1 ? "s" : ""} approving again.`,
+    p.skipped.length > 0 && `Not changed because they are already on the platform: ${p.skipped.map((s) => `${named(s)} (${s.reason})`).join(", ")}.`,
+    p.unplaced > 0 && `${p.unplaced} added or deleted piece${p.unplaced === 1 ? "" : "s"} of text ${p.unplaced === 1 ? "was" : "were"} not copied (they have no place in the other texts): change the other portals by hand.`,
+  ].filter(Boolean).join(" ");
 
   return (
     <div className="space-y-3 rounded-md border border-border p-3" data-testid={`publication-${pub.platform}-${pub.kind}-${pub.asset_key}`}>
@@ -119,6 +144,11 @@ function PublicationCard({ pub, language, advice, onChanged, extra }: { pub: Pub
         <span className="text-xs text-muted-foreground" data-testid="file-note">{pub.prepared_copy ? "prepared copy" : "original file"} · hash {pub.content_hash || "-"} · {pub.cover.approved ? "cover approved" : "no approved cover"}</span>
       </div>
 
+      {pub.status === "ready" && (
+        <p className="rounded border border-amber-500/40 bg-amber-500/5 px-2 py-1 text-xs" data-testid="ready-edit-note">
+          This one is already uploaded and not public. You can still correct its text here (a correction is made on the other portals too); its time and visibility no longer change, and there is nothing left to approve. The video on {PLATFORM_LABEL[pub.platform] ?? pub.platform} keeps the text it was finished with.
+        </p>
+      )}
       {pub.suggestion && (
         <div className="flex flex-wrap items-center gap-2 rounded border border-indigo-500/30 bg-indigo-500/5 px-2 py-1 text-xs" data-testid="suggestion">
           <span>A different AI version of this text exists.</span>
@@ -127,33 +157,27 @@ function PublicationCard({ pub, language, advice, onChanged, extra }: { pub: Pub
       )}
       {pub.limit.title_max > 0 && (
         <label className="block text-xs font-medium">Title <span className="font-normal text-muted-foreground">{title.length} / {pub.limit.title_max}{pub.limit.title_required ? " · required" : ""}</span>
-          <input aria-label={`Title ${label}`} value={title} disabled={!editable} onChange={(e) => setTitle(e.target.value)} dir={language === "fa" || language === "ar" ? "rtl" : "ltr"}
-            className="mt-1 block w-full rounded border border-border bg-background px-2 py-1 text-sm font-normal" />
+          <AutoText label={`Title ${label}`} value={title} disabled={!editable} onChange={setTitle} language={language} single />
         </label>
       )}
       <label className="block text-xs font-medium">Caption <span className="font-normal text-muted-foreground" data-testid="caption-count">{posted} / {pub.limit.text_max} with hashtags{pub.limit.evidence === "unverified" ? " (limit not verified)" : ""}</span>
-        <textarea aria-label={`Caption ${label}`} value={caption} disabled={!editable} onChange={(e) => setCaption(e.target.value)} dir={language === "fa" || language === "ar" ? "rtl" : "ltr"}
-          className="mt-1 block min-h-16 w-full rounded border border-border bg-background px-2 py-1 text-sm font-normal" />
+        <AutoText label={`Caption ${label}`} value={caption} disabled={!editable} onChange={setCaption} language={language} />
       </label>
       <label className="block text-xs font-medium">Hashtags <span className="font-normal text-muted-foreground">{parseTags(hashtags).length} (at most {pub.limit.hashtags_max}, {pub.limit.hashtags_recommended} recommended)</span>
-        <input aria-label={`Hashtags ${label}`} value={hashtags} disabled={!editable} onChange={(e) => setHashtags(e.target.value)} dir={language === "fa" || language === "ar" ? "rtl" : "ltr"}
-          className="mt-1 block w-full rounded border border-border bg-background px-2 py-1 text-sm font-normal" />
+        <AutoText label={`Hashtags ${label}`} value={hashtags} disabled={!editable} onChange={setHashtags} language={language} single />
       </label>
       {pub.limit.keywords_max_chars > 0 && (
         <label className="block text-xs font-medium">Keywords <span className="font-normal text-muted-foreground">at most {pub.limit.keywords_max_chars} characters</span>
-          <input aria-label={`Keywords ${label}`} value={keywords} disabled={!editable} onChange={(e) => setKeywords(e.target.value)} dir={language === "fa" || language === "ar" ? "rtl" : "ltr"}
-            className="mt-1 block w-full rounded border border-border bg-background px-2 py-1 text-sm font-normal" />
+          <AutoText label={`Keywords ${label}`} value={keywords} disabled={!editable} onChange={setKeywords} language={language} single />
         </label>
       )}
       {pub.limit.chapters && pub.kind === "film" && (
         <label className="block text-xs font-medium">Chapters <span className="font-normal text-muted-foreground">one per line: time, then title (the times come from the film)</span>
-          <textarea aria-label={`Chapters ${label}`} value={chapters} disabled={!editable} onChange={(e) => setChapters(e.target.value)} dir={language === "fa" || language === "ar" ? "rtl" : "ltr"}
-            className="mt-1 block min-h-16 w-full rounded border border-border bg-background px-2 py-1 text-sm font-normal" />
+          <AutoText label={`Chapters ${label}`} value={chapters} disabled={!editable} onChange={setChapters} language={language} />
         </label>
       )}
       <label className="block text-xs font-medium">Call to action
-        <input aria-label={`Call to action ${label}`} value={cta} disabled={!editable} onChange={(e) => setCta(e.target.value)} dir={language === "fa" || language === "ar" ? "rtl" : "ltr"}
-          className="mt-1 block w-full rounded border border-border bg-background px-2 py-1 text-sm font-normal" />
+        <AutoText label={`Call to action ${label}`} value={cta} disabled={!editable} onChange={setCta} language={language} single />
       </label>
       {pub.metadata_findings.length > 0 && (
         <ul className="space-y-0.5 text-xs" data-testid="metadata-findings">
@@ -165,18 +189,19 @@ function PublicationCard({ pub, language, advice, onChanged, extra }: { pub: Pub
       )}
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs font-medium">Publish at (local time of the language)
-          <input aria-label={`Publish at ${label}`} type="datetime-local" value={local} disabled={!editable} onChange={(e) => setLocal(e.target.value)}
+          <input aria-label={`Publish at ${label}`} type="datetime-local" value={local} disabled={!editable || pub.status === "ready"} onChange={(e) => setLocal(e.target.value)}
             className="mt-1 block rounded border border-border bg-background px-2 py-1 text-sm font-normal" />
         </label>
         <label className="text-xs font-medium">Visibility
-          <Select aria-label={`Visibility ${label}`} value={visibility} disabled={!editable} onChange={(e) => setVisibility(e.target.value)} className="mt-1 w-32">
+          <Select aria-label={`Visibility ${label}`} value={visibility} disabled={!editable || pub.status === "ready"} onChange={(e) => setVisibility(e.target.value)} className="mt-1 w-32">
             <option value="private">private</option>
             <option value="unlisted">unlisted</option>
             <option value="public">public</option>
           </Select>
         </label>
         <Button type="button" variant="outline" size="sm" className={DISABLED} title={dirty ? undefined : "Nothing to save."} disabled={!dirty || busy || !editable}
-          onClick={() => void run(() => publishingApi.edit(pub.id, { caption, scheduled_local: local || undefined, clear_schedule: !local && pub.scheduled_local != null, visibility, ...(metadataDirty ? { metadata: metadataBody() } : {}) }), "Saved.")}>
+          onClick={() => void run(() => publishingApi.edit(pub.id, { caption, scheduled_local: local || undefined, clear_schedule: !local && pub.scheduled_local != null, visibility, ...(metadataDirty ? { metadata: metadataBody() } : {}) }),
+            (result) => saved((result as { propagation: Propagation }).propagation))}>
           Save changes
         </Button>
       </div>
@@ -248,36 +273,49 @@ function PublicationCard({ pub, language, advice, onChanged, extra }: { pub: Pub
   );
 }
 
-function CoverBlock({ caseId, language, asset, onChanged }: { caseId: number; language: string; asset: StudioAsset; onChanged: () => void }) {
+function CoverBlock({ caseId, language, asset, newCover, onChanged }: { caseId: number; language: string; asset: StudioAsset; newCover?: NewCover; onChanged: () => void }) {
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const key = asset.kind === "film" ? "long" : asset.key;
   const make = async () => {
     setBusy(true); setNote(null); setAsking(false);
-    try { await api.makeCoverImage(caseId, language, key, true); setNote("A new picture was made. Approve it in the Covers tab of the documentary workspace; this Studio then uses it."); } catch (e) { setNote(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); onChanged(); }
+    try { await api.makeCoverImage(caseId, language, key, true); setNote("A new picture was made and the planner's cover is approved by default. If you changed this cover yourself, approve it in the Covers tab of the documentary workspace."); } catch (e) { setNote(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); onChanged(); }
   };
   return (
     <div className="space-y-1 text-xs" data-testid={`cover-${asset.key}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- the cover is served by our own API, not an optimizable static asset */}
-      {asset.cover_url ? <img src={apiFileUrl(asset.cover_url)} alt={`Cover ${asset.key}`} className={asset.kind === "film" ? "aspect-video w-48 rounded object-cover" : "aspect-[9/16] w-20 rounded object-cover"} /> : <p className="text-muted-foreground">No cover picture yet.</p>}
-      <p className="text-muted-foreground">Cover: {asset.cover_state}</p>
-      {asking ? (
-        <span className="flex items-center gap-2">Asks the image model (paid).
-          <Button type="button" size="sm" onClick={() => void make()}>Yes, make one</Button><Button type="button" size="sm" variant="ghost" onClick={() => setAsking(false)}>Cancel</Button></span>
-      ) : (
-        <Button type="button" size="sm" variant="outline" className={DISABLED} disabled={busy} onClick={() => setAsking(true)}>{busy ? "Making…" : "Generate an alternative cover"}</Button>
+      {newCover && (
+        <div className="space-y-1" data-testid={`new-cover-${asset.key}`}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- the cover is served by our own API */}
+          <img src={newCover.url} alt={`New cover ${asset.key}`} className={asset.kind === "film" ? "aspect-video w-64 rounded border border-border object-cover" : "aspect-[9/16] w-32 rounded border border-border object-cover"} />
+          <p className="max-w-64 text-muted-foreground"><span className="font-medium text-foreground">New cover</span> · {asset.kind === "film" ? "film" : "reel"} v{newCover.version} ({newCover.status}). A proposal: it is not uploaded anywhere yet.</p>
+        </div>
+      )}
+      {!newCover && (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element -- the cover is served by our own API, not an optimizable static asset */}
+          {asset.cover_url ? <img src={apiFileUrl(asset.cover_url)} alt={`Cover ${asset.key}`} className={asset.kind === "film" ? "aspect-video w-48 rounded object-cover" : "aspect-[9/16] w-20 rounded object-cover"} /> : <p className="text-muted-foreground">No cover picture yet.</p>}
+          <p className="text-muted-foreground">Cover: {asset.cover_state}</p>
+          {asking ? (
+            <span className="flex items-center gap-2">Asks the image model (paid).
+              <Button type="button" size="sm" onClick={() => void make()}>Yes, make one</Button><Button type="button" size="sm" variant="ghost" onClick={() => setAsking(false)}>Cancel</Button></span>
+          ) : (
+            <Button type="button" size="sm" variant="outline" className={DISABLED} disabled={busy} onClick={() => setAsking(true)}>{busy ? "Making…" : "Generate an alternative cover"}</Button>
+          )}
+        </>
       )}
       {note && <p role="status" className="max-w-56 text-muted-foreground">{note}</p>}
     </div>
   );
 }
 
+type FacebookProps = { uploads: FacebookUploads | null; refetchUploads: () => void };
 type YouTubeProps = { uploads: YouTubeUploads | null; status: YouTubeChannel | null; refetchUploads: () => void; filmUrl: string | null };
 
-function AssetBlock({ caseId, asset, language, advice, onChanged, youtube, platform }: { caseId: number; asset: StudioAsset; language: string; advice: Record<string, { method: string; reason: string }>; onChanged: () => void; youtube: YouTubeProps | null; platform?: string }) {
+function AssetBlock({ caseId, asset, language, advice, onChanged, youtube, facebook, platform }: { caseId: number; asset: StudioAsset; language: string; advice: Record<string, { method: string; reason: string }>; onChanged: () => void; youtube: YouTubeProps | null; facebook: FacebookProps | null; platform?: string }) {
   const publications = platform ? asset.publications.filter((p) => p.platform === platform) : asset.publications;
-  if (platform && publications.length === 0) return null;
+  const [coverTick, setCoverTick] = useState(0);
+  const newCovers: NewCovers = useNewCovers(caseId, language, asset.kind === "short" ? asset.key : "long", coverTick);
   return (
     <div id={`asset-view-${asset.key}`} className="scroll-mt-4">
     <Card data-testid={`asset-${asset.key}`}>
@@ -288,12 +326,15 @@ function AssetBlock({ caseId, asset, language, advice, onChanged, youtube, platf
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-start gap-4">
           <Preview url={asset.preview_url} kind={asset.kind} />
-          <CoverBlock caseId={caseId} language={language} asset={asset} onChanged={onChanged} />
+          <CoverBlock caseId={caseId} language={language} asset={asset} newCover={asset.kind === "short" ? newCovers.reel : newCovers.film} onChanged={onChanged} />
         </div>
+        {asset.kind === "short" && <PlacementPreviews coverUrl={asset.cover_url} covers={newCovers} label={asset.key} />}
+        {<CoverTriptych caseId={caseId} language={language} coverKey={asset.kind === "film" ? "long" : asset.key} onChanged={() => { setCoverTick((t) => t + 1); onChanged(); }} />}
         {publications.length === 0
-          ? <p className="text-sm text-muted-foreground">Not planned yet. Create the plan to see its destinations.</p>
+          ? <p className="text-sm text-muted-foreground">Not planned yet: this language has no publishing plan, so there is nothing to approve or publish here.</p>
           : publications.map((pub) => <PublicationCard key={pub.id} pub={pub} language={language} advice={advice[`${pub.platform}/${pub.kind}`]} onChanged={onChanged}
-              extra={pub.platform === "youtube" && youtube ? <YouTubeUpload pub={pub} onChanged={onChanged} {...youtube} /> : undefined} />)}
+              extra={pub.platform === "youtube" && youtube ? <YouTubeUpload pub={pub} onChanged={onChanged} {...youtube} />
+                : pub.platform === "facebook" && facebook ? <FacebookUpload pub={pub} onChanged={onChanged} coverUrl={asset.cover_url} caseId={caseId} language={language} {...facebook} /> : undefined} />)}
       </CardContent>
     </Card>
     </div>
@@ -319,6 +360,14 @@ export function PublishingTab({ caseId }: { caseId: number }) {
     const timer = setInterval(() => { refetchUploads(); refetch(); }, 3000);
     return () => clearInterval(timer);
   }, [uploadActive, refetchUploads, refetch]);
+  const fbUploads = useApi(() => facebookApi.uploads(caseId, language), [caseId, language], { keepPrevious: true });
+  const refetchFacebook = fbUploads.refetch;
+  const facebookActive = Object.values(fbUploads.data?.uploads ?? {}).some((u) => u.session !== null && FACEBOOK_ACTIVE.includes(u.session.status));
+  useEffect(() => {
+    if (!facebookActive) return;
+    const timer = setInterval(() => { refetchFacebook(); refetch(); }, 3000);
+    return () => clearInterval(timer);
+  }, [facebookActive, refetchFacebook, refetch]);
   const [startDate, setStartDate] = useState("");
   const [planning, setPlanning] = useState(false);
   const initial = (name: string, allowed: readonly string[], fallback: string) => { const v = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get(name); return v && allowed.includes(v) ? v : fallback; };
@@ -390,19 +439,21 @@ export function PublishingTab({ caseId }: { caseId: number }) {
   const returnTo = base;
   const studioReturnTo = `${base}&studio=${encodeURIComponent(studioView)}`;
   const youtubeProps: YouTubeProps | null = youtubeOn ? { uploads: yt.data ?? null, status: ytChannels.data?.channels.find((c) => c.language === language) ?? null, refetchUploads, filmUrl } : null;
-  const visibleAssets = data.assets.filter((a) => !portal || a.publications.some((p) => p.platform === portal.toLowerCase()));
+  // a language without a plan has no publications yet, but its film and Shorts exist: they are shown (the film only on the portals that take one) so the video and cover can be seen
+  const takesFilm = portal === "YouTube" || portal === "Facebook";
+  const visibleAssets = data.assets.filter((a) => !portal || (data.planned ? a.publications.some((p) => p.platform === portal.toLowerCase()) : a.kind === "short" || takesFilm));
 
   const scheduleInfo = data.scheduled && data.schedule ? (
     <p className="text-muted-foreground">
       Schedule: {data.schedule.publish_time_local} ({data.schedule.timezone}) · an approval is valid for {data.approval_max_age_days} days · automatic window {data.missed_window_minutes} minutes.
-      Nothing here publishes: this is the plan and its approvals. A YouTube upload is private and needs your typed confirmation.
+      Persian publications need your approval (Approve content, then Approve publication) before they are uploaded or published; every other language is approved by default when nothing blocks it. An approved publication is published at its planned time when automatic publishing is on ({fbUploads.data?.automatic_publishing ? "it is on" : "it is off"}), or when you press Publish now on it. A YouTube upload is private and needs your typed confirmation.
     </p>
   ) : <p className="text-amber-700 dark:text-amber-400">This language has no publishing schedule (config/publishing.json), so its publishing is not active.</p>;
 
   const content = visibleAssets.length === 0
     ? <EmptyState title={portal ? `Nothing to publish on ${portal} yet` : "Nothing to publish yet"} description={portal ? `This language has no ${portal} content for this case.` : "This language has no film and no valid ShortClip for this case."} />
     : visibleAssets.map((asset) => <AssetBlock key={`${asset.kind}-${asset.key}`} caseId={caseId} asset={asset} language={language} advice={ai.data?.latest?.result?.analysis.routing ?? {}} onChanged={refetch}
-        youtube={youtubeProps} platform={portal ? portal.toLowerCase() : undefined} />);
+        youtube={youtubeProps} facebook={{ uploads: fbUploads.data ?? null, refetchUploads: refetchFacebook }} platform={portal ? portal.toLowerCase() : undefined} />);
 
   const connection = (
     <div className="space-y-4">
@@ -410,6 +461,7 @@ export function PublishingTab({ caseId }: { caseId: number }) {
       <TabBar tabs={CONNS} value={conn} onChange={choose(setConn, "conn")} idPrefix="publishing-conn" label="Connection views" />
       {conn === "Languages" && (portal === "YouTube" ? <YouTubeChannelsPanel channels={ytChannels.data?.channels ?? null} onChanged={ytChannels.refetch} language={language} returnTo={returnTo} />
         : portal === "Instagram" ? <InstagramConnectionPanel language={language} returnTo={returnTo} />
+        : portal === "Facebook" ? <FacebookConnectionPanel language={language} onChanged={portals.refetch} />
         : <Card><CardContent className="pt-4 text-sm text-muted-foreground">The {portal} connection is not built yet: no account can be connected here, and nothing can be published to {portal}.</CardContent></Card>)}
       {conn === "Connect all" && <ConnectAll portals={scope} returnTo={returnTo} lamps={portals.lamps} loaded={portals.loaded} />}
       {conn === "Test all" && <TestAll portals={scope} lamps={portals.lamps} onDone={portals.refetch} />}
