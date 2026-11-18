@@ -50,7 +50,8 @@ class UploadSettings(BaseModel):
 
     initial_privacy: Literal["private"]
     public_after_processing: bool                    # owner decision 2026-11-18: a video that was uploaded private, processed and given its thumbnail and subtitles is made public at once
-    category_id: str
+    category_id: str                                  # 1 is "Film & Animation" (videoCategories)
+    studio_url: str                                   # where a video is edited by hand in YouTube Studio ({video_id}); the related video of a Short is set there
     self_declared_made_for_kids: bool
     contains_synthetic_media: bool
     chunk_bytes: int = Field(gt=0)

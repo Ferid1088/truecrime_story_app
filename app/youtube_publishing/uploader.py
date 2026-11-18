@@ -311,12 +311,28 @@ class YouTubeUploader:
         except (YouTubeError, OAuthError) as exc:
             self._save(session, error=f"The video is processed but could not be made public: {self.oauth.tokens.redact(str(exc))[:200]}", required_action="make_public")
             return
-        pub.visibility, pub.status, pub.published_at = "public", "published", utc_now()
-        self._save(session, privacy="public", error=None, required_action=None)
-        self._event(pub, "youtube_made_public", session.remote_video_id, session_id=session.id)
+        self._became_public(session, pub, "public", "youtube_made_public")
+
+    def _became_public(self, session: YouTubeUploadSession, pub: Publication, privacy: str, decision: str) -> None:
+        pub.visibility, pub.status, pub.published_at = privacy, "published", pub.published_at or utc_now()
+        self._save(session, privacy=privacy, error=None, required_action=None)
+        self._event(pub, decision, session.remote_video_id, session_id=session.id)
         self.db.commit()
         if pub.kind == "film" and pub.video_id:
             self._record_film(pub)
+
+    async def sync_visibility(self, publication_id: int) -> str:
+        """Read the visibility of the uploaded video from YouTube (a video can be made public or unlisted in Studio) and bring this application's record in line. Returns what YouTube says."""
+        session, pub = self.session_of(publication_id), self.registry.get(publication_id)
+        if session is None or not session.remote_video_id or session.status not in ("uploaded", "processing", "processed"):
+            raise Refused("no_video", "This publication has no video on YouTube yet.")
+        try:
+            privacy = (await self.client.video(session.remote_video_id))["status"]["privacyStatus"]
+        except (YouTubeError, OAuthError) as exc:
+            raise Refused("sync_failed", self.oauth.tokens.redact(str(exc))) from exc
+        if privacy in ("public", "unlisted") and pub.status != "published":
+            self._became_public(session, pub, privacy, "youtube_found_public")
+        return privacy
 
     def _record_film(self, pub: Publication) -> None:
         """Mirror the public film in its `videos` row (its own publish rules apply there). A refusal there never undoes what is public: it is recorded for the owner."""
@@ -341,6 +357,23 @@ class YouTubeUploader:
         except (YouTubeError, OAuthError) as exc:
             self._fail(session, pub, exc)
         return session
+
+    async def set_category(self, publication_id: int) -> bool:
+        """Give the uploaded video the configured category (config upload.category_id). True when it was changed, False when it had that category already; the rest of the video is untouched."""
+        session = self.session_of(publication_id)
+        if session is None or not session.remote_video_id or session.status not in ("uploaded", "processing", "processed"):
+            raise Refused("no_video", "This publication has no video on YouTube yet.")
+        pub = self.registry.get(publication_id)
+        try:
+            video = await self.client.video(session.remote_video_id)
+            if video["snippet"].get("categoryId") == self.cfg.upload.category_id:
+                return False
+            await self.client.set_category(video, self.cfg.upload.category_id)
+        except (YouTubeError, OAuthError) as exc:
+            raise Refused("category_failed", self.oauth.tokens.redact(str(exc))) from exc
+        self._event(pub, "youtube_category_set", self.cfg.upload.category_id, session_id=session.id)
+        self.db.commit()
+        return True
 
     async def replace_thumbnail(self, publication_id: int) -> YouTubeUploadSession:
         """Put the publication's current approved cover on the video that is already on YouTube (thumbnails.set; the video itself is not touched). The cover is taken from the registry again, so a cover

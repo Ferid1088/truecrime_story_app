@@ -161,7 +161,8 @@ def uploads(case_id: int, language: str, db: Session = Depends(get_db)):
     out = {}
     for pub in db.query(Publication).filter_by(case_id=case_id, language=language, platform="youtube").all():
         out[str(pub.id)] = {"publication_id": pub.id, "asset_key": pub.asset_key, "kind": pub.kind, "confirmation": confirmation_text(pub.id, channel_id) if channel_id else None,
-                            "session": session_view(latest_session(db, pub.id)), "remote_url": pub.remote_url}
+                            "session": session_view(latest_session(db, pub.id)), "remote_url": pub.remote_url,
+                            "studio_url": youtube_config().upload.studio_url.format(video_id=pub.remote_id) if pub.remote_id else None}
     return {"channel_id": channel_id, "live_enabled": youtube_config().live_enabled, "uploads": out}
 
 
@@ -197,6 +198,23 @@ async def replace_thumbnail(publication_id: int, db: Session = Depends(get_db)):
     except (OAuthError, YouTubeError) as exc:
         raise HTTPException(status_code=502, detail={"message": str(exc), "reason": exc.reason}) from exc
 
+
+@router.post("/publications/{publication_id}/sync")
+async def sync_visibility(publication_id: int, db: Session = Depends(get_db)):
+    """Read the video's visibility from YouTube (a read) and bring the application's record in line, for a video that was made public or unlisted in Studio."""
+    try:
+        return {"privacy": await uploader_for(db, publication_id).sync_visibility(publication_id)}
+    except Refused as exc:
+        raise _refusal(exc) from exc
+
+
+@router.post("/publications/{publication_id}/category")
+async def set_category(publication_id: int, db: Session = Depends(get_db)):
+    """Give the video on YouTube the configured category (about 50 quota units); only the category changes."""
+    try:
+        return {"changed": await uploader_for(db, publication_id).set_category(publication_id)}
+    except Refused as exc:
+        raise _refusal(exc) from exc
 
 @router.post("/publications/{publication_id}/check-processing")
 async def check_processing(publication_id: int, db: Session = Depends(get_db)):

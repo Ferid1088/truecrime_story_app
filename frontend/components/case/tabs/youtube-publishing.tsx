@@ -103,8 +103,8 @@ export function YouTubeChannelsPanel({ channels, onChanged, returnTo, language }
   );
 }
 
-export function YouTubeUpload({ pub, uploads, status, onChanged, refetchUploads, filmUrl }:
-  { pub: PublicationView; uploads: YouTubeUploads | null; status: YouTubeChannel | null; onChanged: () => void; refetchUploads: () => void; filmUrl: string | null }) {
+export function YouTubeUpload({ pub, uploads, status, onChanged, refetchUploads, filmUrl, filmPrivate }:
+  { pub: PublicationView; uploads: YouTubeUploads | null; status: YouTubeChannel | null; onChanged: () => void; refetchUploads: () => void; filmUrl: string | null; filmPrivate: boolean }) {
   const entry = uploads?.uploads[String(pub.id)];
   const session: YouTubeSession | null = entry?.session ?? null;
   const [typed, setTyped] = useState("");
@@ -168,9 +168,13 @@ export function YouTubeUpload({ pub, uploads, status, onChanged, refetchUploads,
       )}
       {message && <p role="status" className={message.tone === "ok" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}>{message.text}</p>}
       {related && (
-        <div className="space-y-0.5 rounded border border-dashed border-border p-2" data-testid="youtube-related-manual">
-          <p className="font-medium">Related Video: manual action in YouTube Studio</p>
-          <p className="text-muted-foreground">No YouTube Data API field was found for a Short&apos;s related video (none in videos.insert), so this is done by hand: Studio → Content → open this Short → Related video → choose the documentary{filmUrl ? <> ({filmUrl})</> : ""}. After that, record how you checked it in the routing row below; it is never marked verified without that note.</p>
+        <div className="space-y-1 rounded border border-dashed border-border p-2" data-testid="youtube-related-manual">
+          <p className="font-medium">Related video: set by hand in YouTube Studio (YouTube has no API for it)</p>
+          <p className="text-muted-foreground">Open this Short in Studio, click the pencil next to <em>Related video</em> in the right column and choose the full film{filmUrl ? <> ({filmUrl})</> : ""}. The channel needs advanced features (Settings → Channel → Feature eligibility), and the film must be public or unlisted. Then record below how you checked it; it is never marked verified without that note.</p>
+          {filmPrivate && <p className="text-amber-700 dark:text-amber-400" data-testid="youtube-related-film-private">The film is still private: Studio will not offer it until it is public or unlisted.</p>}
+          {entry.studio_url && pub.remote_url && (
+            <a href={entry.studio_url} target="_blank" rel="noreferrer" className="inline-block font-medium underline" data-testid="youtube-related-studio-link">Open this Short in YouTube Studio</a>
+          )}
         </div>
       )}
     </div>

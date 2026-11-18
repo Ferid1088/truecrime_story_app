@@ -50,6 +50,8 @@ class FakeGoogle:
         self.video_id = "VID123abc"
         self.gone = False
         self.updates: list[dict] = []
+        self.snippet_updates: list[dict] = []
+        self.category = "25"
         self.refuse_public = False
 
     def client(self) -> httpx.AsyncClient:
@@ -84,6 +86,10 @@ class FakeGoogle:
             return self._session(request, str(url))
         if path == "/youtube/v3/videos" and request.method == "PUT":
             body = json.loads(request.content)
+            if parse_qs(url.query.decode()).get("part") == ["snippet"]:
+                self.category = body["snippet"]["categoryId"]
+                self.snippet_updates.append(body)
+                return httpx.Response(200, json={"id": body["id"], "snippet": body["snippet"]})
             if self.refuse_public:
                 return httpx.Response(403, json={"error": {"errors": [{"reason": "forbidden"}], "message": "no"}})
             self.privacy = body["status"]["privacyStatus"]
@@ -93,7 +99,8 @@ class FakeGoogle:
             step = self.processing[0] if len(self.processing) == 1 else self.processing.pop(0)
             if self.gone:
                 return httpx.Response(200, json={"items": []})
-            return httpx.Response(200, json={"items": [{"id": self.video_id, "status": {"privacyStatus": self.privacy, "uploadStatus": "processed" if step["processingStatus"] == "succeeded" else "uploaded"},
+            return httpx.Response(200, json={"items": [{"id": self.video_id, "snippet": {"title": "T", "description": "D\nhttps://x", "tags": ["a"], "defaultLanguage": "fa", "categoryId": self.category},
+                                                        "status": {"privacyStatus": self.privacy, "uploadStatus": "processed" if step["processingStatus"] == "succeeded" else "uploaded"},
                                                         "processingDetails": step}]})
         if path == "/upload/youtube/v3/thumbnails/set":
             self.thumbnails.append(parse_qs(url.query.decode())["videoId"][0])
@@ -406,6 +413,31 @@ def test_a_processed_video_is_made_public_at_once_when_the_config_says_so_and_a_
     session = run(world, google, other)
     other = pub(world, "youtube", "short", "C2")
     assert other.status == "ready" and session.privacy == "private" and session.required_action == "make_public" and "could not be made public" in session.error
+
+
+def test_the_category_of_an_uploaded_video_is_changed_alone_and_only_when_it_differs(world, google):
+    connect(google)
+    google.cfg.upload.category_id = "1"
+    p = approved_short(world)
+    run(world, google, p)
+    assert asyncio.run(uploader(world, google).set_category(p.id)) is True
+    assert google.fake.snippet_updates == [{"id": "VID123abc", "snippet": {"title": "T", "description": "D\nhttps://x", "tags": ["a"], "defaultLanguage": "fa", "categoryId": "1"}}]    # nothing else was lost
+    assert asyncio.run(uploader(world, google).set_category(p.id)) is False and len(google.fake.snippet_updates) == 1                  # it has the category: no second call
+    with pytest.raises(Refused) as refused:
+        asyncio.run(uploader(world, google).set_category(pub(world, "youtube", "short", "C2").id))
+    assert refused.value.reason == "no_video"
+
+
+def test_a_video_made_public_in_studio_is_found_public_and_recorded_so(world, google):
+    connect(google)
+    p = approved_short(world)
+    run(world, google, p)
+    assert asyncio.run(uploader(world, google).sync_visibility(p.id)) == "private" and pub(world, "youtube", "short", "C1").status == "ready"
+    google.fake.privacy = "public"                                                                      # the owner made it public in YouTube Studio
+    assert asyncio.run(uploader(world, google).sync_visibility(p.id)) == "public"
+    found = pub(world, "youtube", "short", "C1")
+    assert (found.status, found.visibility) == ("published", "public") and found.published_at is not None
+    assert [e.decision for e in world.db.query(PolicyEvent).filter_by(case_id=world.case.id).order_by(PolicyEvent.id).all()][-1] == "youtube_found_public"
 
 
 # --- 3. interruption, resume, restart ---------------------------------------------------------------------------------------------------------------------

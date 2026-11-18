@@ -18,6 +18,7 @@ from app.db.models import (
 from app.publishing.config import publishing_config
 from app.publishing.vocabulary import EventCategory, RoutingStatus
 from app.utils import utc_now
+from app.youtube_publishing.config import youtube_config
 
 _MANUAL_METHODS = {"related_video", "link_post", "description_link", "profile_link", "comment_to_dm"}
 
@@ -60,8 +61,9 @@ def publishing_issues(db: Session, case_id: int | None = None, *, exclude_cases:
             open_links = db.query(RoutingLink).filter(RoutingLink.publication_id == pub.id, RoutingLink.method.in_(_MANUAL_METHODS),
                                                       RoutingLink.status.in_([RoutingStatus.URL_RECORDED.value, RoutingStatus.MANUAL_ACTION_REQUIRED.value])).all()
             if open_links:
+                studio = f" Set it in YouTube Studio: {youtube_config().upload.studio_url.format(video_id=pub.remote_id)}" if pub.platform == "youtube" and pub.remote_id else ""
                 raise_issue(EventCategory.ROUTING_ACTION_REQUIRED, pub, f"A link still needs doing: {what}",
-                            "; ".join(f"{link.method} to {link.target_destination}" for link in open_links))
+                            "; ".join(f"{link.method} to {link.target_destination}" for link in open_links) + "." + studio)
     runs = db.query(PublishingPlanRun)
     if case_id is not None:
         runs = runs.filter(PublishingPlanRun.case_id == case_id)

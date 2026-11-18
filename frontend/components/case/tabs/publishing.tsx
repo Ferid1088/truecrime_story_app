@@ -310,7 +310,7 @@ function CoverBlock({ caseId, language, asset, newCover, onChanged }: { caseId: 
 }
 
 type FacebookProps = { uploads: FacebookUploads | null; refetchUploads: () => void };
-type YouTubeProps = { uploads: YouTubeUploads | null; status: YouTubeChannel | null; refetchUploads: () => void; filmUrl: string | null };
+type YouTubeProps = { uploads: YouTubeUploads | null; status: YouTubeChannel | null; refetchUploads: () => void; filmUrl: string | null; filmPrivate: boolean };
 
 function AssetBlock({ caseId, asset, language, advice, onChanged, youtube, facebook, platform }: { caseId: number; asset: StudioAsset; language: string; advice: Record<string, { method: string; reason: string }>; onChanged: () => void; youtube: YouTubeProps | null; facebook: FacebookProps | null; platform?: string }) {
   const publications = platform ? asset.publications.filter((p) => p.platform === platform) : asset.publications;
@@ -418,7 +418,9 @@ export function PublishingTab({ caseId }: { caseId: number }) {
   if (!data && error) return <ErrorState message={error} onRetry={refetch} />;
   if (!data) return null;
 
-  const filmUrl = data.assets.find((a) => a.kind === "film")?.publications.find((p) => p.platform === "youtube")?.remote_url ?? null;
+  const filmPublication = data.assets.find((a) => a.kind === "film")?.publications.find((p) => p.platform === "youtube");
+  const filmUrl = filmPublication?.remote_url ?? null;
+  const filmPrivate = filmPublication?.visibility !== "public" && filmPublication?.visibility !== "unlisted";
 
   const makePlan = async (reset: boolean) => {
     setPlanning(true);
@@ -438,7 +440,7 @@ export function PublishingTab({ caseId }: { caseId: number }) {
   const base = `/cases/${caseId}?tab=Publishing&language=${language}&portal=${encodeURIComponent(section)}&view=${view}&conn=${encodeURIComponent(conn)}`;
   const returnTo = base;
   const studioReturnTo = `${base}&studio=${encodeURIComponent(studioView)}`;
-  const youtubeProps: YouTubeProps | null = youtubeOn ? { uploads: yt.data ?? null, status: ytChannels.data?.channels.find((c) => c.language === language) ?? null, refetchUploads, filmUrl } : null;
+  const youtubeProps: YouTubeProps | null = youtubeOn ? { uploads: yt.data ?? null, status: ytChannels.data?.channels.find((c) => c.language === language) ?? null, refetchUploads, filmUrl, filmPrivate } : null;
   // a language without a plan has no publications yet, but its film and Shorts exist: they are shown (the film only on the portals that take one) so the video and cover can be seen
   const takesFilm = portal === "YouTube" || portal === "Facebook";
   const visibleAssets = data.assets.filter((a) => !portal || (data.planned ? a.publications.some((p) => p.platform === portal.toLowerCase()) : a.kind === "short" || takesFilm));

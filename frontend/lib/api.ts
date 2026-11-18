@@ -1591,7 +1591,7 @@ export type YouTubeSession = {
 };
 export type YouTubeUploads = {
   channel_id: string | null; live_enabled: boolean;
-  uploads: Record<string, { publication_id: number; asset_key: string; kind: string; confirmation: string | null; session: YouTubeSession | null; remote_url: string | null }>;
+  uploads: Record<string, { publication_id: number; asset_key: string; kind: string; confirmation: string | null; session: YouTubeSession | null; remote_url: string | null; studio_url: string | null }>;
 };
 export type FacebookConnection = {
   language: string; brand: string; page: { id: string; name: string }; linked_instagram_id: string; token_source: string | null; token_shared_with: string; connected: boolean; verified: boolean;

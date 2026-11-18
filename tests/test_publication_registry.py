@@ -621,6 +621,17 @@ def test_a_published_short_with_an_open_link_is_a_finding_and_a_scheduled_one_pa
     assert any(t.startswith("Publication window missed: facebook short C2") for t in titles)
 
 
+def test_a_public_youtube_short_without_its_related_video_is_a_finding_with_the_studio_address(world):
+    from app.publishing.monitoring import publishing_issues
+
+    planned(world)
+    short = pub(world, "youtube", "short", "C1")
+    short.status, short.remote_id = "published", "SHORTID1"
+    world.db.commit()
+    detail = next(i.detail for i in publishing_issues(world.db, world.case.id) if i.title.startswith("A link still needs doing: youtube short C1"))
+    assert "related_video to youtube/film" in detail and "https://studio.youtube.com/video/SHORTID1/edit" in detail
+
+
 # --- the release plan reads the one schedule source ----------------------------------------------------------------------------------------------------------------
 
 def _release_world(world):

@@ -36,7 +36,8 @@
   "upload": {
     "initial_privacy": "private",
     "public_after_processing": true,
-    "category_id": "25",
+    "category_id": "1",
+    "studio_url": "https://studio.youtube.com/video/{video_id}/edit",
     "self_declared_made_for_kids": false,
     "contains_synthetic_media": true,
     "chunk_bytes": 8388608,
