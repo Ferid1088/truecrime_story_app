@@ -67,6 +67,7 @@ def test_a_failed_whisper_check_becomes_a_flag_for_a_person(db_session, tmp_path
 def test_a_check_that_could_not_run_is_a_flag_not_a_pass(db_session, tmp_path, monkeypatch):
     from app.documentary.host_scenes import run_scene
 
+    monkeypatch.setattr(ai_config.asr_check, "enabled", True)
     scene = _fa_scene(db_session, tmp_path, monkeypatch)
     renderer = CheckingRenderer(tmp_path)
     renderer.asr = None
@@ -74,10 +75,23 @@ def test_a_check_that_could_not_run_is_a_flag_not_a_pass(db_session, tmp_path, m
     assert json.loads(scene.voice_checks_json)["flags"] == ["asr_unavailable"]
 
 
+def test_a_check_switched_off_in_the_config_is_no_warning(db_session, tmp_path, monkeypatch):
+    from app.documentary.host_scenes import run_scene
+
+    monkeypatch.setattr(ai_config.asr_check, "enabled", False)
+    scene = _fa_scene(db_session, tmp_path, monkeypatch)
+    renderer = CheckingRenderer(tmp_path)
+    renderer.asr = None
+    asyncio.run(run_scene(db_session, scene, "voice", renderer=renderer))
+    checks = json.loads(scene.voice_checks_json)
+    assert checks["flags"] == [] and checks["asr_engine"] is None and scene.voice_seconds > 0
+
+
 def test_a_real_renderer_speaks_the_host_block_through_the_story_path(db_session, tmp_path, monkeypatch):
     """The same speak_block as the story's blocks: a fake provider, no Whisper."""
     from app.documentary.host_scenes import run_scene
 
+    monkeypatch.setattr(ai_config.asr_check, "enabled", True)
     scene = _fa_scene(db_session, tmp_path, monkeypatch)
     voice = FakeVoice()
     asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))

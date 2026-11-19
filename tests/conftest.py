@@ -117,6 +117,14 @@ from app.main import app  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
+def _no_second_look(monkeypatch):
+    """The fake models of the tests answer each request once; the second look (config second_look) has its own tests."""
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.second_look, "agents", [])
+
+
+@pytest.fixture(autouse=True)
 def _provider_ledger_settled():
     """The provider-call ledger is written by a background thread: the rows a test queued are written
     before the next test starts (otherwise they land in its row counts)."""
@@ -440,7 +448,7 @@ def roomy_machine(monkeypatch):
 
     concurrency.reset_throttles()
     monkeypatch.setattr(governor, "sample_host", lambda: HostSample(free_gb=64.0, total_gb=64.0, load_per_core=0.1, cores=8))
-    monkeypatch.setattr(ai_config.orchestrator, "stagger_seconds", 0.0)
+    monkeypatch.setattr(ai_config.orchestrator, "settle_seconds", 0.0)
     yield
     concurrency.reset_throttles()
 

@@ -1,6 +1,6 @@
 """The cover planner's proposals: what a title and a scene of a cover must be, the checks of an answer, and the rows.
 
-A proposal is a title (a hook of the configured number of words that can be set large enough to read, spoilers and greetings refused like the host's) and a scene description (what the image model paints: symbolic, never a person or a
+A proposal is a title (a hook of the configured number of words that can be set large enough to read, greetings refused like the host's) and a scene description (what the image model paints: symbolic, never a person or a
 weapon). The planner states its certainty that the scene carries the title: a cover whose scene is missing or uncertain stays open for the owner. Nothing here approves."""
 
 from __future__ import annotations
@@ -15,8 +15,6 @@ from app.covers.compose import CoverError, display_title, fit_title, title_issue
 from app.covers.images import scene_issues
 from app.db.models import CoverProposal
 from app.naming import selection as SEL
-from app.documentary.host_firewall import reveal_issues
-from app.documentary.host_story import HostStory
 
 STATUSES = ("proposed", "open", "approved", "skipped")
 
@@ -43,7 +41,8 @@ def parse_items(raw: dict) -> list[dict]:
         scene = str(item.get("scene") or "").strip()
         out.append({"key": str(item.get("key") or "").strip(), "title": str(item.get("title") or "").strip(), "confidence": confidence,
                     "scene": "" if scene.lower() in ("none", "null") else scene, "reason": str(item.get("reason") or "").strip(),
-                    "title_pick": str(item.get("title_pick") or "").strip().upper() or None, "pair_reason": str(item.get("pair_reason") or "").strip()})
+                    "title_pick": str(item.get("title_pick") or "").strip().upper() or None, "pair_reason": str(item.get("pair_reason") or "").strip(),
+                    "alt_title": str(item.get("alt_title") or "").strip()})
     return out
 
 
@@ -60,7 +59,17 @@ def pairing_issues(item: dict, options: dict[str, dict]) -> list[dict]:
     return issues
 
 
-def item_issues(item: dict, story: HostStory, cutoff: int, language: str, options: dict[str, dict] | None = None) -> list[dict]:
+def alternative_issues(item: dict) -> list[str]:
+    """The alternative cover phrase every cover also gets: as short as the title, and another phrase."""
+    alt = item["alt_title"]
+    if not alt:
+        return ["Give an alternative cover phrase (\"alt_title\") too: another angle on the same case, not a rewording of the title."]
+    if alt.casefold() == item["title"].casefold():
+        return ["The alternative cover phrase must differ from the title."]
+    return title_issues(alt)
+
+
+def item_issues(item: dict, language: str, options: dict[str, dict] | None = None) -> list[dict]:
     """What is wrong with one proposal, each with the fix the planner is told. The film cover is also checked against the title `options` when there are some."""
     cfg = ai_config.covers_settings().proposal
     issues: list[dict] = []
@@ -71,8 +80,8 @@ def item_issues(item: dict, story: HostStory, cutoff: int, language: str, option
             fit_title(display_title(item["title"], language), language, "long" if item["key"] == "long" else "short")
         except CoverError as e:
             issues.append({"type": "title_unreadable", "fix": f"{e}; keep the idea and use fewer or shorter words"})
-    for issue in reveal_issues(story, cutoff, item["title"]):
-        issues.append({**issue, "part": "title"})
+    if problems := alternative_issues(item):
+        issues.append({"type": "alt_title", "fix": problems[0]})
     rules = ai_config.host.language_rules.get(language)
     if rules and any(re.search(p, item["title"], re.IGNORECASE) for p in rules.greeting_patterns):
         issues.append({"type": "greeting", "fix": "A cover title is no greeting."})

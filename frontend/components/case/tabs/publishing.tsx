@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, apiFileUrl, facebookApi, publishingAiApi, publishingApi, youtubeApi, type FacebookUploads, type Propagation, type PublicationLamp, type PublicationMetadata, type PublicationView, type StudioAsset, type YouTubeChannel, type YouTubeUploads } from "@/lib/api";
 import { AiPanel, ApprovePlanPanel, CalendarPanel, Preview } from "./publishing-intelligence";
+import { AccountMatrix } from "./account-matrix";
 import { InstagramConnectionPanel } from "./instagram-connection";
 import { ConnectAll, LampReport, PORTALS, PublishingStatus, TestAll, usePortalLamps, type Portal } from "./publishing-portals";
 import { TabBar } from "@/components/ui/tabs";
@@ -26,7 +27,7 @@ const PLATFORM_LABEL: Record<string, string> = { youtube: "YouTube", facebook: "
 const SECTIONS = [...PORTALS, "Publishing plan"] as const;
 const STUDIO_VIEWS = ["Overview", "Connect all", "Test all"] as const;
 const VIEWS = ["Connection", "Content"] as const;
-const CONNS = ["Languages", "Connect all", "Test all"] as const;
+const CONNS = ["Languages", "All accounts", "Connect all", "Test all"] as const;
 type Section = (typeof SECTIONS)[number];
 type View = (typeof VIEWS)[number];
 type Conn = (typeof CONNS)[number];
@@ -465,6 +466,7 @@ export function PublishingTab({ caseId }: { caseId: number }) {
         : portal === "Instagram" ? <InstagramConnectionPanel language={language} returnTo={returnTo} />
         : portal === "Facebook" ? <FacebookConnectionPanel language={language} onChanged={portals.refetch} />
         : <Card><CardContent className="pt-4 text-sm text-muted-foreground">The {portal} connection is not built yet: no account can be connected here, and nothing can be published to {portal}.</CardContent></Card>)}
+      {conn === "All accounts" && <AccountMatrix rows={portals.table.data?.connections ?? []} onChanged={portals.refetch} returnTo={`${base.replace(/&conn=[^&]*/, "")}&conn=${encodeURIComponent("All accounts")}`} />}
       {conn === "Connect all" && <ConnectAll portals={scope} returnTo={returnTo} lamps={portals.lamps} loaded={portals.loaded} />}
       {conn === "Test all" && <TestAll portals={scope} lamps={portals.lamps} onDone={portals.refetch} />}
     </div>

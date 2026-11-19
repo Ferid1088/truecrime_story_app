@@ -1,7 +1,7 @@
 """Prompt store: every prompt lives in `prompts/` as a plain text file, never in code.
 
         SYSTEM = prompt("naming/case_naming_agent")        # prompts/naming/case_naming_agent.md
-    text = prompt("naming/native_title_critic").format(language="German")
+    text = prompt("agents/creative_pack")
 
 A prompt file is exactly the text sent to the model (str.format placeholders
 and doubled braces for literal JSON braces keep working). Lines starting with

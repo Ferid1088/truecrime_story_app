@@ -1,4 +1,4 @@
-"""CaseNamingAgent / critic / gates / approval with a scripted LLM (no network)."""
+"""CaseNamingAgent (it scores its own titles) / gates / approval with a scripted LLM (no network)."""
 
 import asyncio
 import json
@@ -42,28 +42,24 @@ class ScriptedGen:
     def is_configured(self):
         return True
 
+    def scores(self, title):
+        """What the title agent gives a title: good measures, changed by `bad` for a title a test wants refused."""
+        return {"clarity": 0.8, "specificity": 0.8, "memorability": 0.7, "curiosity": 0.7, "documentary_tone": 0.8, "sensationalism_risk": 0.1, "spoiler_risk": 0.1, "epistemic_risk": 0.1,
+                "native_quality": 0.9, "literal_translation": False, "reason": "ok", **self.bad.get(title, {})}
+
     async def generate_structured(self, role, system, user, images=None):
         self.calls.append(role)
         d = json.loads(user)
-        if role == "case_naming_agent":
-            lang = {"English": "en", "German": "de", "Persian (Farsi)": "fa",
-                    "Arabic": "ar", "Mexican Spanish": "es", "Italian": "it", "French": "fr",
-                    "Brazilian Portuguese": "pt", "Turkish": "tr"}[d["language"]]
-            pool = self.proposals[lang]
-            take, self.proposals[lang] = pool[:d["count"]], pool[d["count"]:]
-            return {"editorial_concept": "a lamp that was left burning",
-                    "candidates": [{"title": t, "angle": "lamp"} for t in take]}, None
-        out = []
-        for t in d["titles"]:
-            b = self.bad.get(t, {})
-            if role == "case_title_critic":
-                out.append({"title": t, "clarity": 0.8, "specificity": 0.8, "memorability": 0.7, "curiosity": 0.7,
-                            "documentary_tone": 0.8, "sensationalism_risk": 0.1,
-                            "spoiler_risk": 0.1, "epistemic_risk": 0.1, "reason": "ok", **b})
-            else:
-                out.append({"title": t, "native_quality": 0.9, "literal_translation": False,
-                            "reason": "ok", **b})
-        return {"scores": out}, None
+        assert role == "case_naming_agent", role
+        if "score" in d:                                              # the scoring mode: a title a person wrote
+            return {"scores": [{"title": t, **self.scores(t)} for t in d["score"]]}, None
+        lang = {"English": "en", "German": "de", "Persian (Farsi)": "fa",
+                "Arabic": "ar", "Mexican Spanish": "es", "Italian": "it", "French": "fr",
+                "Brazilian Portuguese": "pt", "Turkish": "tr"}[d["language"]]
+        pool = self.proposals[lang]
+        take, self.proposals[lang] = pool[:d["count"]], pool[d["count"]:]
+        return {"editorial_concept": "a lamp that was left burning",
+                "candidates": [{"title": t, "angle": "lamp", "scores": self.scores(t)} for t in take]}, None
 
 
 @pytest.fixture(autouse=True)
@@ -103,7 +99,7 @@ def _run(coro):
 def test_exactly_seven_per_language_with_replacement(db_session):
     case = _case(db_session)
     gen = ScriptedGen({"en": EN, "de": DE, "fa": FA, "ar": AR, "es": ES, "it": IT, "fr": FR, "pt": PT, "tr": TR},
-                      bad={EN[0]: {"spoiler_risk": 0.9}})
+                      bad={EN[0]: {"epistemic_risk": 0.9}})
     out = _run(A.generate_case_titles(db_session, case, gen))
     for lang in ("en", "de", "fa", "ar"):
         assert out["languages"][lang]["eligible"] == 7 and out["languages"][lang]["short_by"] == 0
@@ -111,12 +107,12 @@ def test_exactly_seven_per_language_with_replacement(db_session):
         assert rows.filter(CaseTitleCandidate.status != "rejected").count() == 7
     en_rows = db_session.query(CaseTitleCandidate).filter_by(case_id=case.id, language="en").all()
     rejected = [r for r in en_rows if r.status == "rejected"]
-    assert any(r.title == EN[0] and "spoiler" in r.rejection_reason for r in rejected)
+    assert any(r.title == EN[0] and "epistemic risk" in r.rejection_reason for r in rejected)
     assert len({r.title_family_id for r in db_session.query(CaseTitleCandidate).all()
                 if r.case_id == case.id}) == 1
     best = [json.loads(r.critic_json) for r in en_rows if r.status != "rejected"]
     assert sum(1 for b in best if b["recommended"]) == 1
-    assert "native_title_critic" in gen.calls and gen.calls.count("native_title_critic") == 8
+    assert set(gen.calls) == {"case_naming_agent"}                                     # the model scores its own candidates: no critic is asked
 
 
 def test_shortfall_is_reported_not_padded(db_session):
@@ -171,10 +167,9 @@ def test_specific_title_passes_and_generic_is_penalized():
     assert G.brevity_score("The Lantern Of Celle Burned All Night Long") > G.brevity_score(" ".join(["Lantern"] * 20))
 
 
-def test_spoiler_and_epistemic_gates():
-    ctx = {"reveal_terms": ["brother", "basement"],
-           "claim_limits": {"may_state_guilt": False}}
-    assert "withheld" in G.run_gates("The Basement Door", "en", ctx)
+def test_the_epistemic_gates_and_no_withheld_word_gate():
+    ctx = {"reveal_terms": ["brother", "basement"], "claim_limits": {"may_state_guilt": False}}
+    assert G.run_gates("The Basement Door", "en", ctx) is None                       # nothing of the story is withheld from a title any more
     assert G.run_gates("The Lantern Door", "en", ctx) is None
     assert "not established" in G.run_gates("The Father Who Killed Them", "en", ctx)
     assert "not established" in G.run_gates("Der Mörder von Celle", "de", ctx)
@@ -200,7 +195,7 @@ def test_native_critic_rejects_literal_translation(db_session):
     assert row.status == "rejected" and "literal translation" in row.rejection_reason
 
 
-def test_context_hides_nothing_public_and_holds_back_late_reveals(db_session):
+def test_the_context_holds_back_nothing_of_the_case_from_the_title_writer(db_session):
     case = _case(db_session, "Celle context")
     f1 = Fact(case_id=case.id, claim="Rita Haas vanished from Celle in 1994", confidence=0.9)
     f2 = Fact(case_id=case.id, claim="Her brother Jonas hid a ledger in the cellar", confidence=0.9)
@@ -216,11 +211,11 @@ def test_context_hides_nothing_public_and_holds_back_late_reveals(db_session):
                                       central_question="What happened to Rita?"))
     db_session.commit()
     ctx = build_context(db_session, case)
-    assert "ledger" in ctx["reveal_terms"] and "cellar" in ctx["reveal_terms"]
-    assert "celle" not in ctx["reveal_terms"] and "vanished" not in ctx["reveal_terms"]
+    assert "reveal_terms" not in ctx and "hold_back" not in ctx
+    assert {f["claim"] for f in ctx["key_facts"]} >= {"Rita Haas vanished from Celle in 1994", "Her brother Jonas hid a ledger in the cellar"}      # the late finding is in the record too
     assert ctx["claim_limits"]["may_state_guilt"] is False
     assert ctx["resolution_status"] == "unsolved"
-    assert G.run_gates("The Ledger Door", "en", ctx)
+    assert G.run_gates("The Ledger Door", "en", ctx) is None
 
 
 def test_approval_writes_identity_and_manual_titles_are_rechecked(db_session):
@@ -320,8 +315,8 @@ def test_no_title_is_longer_than_what_youtube_leaves_once_status_and_channel_are
 
     for language in ("en", "de", "fa", "ar", "es", "it", "fr", "pt", "tr"):
         title = "x" * title_budget(language)
-        assert "…" not in build_youtube_title(title, "UNSOLVED", language) and G.gate_length("word " * 4 + "x" * (title_budget(language) - 20), language) is None
-        assert G.gate_length("word " * 4 + "x" * (title_budget(language) - 18), language)
+        assert "…" not in build_youtube_title(title, "UNSOLVED", language) and G.gate_length("word " * 6 + "x" * (title_budget(language) - 30), language) is None
+        assert G.gate_length("word " * 6 + "x" * (title_budget(language) - 28), language)
 
 
 def test_the_critic_rejects_an_abstract_title_and_the_ranking_prefers_clear_over_short(real_rules):
@@ -334,16 +329,15 @@ def test_the_critic_rejects_an_abstract_title_and_the_ranking_prefers_clear_over
     assert A.rank_score({**scores, "spoiler_risk": 0.05}, long_clear) > A.rank_score(leaning, long_clear)
 
 
-def test_the_title_writer_sees_the_opening_of_the_story_and_never_the_findings_of_the_investigation(db_session):
+def test_the_title_writer_sees_everything_the_research_found(db_session):
     from test_chapters import _setup
 
     from app.naming.context import build_context, naming_view
 
     case, _, _ = _setup(db_session)
     view = naming_view(build_context(db_session, case))
-    assert view["opening"] == ["A car at the lake at dawn."]  # one fifth of five beats
-    assert not {"central_question", "editorial_thesis", "contradictions", "hold_back", "reveal_terms", "timeline", "key_facts", "summary"} & set(view)
-    assert "arrest" not in json.dumps(view, ensure_ascii=False).lower()
+    assert {"central_question", "editorial_thesis", "contradictions", "timeline", "key_facts", "summary"} <= set(view)
+    assert not {"opening", "safe_facts", "hold_back", "reveal_terms"} & set(view)
 
 
 @pytest.mark.parametrize("language,title,blocked", [

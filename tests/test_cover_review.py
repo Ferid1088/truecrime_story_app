@@ -39,7 +39,7 @@ def covers(db_session, client, monkeypatch, tmp_path):
     provider = FakeImages([])
     monkeypatch.setattr(IM, "APIMasterImageProvider", lambda: provider)
     for key in ("long", "C1"):
-        db_session.add(CoverProposal(case_id=case.id, language="en", cover_key=key, kind="long" if key == "long" else "short", status="proposed", title="The open door",
+        db_session.add(CoverProposal(case_id=case.id, language="en", cover_key=key, kind="long" if key == "long" else "short", status="proposed", title="The open door that nobody ever closed again",
                                      scene_prompt=SCENE, confidence=0.8, reason="a door"))
     db_session.commit()
     provider.picture = lambda: good().__class__(ok=True, content=noise(), usage=good().usage, request_id="1", duration_ms=39200)
@@ -73,11 +73,11 @@ def test_a_language_shows_its_covers_their_scene_descriptions_and_the_cost_book(
 def test_the_owner_changes_a_title_and_a_scene_into_a_newer_version_a_title_keeps_the_picture(covers):
     case, client, provider = covers
     press_image(client, case, "C1", provider)
-    kept = client.put(url(case, "en", "C1"), json={"title": "Who opened it first"}).json()
-    assert kept["version"] == 2 and kept["source"] == "owner" and kept["title"] == "Who opened it first" and kept["image"] is not None          # the picture does not depend on the title
+    kept = client.put(url(case, "en", "C1"), json={"title": "Who opened it first that night and why nobody said"}).json()
+    assert kept["version"] == 2 and kept["source"] == "owner" and kept["title"] == "Who opened it first that night and why nobody said" and kept["image"] is not None          # the picture does not depend on the title
     dropped = client.put(url(case, "en", "C1"), json={"scene": "A garage door raised halfway on a snowy night, light spilling out"}).json()
     assert dropped["image"] is None and dropped["status"] == "proposed"
-    assert client.put(url(case, "en", "C1"), json={"title": "one two three four five six seven eight nine ten eleven"}).status_code == 422
+    assert client.put(url(case, "en", "C1"), json={"title": " ".join(["word"] * 19)}).status_code == 422
     assert client.put(url(case, "en", "C1"), json={"scene": "A man with a pistol in a hall"}).status_code == 422
     assert client.put(url(case, "en", "C1"), json={"scene": ""}).json()["status"] == "open"
 
@@ -123,7 +123,7 @@ def test_changing_an_approved_cover_takes_the_approval_away_and_needs_a_new_prev
     press_image(client, case, "C1", provider)
     client.post(url(case, "en", "C1", "preview"))
     client.post(url(case, "en", "C1", "approve"))
-    changed = client.put(url(case, "en", "C1"), json={"title": "Another title again"}).json()
+    changed = client.put(url(case, "en", "C1"), json={"title": "Another title again that says much more now"}).json()
     assert changed["status"] == "proposed" and changed["approved_url"] is None and changed["preview_url"] is None
     assert client.post(url(case, "en", "C1", "approve")).status_code == 409
 
@@ -157,7 +157,7 @@ def test_a_cover_the_owner_changed_is_not_approved_by_default_and_the_owner_can_
     case, client, provider = covers
     monkeypatch.setitem(ai_config.covers_settings().proposal, "auto_approve", True)
     press_image(client, case, "C1", provider)
-    changed = client.put(url(case, "en", "C1"), json={"title": "Who opened it first"}).json()
+    changed = client.put(url(case, "en", "C1"), json={"title": "Who opened it first that night and why nobody said"}).json()
     assert changed["source"] == "owner" and changed["status"] == "proposed" and changed["approved_url"] is None
     press_image(client, case, "long", provider)                                            # another picture is made: the owner's cover still waits
     assert next(c for c in client.get(url(case, "en")).json()["covers"] if c["key"] == "C1")["status"] == "proposed"

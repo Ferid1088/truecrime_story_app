@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import threading
 import unicodedata
 from difflib import SequenceMatcher
 from functools import lru_cache
@@ -323,6 +324,7 @@ class FasterWhisperASR:
 
     name = "faster_whisper"
     _models: dict = {}
+    _load_lock = threading.Lock()          # transcriptions run in threads: two of them must not load the same model twice
 
     def __init__(self, cfg: ASRCheckConfig | None = None):
         from app.core.provider_guard import guard_real_provider
@@ -336,14 +338,15 @@ class FasterWhisperASR:
 
     def _model(self, language: str | None = None):
         cfg = self.cfg.for_language(language)
-        key = (cfg.model, cfg.compute_type)
-        if key not in self._models:
-            from faster_whisper import WhisperModel
+        key = (cfg.model, cfg.compute_type, self.cfg.workers)
+        with self._load_lock:
+            if key not in self._models:
+                from faster_whisper import WhisperModel
 
-            self._models[key] = WhisperModel(
-                cfg.model, device="cpu", compute_type=cfg.compute_type
-            )
-        return self._models[key]
+                self._models[key] = WhisperModel(
+                    cfg.model, device="cpu", compute_type=cfg.compute_type, num_workers=self.cfg.workers
+                )
+            return self._models[key]
 
     def transcribe(self, audio_path: str, language: str) -> dict:
         from app.documentary.audio import pcm16k_float32

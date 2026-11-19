@@ -15,8 +15,9 @@ from app.documentary import storage
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTFIT = ROOT / "data" / "outfits" / "en" / "navyBlazerBeigeChinos" / "en_navyBlazerBeigeChinos_front.png"
-TITLES = {"en": "The open door", "fa": "دری که باز ماند", "ar": "باب لم يُغلق أبدًا", "de": "Die offene Tür", "es": "La puerta abierta", "it": "La porta aperta",
-          "fr": "La porte ouverte", "pt": "A porta aberta", "tr": "Hiç kapanmayan kapı"}
+TITLES = {"en": "The open door that nobody ever closed again", "fa": "دری که باز ماند و هیچ‌کس آن را نبست", "ar": "الباب الذي بقي مفتوحًا ولم يغلقه أحد أبدًا",
+          "de": "Die offene Tür, die niemand je wieder schloss", "es": "La puerta abierta que nadie volvió a cerrar jamás", "it": "La porta aperta che nessuno ha mai richiuso",
+          "fr": "La porte ouverte que personne n'a jamais refermée", "pt": "A porta aberta que ninguém jamais voltou a fechar", "tr": "Hiç kapanmayan kapı ve onu kimsenin kapatmadığı gece"}
 
 
 @pytest.fixture()
@@ -43,9 +44,9 @@ def test_what_no_upload_has_shown_is_marked_to_test():
     assert cfg.scene_image["max_images_per_scene"] == 1 and cfg.scene_image["model"] == "gpt-image-2.6-flare" and cfg.scene["source"] == "generated"
 
 
-def test_a_title_is_a_hook_of_three_to_ten_words_and_turkish_capitals_keep_their_dot():
-    assert C.title_issues("The open door") == [] and C.title_issues("one two three four five six seven eight nine ten eleven")
-    assert C.title_issues("") and C.title_issues("The refrigerator")
+def test_a_title_is_a_hook_of_seven_to_eighteen_words_and_turkish_capitals_keep_their_dot():
+    assert C.title_issues("one two three four five six seven") == [] and C.title_issues(" ".join(["word"] * 18)) == []
+    assert C.title_issues("The open door") and C.title_issues("one two three four five six") and C.title_issues(" ".join(["word"] * 19)) and C.title_issues("")
     assert C.display_title("Açık kapı", "tr") == "AÇIK KAPI" and C.display_title("izler", "tr") == "İZLER"
     assert C.display_title("دری که باز ماند", "fa") == "دری که باز ماند"
 
@@ -76,8 +77,8 @@ def test_a_right_to_left_cover_mirrors_the_places_of_the_words_and_the_avatar(pi
     cfg = ai_config.covers_settings()
     a, f = cfg.layout["long"]["avatar"], cfg.formats["long"]
     face = AV.portrait(OUTFIT, a["width"] * f.width / (a["height"] * f.height), a["face_widths"])
-    en = C.compose("long", "en", picture, face, storage.ROOT / ai_config.channels["en"].logo, "The open door", tmp_path / "en.jpg", scale=0.15)
-    fa = C.compose("long", "fa", picture, face, storage.ROOT / ai_config.channels["fa"].logo, "دری که باز ماند", tmp_path / "fa.jpg", scale=0.15)
+    en = C.compose("long", "en", picture, face, storage.ROOT / ai_config.channels["en"].logo, TITLES["en"], tmp_path / "en.jpg", scale=0.15)
+    fa = C.compose("long", "fa", picture, face, storage.ROOT / ai_config.channels["fa"].logo, TITLES["fa"], tmp_path / "fa.jpg", scale=0.15)
     middle = en["size"][0] / 2
     centre = lambda made, name: made["elements"][name][0] + made["elements"][name][2] / 2          # noqa: E731
     assert centre(en, "title") < middle < centre(fa, "title")
@@ -87,13 +88,13 @@ def test_a_right_to_left_cover_mirrors_the_places_of_the_words_and_the_avatar(pi
 def test_a_title_that_does_not_fit_or_is_too_long_is_refused(picture, tmp_path):
     face = AV.portrait(OUTFIT, 0.5, 2.8)
     with pytest.raises(C.CoverError, match="words"):
-        C.compose("short", "en", picture, face, storage.ROOT / ai_config.channels["en"].logo, "one two three four five six seven eight nine ten eleven", tmp_path / "x.jpg", scale=0.1)
+        C.compose("short", "en", picture, face, storage.ROOT / ai_config.channels["en"].logo, " ".join(["word"] * 19), tmp_path / "x.jpg", scale=0.1)
 
 
 def test_the_short_cover_keeps_its_content_out_of_the_reserved_margins(picture, tmp_path):
     cfg = ai_config.covers_settings()
     face = AV.portrait(OUTFIT, 0.5, 2.8)
-    made = C.compose("short", "en", picture, face, storage.ROOT / ai_config.channels["en"].logo, "The open door", tmp_path / "s.jpg", scale=0.1)
+    made = C.compose("short", "en", picture, face, storage.ROOT / ai_config.channels["en"].logo, TITLES["en"], tmp_path / "s.jpg", scale=0.1)
     height = made["size"][1]
     for name in ("title", "logo"):
         x, y, w, h = made["elements"][name]
@@ -141,7 +142,7 @@ def test_the_logo_is_three_times_and_the_avatar_one_and_a_half_times_the_size_th
         assert avatar["width"] == pytest.approx(was[0] * 1.5, rel=0.02) and avatar["height"] == pytest.approx(was[1] * 1.5, rel=0.02)
         f = cfg.formats[kind]
         face = AV.portrait(OUTFIT, avatar["width"] * f.width / (avatar["height"] * f.height), avatar["face_widths"])
-        made = C.compose(kind, "en", picture, face, storage.ROOT / ai_config.channels["en"].logo, "The open door", tmp_path / f"{kind}.jpg", scale=0.15)
+        made = C.compose(kind, "en", picture, face, storage.ROOT / ai_config.channels["en"].logo, TITLES["en"], tmp_path / f"{kind}.jpg", scale=0.15)
         height = made["size"][1]
         assert made["elements"]["logo"][3] >= cfg.layout[kind]["logo_height"] * height * 0.9 and made["problems"] == []
 
@@ -224,11 +225,9 @@ def test_a_hook_is_set_in_lines_of_about_the_same_width_as_large_as_the_layout_a
 def test_a_title_too_long_to_read_is_sent_back_to_the_planner_with_the_fix(monkeypatch):
     from app.covers import proposals as P
 
-    monkeypatch.setattr(P, "reveal_issues", lambda *args: [])                        # the story's spoilers are not what is tested here
-
     long_words = " ".join(["Unbelievably"] * 8)
     with pytest.raises(C.CoverError, match="too long to read"):
         C.fit_title(long_words.upper(), "en", "short")
-    item = {"key": "C1", "title": long_words, "scene": "", "confidence": None, "reason": ""}
-    issues = P.item_issues(item, None, 0, "en")
+    item = {"key": "C1", "title": long_words, "scene": "", "confidence": None, "reason": "", "alt_title": "A door left ajar"}
+    issues = P.item_issues(item, "en")
     assert [i["type"] for i in issues if i["type"].startswith("title")] == ["title_unreadable"]

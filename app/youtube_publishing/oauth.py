@@ -29,6 +29,7 @@ class Pending(NamedTuple):
     made: float
     return_to: str
     language: str
+    discover: bool = False       # find out which channel the account reaches; nothing is stored
 
 
 _PENDING: dict[str, Pending] = {}      # state -> the attempt: short-lived, in memory on purpose (a restart ends an unfinished connection attempt)
@@ -68,8 +69,10 @@ class YouTubeOAuth:
         return self.channel_id
 
     # -- the connection page -------------------------------------------------------------------------
-    def authorization_url(self, return_to: str = "/") -> str:
-        self.expected_channel()
+    def authorization_url(self, return_to: str = "/", *, discover: bool = False) -> str:
+        """`discover`: for a language whose channel id is not registered yet. The consent only reads which channel the chosen account has (nothing is stored)."""
+        if not discover:
+            self.expected_channel()
         try:
             client = self.client_file.load()
         except CredentialsError as exc:
@@ -79,7 +82,7 @@ class YouTubeOAuth:
         for old in [s for s, old_attempt in _PENDING.items() if time.monotonic() - old_attempt.made > self.cfg.oauth.state_ttl_seconds]:
             del _PENDING[old]
         state, verifier = secrets.token_urlsafe(24), secrets.token_urlsafe(48)
-        _PENDING[state] = Pending(verifier, time.monotonic(), return_to, self.language)
+        _PENDING[state] = Pending(verifier, time.monotonic(), return_to, self.language, discover)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
         query = {"client_id": client.client_id, "redirect_uri": self.cfg.redirect_uri, "response_type": "code", "scope": " ".join(self.cfg.oauth.scopes), "access_type": "offline",
                  "prompt": "select_account consent", "state": state, "code_challenge": challenge, "code_challenge_method": "S256"}
@@ -90,7 +93,7 @@ class YouTubeOAuth:
         pending = _PENDING.pop(state, None)
         if pending is None or pending.language != self.language or time.monotonic() - pending.made > self.cfg.oauth.state_ttl_seconds:
             raise OAuthError("state_invalid", "The connection attempt expired or did not start here. Press Connect YouTube again.")
-        expected = self.expected_channel()
+        expected = None if pending.discover else self.expected_channel()
         client = self.client_file.load()
         body = await self._token_request({"grant_type": "authorization_code", "code": code, "redirect_uri": self.cfg.redirect_uri, "code_verifier": pending.verifier,
                                           "client_id": client.client_id, "client_secret": client.client_secret})
@@ -100,6 +103,8 @@ class YouTubeOAuth:
         if missing or not refresh:
             raise OAuthError("scopes_missing", "Google did not grant everything needed: " + (", ".join(missing) if missing else "no refresh token was issued (revoke the app's access in the Google account and connect again)."))
         channel = await self.channel(body["access_token"])
+        if pending.discover:
+            return {"discovered": channel, "return_to": pending.return_to}
         if channel["id"] != expected:
             raise OAuthError("channel_mismatch", f"The authorized channel is '{channel['title']}' ({channel['id']}), not the {self.language} channel {expected}. Nothing was stored (and nothing was revoked: Google ties every channel of one account to one grant); "
                                                   "connect again and choose the right channel in Google's account chooser.")

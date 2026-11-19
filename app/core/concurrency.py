@@ -73,6 +73,23 @@ def throttled(name: str, now: float | None = None) -> bool:
     return effective_limit(name, now) < limit_size(name)
 
 
+def retry_after_seconds(value: str | None, *, now: float | None = None) -> float | None:
+    """What a provider's `Retry-After` header asks for, in seconds: a number of seconds or an HTTP date. None when it is absent or unreadable (a wrong header is never trusted)."""
+    if not value:
+        return None
+    value = value.strip()
+    if value.isdigit():
+        return float(value)
+    from email.utils import parsedate_to_datetime
+
+    try:
+        moment = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    wall = time.time() if now is None else now
+    return max(0.0, moment.timestamp() - wall)
+
+
 def reset_throttles() -> None:
     _THROTTLE.clear()
 

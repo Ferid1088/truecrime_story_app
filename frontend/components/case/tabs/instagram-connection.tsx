@@ -34,7 +34,7 @@ function stateOf(c: InstagramConnection): readonly [string, "warning" | "success
 }
 
 export function InstagramConnectionPanel({ returnTo, language }: { returnTo: string; language: string }) {
-  const connection = useApi(() => metaPublishingApi.connection(), [], { keepPrevious: true });
+  const connection = useApi(() => metaPublishingApi.connection(language), [language], { keepPrevious: true });
   const [note, setNote] = useState<Note | null>(noteFromUrl);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -44,12 +44,12 @@ export function InstagramConnectionPanel({ returnTo, language }: { returnTo: str
     setBusy(true); setNote(null);
     try { setNote({ tone: "ok", text: await work() }); } catch (e) { setNote({ tone: "bad", text: e instanceof Error ? e.message : String(e) }); } finally { setBusy(false); connection.refetch(); }
   };
-  const connect = () => act(async () => { const { authorization_url } = await metaPublishingApi.connect(returnTo); window.location.assign(authorization_url); return "Opening Facebook…"; });
+  const connect = () => act(async () => { const { authorization_url } = await metaPublishingApi.connect(returnTo, language); window.location.assign(authorization_url); return "Opening Facebook…"; });
   const test = () => act(async () => {
-    const r = await metaPublishingApi.testConnection();
+    const r = await metaPublishingApi.testConnection(language);
     return `Connection test passed at ${new Date(r.checked_at).toLocaleTimeString()}: the token works, the permissions (${r.permissions.join(", ")}) are granted, the account is @${r.account.username} (${r.account.id}), the configured one. Publishing quota used: ${r.quota_usage ?? "n/a"}.${r.missing_for_publishing.length ? ` Not ready to publish: Meta documents ${r.missing_for_publishing.join(", ")} for publishing and the token does not hold it.` : ""}`;
   });
-  const disconnect = () => act(async () => { setConfirming(false); const r = await metaPublishingApi.disconnect(); return r.still_set_by_environment ? "The stored token was removed, but another token is still set by the environment." : "Instagram disconnected: the stored token was removed. Facebook's grant for the app is untouched (remove the app in your Facebook settings to end it)."; });
+  const disconnect = () => act(async () => { setConfirming(false); const r = await metaPublishingApi.disconnect(language); return r.still_set_by_environment ? "The stored token was removed, but another token is still set by the environment." : "Instagram disconnected: the stored token was removed. Facebook's grant for the app is untouched (remove the app in your Facebook settings to end it)."; });
   const [label, tone] = stateOf(c);
   return (
     <Card data-testid="instagram-connection">

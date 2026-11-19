@@ -68,7 +68,7 @@ class FakeTTS:
             audio_format="mp3_44100_128",
             characters=chars, char_starts=starts, char_ends=ends,
             provider=self.name, model_id=req.model_id, voice_id=req.voice_id,
-            request_id=f"req-{fingerprint}", character_cost=len(chars),
+            request_id=f"req-{fingerprint[:32]}", character_cost=len(chars),
         )
 
 
@@ -548,3 +548,19 @@ def test_a_number_whisper_writes_in_digits_is_checked_against_the_words_the_voic
     m = asyncio.run(renderer.render(plan, case_id=7, story_version_id=3))
     asr = m["blocks"][0]["asr"]
     assert "911" in asr["heard_text"] and asr["passed"] and asr["word_error_rate"] == 0
+
+
+@pytest.mark.parametrize("language, text", [
+    ("en", TEXT_A),
+    ("ar", "كان البيت فارغا وقد نظفت كل غرفة فيه قبل أن يرحلوا."),
+    ("fa", "خانه خالی بود و پیش از رفتن همه اتاق‌ها را پاک کرده بودند."),
+])
+def test_english_arabic_and_persian_are_voiced_without_the_asr_check_and_without_a_warning(workdir, monkeypatch, caplog, language, text):
+    monkeypatch.setattr(ai_config.asr_check, "enabled", False)
+    tts = FakeTTS()
+    renderer = VoiceRenderer(provider=tts)
+    with caplog.at_level("WARNING"):
+        m = asyncio.run(renderer.render({"language": language, "blocks": [_block(f"{language.upper()}_a_01", "act1", text)]}, case_id=7, story_version_id=3))
+    assert renderer.asr is None and len(tts.requests) == 1 and m["blocks_rendered"] == 1
+    assert m["asr"] is None and m["asr_error"] is None and m["blocks"][0]["asr"] is None and m["flags"] == []
+    assert [r for r in caplog.records if "asr" in r.getMessage().lower() or "whisper" in r.getMessage().lower()] == []

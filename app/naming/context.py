@@ -20,10 +20,7 @@ import re
 from sqlalchemy.orm import Session
 
 from app.agents.story import build_evidence_pack
-from app.core.ai_config import ai_config
 from app.db.models import (Case, Contradiction, EditorialBlueprint, Fact, Source)
-from app.documentary.chapters import safe_beats, story_beats
-from app.documentary.visuals.spoilers import late_reveals
 from app.identity.titles import public_status, resolution_provenance
 from app.naming.normalize import norm_title
 
@@ -53,33 +50,18 @@ def _blueprint(db: Session, case_id: int) -> dict:
     return data
 
 
-def build_context(db: Session, case: Case, *, opening_beats: int = 2) -> dict:
+def build_context(db: Session, case: Case) -> dict:
     facts = db.query(Fact).filter(Fact.case_id == case.id).order_by(Fact.id).all()
     contradictions = db.query(Contradiction).filter(Contradiction.case_id == case.id).all()
     sources = db.query(Source).filter(Source.case_id == case.id).order_by(Source.id).all()
     pack = build_evidence_pack(facts, contradictions, sources)
     by_id = {f["id"]: f for f in pack["facts"]} if "facts" in pack else {}
     bp = _blueprint(db, case.id)
-    beats = bp.get("beats") or []
 
     public_names = set()
     for name in [case.canonical_title, case.location or "", case.country or "",
                  *json.loads(case.aliases_json or "[]"), *json.loads(case.people_json or "[]")]:
         public_names |= _terms(str(name))
-    opening_text = " ".join([bp.get("central_question") or "", case.summary or ""])
-    opening_ids = {r for b in beats[:opening_beats] for r in b.get("reveals") or []}
-    late_ids = late_reveals(bp, opening_beats)
-    opening_terms = _terms(opening_text) | public_names
-    for fid in opening_ids:
-        opening_terms |= _terms(by_id.get(fid, {}).get("claim", ""))
-    hold_back, reveal_terms = [], set()
-    for fid in sorted(late_ids - opening_ids):
-        claim = by_id.get(fid, {}).get("claim")
-        if claim:
-            hold_back.append(claim[:200])
-            reveal_terms |= _terms(claim)
-    reveal_terms -= opening_terms | set(ai_config.case_naming.neutral_words)
-
     weak = [f["claim"][:160] for f in by_id.values()
             if f.get("uncertain") or f.get("evidence_strength") in ("weak", "unverified")][:10]
     status = case.resolution_status or "UNKNOWN"
@@ -103,30 +85,20 @@ def build_context(db: Session, case: Case, *, opening_beats: int = 2) -> dict:
         "timeline": [t["claim"][:140] for t in pack.get("timeline", [])[:4]],
         "resolution_status": public_status(status) or "unknown",
         "resolution_confidence": prov["resolution_confidence"],
-        "hold_back": hold_back[:10],
-        "reveal_terms": sorted(reveal_terms),
         "claim_limits": {
             "may_state_guilt": status == "SOLVED",
             "weak_or_disputed_claims": weak,
         },
         "existing_research_titles": [s.title for s in sources[:25]],
-        "opening": [b[2] for b in opening_beats_of(bp)],
-        "safe_facts": [{"claim": by_id[i]["claim"][:200]} for i in dict.fromkeys(r for b in beats if b.get("id") in {sb[0] for sb in opening_beats_of(bp)}
-                                                                              for r in [*(b.get("reveals") or []), *(b.get("relies_on") or [])]) if i in by_id][:8],
     }
 
 
-def opening_beats_of(blueprint: dict) -> list[list[str]]:
-    """The opening beats that only set the scene: what a title may be built on."""
-    return safe_beats(story_beats(blueprint))
-
-
-NAMING_VIEW = ("canonical_case_name", "known_public_names", "people", "location", "country", "incident_date", "human_core", "resolution_status", "claim_limits", "opening", "safe_facts")
+NAMING_VIEW = ("canonical_case_name", "known_public_names", "people", "location", "country", "incident_date", "summary", "central_question", "editorial_thesis", "human_core", "key_facts", "contradictions", "timeline",
+               "resolution_status", "claim_limits")
 
 
 def naming_view(ctx: dict) -> dict:
-    """What the title writer sees of the case: the case's record and the opening of the story, never the investigation's later findings (the contradictions, the thesis, the central question,
-    the withheld facts): what it does not see it cannot give away. The gates and the critic still hold the withheld words and facts."""
+    """What the title writer sees of the case: the case's record and everything the research found (the facts, the contradictions, the thesis, the central question, the timeline). Nothing is held back from it."""
     return {k: ctx[k] for k in NAMING_VIEW}
 
 

@@ -172,9 +172,9 @@ def host_mask(plate: Image.Image, face: tuple[float, float, float, float]) -> Im
     return Image.fromarray(cv2.GaussianBlur(host, (0, 0), cfg["feather"])).resize(plate.size, Image.LANCZOS)
 
 
-def _studio(plate: Image.Image, face: tuple[float, float, float, float], size: tuple[int, int], target: dict, veil: dict, host: Image.Image) -> Image.Image:
+def _studio(plate: Image.Image, face: tuple[float, float, float, float], size: tuple[int, int], target: dict, veil: dict, host: Image.Image) -> tuple[Image.Image, Image.Image]:
     """The studio frame scaled so the host's face has this format's width and place; what the frame does not reach is filled from the frame itself, blurred and darkened. The side strips fade
-    into the same blurred, darkened picture, so a studio sign cut by the edge of the cover is not left as a few readable letters."""
+    into the same blurred, darkened picture, so a studio sign cut by the edge of the cover is not left as a few readable letters. Returns the picture and the host's mask on it."""
     w, h = size
     fx, fy, fw, fh = face
     scale = target["face_width"] * w / fw
@@ -190,7 +190,7 @@ def _studio(plate: Image.Image, face: tuple[float, float, float, float], size: t
     ramp = np.clip((np.abs(x) - veil["blur_start"]) / (veil["blur_full"] - veil["blur_start"]), 0, 1)
     strength = ramp * ramp * (3 - 2 * ramp) * (1 - np.asarray(placed, dtype=np.float32) / 255)          # a smooth step from sharp to fully blurred; the host himself is never blurred
     smeared = ImageEnhance.Brightness(canvas.convert("RGB").filter(ImageFilter.GaussianBlur(w * veil["edge_blur"]))).enhance(0.55)
-    return Image.composite(smeared, canvas.convert("RGB"), Image.fromarray((strength * 255).astype(np.uint8))).convert("RGBA")
+    return Image.composite(smeared, canvas.convert("RGB"), Image.fromarray((strength * 255).astype(np.uint8))).convert("RGBA"), placed
 
 
 def _feather(size: tuple[int, int], reach: int) -> Image.Image:
@@ -225,18 +225,35 @@ def _gradient(size: tuple[int, int], top_peak: float, bottom_peak: float, top_re
 
 
 def _photo(path: Path, width: int, seed: str) -> Image.Image:
-    """The person's photo as a black-and-white print with a pale border, slightly turned, with a shadow."""
+    """The person's photograph as a print pinned to the investigation wall: cropped around the face (head and shoulders), graded to the cover's warm palette, with a pale border, a piece of
+    tape, a slight turn and a shadow."""
+    cfg = settings()["subject_photo"]
     with Image.open(path) as source:
-        grey = ImageOps.grayscale(source.convert("RGB"))
-    inner = ImageOps.fit(grey, (width, round(width * 1.18)), Image.LANCZOS, centering=(0.5, 0.35))
-    inner = ImageOps.autocontrast(inner, cutoff=1).convert("RGB")
+        rgb = source.convert("RGB")
+    height = round(width * 1.18)
+    face = AV.face_of(rgb)
+    if face is None:
+        inner = ImageOps.fit(rgb, (width, height), Image.LANCZOS, centering=(0.5, 0.35))
+    else:
+        fx, fy, fw, fh = face
+        crop_w = min(fw * 2.7, rgb.width, rgb.height * width / height)
+        crop_h = crop_w * height / width
+        left = min(max(fx + fw / 2 - crop_w / 2, 0), rgb.width - crop_w)
+        top = min(max(fy + fh / 2 - crop_h * 0.4, 0), rgb.height - crop_h)
+        inner = rgb.crop((round(left), round(top), round(left + crop_w), round(top + crop_h))).resize((width, height), Image.LANCZOS)
+    grey = ImageOps.autocontrast(ImageOps.grayscale(inner), cutoff=cfg["grade"]["contrast_cutoff"])
+    warm = ImageOps.colorize(grey, black=(18, 10, 6), white=tuple(cfg["grade"]["tint"]))
+    inner = Image.blend(grey.convert("RGB"), warm, cfg["grade"]["tint_share"] * 2)
     border = max(6, width // 28)
     print_ = Image.new("RGB", (inner.width + 2 * border, inner.height + 2 * border), (226, 218, 200))
     print_.paste(inner, (border, border))
+    tape = cfg["tape"]
+    piece = Image.new("RGBA", (round(width * tape["width"]), round(width * tape["height"])), tuple(tape["colour"]) + (round(255 * tape["opacity"]),))
     rng = random.Random(seed)
-    sheet = print_.convert("RGBA").rotate(rng.uniform(-6.5, -3.5), expand=True, resample=Image.BICUBIC)
+    sheet = print_.convert("RGBA")
+    sheet.alpha_composite(piece.rotate(rng.uniform(-4, 4), expand=True, resample=Image.BICUBIC), ((sheet.width - piece.width) // 2, 0))
+    sheet = sheet.rotate(rng.uniform(-4.5, -2.5), expand=True, resample=Image.BICUBIC)
     shadow = Image.new("RGBA", (sheet.width + 40, sheet.height + 40), (0, 0, 0, 0))
-    shadow.putalpha(Image.new("L", shadow.size, 0))
     blob = Image.new("L", shadow.size, 0)
     blob.paste(sheet.getchannel("A").point(lambda v: 150 if v else 0), (26, 30))
     shadow.putalpha(blob.filter(ImageFilter.GaussianBlur(10)))
@@ -260,8 +277,9 @@ def compose_set(language: str, title: str, plate: Path, logo: Path, *, highlight
     """The three covers of one Short: {format: {"image": RGB image, "elements": {name: [x, y, w, h]}, "problems": [...]}}. `highlight` is the word(s) of the title on the brush stroke
     (the last word when not given); `subject` is the person the banner names; `photo` is that person's photo, given only when the owner has cleared it."""
     cfg = settings()
-    if not (3 <= len(title.split()) <= ai_config.covers_settings().title["max_words"]):
-        raise CoverError("a title has 3 to 8 words")
+    words = ai_config.covers_settings().title
+    if not (words["min_words"] <= len(title.split()) <= words["max_words"]):
+        raise CoverError(f"a title has {words['min_words']} to {words['max_words']} words")
     rtl = language in RTL
     colours = {k: _rgb(v) for k, v in cfg["colours"].items()}
     with Image.open(plate) as frame:
@@ -272,7 +290,7 @@ def compose_set(language: str, title: str, plate: Path, logo: Path, *, highlight
     for name in shapes:
         lay = _mirrored(cfg["layout"][name]) if rtl and name in FILM_SHAPES else cfg["layout"][name]
         w, h = cfg["formats"][name]
-        canvas = _studio(frame, face, (w, h), lay["host"], lay["veil"], host)
+        canvas, host_alpha = _studio(frame, face, (w, h), lay["host"], lay["veil"], host)
         canvas.alpha_composite(_gradient((w, h), lay["veil"]["top"], lay["veil"]["bottom"], lay["veil"]["top_reach"], lay["veil"]["bottom_reach"], lay["veil"]["edge"], lay["veil"]["edge_reach"]))
         elements: dict[str, list[int]] = {}
         # the logo, top right
@@ -316,11 +334,13 @@ def compose_set(language: str, title: str, plate: Path, logo: Path, *, highlight
             _text(canvas, (cx, y), line, font, language, colours["ink"], "ma", max(4, size // 14), outline, between=paint)
             y += line_h
         elements["title"] = [round(t["x"] * w - t["width"] * w / 2), round(t["y"] * h), round(t["width"] * w), y - round(t["y"] * h)]
-        # the person's photo, lower left (only a cleared one)
+        # the person's photo, pinned to the wall behind the host (only a cleared one): the host stands in front of its edge
         if photo is not None:
             sheet = _photo(photo, round(lay["photo"]["width"] * w), f"{seed}-photo")
             px, py = round(lay["photo"]["x"] * w), round(lay["photo"]["y"] * h)
+            wall = canvas.copy()
             canvas.alpha_composite(sheet, (px, py))
+            canvas = Image.composite(wall, canvas, host_alpha.point(lambda v: 255 if v > 150 else 0).filter(ImageFilter.GaussianBlur(2)))          # the host's own outline, not the soft glow round him
             elements["photo"] = [px, py, sheet.width, sheet.height]
         # the banner: "real case: name"
         if subject:
@@ -386,6 +406,14 @@ def problems_of(image: Image.Image, elements: dict[str, list[int]], size: tuple[
         for name, (_, y, _, bh) in elements.items():
             if y < band["top"] * h or y + bh > band["bottom"] * h:
                 found.append(f"the {name} is outside the middle part that a feed crop keeps")
+    if "photo" in elements:                                                      # the person's photo is part of the picture, never on the words: its shadow margin does not count
+        px, py, pw, ph = elements["photo"]
+        visible = (px + 20, py + 20, pw - 40, ph - 40)
+        for name in ("title", "banner", "logo"):
+            if name in elements:
+                x, y, bw, bh = elements[name]
+                if visible[0] < x + bw and x < visible[0] + visible[2] and visible[1] < y + bh and y < visible[1] + visible[3]:
+                    found.append(f"the photo covers the {name}")
     title = elements["title"]
     if title[3] and title[3] / h < 0.07:
         found.append("the title is too small to read on a phone")

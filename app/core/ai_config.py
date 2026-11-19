@@ -93,13 +93,10 @@ REQUIRED_ROLES = {
     "host_angle",
     "opening_director",
     "opening_native_writer",
-    "short_clip_director",
-    "short_clip_native_writer",
     "cover_planner",
     "tag_generator",
     "publishing_planner",
     "publishing_metadata_writer",
-    "publishing_hook_critic",
     "publishing_orthography_fixer",
     "publishing_proofreader",
     "host_writer",
@@ -186,8 +183,8 @@ REQUIRED_ROLES = {
     # Case naming: native candidate titles per language, an independent
     # critic for quality/spoiler/epistemic risk, a native-language check.
     "case_naming_agent",
-    "case_title_critic",
-    "native_title_critic",
+    "cover_subject_picker",
+    "creative_pack",
     # Thumbnails: optional 0-4 word text, and the vision critic.
     "thumbnail_critic",
 }
@@ -1689,6 +1686,10 @@ class ASRCheckConfig(BaseModel):
     provider: str = "faster_whisper"
     model: str = "small"
     compute_type: str = "int8"
+    # How many transcriptions the model really runs at the same time (CTranslate2 `num_workers`; each uses 4 CPU threads). With 1, callers in several threads queue inside
+    # the model and gain nothing. Measured on the Mac Studio (M1 Ultra): 4 workers give 2.1x (model "small") and 2.9x ("large-v3-turbo") the throughput of one, with the
+    # same text; more than 4 does not help. Keep it equal to `concurrency.asr`.
+    workers: int = Field(default=1, ge=1, le=16)
     max_word_error_rate: float = Field(default=0.08, ge=0.0, le=1.0)
     # A run of this many consecutive missing (or extra) words fails the
     # block even when the overall error rate is low — that is a skipped
@@ -3535,6 +3536,9 @@ class ShortClipsConfig(BaseModel):
     # A hook is spoken for at least this many seconds (the words of the language that fill them): three words are too little for the first thing a viewer hears.
     hook_min_seconds: float = Field(gt=0.0)
     hook_max_words: int = Field(ge=3)
+    hook_max_sentences: int = Field(ge=1)          # a hook may be a whole opening sentence or two short ones
+    # Empty suspense phrases per language: a sentence that is essentially one of them (and no concrete, unusual fact) is refused and the writer is sent back
+    generic_phrases: dict[str, list[str]]
     cta_max_words: int = Field(ge=3)
     video: ClipVideoConfig
 
@@ -4309,6 +4313,50 @@ class VideoIdentityConfig(BaseModel):
     max_title_chars: int = Field(default=100, ge=30)
 
 
+class TitleStandardConfig(BaseModel):
+    """The shared creative standard for titles, Shorts/Reels titles, captions, tags and cover text (prompts/agents/title_standard.md with the whole library of
+    examples): the agents that get it, how many candidates every language and format needs, the GPT-6 review and the cover copy."""
+
+    agents: list[str]
+
+
+class ScoutingConfig(BaseModel):
+    """How the concepts of a film's Shorts are scouted: at least `min_concepts` genuinely different ones, each scored on five measures (0 to 10); the code weighs them (`weights`, summing to
+    1) and takes the strongest by that overall score; a concept whose factual reliability and spoiler safety is below `min_reliability`, or that cites no verified fact id, is never chosen."""
+
+    min_concepts: int = Field(ge=3)
+    min_reliability: float = Field(ge=0, le=10)
+    weights: dict[str, float]
+
+    @model_validator(mode="after")
+    def _weights_sum_to_one(self):
+        if set(self.weights) != {"emotional_intensity", "specificity_originality", "question_strength", "case_connection", "reliability"} or abs(sum(self.weights.values()) - 1) > 1e-6:
+            raise ValueError("scouting weights: the five measures, summing to 1")
+        return self
+
+
+class PackConfig(BaseModel):
+    """The creative pack (all titles, cover texts, Short hooks and scripts of a case for all languages in one request): `repairs` more requests when the code finds a problem."""
+
+    repairs: int = Field(ge=0)
+
+
+class ShortsStandardConfig(BaseModel):
+    """The shared creative standard for Shorts/Reels hooks and narration (prompts/agents/shorts_standard.md with all 144 scripts): the agents that get it, how many complete
+    candidates a Short needs and the GPT-6 review (candidates -> critique -> rewrite -> GPT-6 picks the strongest accurate version)."""
+
+    agents: list[str]
+    scouting: ScoutingConfig
+    pack: PackConfig
+
+
+class SecondLookConfig(BaseModel):
+    """The agents whose every answer is checked once by the same model in the same request (prompts/agents/second_look.md): it re-reads its own answer against the evidence and the rules and
+    returns the final version. One model, two passes, no separate inspector."""
+
+    agents: list[str]
+
+
 class CaseNamingConfig(BaseModel):
     """Title naming: counts, length and collision thresholds. Collision
     checks read stored data only — no search backend is ever called."""
@@ -4352,7 +4400,6 @@ class CaseNamingConfig(BaseModel):
     # critic gates (scores 0-1; risks: lower is better)
     min_native_quality: float = Field(default=0.7, ge=0, le=1)
     min_specificity: float = Field(default=0.4, ge=0, le=1)
-    max_spoiler_risk: float = Field(default=0.5, ge=0, le=1)
     max_epistemic_risk: float = Field(default=0.4, ge=0, le=1)
     max_sensationalism_risk: float = Field(default=0.5, ge=0, le=1)
     # ranking weights
@@ -4600,9 +4647,9 @@ class HostLimitsConfig(BaseModel):
 
 class OrchestratorConfig(BaseModel):
     """The orchestrator that admits film jobs to run (app/orchestration): the own machine's limits, the provider throttling policy and how
-    far apart two films may start (so the memory of the first shows before the second is admitted)."""
+    long a started film's expected memory is held back from the free memory (until its own memory shows)."""
 
-    stagger_seconds: float = Field(ge=0.0)
+    settle_seconds: float = Field(ge=0.0)
     host: HostLimitsConfig
     throttle: ThrottleConfig
     throttle_overrides: dict[str, ThrottleConfig] = {}
@@ -4619,12 +4666,17 @@ class ConcurrencyConfig(BaseModel):
     # ElevenLabs allows 5 concurrent requests on this plan; keep one free.
     elevenlabs_tts: int = Field(default=4, ge=1, le=32)
     elevenlabs_sound: int = Field(default=2, ge=1, le=16)
+    # Image generation through the gateway (covers, the opening block's pictures, host looks). The gateway's image quota is not published: a conservative default that shrinks
+    # when the gateway says "too many requests" and honours its Retry-After.
+    image: int = Field(default=2, ge=1, le=16)
     asr: int = Field(default=1, ge=1, le=8)
-    # The ffmpeg music mix under a narration is CPU-bound: one at a time, however many films are voiced side by side.
-    mix: int = Field(default=1, ge=1, le=8)
-    # Voice stages (the whole narration of one language: speech, listening checks, mix) running at the same time in this process: one on a machine that can
-    # voice one film while it renders another. The host's memory and load are checked by the orchestrator before a job starts (config orchestrator.host).
-    voice_stage: int = Field(default=1, ge=1, le=4)
+    # The ffmpeg music mix under a narration (mix, loudness normalisation, mp3): single-threaded streaming filters. Measured on the Mac Studio with 30 minutes of narration:
+    # 78.8 s alone, 81.3 s with 3 at once, 84.0 s with 9 at once, 73 MB per process: one per language costs nothing.
+    mix: int = Field(default=1, ge=1, le=16)
+    # Voice stages (the whole narration of one language: speech, listening checks, mix) running at the same time in this process. Several languages are voiced side by
+    # side; the provider's own limits still hold them back (elevenlabs_tts, asr and mix below). The host's memory and load are checked by the orchestrator before a job
+    # starts (config orchestrator.host).
+    voice_stage: int = Field(default=1, ge=1, le=16)
     render: int = Field(default=2, ge=1, le=8)
     downloads: int = Field(default=4, ge=1, le=32)
     # Documentary jobs running at the same time at most, worker-wide — including the
@@ -4888,6 +4940,9 @@ class AIConfig(BaseModel):
     youtube_metadata: YouTubeMetadataConfig = Field(default_factory=YouTubeMetadataConfig)
     video_identity: VideoIdentityConfig = Field(default_factory=VideoIdentityConfig)
     case_naming: CaseNamingConfig = Field(default_factory=CaseNamingConfig)
+    title_standard: TitleStandardConfig
+    shorts_standard: ShortsStandardConfig
+    second_look: SecondLookConfig
     thumbnail: ThumbnailConfig = Field(default_factory=ThumbnailConfig)
     opening: OpeningConfig = Field(default_factory=OpeningConfig)
     visual_direction: VisualDirectionConfig = Field(default_factory=VisualDirectionConfig)

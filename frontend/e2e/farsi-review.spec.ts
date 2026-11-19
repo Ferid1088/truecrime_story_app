@@ -17,7 +17,7 @@ const words = (text: string, corrected: Record<number, string> = {}) =>
 
 /** The reviews that sit under the Farsi review tab next to the long film's: the host's voice (covered by host-voice-review.spec.ts), the film's opening and the short clips. */
 const REVIEWS = [
-  { kind: "opening", button: "Opening (hook)", route: "opening-voice-review", blockId: "opening_hook", badge: "opening", note: "the opening's voice at once" },
+  { kind: "opening", button: "Opening (hook)", route: "opening-voice-review", blockId: "opening_hook", badge: "in review", note: "the opening's voice at once" },
   { kind: "clips", button: "Short clips", route: "clip-voice-review", blockId: "clip_C1_hook", badge: "in review", note: "that part's voice at once" },
 ] as const;
 

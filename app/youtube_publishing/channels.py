@@ -17,7 +17,7 @@ PLATFORM = "youtube"
 
 
 class ChannelError(RuntimeError):
-    """`reason`: unknown_language, invalid_channel_id, channel_in_use, disconnect_first."""
+    """`reason`: unknown_language, invalid_channel_id, channel_in_use, disconnect_first, awaiting_channel."""
 
     def __init__(self, reason: str, message: str):
         super().__init__(message)
@@ -35,6 +35,12 @@ class YouTubeChannels:
 
     def channel_id(self, language: str) -> str | None:
         return self._account(language).external_id or None
+
+    def require_existing(self, language: str) -> None:
+        """No connection is started for a channel that does not exist yet."""
+        self._account(language)
+        if self.cfg.channels[language].awaiting:
+            raise ChannelError("awaiting_channel", f"The {language} YouTube channel does not exist yet ({self.cfg.channels[language].awaiting.replace('_', ' ')}): nothing can be connected.")
 
     def oauth(self, language: str) -> YouTubeOAuth:
         return YouTubeOAuth(language, self.channel_id(language), self.cfg, http=self.http)
@@ -75,7 +81,7 @@ class YouTubeChannels:
 
     def status(self, language: str) -> dict:
         label = self.cfg.channels[language]
-        return {**self.oauth(language).status(), "label": label.label, "name": label.name, "registered": self.channel_id(language) is not None}
+        return {**self.oauth(language).status(), "label": label.label, "name": label.name, "awaiting": label.awaiting or None, "registered": self.channel_id(language) is not None}
 
     def overview(self) -> list[dict]:
         return [self.status(language) for language in self.cfg.channels]

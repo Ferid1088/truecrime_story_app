@@ -506,6 +506,7 @@
     "provider": "faster_whisper",
     "model": "small",
     "compute_type": "int8",
+    "workers": 4,
     "max_word_error_rate": 0.08,
     "max_missing_run": 3,
     "max_extra_run": 3,

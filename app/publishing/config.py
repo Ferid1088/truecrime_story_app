@@ -269,8 +269,6 @@ class GenerationSettings(BaseModel):
     examples_dir: str = Field(min_length=1)          # the owner's collection of top-viewed Shorts per language (few-shot examples for the writer); not committed
     examples_per_call: int = Field(ge=0, le=60)
     example_caption_chars: int = Field(ge=0, le=1000)
-    hook_min_score: int = Field(ge=0, le=10)         # a Short's hook scoring below this (stakes, open question or concrete detail) is sent back for a rewrite; 0 switches the critic off
-    hook_critic_examples: int = Field(ge=0, le=30)
     proofread_languages: list[str]                   # languages whose texts go through the proofreader (Sonnet) before the owner sees them: the ones the owner reads
     proofread_min_similarity: float = Field(gt=0, le=1)    # a corrected text that differs more than this from the original is a rewrite, not a correction, and is refused
 

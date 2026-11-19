@@ -1,15 +1,43 @@
 {
   "live_enabled": true,
   "channels": {
-    "fa": {"label": "Persian", "name": "ردِ خاموش"},
-    "en": {"label": "English", "name": "ClueVera"},
-    "de": {"label": "German"},
-    "ar": {"label": "Arabic"},
-    "es": {"label": "Spanish"},
-    "it": {"label": "Italian"},
-    "fr": {"label": "French"},
-    "pt": {"label": "Portuguese"},
-    "tr": {"label": "Turkish"}
+    "fa": {
+      "label": "Persian",
+      "name": "ردِ خاموش"
+    },
+    "en": {
+      "label": "English",
+      "name": "ClueVera"
+    },
+    "de": {
+      "label": "German",
+      "name": "Fallspur"
+    },
+    "ar": {
+      "label": "Arabic",
+      "name": "أثر خفي"
+    },
+    "es": {
+      "label": "Spanish",
+      "name": "Tras la Pista"
+    },
+    "it": {
+      "label": "Italian",
+      "name": "Tracce Nascoste"
+    },
+    "fr": {
+      "label": "French",
+      "name": "Pistes Cachées"
+    },
+    "pt": {
+      "label": "Portuguese",
+      "name": "Pistas Ocultas",
+      "awaiting": "channel_creation"
+    },
+    "tr": {
+      "label": "Turkish",
+      "name": "Gizli İzler"
+    }
   },
   "oauth": {
     "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
@@ -47,7 +75,17 @@
     "processing_poll_seconds": 15,
     "processing_max_wait_seconds": 1800,
     "session_max_age_hours": 168,
-    "caption_languages": ["fa", "en", "de", "ar", "es", "it", "fr", "pt", "tr"],
+    "caption_languages": [
+      "fa",
+      "en",
+      "de",
+      "ar",
+      "es",
+      "it",
+      "fr",
+      "pt",
+      "tr"
+    ],
     "evidence": "Endpoints, scopes, quotas and limits were read on developers.google.com/youtube/v3 (videos.insert, resumable upload protocol, thumbnails.set, captions.insert, videos resource) on 2026-11-16; channels.list and videos.list scopes are not named on their pages and are confirmed by the live connection test."
   },
   "ui_base_url": "http://127.0.0.1:3001",

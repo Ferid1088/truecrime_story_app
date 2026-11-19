@@ -163,6 +163,7 @@ def approved_items(db: Session, plan: VisualPlan) -> dict[str, list[Item]]:
     rows = (db.query(MvpCandidate, MvpRequirement)
             .join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
             .filter(MvpRequirement.visual_plan_id == plan.id, MvpCandidate.final_status == "approved")
+            .order_by(MvpCandidate.id)             # a total order: items of equal priority and role keep the order they were approved in, whatever the database returns
             .all())
     out: dict[str, list[Item]] = {}
     for cand, req in sorted(rows, key=lambda x: (priority[x[1].priority], ROLE_RANK.get(x[0].role or "", 3))):

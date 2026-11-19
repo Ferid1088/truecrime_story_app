@@ -90,22 +90,19 @@
         "case_status_verifier": "premium",
         "host_director": "sol",
         "host_angle": "premium",
-        "opening_director": "premium",
-        "short_clip_director": "premium",
-        "short_clip_native_writer": "premium",
-        "cover_planner": "premium",
-        "tag_generator": "writer",
-        "publishing_planner": "premium",
-        "publishing_metadata_writer": "premium",
-        "opening_native_writer": "premium",
+        "opening_director": "sol",
+        "cover_planner": "sol",
+        "tag_generator": "sol",
+        "publishing_planner": "sol",
+        "publishing_metadata_writer": "sol",
+        "opening_native_writer": "sol",
         "host_writer": "premium",
         "host_writer_fa_ar": "premium",
         "host_critic": "writer",
         "chapter_writer": "premium",
         "chapter_auditor": "writer",
-        "case_naming_agent": "premium",
-        "case_title_critic": "writer",
-        "native_title_critic": "writer",
+        "case_naming_agent": "sol",
+        "cover_subject_picker": "sol",
         "thumbnail_critic": "writer",
         "language_draft_writer": "writer",
         "language_rewrite_writer": "sol",
@@ -139,9 +136,9 @@
         "detective_card_maker": "writer",
         "detective_card_inspector": "writer",
         "semantic_audio_reviewer": "audio_listener",
-        "publishing_hook_critic": "premium",
         "publishing_orthography_fixer": "premium",
-        "publishing_proofreader": "premium"
+        "publishing_proofreader": "premium",
+        "creative_pack": "sol"
       },
       "fallbacks": {
         "cheap": [
@@ -290,11 +287,6 @@
       "max_tokens": 8000,
       "reasoning_effort": "medium"
     },
-    "short_clip_director": {
-      "temperature": 0.7,
-      "max_tokens": 12000,
-      "reasoning_effort": "medium"
-    },
     "cover_planner": {
       "temperature": 0.5,
       "max_tokens": 8000,
@@ -314,11 +306,6 @@
       "temperature": 0.7,
       "max_tokens": 12000,
       "reasoning_effort": "low"
-    },
-    "short_clip_native_writer": {
-      "temperature": 0.7,
-      "max_tokens": 12000,
-      "reasoning_effort": "medium"
     },
     "opening_native_writer": {
       "temperature": 0.7,
@@ -351,13 +338,9 @@
       "temperature": 0.9,
       "max_tokens": 6000
     },
-    "case_title_critic": {
+    "cover_subject_picker": {
       "temperature": 0.0,
-      "max_tokens": 6000
-    },
-    "native_title_critic": {
-      "temperature": 0.0,
-      "max_tokens": 4000
+      "max_tokens": 3000
     },
     "thumbnail_critic": {
       "temperature": 0.0,
@@ -511,11 +494,6 @@
       "temperature": 0.0,
       "max_tokens": 6000
     },
-    "publishing_hook_critic": {
-      "temperature": 0.2,
-      "max_tokens": 6000,
-      "reasoning_effort": "low"
-    },
     "publishing_orthography_fixer": {
       "temperature": 0.0,
       "max_tokens": 12000,
@@ -525,6 +503,10 @@
       "temperature": 0.1,
       "max_tokens": 40000,
       "reasoning_effort": "low"
+    },
+    "creative_pack": {
+      "temperature": 0.8,
+      "max_tokens": 32000
     }
   }
 }

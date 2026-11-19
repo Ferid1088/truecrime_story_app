@@ -170,8 +170,8 @@ class InstagramConnection:
         except MetaError as exc:
             raise ConnectError("token_expired" if exc.kind == "token_expired" else "meta_error", f"Meta answered: {exc}") from exc
         named = env_value(self.s.account_id_env)
-        if named and named != self.s.account.ig_account_id:
-            raise ConnectError("account_mismatch", f"{self.s.account_id_env} names Instagram account {named}, not the configured {self.s.account.ig_account_id}. Nothing was stored.")
+        if named and named not in {account.ig_account_id for account in self.s.accounts.values()}:
+            raise ConnectError("account_mismatch", f"{self.s.account_id_env} names Instagram account {named}, which is none of the configured accounts. Nothing was stored.")
         if str(info.get("id")) != self.s.account.ig_account_id or info.get("username") != self.s.account.username:
             raise ConnectError("account_mismatch", f"The token reaches Instagram account '{info.get('username')}' ({info.get('id')}), not the {self.s.language} account "
                                                    f"{self.s.account.username} ({self.s.account.ig_account_id}). Nothing was stored.")

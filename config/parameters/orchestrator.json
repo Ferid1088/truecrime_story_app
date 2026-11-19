@@ -1,6 +1,6 @@
 {
   "orchestrator": {
-    "stagger_seconds": 20,
+    "settle_seconds": 20,
     "host": {
       "min_free_memory_gb": 2.0,
       "job_memory_gb": 2.5,

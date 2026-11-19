@@ -789,7 +789,8 @@ def test_monitoring_shows_a_draft_waiting_a_stopped_upload_an_unknown_finish_and
     with pytest.raises(ConnectError):
         asyncio.run(connection(meta).test())
     failed = connection(meta).status()
-    monkeypatch.setattr(FacebookConnection, "status", lambda self: failed)
+    original = FacebookConnection.status
+    monkeypatch.setattr(FacebookConnection, "status", lambda self: failed if self.f.language == "fa" else original(self))
     problems = facebook_connection_issues()
     assert [i.severity for i in problems] == ["problem"] and "last connection test failed" in problems[0].title
 

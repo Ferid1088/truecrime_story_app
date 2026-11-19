@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import logging
 
 import httpx
 
@@ -26,6 +27,8 @@ from app.providers.voice.base import (
     VoiceRenderResult,
     VoiceRequest,
 )
+
+log = logging.getLogger(__name__)
 
 _RETRYABLE = {"rate_limited", "provider_error", "timeout", "unreachable"}
 
@@ -128,17 +131,24 @@ class ElevenLabsVoiceProvider(VoiceProvider):
         # Too many parallel requests (429 concurrent_limit_exceeded) is a
         # queueing problem, not an error: wait and retry more often.
         attempts = self.cfg.max_retries + 1 + 4
+        uncertain = 0           # requests that were sent and never answered: ElevenLabs may have processed (and billed) them, and no idempotency key is documented to prevent a second charge
         for attempt in range(attempts):
             try:
                 async with slot("elevenlabs_tts"):
                     status, data, headers = await self._post(url, body)
             except httpx.TimeoutException as e:
+                uncertain += 1
                 last = VoiceProviderError("timeout", f"ElevenLabs timeout: {e}")
             except httpx.HTTPError as e:
+                uncertain += isinstance(e, (httpx.ReadError, httpx.RemoteProtocolError))
                 last = VoiceProviderError("unreachable", f"ElevenLabs unreachable: {e}")
             else:
                 if status == 200:
-                    return self._parse(req, data, headers)
+                    result = self._parse(req, data, headers)
+                    if uncertain:
+                        result.extra["uncertain_prior_attempts"] = uncertain
+                        log.warning("ElevenLabs answered after %d request(s) that got no answer: those may have been billed too", uncertain)
+                    return result
                 last = self._error(status, data)
                 if last.kind == "rate_limited":
                     report_throttle("elevenlabs_tts")

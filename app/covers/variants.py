@@ -7,6 +7,7 @@ cover that carries one needs the owner's explicit acknowledgement. Nothing here 
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from pathlib import Path
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.covers import proposals as P
 from app.covers import service as SV
+from app.covers import subject as SU
 from app.covers import triptych as T
 from app.db.models import (
     Case,
@@ -76,6 +78,16 @@ def authorization(asset: VisualAsset) -> tuple[bool, str]:
         return True, f"approved editorially by {asset.editorial_approved_by}: this is not copyright permission"
     return False, "not approved yet: " + {"editorial_review_required": "it needs your editorial approval", "permission_required": "its rights holder's permission is required",
                                            "do_not_use": "it is marked do not use"}.get(asset.rights_status, f"its rights are {asset.rights_status}")
+
+
+def cleared(asset: VisualAsset) -> tuple[bool, str]:
+    """Whether the photograph of the person a cover is about may be used: by its rights or editorial approval, else by the owner's standing instruction (config triptych.subject_photo), which
+    is an editorial decision and no copyright permission."""
+    ok, why = authorization(asset)
+    standing = T.settings()["subject_photo"]["standing_approval"]
+    if ok or not standing["enabled"] or asset.rights_status in ("permission_required", "do_not_use"):
+        return ok, why
+    return True, f"approved by the {standing['by']}; rights status '{asset.rights_status}': this is not copyright permission"
 
 
 def subject_candidates(db: Session, case: Case, language: str) -> list[dict]:
@@ -156,11 +168,11 @@ def banner_name(db: Session, case_id: int, language: str, latin: str) -> tuple[s
     return (spelling, {"source": "confirmed spelling", "checked_in_story": found, "story_versions": len(texts)}) if found else (latin, {"source": "name as stored", "checked_in_story": 0, "note": f"{spelling} is not in the {language} story"})
 
 
-def _evidence(proposal, plate: Path, source: dict, photo: VisualAsset | None, subject: str, metrics: dict, name_check: dict) -> dict:
+def _evidence(proposal, plate: Path, source: dict, photo: VisualAsset | None, subject: str, metrics: dict, name_check: dict, choice: dict | None = None) -> dict:
     evidence: dict = {"title_status": proposal.status, "title_source": proposal.source, "title_confidence": proposal.confidence, "plate": plate.name, "host_picture": source,
-                      "subject": subject or None, "name_check": name_check, "measured": metrics, "paid_calls": 0}
+                      "subject": subject or None, "subject_choice": choice, "name_check": name_check, "measured": metrics, "paid_calls": 0}
     if photo is not None:
-        ok, why = authorization(photo)
+        ok, why = cleared(photo)
         evidence["photo"] = {"asset_id": photo.id, "code": photo.asset_code, "authorized": ok, "why": why, "rights_status": photo.rights_status, "license": photo.license, "credit": photo.credit,
                              "source": photo.source_name or photo.page_url or photo.provider, "sha256": photo.sha256, "copyright_note": T.settings()["rights_note"]}
     return evidence
@@ -187,11 +199,17 @@ def render(db: Session, case: Case, language: str, key: str, *, shapes: list[str
         raise VariantError("plate_missing", why or "no host picture")
     out_dir = SV.covers_dir(case.id, language)
     people = subject_candidates(db, case, language)
-    person = None if subject_entity == "none" else next((p for p in people if p["entity_key"] == subject_entity), people[0] if people and subject_entity is None else None)
+    chosen_by, roles = {"by": "owner"}, []
+    if subject_entity is None and people:
+        picked, why, roles = asyncio.run(SU.choose(db, case, people))
+        subject_entity, chosen_by = (picked, {"by": "rule", "why": why}) if picked else (people[0]["entity_key"], {"by": "most photographed", "why": why})
+    person = None if subject_entity == "none" else next((p for p in people if p["entity_key"] == subject_entity), None)
     photo = None
     if person is not None and use_photo:
-        wanted = [p for p in person["photos"] if p["authorized"] and (photo_asset_id is None or p["asset_id"] == photo_asset_id)]
-        photo = db.get(VisualAsset, wanted[0]["asset_id"]) if wanted else None
+        found = [db.get(VisualAsset, p["asset_id"]) for p in person["photos"] if photo_asset_id is None or p["asset_id"] == photo_asset_id]
+        usable = [a for a in found if a is not None and cleared(a)[0]]
+        solo = [a for a in usable if json.loads(a.entities_json or "[]") == [person["entity_key"]] and a.subject_type in ("person", "portrait_person")]        # the person alone, not in a group
+        photo = max(solo or usable, key=lambda a: (a.width or 0) * (a.height or 0)) if usable else None          # the sharpest, largest picture of the person
     named, name_check = ((subject_name or "").strip(), {"source": "typed by the owner"}) if (subject_name or "").strip() else banner_name(db, case.id, language, person["name"]) if person else ("", {})
     chosen = (highlight or T.key_phrase(proposal.title, language)).strip()
     made = T.compose_set(language, proposal.title, plate, storage.ROOT / ai_config.channels[language].logo, highlight=chosen, subject=named if person else None, shapes=tuple(shapes),
@@ -208,7 +226,7 @@ def render(db: Session, case: Case, language: str, key: str, *, shapes: list[str
                            subject_name=named if person else "", photo_asset_id=photo.id if photo else None, file_path=storage.rel(path) or "",
                            file_hash=hashlib.sha256(path.read_bytes()).hexdigest(), width=image.width, height=image.height, elements_json=json.dumps(made[shape]["elements"]),
                            problems_json=json.dumps(made[shape]["problems"], ensure_ascii=False),
-                           evidence_json=json.dumps(_evidence(proposal, plate, source, photo, named if person else "", made[shape]["metrics"], name_check), ensure_ascii=False))
+                           evidence_json=json.dumps(_evidence(proposal, plate, source, photo, named if person else "", made[shape]["metrics"], name_check, {**chosen_by, "roles": roles}), ensure_ascii=False))
         db.add(row)
         rows.append(row)
     for old in earlier:

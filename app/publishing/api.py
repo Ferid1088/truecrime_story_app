@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import get_db
 from app.db.models import Case, RoutingLink
+from app.publishing.connections import connection_table
 from app.publishing.registry import PublicationRegistry, PublishingRefused
 
 router = APIRouter(tags=["publishing"])
@@ -43,6 +44,12 @@ def _case(db: Session, case_id: int) -> Case:
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
     return case
+
+
+@router.get("/api/publishing/connections")
+def connections(db: Session = Depends(get_db)):
+    """Every language and platform with its account and connection state (no call to Google or Meta; the per-platform tests make those)."""
+    return {"connections": connection_table(db)}
 
 
 @router.get("/api/cases/{case_id}/publishing/{language}")

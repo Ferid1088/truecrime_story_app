@@ -16,7 +16,7 @@ Models, sampling parameters and limits are in `config/models.json` (the `mvp_*` 
 
 Owner review is a persisted state machine (`mvp_film_reviews`): IMPLEMENTING -> PRODUCING -> VALIDATING ->
 AWAITING_OWNER_REVIEW -> APPROVED / REVISION_REQUIRED / REJECTED. A decision names the exact render checksum;
-non-English full films are refused until the English render is APPROVED (`require_english_first`).
+the legacy switch `require_english_first` (non-English films refused until the English render is APPROVED) is off. The gate that applies is the owner's case-level approval of the shared pictures and videos (`mvp/visual_gate.py`): no language's film is directed or rendered before it, and a change to the approved items voids it (see `docs/production_dependencies.md`).
 
 ## Removed
 The old visual planner, dossier, director, verifier, auditor, editorial-review, query-refiner and video-auditor

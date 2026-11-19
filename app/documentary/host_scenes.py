@@ -197,7 +197,7 @@ def _sentences(text: str) -> list[str]:
 
 def voice_flags(take: dict, asr_missing: bool) -> list[str]:
     """What a person has to look at in a voiced appearance: a Whisper check that failed after
-    the retake, a check that could not run."""
+    the retake, a check that is switched on but could not run (one switched off in the config is no warning)."""
     flags = []
     asr = take.get("asr")
     if asr and not asr["passed"]:
@@ -307,7 +307,7 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, reviewer=Non
         "attempts": result["attempts"],
         **({"semantic_review": result["semantic_review"]} if result.get("semantic_review") else {}),
         "asr_engine": renderer.asr.name if renderer.asr else None,
-        "flags": voice_flags(take, renderer.asr is None)})
+        "flags": voice_flags(take, renderer.asr is None and ai_config.asr_check.enabled)})
     scene.voice_checks_json = json.dumps(checks, ensure_ascii=False)
     return None
 

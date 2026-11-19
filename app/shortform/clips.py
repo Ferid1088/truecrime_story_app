@@ -13,17 +13,10 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ShortClipsConfig, ai_config
 from app.db.models import ShortClip
 from app.documentary.host import _SENTENCE_END
-from app.documentary.host_firewall import reveal_issues
-from app.documentary.host_story import HostStory
 from app.documentary.spoken import digits_left, latin_fix, latin_left
 
 TEXT_PARTS = ("hook", "context", "detail", "reaction", "cta")
 _URL = re.compile(r"https?://|www\.", re.IGNORECASE)
-
-
-def knowledge_cutoff(story: HostStory) -> int:
-    """How many acts a clip may use: the acts before the one where the story answers most (all of them when no act is marked)."""
-    return next((i for i, a in enumerate(story.acts) if a.payoff), len(story.acts))
 
 
 def _scale(language: str) -> float:
@@ -41,7 +34,7 @@ def words_for(part: str, language: str, cfg: ShortClipsConfig | None = None) -> 
     return max(1, int(words * (1 - cfg.word_tolerance))), int(words * (1 + cfg.word_tolerance)) + 1
 
 
-def clip_issues(clip: dict, story: HostStory, language: str, cfg: ShortClipsConfig | None = None) -> list[dict]:
+def clip_issues(clip: dict, language: str, cfg: ShortClipsConfig | None = None) -> list[dict]:
     """What is wrong with one clip's script, each with the fix the writer is told."""
     cfg = cfg or ai_config.short_clips_settings()
     issues: list[dict] = []
@@ -67,19 +60,18 @@ def clip_issues(clip: dict, story: HostStory, language: str, cfg: ShortClipsConf
             issues.append({"type": "reaction_no_question", "fix": "The reaction asks the viewer a question."})
         if any(re.search(p, str(clip["hook"]), re.IGNORECASE) for p in rules.greeting_patterns):
             issues.append({"type": "greeting", "fix": "No greeting and no introduction: the hook is the case itself."})
-    cutoff = knowledge_cutoff(story)
     for part in TEXT_PARTS:
         text = str(clip[part])
         if rules is not None and (found := next((m.group(0) for p in rules.formal_patterns if (m := re.search(p, text))), None)):
             issues.append({"type": "formal_address", "part": part, "quote": found, "fix": "Speak to the viewer informally, as a friend does (the host never says 'Sie' or the formal you of the language)."})
+        if generic := generic_phrase_in(text, language, cfg):
+            issues.append({"type": "generic_phrase", "part": part, "quote": generic, "fix": "This is an empty suspense phrase that fits dozens of cases: say the concrete, unusual, case-specific fact instead."})
         if digits := digits_left(text, language):
             issues.append({"type": "numbers_as_digits", "part": part, "quote": ", ".join(digits[:4]), "fix": "Write numbers as words."})
         if latin := latin_left(text, language):
             issues.append({"type": "foreign_script", "part": part, "quote": ", ".join(latin[:4]), "fix": latin_fix(latin[0])})
-        for issue in reveal_issues(story, cutoff, text):
-            issues.append({**issue, "part": part, "fix": "This uses something the story answers or reveals later: leave the answer to the full film."})
-    if len([s for s in _SENTENCE_END.split(str(clip["hook"])) if s.strip()]) > 1:
-        issues.append({"type": "hook_not_one_statement", "fix": "The hook is one statement, one sentence."})
+    if len([s for s in _SENTENCE_END.split(str(clip["hook"])) if s.strip()]) > cfg.hook_max_sentences:
+        issues.append({"type": "hook_not_one_statement", "fix": f"The hook is at most {cfg.hook_max_sentences} sentence(s): one whole opening sentence, or two short ones."})
     return issues
 
 
@@ -100,9 +92,52 @@ def set_issues(clips: list[dict], cfg: ShortClipsConfig | None = None) -> list[d
 
 def parse_clips(raw: dict) -> list[dict]:
     """The clips of an answer, each as a dict with the fields of a script (anything else is dropped)."""
-    fields = ("clip_key", "angle", "idea", *TEXT_PARTS, "evidence_ids", "act_ids")
-    return [{k: (v if k in ("evidence_ids", "act_ids") else (str(v).strip() if v is not None else "")) for k, v in c.items() if k in fields}
+    fields = ("clip_key", "angle", "idea", *TEXT_PARTS, "evidence_ids", "act_ids", "selection")
+    return [{k: (v if k in ("evidence_ids", "act_ids", "selection") else (str(v).strip() if v is not None else "")) for k, v in c.items() if k in fields}
             for c in (raw.get("clips") or []) if isinstance(c, dict)]
+
+
+def _plain(text: str) -> str:
+    """The text as the generic-phrase check reads it: lower case, no punctuation, half-spaces and apostrophes as plain spaces."""
+    return " ".join(re.sub(r"[^\w\s]", " ", text.casefold().replace("\u200c", " ").replace("'", " ")).split())
+
+
+def generic_phrase_in(text: str, language: str, cfg: ShortClipsConfig | None = None) -> str | None:
+    """The empty suspense phrase a sentence of `text` essentially is (the phrase plus at most three more words), or None. A phrase inside a longer sentence that states a concrete fact is no empty teaser."""
+    cfg = cfg or ai_config.short_clips_settings()
+    phrases = [(_plain(p), p) for p in cfg.generic_phrases.get(language, [])]
+    for sentence in _SENTENCE_END.split(text):
+        plain = _plain(sentence)
+        for key, original in phrases:
+            if key and key in plain and len(plain.split()) <= len(key.split()) + 3:
+                return original
+    return None
+
+
+def spoken_seconds(clip: dict, language: str, cfg: ShortClipsConfig | None = None) -> float:
+    """The local estimate of the spoken duration: each part takes the seconds of its slot, scaled by its words against the middle of the words its slot holds."""
+    cfg = cfg or ai_config.short_clips_settings()
+    total = 0.0
+    for part in ("hook", "context", "detail", "reaction"):
+        low, high = words_for(part, language, cfg)
+        words = len((clip.get(part) or "").split()) + (len((clip.get("cta") or "").split()) if part == "reaction" else 0)
+        total += cfg.segments[part].seconds * words / ((low + high) / 2)
+    return round(total, 1)
+
+
+def with_estimate(clip: dict, language: str) -> dict:
+    """The clip with the writer's own selection note (the concepts it weighed, the hook span, the tease question, the fact references) and its duration, honestly labelled: at this point only an
+    ESTIMATE from the words (no speech has been made); `duration_of` gives the measured one once the clip has been voiced."""
+    note = clip.get("selection") if isinstance(clip.get("selection"), dict) else {}
+    return {**clip, "selection": {**note, "duration": {"seconds": spoken_seconds(clip, language), "kind": "estimate"}}}
+
+
+def duration_of(row: ShortClip) -> dict:
+    """{seconds, kind} of a stored clip: the real length of its synthesized voice when it has been voiced ("measured"), else the estimate from its words ("estimate")."""
+    media = json.loads(row.media_json or "{}")
+    if media.get("voice_seconds"):
+        return {"seconds": media["voice_seconds"], "kind": "measured"}
+    return {"seconds": spoken_seconds(json.loads(row.script_json), row.language), "kind": "estimate"}
 
 
 def seconds_of(clip: dict, cfg: ShortClipsConfig | None = None) -> dict[str, float]:

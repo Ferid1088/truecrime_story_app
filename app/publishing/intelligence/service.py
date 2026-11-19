@@ -24,7 +24,6 @@ from app.utils import utc_now
 
 CHARS_PER_TOKEN = 0.55           # Persian costs about 1.8 tokens per character on the writer's model (measured on the live runs: 20,000 characters of request -> 37,233 input tokens)
 PLANNER_OUTPUT_TOKENS = 2500
-CRITIC_OUTPUT_TOKENS_PER_ITEM = 120       # four scores, a risk word and a one-sentence direction
 WRITER_OUTPUT_TOKENS_PER_ITEM = 1300      # measured: 4,384 to 7,597 output tokens for 5 or 6 destinations
 
 
@@ -79,16 +78,12 @@ def estimate(registry: PublicationRegistry, inputs: Inputs) -> dict:
     for platform in platforms:
         view = metadata_view(registry, inputs, platform, None)
         total += price("publishing_metadata_writer", len(json.dumps(view, ensure_ascii=False)) + len(prompt("publishing/metadata")), len(view["items"]) * WRITER_OUTPUT_TOKENS_PER_ITEM)
-    judged = [p for p in platforms if any(d == f"{p}/short" for d in inputs.destinations)] if registry.cfg.intelligence.generation.hook_min_score else []
-    for platform in judged:
-        view = metadata_view(registry, inputs, platform, None)
-        total += price("publishing_hook_critic", len(json.dumps(view["items"], ensure_ascii=False)) + len(prompt("publishing/hook_critic")), len(view["items"]) * CRITIC_OUTPUT_TOKENS_PER_ITEM)
     texts = len(inputs.destinations) if inputs.language in registry.cfg.intelligence.generation.proofread_languages else 0
     if texts:
         total += price("publishing_proofreader", texts * 900 + len(prompt("publishing/proofread")), texts * 750)
     assets = 1 if texts else 0
-    return {"calls": 1 + len(platforms) + len(judged) + assets, "eur_low": round(total * 0.8, 3), "eur_high": round(total * 1.9, 3),
-            "models": {role: pricing["models"][ai_config.alias_for(role)]["provider_model"] for role in ("publishing_planner", "publishing_metadata_writer", "publishing_hook_critic")},
+    return {"calls": 1 + len(platforms) + assets, "eur_low": round(total * 0.8, 3), "eur_high": round(total * 1.9, 3),
+            "models": {role: pricing["models"][ai_config.alias_for(role)]["provider_model"] for role in ("publishing_planner", "publishing_metadata_writer")},
             "basis": "A planning figure from the size of the input and the configured prices, with room for repair rounds (a repair call is billed again). Not a price: the cost of the run is shown after it."}
 
 

@@ -104,10 +104,14 @@ def _scene_with_action(db_session, graph, action_key, covered_unit_keys):
 def test_the_toolkit_makes_the_reveal_graph_and_the_planner_only_reads_it(db_session, monkeypatch):
     import pytest
 
+    from app.db.base import Base
     from app.db.models import RevealGraph
     from app.documentary.mvp import pipeline as MVP
 
     case, blueprint, graph = _graph_with_narration(db_session)
+    for table in reversed(Base.metadata.sorted_tables):                  # the graph's rows first: PostgreSQL keeps its foreign keys
+        if any(fk.column.table.name == "reveal_graphs" for fk in table.foreign_keys):
+            db_session.execute(table.delete().where(table.c.graph_id == graph.id))
     db_session.query(RevealGraph).filter_by(id=graph.id).delete()
     db_session.flush()
     with pytest.raises(LookupError, match="has not made the reveal graph"):

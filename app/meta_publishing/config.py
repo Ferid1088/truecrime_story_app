@@ -90,8 +90,8 @@ class InstagramSettings(BaseModel):
     graph_host: str
     upload_host: str
     api_version: str
-    language: str
-    account: InstagramAccount
+    language: str                        # the language this view serves (`for_language`); the first configured one by default
+    accounts: dict[str, InstagramAccount]    # one professional account per language; all of them are reached with the one system-user token
     connection_permissions: list[str]    # what the connection test needs: the token reaches the account and may publish to it
     required_permissions: list[str]      # what Meta documents for publishing (the Reels publisher refuses without all of them)
     token_env: str
@@ -106,6 +106,22 @@ class InstagramSettings(BaseModel):
     poll_interval_s: float
     poll_max_s: float
     connection: ConnectionSettings
+
+    @model_validator(mode="after")
+    def _chosen_language(self):
+        if self.language not in self.accounts:
+            raise ValueError(f"no Instagram account is configured for '{self.language}'")
+        return self
+
+    @property
+    def account(self) -> InstagramAccount:
+        return self.accounts[self.language]
+
+    def for_language(self, language: str) -> InstagramSettings:
+        """The same settings for the account of one language. Raises ValueError for a language that has no account."""
+        if language not in self.accounts:
+            raise ValueError(f"no Instagram account is configured for '{language}'")
+        return self.model_copy(update={"language": language})
 
 
 class FacebookPage(BaseModel):

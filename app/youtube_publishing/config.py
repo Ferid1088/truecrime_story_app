@@ -19,6 +19,7 @@ class ChannelLabel(BaseModel):
 
     label: str
     name: str = ""          # the channel's name once the owner has given it
+    awaiting: str = ""      # why no channel can be connected yet ("channel_creation": the channel does not exist); empty when it exists
 
 
 class OAuthSettings(BaseModel):

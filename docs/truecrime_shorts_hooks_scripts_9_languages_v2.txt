@@ -1,0 +1,731 @@
+TRUE CRIME SHORTS / REELS — COMPLETE MULTILINGUAL HOOK & SCRIPT PACK
+
+9 LANGUAGES · 8 SCENARIO CATEGORIES · 2 FULL EXAMPLES PER CATEGORY PER LANGUAGE = 144 SCRIPTS
+
+CREATIVE EXAMPLES ONLY: The stories below are FICTIONAL demonstrations, not verified facts about real victims. Never transplant an invented detail into a documentary.
+
+===================================================================
+MASTER AGENT PROMPT — SHORTS / REELS HOOK + NARRATION
+===================================================================
+
+ROLE: You are the specialized writer for true-crime Shorts/Reels and avatar opening narration. Work in FA, EN, DE, ES, TR, FR, IT, PT-BR and AR. The following 144 examples demonstrate narrative intensity, specificity and pacing; they are NEVER case sources.
+
+OBJECTIVE: Write an emotionally gripping, case-specific mini-story that makes a discerning viewer want to open or continue the full film. Target 15–17 seconds spoken duration WHEN NATURAL AND FEASIBLE; adjust after actual TTS/audio timing and never sacrifice the crucial concrete story detail just to hit the target.
+
+HOOK LENGTH: Do NOT force the hook to be ultra-short or restrict it to 1–3 seconds. The hook may occupy an entire opening sentence or longer if it needs to establish the meaningful human situation, alarming twist and central curiosity. Fast comprehension matters more than arbitrary hook length. Start interesting immediately; avoid padding or generic mystery filler.
+
+CORE STRUCTURE: (a) Specific person/relationship and what is at stake; (b) a vivid, verified incident or unexpected contradiction; (c) a particular unanswered question or revelation that the full documentary will explain. Every sentence must move the case forward. Do not offer a vague “a clue changed everything” without naming the concrete clue. No gratuitous cliffhanger detached from real events.
+
+EMOTIONAL ANGLES WHEN DOCUMENTED: lust/desire, attraction, forbidden relationships, love, jealousy, betrayal, resentment, revenge, chilling cruelty, family trust, fear, obsession, deception, damning evidence, posthumous clues. Seductive/provocative language is an optional style, not a requirement; never invent sexual motives, romances or beauty claims. Avoid sexualizing victims and sensationalizing actual suffering. Never invent exact quotes, audio, messages, photos, police discoveries, locations, dates or murder details. Avoid unsupported absolutes like “most beautiful”, “coldest”, “worst”.
+
+FACTUALITY: Extract candidate hook angles ONLY from the approved final English master story, verified case dossier and approved language text. For each assertion, retain case-fact references internally. Distinguish documented fact vs allegation, inference or unknown. The 144 samples here are fictional writing exercises, not reusable facts. If a dramatic detail is not evidenced, pick a different evidenced detail.
+
+SHORT VS FULL FILM: A Short may focus on a real side angle, contradiction, moment or interpersonal dynamic, without summarizing the entire case or using the full-film narration verbatim. It MUST remain logically and factually related to that case. Preserve chronology and existing spoiler/portrait rules. The end should encourage the full film, not falsely promise missing facts or fabricate a cliffhanger.
+
+LANGUAGE: Write idiomatic, culturally fluent scripts in each target locale. No mechanical translations, no repeated interchangeable templates. Natural spoken language for the avatar; appropriate local crime terminology. Avoid platform policy violations, graphic descriptions and generic clickbait.
+
+WORKFLOW: 1) Identify 3–5 specific verified case angles and relevant evidence. 2) Draft at least 3 different complete hook+Short candidates; hook may be extended if meaningful. 3) Audit factuality, specificity, emotional pull, originality, spoiler rules and 15–17s spoken target. 4) Submit candidates plus fact evidence to GPT-6 for critical review. 5) Rewrite the top candidates based on critique. 6) Ask GPT-6 to pick the strongest accurate version. 7) Validate with existing local speech timing, and real rendered duration only when authorized. 8) Output selected complete script, hook span, intended tease question, factual supporting refs, and estimated duration. Ensure title/cover/metadata writers receive the SAME verified angle, but produce distinct copy.
+
+QUALITY REJECTION: Reject generic text like “a strange photo changed everything”, “no one expected what happened”, “the truth was shocking” unless it states WHAT photo, WHO, WHAT contradiction and WHY it matters. Do not artificially withhold every detail. Give the viewer a specific and credible reason to click. Never sacrifice truth for impact.
+
+IMPLEMENTATION: Reuse existing agent/pipeline architecture; this pack updates writing guidance, not publishing permissions. No live paid TTS/image/video, uploads, publishing, approval bypass, commits or pushes without explicit authorization.
+
+===================================================================
+EXAMPLE LIBRARY — TWO COMPLETE NARRATIONS IN EVERY CATEGORY
+===================================================================
+
+
+####################################################################
+FA | فارسی — رد خاموش
+####################################################################
+
+
+CATEGORY 1: Desire, affairs and murder / هوس، خیانت و قتل
+
+EXAMPLE 1 — شام آخرِ معشوقه
+زن می‌دانست شوهرش با بهترین دوستش رابطه دارد. نه دعوا کرد، نه جدا شد؛ حتی برای هر دو شام پخت. همان شب، دوستش در اتاق‌خواب مرد کشته شد. چرا شام آخر را خودِ همسر آماده کرده بود؟
+
+EXAMPLE 2 — هتلی که همسر رزرو کرد
+مرد برای دیدن معشوقه‌اش به هتل رفت؛ همان هتلی که همسرش برای سالگرد ازدواج رزرو کرده بود. در اتاق، به‌جای معشوقه، جسد زنی را دید. اتاق هم به نام خودش بود. چه کسی این دام را چیده بود؟
+
+
+CATEGORY 2: Beauty and dangerous charm / زیبایی و جذابیت قاتل
+
+EXAMPLE 1 — لبخند و سه ناپدیدشدن
+سه مرد پس از ملاقات با زنی بسیار جذاب ناپدید شدند. هر سه پیش از رفتن، یک عکس از همان اتاق برای دوستانشان فرستاده بودند. پلیس در پس‌زمینه عکس‌ها چیزی دید که زن نمی‌خواست کسی ببیند. چه بود؟
+
+EXAMPLE 2 — پرستاری که همه دوستش داشتند
+همه عاشق لبخند پرستار جوان بودند. اما سه بیمار که حالشان خوب بود، در یک ماه مردند. در تصاویر دوربین، پرستار چند دقیقه پیش از هر مرگ وارد همان اتاق شده بود. دنبال چه چیزی می‌گشت؟
+
+
+CATEGORY 3: Jealousy and revenge / حسادت و انتقام
+
+EXAMPLE 1 — دعوتِ رقیب به جشن
+زن از رابطه شوهرش با دوستش خبر داشت. به‌جای اعتراض، همان دوست را به جشن تولد دعوت کرد. نیمه‌شب یکی از مهمان‌ها کشته شد؛ و پلیس ابتدا سراغ کسی رفت که اصلاً دعوت‌نامه نداشت. چرا؟
+
+EXAMPLE 2 — عروسی دوم، ناپدیدشدن اول
+زن از خیانت شوهرش باخبر شد، اما پیشنهاد داد دوباره جشن عروسی بگیرند؛ با حضور معشوقه. نیمه‌شب عروس ناپدید شد و داماد با پیراهن خون‌آلود برگشت. جشن را چه کسی برای چه هدفی ترتیب داده بود؟
+
+
+CATEGORY 4: Killer in the closest circle / قاتل در نزدیک‌ترین فاصله
+
+EXAMPLE 1 — اشک‌های شوهر
+مرد جلوی دوربین برای همسر کشته‌شده‌اش گریه می‌کرد. همه او را عاشق می‌دانستند. اما یک تماس ضبط‌شده نشان داد آخرین کسی که زن با او صحبت کرده، کسی بوده که شوهر نامش را نگفته بود. چرا پنهانش کرد؟
+
+EXAMPLE 2 — برادری که تسلیت گفت
+پس از قتل زن، برادر شوهر هر روز برای دلداری می‌آمد و به جست‌وجو کمک می‌کرد. سه هفته بعد، عکسی نشان داد شب قتل کنار همان خانه بوده است. چرا حضورش را از پلیس پنهان کرده بود؟
+
+
+CATEGORY 5: Male charm and forbidden relationships / جذابیت مردانه و رابطه ممنوع
+
+EXAMPLE 1 — سه زن، یک قرار
+سه زن فکر می‌کردند تنها عشق زندگی یک مرد خوش‌چهره‌اند. هر سه برای یک شب به یک خانه دعوت شدند؛ فقط یکی به خانه برگشت. عجیب‌تر اینکه پیام‌های دعوت از تلفن مرد فرستاده نشده بود. پس از کجا؟
+
+EXAMPLE 2 — پیام یکسان برای سه عاشق
+مرد به سه زن قول ازدواج داده بود. یک شب، هر سه پیام گرفتند: «امشب حقیقت را می‌فهمید.» صبح، دو زن ناپدید شده بودند. پیام از طرف مرد نبود. چه کسی می‌خواست آن‌ها روبه‌روی هم قرار بگیرند؟
+
+
+CATEGORY 6: Cold, calculated revenge / انتقام سرد و حساب‌شده
+
+EXAMPLE 1 — سالگرد با دوازده مهمان
+زن سال‌ها خیانت همسرش را تحمل کرد و چیزی نگفت. شب سالگرد ازدواج، دوازده نفر دور میز نشستند؛ اما صبح فقط یازده نفر بودند. روی هدیه سالگرد، نام کسی نوشته شده بود که نباید آنجا می‌بود. چه کسی؟
+
+EXAMPLE 2 — بیست سال انتظار
+بیست سال پس از نابودی زندگی‌اش، زنی برای کار وارد خانه مردی ثروتمند شد. شش ماه بعد مرد در جشن تولدش مرد. اسناد نشان می‌داد بخشی از دارایی‌اش پیش از مرگ منتقل شده بود. این زن واقعاً چه کسی بود؟
+
+
+CATEGORY 7: A victim reveals the killer / مقتولی که قاتلش را لو داد
+
+EXAMPLE 1 — صدای پشت پیام
+قاتل فکر می‌کرد همه‌چیز را پاک کرده. اما قربانی پیش از مرگ پیام صوتی کوتاهی فرستاده بود. اسم کسی در پیام نبود؛ فقط صدای آشنایی از پشت سر شنیده می‌شد. چرا همان صدا مسیر پرونده را عوض کرد؟
+
+EXAMPLE 2 — ساعت هوشمند مقتول
+در خانه زن جوان، هیچ رد ورود اجباری نبود. اما ساعت هوشمندش درست پیش از مرگ صدایی را ضبط کرده بود. پلیس آن را چند بار گوش داد؛ مسئله یک فریاد نبود، یک جمله آرام بود. چه کسی آن را گفته بود؟
+
+
+CATEGORY 8: The mistress and the hidden plot / معشوقه و راز شیطانی
+
+EXAMPLE 1 — دوستی با همسر
+معشوقه مرد متأهل با همسر او دوست شد؛ با هم خرید می‌رفتند و عکس می‌گرفتند. وقتی مرد ناپدید شد، هر دو گریه می‌کردند. اما یکی از زن‌ها مکان دفن او را می‌دانست. چگونه؟
+
+EXAMPLE 2 — معشوقه‌ای که دیر نیامد
+زن جوان با همسر مردی متأهل صمیمی شد؛ حتی برای شام به خانه‌شان می‌رفت. بعد مرد ناپدید شد. هر دو زن به پلیس گفتند از او خبری ندارند، ولی دوربین نشان می‌داد یکی‌شان پیش از گزارش گم‌شدن به محل دفن رفته بود. چرا؟
+
+
+####################################################################
+EN | English — ClueVera
+####################################################################
+
+
+CATEGORY 1: Desire, affairs and murder / هوس، خیانت و قتل
+
+EXAMPLE 1 — Dinner for the Other Woman
+She knew her husband was sleeping with her best friend. Instead of confronting them, she cooked them dinner. That night, the friend was murdered in his bedroom. Why had his wife insisted on preparing their last meal?
+
+EXAMPLE 2 — The Anniversary Hotel
+He went to a hotel to meet his mistress—the very hotel his wife had booked for their anniversary. Inside the room was a dead woman, not his lover. And the reservation was in his name. Who had set him up?
+
+
+CATEGORY 2: Beauty and dangerous charm / زیبایی و جذابیت قاتل
+
+EXAMPLE 1 — Three Men, One Photograph
+Three men vanished after dates with the same dazzling woman. Before disappearing, each sent friends a photo from her bedroom. Detectives spotted the same disturbing object in every background. What was she desperate to keep out of sight?
+
+EXAMPLE 2 — The Nurse Everyone Loved
+Patients adored the smiling young nurse. Then three recovering patients died within one month. Security footage showed her entering each room minutes before death. What was she doing there when nobody had called for help?
+
+
+CATEGORY 3: Jealousy and revenge / حسادت و انتقام
+
+EXAMPLE 1 — Inviting Her Rival
+She discovered her husband’s affair with her friend. Rather than leave, she invited that friend to a birthday party. By midnight, a guest was dead—and police questioned someone who hadn’t even been invited. Why?
+
+EXAMPLE 2 — A Second Wedding
+After discovering her husband’s affair, she suggested renewing their vows—with his mistress invited. At midnight the bride vanished; the groom returned with blood on his shirt. Who had really arranged this celebration, and why?
+
+
+CATEGORY 4: Killer in the closest circle / قاتل در نزدیک‌ترین فاصله
+
+EXAMPLE 1 — The Grieving Husband
+He wept on camera for his murdered wife. Everyone called him devoted. But a recorded phone call revealed her last conversation was with someone he had never mentioned to detectives. Why had he concealed that name?
+
+EXAMPLE 2 — The Brother Who Comforted Him
+After the murder, his brother came every day to comfort him and help search for clues. Three weeks later, a photograph placed that brother outside the house on the night of the killing. Why had he lied?
+
+
+CATEGORY 5: Male charm and forbidden relationships / جذابیت مردانه و رابطه ممنوع
+
+EXAMPLE 1 — Three Women, One Invitation
+Three women believed they were the only love of one handsome man. All were invited to the same house. Only one returned. Stranger still, the invitations hadn’t come from his phone. So who sent them?
+
+EXAMPLE 2 — The Same Message
+He promised marriage to three different women. One night all three received: “Tonight you’ll learn the truth.” By morning, two were missing. The message didn’t come from him. Who wanted the women together?
+
+
+CATEGORY 6: Cold, calculated revenge / انتقام سرد و حساب‌شده
+
+EXAMPLE 1 — Twelve at Dinner
+She endured years of her husband’s affairs without a word. On their anniversary, twelve guests sat down to dinner. By morning, there were eleven. The gift on the table carried a name that should never have been there.
+
+EXAMPLE 2 — Twenty Years of Silence
+Twenty years after a man destroyed her life, a woman took a job in his mansion. Six months later, he died at his birthday party. Documents showed part of his fortune had changed hands beforehand. Who was she really?
+
+
+CATEGORY 7: A victim reveals the killer / مقتولی که قاتلش را لو داد
+
+EXAMPLE 1 — The Voice Behind the Message
+The killer thought every trace was gone. But the victim had sent one last voice message. No name, no accusation—just a familiar sound in the background. Why did detectives replay those three seconds again and again?
+
+EXAMPLE 2 — The Smartwatch Recording
+There was no forced entry when police found her body. But her smartwatch had recorded the moments before her death. Detectives listened repeatedly. It wasn’t a scream that mattered; it was one quiet sentence. Who said it?
+
+
+CATEGORY 8: The mistress and the hidden plot / معشوقه و راز شیطانی
+
+EXAMPLE 1 — Friends With the Wife
+The mistress befriended the married man’s wife. They shopped together, posed for pictures, even shared secrets. When he disappeared, both women cried. Yet one already knew where his body was buried. How?
+
+EXAMPLE 2 — Dinner With the Mistress
+His young mistress became close to his wife and regularly joined them for dinner. Then he vanished. Both women denied knowing anything, until CCTV placed one of them near the burial site before anyone reported him missing.
+
+
+####################################################################
+DE | Deutsch — Fallspur
+####################################################################
+
+
+CATEGORY 1: Desire, affairs and murder / هوس، خیانت و قتل
+
+EXAMPLE 1 — Das letzte Essen der Geliebten
+Sie wusste, dass ihr Mann mit ihrer besten Freundin schlief. Statt einen Streit anzufangen, kochte sie für beide. In derselben Nacht wurde die Freundin in seinem Schlafzimmer ermordet. Warum bestand ausgerechnet die Ehefrau auf diesem letzten Abendessen?
+
+EXAMPLE 2 — Das Hotel zum Hochzeitstag
+Er wollte seine Geliebte im Hotel treffen – genau dort, wo seine Frau ihren Hochzeitstag geplant hatte. Im Zimmer lag eine tote Frau, aber nicht seine Geliebte. Gebucht war es auf seinen Namen. Wer hatte ihm diese Falle gestellt?
+
+
+CATEGORY 2: Beauty and dangerous charm / زیبایی و جذابیت قاتل
+
+EXAMPLE 1 — Drei Männer, ein Foto
+Drei Männer verschwanden nach Dates mit derselben auffallend schönen Frau. Jeder hatte vorher ein Foto aus ihrem Schlafzimmer verschickt. Auf allen Bildern entdeckte die Polizei im Hintergrund dasselbe verstörende Detail. Was wollte sie verbergen?
+
+EXAMPLE 2 — Die beliebte Krankenschwester
+Alle mochten die freundliche junge Krankenschwester. Dann starben innerhalb eines Monats drei Patienten, denen es bereits besser ging. Die Kamera zeigte sie kurz vor jedem Todesfall im Zimmer. Warum war sie dort, obwohl niemand geklingelt hatte?
+
+
+CATEGORY 3: Jealousy and revenge / حسادت و انتقام
+
+EXAMPLE 1 — Die Rivalin auf der Feier
+Sie kannte die Affäre ihres Mannes mit ihrer Freundin. Anstatt zu gehen, lud sie die Rivalin zum Geburtstag ein. Um Mitternacht war ein Gast tot. Die Polizei befragte zuerst jemanden, der gar nicht eingeladen war. Warum?
+
+EXAMPLE 2 — Die zweite Hochzeit
+Nach seiner Affäre wollte sie das Eheversprechen erneuern – und lud seine Geliebte dazu ein. Nachts verschwand die Braut, der Bräutigam kam mit blutigem Hemd zurück. Wer hatte diese Feier wirklich geplant?
+
+
+CATEGORY 4: Killer in the closest circle / قاتل در نزدیک‌ترین فاصله
+
+EXAMPLE 1 — Die Tränen des Ehemanns
+Vor laufender Kamera weinte er um seine ermordete Frau. Alle hielten ihn für liebevoll. Doch ein aufgezeichneter Anruf verriet, mit wem sie zuletzt gesprochen hatte. Diesen Namen hatte er bei der Polizei verschwiegen. Warum?
+
+EXAMPLE 2 — Der tröstende Bruder
+Nach dem Mord tröstete sein Bruder ihn jeden Tag und half sogar bei der Suche. Drei Wochen später zeigte ein Foto den Bruder am Tatabend vor dem Haus. Weshalb hatte er seine Anwesenheit verschwiegen?
+
+
+CATEGORY 5: Male charm and forbidden relationships / جذابیت مردانه و رابطه ممنوع
+
+EXAMPLE 1 — Drei Frauen, eine Einladung
+Drei Frauen glaubten, die Einzige für denselben attraktiven Mann zu sein. Alle wurden für denselben Abend in ein Haus eingeladen. Nur eine kehrte zurück. Die Einladungen stammten allerdings nicht von seinem Handy. Von wem dann?
+
+EXAMPLE 2 — Dieselbe Nachricht
+Drei Frauen hatte er die Ehe versprochen. Eines Abends erhielten alle dieselbe Nachricht: „Heute erfahrt ihr die Wahrheit.“ Am Morgen waren zwei verschwunden. Die Nachricht stammte nicht von ihm. Wer wollte sie zusammenbringen?
+
+
+CATEGORY 6: Cold, calculated revenge / انتقام سرد و حساب‌شده
+
+EXAMPLE 1 — Zwölf Gäste beim Jahrestag
+Jahrelang ertrug sie seine Affären schweigend. Zum Hochzeitstag saßen zwölf Gäste am Tisch. Am nächsten Morgen waren es nur elf. Auf dem Geschenk stand ein Name, der dort niemals hätte auftauchen dürfen.
+
+EXAMPLE 2 — Zwanzig Jahre Schweigen
+Zwanzig Jahre nachdem ein Mann ihr Leben zerstört hatte, begann eine Frau in seiner Villa zu arbeiten. Sechs Monate später starb er beim Geburtstag. Ein Teil seines Vermögens war zuvor übertragen worden. Wer war diese Frau wirklich?
+
+
+CATEGORY 7: A victim reveals the killer / مقتولی که قاتلش را لو داد
+
+EXAMPLE 1 — Die Stimme im Hintergrund
+Der Täter glaubte, alle Spuren beseitigt zu haben. Doch sein Opfer hatte kurz vor dem Tod eine Sprachnachricht verschickt. Kein Name, keine Drohung – nur ein vertrautes Geräusch im Hintergrund. Warum hörten die Ermittler genau dort immer wieder hin?
+
+EXAMPLE 2 — Die Smartwatch
+Die Tote lag in ihrer Wohnung, ohne Spuren eines Einbruchs. Ihre Smartwatch hatte kurz vor dem Tod Ton aufgenommen. Die Ermittler hörten mehrmals hin: Nicht ein Schrei war entscheidend, sondern ein leiser Satz. Wer hatte ihn gesprochen?
+
+
+CATEGORY 8: The mistress and the hidden plot / معشوقه و راز شیطانی
+
+EXAMPLE 1 — Freundschaft mit der Ehefrau
+Die Geliebte freundete sich mit seiner Ehefrau an. Sie gingen gemeinsam einkaufen und machten Fotos. Als der Mann verschwand, weinten beide. Trotzdem wusste eine der Frauen bereits, wo seine Leiche vergraben lag. Woher?
+
+EXAMPLE 2 — Die Geliebte am Esstisch
+Seine junge Geliebte freundete sich mit seiner Frau an und kam sogar zum Abendessen. Dann verschwand der Mann. Beide Frauen behaupteten, nichts zu wissen. Doch eine Kamera zeigte eine von ihnen am Grabort – noch vor der Vermisstenanzeige.
+
+
+####################################################################
+ES | Español — Tras la Pista
+####################################################################
+
+
+CATEGORY 1: Desire, affairs and murder / هوس، خیانت و قتل
+
+EXAMPLE 1 — La última cena de la amante
+Sabía que su marido se acostaba con su mejor amiga. En lugar de enfrentarlos, les preparó la cena. Aquella noche, la amiga apareció asesinada en el dormitorio de él. ¿Por qué la esposa insistió en cocinarles precisamente esa noche?
+
+EXAMPLE 2 — El hotel del aniversario
+Fue al hotel para encontrarse con su amante. Era el mismo que su esposa había reservado para su aniversario. Pero en la habitación lo esperaba el cadáver de otra mujer. Y la reserva estaba a su nombre. ¿Quién lo había preparado?
+
+
+CATEGORY 2: Beauty and dangerous charm / زیبایی و جذابیت قاتل
+
+EXAMPLE 1 — Tres hombres y una fotografía
+Tres hombres desaparecieron después de salir con la misma mujer deslumbrante. Antes de esfumarse, los tres enviaron una foto de su dormitorio. Los investigadores descubrieron el mismo objeto inquietante al fondo. ¿Qué intentaba ocultar ella?
+
+EXAMPLE 2 — La enfermera querida por todos
+Los pacientes adoraban a aquella enfermera sonriente. Entonces murieron tres enfermos que estaban mejorando. Las cámaras la mostraban entrando en cada habitación minutos antes de la muerte. ¿Qué hacía allí si nadie había pedido ayuda?
+
+
+CATEGORY 3: Jealousy and revenge / حسادت و انتقام
+
+EXAMPLE 1 — La rival invitada
+Descubrió que su marido tenía una aventura con su amiga. En lugar de marcharse, la invitó al cumpleaños. A medianoche había un muerto, y la policía interrogaba a alguien que ni siquiera estaba invitado. ¿Por qué?
+
+EXAMPLE 2 — Una segunda boda
+Tras descubrir la infidelidad, propuso renovar los votos e invitar a la amante. A medianoche desapareció la novia; el novio volvió con sangre en la camisa. ¿Quién había organizado realmente aquella celebración y para qué?
+
+
+CATEGORY 4: Killer in the closest circle / قاتل در نزدیک‌ترین فاصله
+
+EXAMPLE 1 — Las lágrimas del marido
+Lloraba ante las cámaras por su esposa asesinada. Todos lo creían un marido ejemplar. Pero una llamada grabada reveló con quién habló ella por última vez: alguien cuyo nombre él nunca mencionó a la policía. ¿Por qué?
+
+EXAMPLE 2 — El hermano que consolaba
+Después del asesinato, su hermano lo visitaba cada día y ayudaba a buscar pistas. Tres semanas después, una fotografía situó al hermano frente a la casa la noche del crimen. ¿Por qué había mentido sobre dónde estaba?
+
+
+CATEGORY 5: Male charm and forbidden relationships / جذابیت مردانه و رابطه ممنوع
+
+EXAMPLE 1 — Tres mujeres, una invitación
+Tres mujeres creían ser el único amor del mismo hombre atractivo. Las tres recibieron una invitación para aquella noche. Solo una regresó. Pero los mensajes no habían salido del teléfono de él. Entonces, ¿quién los envió?
+
+EXAMPLE 2 — El mismo mensaje
+Había prometido casarse con tres mujeres. Una noche, todas recibieron: «Hoy sabrás la verdad». Por la mañana, dos habían desaparecido. El mensaje no lo había escrito él. ¿Quién quería reunirlas?
+
+
+CATEGORY 6: Cold, calculated revenge / انتقام سرد و حساب‌شده
+
+EXAMPLE 1 — Doce comensales
+Soportó durante años las infidelidades de su marido en silencio. En su aniversario, doce personas se sentaron a cenar. Al amanecer quedaban once. Sobre el regalo había un nombre que nunca debería haber aparecido allí.
+
+EXAMPLE 2 — Veinte años de espera
+Veinte años después de que un hombre arruinara su vida, una mujer comenzó a trabajar en su mansión. Seis meses después, él murió en su cumpleaños. Parte de su fortuna ya había cambiado de manos. ¿Quién era ella realmente?
+
+
+CATEGORY 7: A victim reveals the killer / مقتولی که قاتلش را لو داد
+
+EXAMPLE 1 — La voz detrás del mensaje
+El asesino creía haber borrado todas las pistas. Pero la víctima había enviado un último audio. No decía ningún nombre: solo se oía un sonido familiar al fondo. ¿Por qué los investigadores repitieron aquellos tres segundos tantas veces?
+
+EXAMPLE 2 — La grabación del reloj
+No había señales de entrada forzada en la casa. Sin embargo, el reloj inteligente de la víctima había grabado sus últimos momentos. No fue un grito lo que intrigó a los agentes, sino una frase susurrada. ¿Quién la pronunció?
+
+
+CATEGORY 8: The mistress and the hidden plot / معشوقه و راز شیطانی
+
+EXAMPLE 1 — Amiga de la esposa
+La amante se hizo amiga de la esposa. Salían de compras y se fotografiaban juntas. Cuando el hombre desapareció, ambas lloraron. Pero una ya sabía dónde estaba enterrado el cuerpo. ¿Cómo podía saberlo?
+
+EXAMPLE 2 — La amante invitada a cenar
+Su joven amante se volvió íntima de su esposa y cenaba en casa con ellos. Luego él desapareció. Ambas negaron saber nada, pero una cámara captó a una de ellas cerca del entierro antes de denunciarse la desaparición.
+
+
+####################################################################
+TR | Türkçe — Gizli İzler
+####################################################################
+
+
+CATEGORY 1: Desire, affairs and murder / هوس، خیانت و قتل
+
+EXAMPLE 1 — Sevgiliye son akşam yemeği
+Kocasının en yakın arkadaşıyla ilişkisini biliyordu. Kavga etmek yerine ikisine yemek hazırladı. O gece arkadaşı, adamın yatak odasında öldürüldü. Peki kadın neden son akşam yemeğini özellikle kendisi hazırlamak istemişti?
+
+EXAMPLE 2 — Yıldönümü oteli
+Adam sevgilisiyle buluşmak için otele gitti. Oteli evlilik yıldönümleri için karısı ayırtmıştı. Ama odada sevgilisi yerine başka bir kadının cesedi vardı. Üstelik rezervasyon onun adınaydı. Bu tuzağı kim kurmuştu?
+
+
+CATEGORY 2: Beauty and dangerous charm / زیبایی و جذابیت قاتل
+
+EXAMPLE 1 — Üç adam ve aynı fotoğraf
+Aynı güzel kadınla buluştuktan sonra üç adam kayboldu. Üçü de kaybolmadan önce kadının yatak odasından fotoğraf göndermişti. Polis, fotoğrafların arka planında aynı ürpertici ayrıntıyı fark etti. Kadın neyi saklıyordu?
+
+EXAMPLE 2 — Herkesin sevdiği hemşire
+Hastalar güler yüzlü genç hemşireyi çok seviyordu. Sonra iyileşmekte olan üç hasta bir ay içinde öldü. Kamera kayıtları, her ölümden dakikalar önce hemşirenin odaya girdiğini gösterdi. Kimse çağırmamışken neden oradaydı?
+
+
+CATEGORY 3: Jealousy and revenge / حسادت و انتقام
+
+EXAMPLE 1 — Rakibini partiye çağırdı
+Kocasının arkadaşıyla ilişkisini öğrenmişti. Ayrılmak yerine o kadını doğum gününe davet etti. Gece yarısı konuklardan biri ölmüştü. Polis önce davetli bile olmayan birine yöneldi. Neden?
+
+EXAMPLE 2 — İkinci düğün
+İhaneti öğrendikten sonra nikâh tazelemeyi önerdi; kocasının sevgilisi de davetliydi. Gece yarısı gelin kayboldu, damat kanlı gömlekle döndü. Bu kutlamayı gerçekte kim, ne amaçla düzenlemişti?
+
+
+CATEGORY 4: Killer in the closest circle / قاتل در نزدیک‌ترین فاصله
+
+EXAMPLE 1 — Ağlayan koca
+Öldürülen karısı için kameralar önünde ağlıyordu. Herkes onu fedakâr bir eş sanıyordu. Ancak kaydedilmiş bir telefon görüşmesi, kadının son konuştuğu kişinin adını ortaya çıkardı. Adam bu ismi polisten neden saklamıştı?
+
+EXAMPLE 2 — Teselli eden kardeş
+Cinayetten sonra kardeşi her gün onu teselli etmeye geldi, hatta aramaya katıldı. Üç hafta sonra bulunan bir fotoğraf, kardeşin cinayet gecesi evin önünde olduğunu gösterdi. Bunu neden gizlemişti?
+
+
+CATEGORY 5: Male charm and forbidden relationships / جذابیت مردانه و رابطه ممنوع
+
+EXAMPLE 1 — Üç kadın, tek davet
+Üç kadın da aynı yakışıklı adamın tek aşkı olduğunu sanıyordu. Üçü de aynı eve çağrıldı; yalnızca biri geri döndü. Üstelik davet mesajları adamın telefonundan gönderilmemişti. Peki kim göndermişti?
+
+EXAMPLE 2 — Aynı mesaj
+Adam üç kadına da evlilik sözü vermişti. Bir gece üçünün telefonuna aynı mesaj geldi: “Bu gece gerçeği öğreneceksin.” Sabah iki kadın kayıptı. Mesajı adam göndermemişti. Kadınları kim bir araya getirmişti?
+
+
+CATEGORY 6: Cold, calculated revenge / انتقام سرد و حساب‌شده
+
+EXAMPLE 1 — Masada on iki kişi
+Kadın kocasının ihanetlerini yıllarca sessizce sineye çekti. Evlilik yıldönümünde masaya on iki kişi oturdu, sabah on bir kişi kalmıştı. Yıldönümü hediyesinde orada olmaması gereken birinin adı yazıyordu.
+
+EXAMPLE 2 — Yirmi yıl sessizlik
+Hayatını mahveden adamdan yirmi yıl sonra bir kadın onun malikanesinde işe başladı. Altı ay sonra adam doğum günü partisinde öldü. Belgeler, servetinin bir kısmının önceden devredildiğini gösteriyordu. Kadın gerçekte kimdi?
+
+
+CATEGORY 7: A victim reveals the killer / مقتولی که قاتلش را لو داد
+
+EXAMPLE 1 — Mesajın arkasındaki ses
+Katil tüm izleri sildiğini sanıyordu. Ama kurban ölmeden önce kısa bir sesli mesaj göndermişti. Ne isim vardı ne suçlama; yalnızca arkadan gelen tanıdık bir ses. Polis neden o birkaç saniyeyi tekrar tekrar dinledi?
+
+EXAMPLE 2 — Akıllı saatin kaydı
+Kadının evinde zorla girildiğine dair iz yoktu. Ama akıllı saati ölümünden hemen önce ses kaydetmişti. Polis kaydı defalarca dinledi. Önemli olan bir çığlık değil, alçak sesle söylenen tek cümleydi. Kim söylemişti?
+
+
+CATEGORY 8: The mistress and the hidden plot / معشوقه و راز شیطانی
+
+EXAMPLE 1 — Eşle arkadaş oldu
+Sevgili, evli adamın karısıyla arkadaş oldu. Birlikte alışverişe çıktılar, fotoğraf çektirdiler. Adam kaybolunca ikisi de ağladı. Ama kadınlardan biri cesedin gömüldüğü yeri önceden biliyordu. Nasıl?
+
+EXAMPLE 2 — Akşam yemeğindeki sevgili
+Genç sevgili adamın eşiyle yakınlaşıp evlerinde yemeğe gitmeye başladı. Sonra adam kayboldu. İki kadın da hiçbir şey bilmediğini söyledi. Oysa bir kamera, kayıp ihbarından önce kadınlardan birini mezar yerinde göstermişti.
+
+
+####################################################################
+FR | Français — Pistes Cachées
+####################################################################
+
+
+CATEGORY 1: Desire, affairs and murder / هوس، خیانت و قتل
+
+EXAMPLE 1 — Le dernier dîner de la maîtresse
+Elle savait que son mari couchait avec sa meilleure amie. Au lieu de les confronter, elle leur a préparé le dîner. Cette nuit-là, l’amie a été assassinée dans leur chambre. Pourquoi son épouse tenait-elle tant à cuisiner ce dernier repas ?
+
+EXAMPLE 2 — L’hôtel de l’anniversaire
+Il rejoint sa maîtresse à l’hôtel. C’était celui que sa femme avait réservé pour leur anniversaire de mariage. Mais dans la chambre, il découvre le corps d’une autre femme. Et la réservation est à son nom. Qui l’a piégé ?
+
+
+CATEGORY 2: Beauty and dangerous charm / زیبایی و جذابیت قاتل
+
+EXAMPLE 1 — Trois hommes, une photo
+Trois hommes ont disparu après un rendez-vous avec la même femme séduisante. Chacun avait envoyé une photo prise dans sa chambre. Sur les trois clichés, les enquêteurs ont repéré le même détail troublant. Que cherchait-elle à cacher ?
+
+EXAMPLE 2 — L’infirmière que tous adoraient
+Les patients adoraient cette jeune infirmière souriante. Puis trois malades en voie de guérison sont morts en un mois. Les caméras l’ont filmée entrant dans chaque chambre juste avant le décès. Pourquoi, alors que personne ne l’avait appelée ?
+
+
+CATEGORY 3: Jealousy and revenge / حسادت و انتقام
+
+EXAMPLE 1 — Inviter sa rivale
+Elle découvre que son mari la trompe avec son amie. Au lieu de partir, elle invite sa rivale à un anniversaire. À minuit, un invité est mort. Les policiers interrogent d’abord quelqu’un qui n’était même pas invité. Pourquoi ?
+
+EXAMPLE 2 — Un deuxième mariage
+Après avoir découvert l’infidélité, elle propose de renouveler leurs vœux et d’inviter la maîtresse. À minuit, la mariée disparaît; le marié revient avec une chemise ensanglantée. Qui avait vraiment organisé la fête ?
+
+
+CATEGORY 4: Killer in the closest circle / قاتل در نزدیک‌ترین فاصله
+
+EXAMPLE 1 — Les larmes du mari
+Il pleure devant les caméras sa femme assassinée. Tout le monde le croit dévoué. Mais un appel enregistré révèle l’identité de la dernière personne à qui elle a parlé. Il n’avait jamais donné ce nom aux policiers. Pourquoi ?
+
+EXAMPLE 2 — Le frère qui le consolait
+Après le meurtre, son frère vient chaque jour le réconforter et participer aux recherches. Trois semaines plus tard, une photo situe le frère devant la maison le soir du crime. Pourquoi avait-il caché sa présence ?
+
+
+CATEGORY 5: Male charm and forbidden relationships / جذابیت مردانه و رابطه ممنوع
+
+EXAMPLE 1 — Trois femmes, une invitation
+Trois femmes pensent être l’unique amour du même bel homme. Toutes sont invitées dans la même maison. Une seule revient. Pourtant, les invitations n’avaient pas été envoyées depuis son téléphone. Alors, qui les avait envoyées ?
+
+EXAMPLE 2 — Le même message
+Il avait promis le mariage à trois femmes. Un soir, chacune reçoit : « Ce soir, tu sauras la vérité. » Au matin, deux ont disparu. Le message ne venait pas de lui. Qui voulait les réunir ?
+
+
+CATEGORY 6: Cold, calculated revenge / انتقام سرد و حساب‌شده
+
+EXAMPLE 1 — Douze à table
+Pendant des années, elle supporte ses infidélités sans rien dire. Pour leur anniversaire, douze personnes s’assoient à table. Le matin, elles ne sont plus que onze. Le cadeau porte un nom qui n’aurait jamais dû s’y trouver.
+
+EXAMPLE 2 — Vingt ans de silence
+Vingt ans après qu’un homme a détruit sa vie, une femme est embauchée dans sa villa. Six mois plus tard, il meurt à son anniversaire. Des documents montrent qu’une partie de sa fortune avait déjà changé de mains. Qui était-elle ?
+
+
+CATEGORY 7: A victim reveals the killer / مقتولی که قاتلش را لو داد
+
+EXAMPLE 1 — La voix derrière le message
+L’assassin croyait avoir effacé toutes les traces. Mais sa victime avait envoyé un dernier message vocal. Aucun nom, aucune accusation : seulement un bruit familier derrière sa voix. Pourquoi les enquêteurs ont-ils réécouté ces trois secondes ?
+
+EXAMPLE 2 — L’enregistrement de la montre
+Aucune effraction chez la jeune femme retrouvée morte. Pourtant, sa montre connectée avait enregistré ses derniers instants. Les policiers l’écoutent encore et encore. Ce n’est pas un cri qui compte, mais une phrase murmurée. Par qui ?
+
+
+CATEGORY 8: The mistress and the hidden plot / معشوقه و راز شیطانی
+
+EXAMPLE 1 — Amie avec l’épouse
+La maîtresse devient l’amie de l’épouse. Elles font du shopping et prennent des photos ensemble. Quand l’homme disparaît, toutes deux pleurent. Pourtant, l’une connaît déjà l’endroit où son corps est enterré. Comment ?
+
+EXAMPLE 2 — La maîtresse à dîner
+Sa jeune maîtresse devient proche de sa femme et dîne même chez eux. Puis l’homme disparaît. Les deux femmes nient tout savoir. Une caméra montre pourtant l’une d’elles près du lieu d’inhumation avant le signalement.
+
+
+####################################################################
+IT | Italiano — Tracce Nascoste
+####################################################################
+
+
+CATEGORY 1: Desire, affairs and murder / هوس، خیانت و قتل
+
+EXAMPLE 1 — L’ultima cena dell’amante
+Sapeva che suo marito aveva una relazione con la sua migliore amica. Invece di affrontarli, preparò loro la cena. Quella notte, l’amica fu uccisa nella camera da letto dell’uomo. Perché la moglie aveva insistito per cucinare?
+
+EXAMPLE 2 — L’hotel dell’anniversario
+Andò in hotel per incontrare l’amante. Era proprio quello prenotato dalla moglie per l’anniversario di matrimonio. Ma in camera trovò il corpo di un’altra donna. E la prenotazione era a suo nome. Chi lo aveva incastrato?
+
+
+CATEGORY 2: Beauty and dangerous charm / زیبایی و جذابیت قاتل
+
+EXAMPLE 1 — Tre uomini, una fotografia
+Tre uomini scomparvero dopo aver incontrato la stessa donna bellissima. Prima di sparire, ognuno aveva mandato una foto della sua camera. Gli investigatori notarono lo stesso dettaglio inquietante sullo sfondo. Che cosa voleva nascondere?
+
+EXAMPLE 2 — L’infermiera amata da tutti
+Tutti adoravano la giovane infermiera sorridente. Poi, in un mese, morirono tre pazienti che stavano guarendo. Le telecamere la ripresero entrare nelle loro stanze poco prima della morte. Perché era lì senza essere stata chiamata?
+
+
+CATEGORY 3: Jealousy and revenge / حسادت و انتقام
+
+EXAMPLE 1 — L’invito alla rivale
+Scoprì che il marito la tradiva con un’amica. Invece di andarsene, invitò la rivale alla festa di compleanno. A mezzanotte un invitato era morto e la polizia interrogava qualcuno che non figurava tra gli ospiti. Perché?
+
+EXAMPLE 2 — Un secondo matrimonio
+Dopo aver scoperto il tradimento, propose di rinnovare le promesse nuziali invitando anche l’amante. A mezzanotte la sposa sparì; lo sposo tornò con la camicia insanguinata. Chi aveva davvero organizzato quella festa?
+
+
+CATEGORY 4: Killer in the closest circle / قاتل در نزدیک‌ترین فاصله
+
+EXAMPLE 1 — Le lacrime del marito
+Piangeva davanti alle telecamere la moglie assassinata. Tutti lo credevano devoto. Ma una telefonata registrata rivelò l’ultima persona con cui lei aveva parlato: un nome che lui non aveva mai fatto alla polizia. Perché?
+
+EXAMPLE 2 — Il fratello premuroso
+Dopo l’omicidio, suo fratello veniva ogni giorno a consolarlo e aiutava nelle ricerche. Tre settimane dopo, una fotografia lo mostrò davanti alla casa la notte del delitto. Perché aveva nascosto di essere lì?
+
+
+CATEGORY 5: Male charm and forbidden relationships / جذابیت مردانه و رابطه ممنوع
+
+EXAMPLE 1 — Tre donne, un invito
+Tre donne pensavano di essere l’unico amore dello stesso uomo affascinante. Tutte ricevettero un invito per quella sera. Ne tornò soltanto una. Ma i messaggi non partivano dal telefono di lui. Chi li aveva inviati?
+
+EXAMPLE 2 — Lo stesso messaggio
+Aveva promesso di sposare tre donne. Una sera tutte ricevettero: «Stanotte scoprirai la verità». Al mattino due erano scomparse. Il messaggio non proveniva da lui. Chi voleva farle incontrare?
+
+
+CATEGORY 6: Cold, calculated revenge / انتقام سرد و حساب‌شده
+
+EXAMPLE 1 — Dodici a cena
+Per anni sopportò in silenzio i tradimenti del marito. All’anniversario dodici persone si sedettero a tavola. Al mattino erano undici. Sul regalo compariva il nome di qualcuno che non avrebbe dovuto esserci.
+
+EXAMPLE 2 — Vent’anni di attesa
+Vent’anni dopo che un uomo le aveva rovinato la vita, una donna iniziò a lavorare nella sua villa. Sei mesi dopo lui morì al compleanno. Parte del patrimonio era già stata trasferita. Chi era davvero quella donna?
+
+
+CATEGORY 7: A victim reveals the killer / مقتولی که قاتلش را لو داد
+
+EXAMPLE 1 — La voce nel messaggio
+L’assassino pensava di aver cancellato ogni traccia. Ma la vittima aveva inviato un ultimo messaggio vocale. Nessun nome, nessuna accusa: solo un suono familiare in sottofondo. Perché gli investigatori riascoltarono quei tre secondi?
+
+EXAMPLE 2 — La registrazione dello smartwatch
+Nessuna effrazione nell’appartamento della vittima. Eppure lo smartwatch aveva registrato gli ultimi istanti. Gli investigatori ascoltarono più volte. Non fu un urlo a colpirli, ma una frase detta sottovoce. Chi l’aveva pronunciata?
+
+
+CATEGORY 8: The mistress and the hidden plot / معشوقه و راز شیطانی
+
+EXAMPLE 1 — Amica della moglie
+L’amante diventò amica della moglie. Andavano a fare shopping e scattavano foto insieme. Quando l’uomo scomparve, piansero entrambe. Ma una delle due sapeva già dove fosse sepolto il corpo. Come?
+
+EXAMPLE 2 — L’amante a tavola
+La giovane amante fece amicizia con la moglie e cominciò perfino a cenare a casa loro. Poi l’uomo sparì. Entrambe negarono di sapere qualcosa. Una telecamera però riprese una di loro vicino alla sepoltura prima della denuncia.
+
+
+####################################################################
+PT-BR | Português do Brasil — Pistas Ocultas
+####################################################################
+
+
+CATEGORY 1: Desire, affairs and murder / هوس، خیانت و قتل
+
+EXAMPLE 1 — O último jantar da amante
+Ela sabia que o marido tinha um caso com sua melhor amiga. Em vez de discutir, preparou o jantar para os dois. Naquela noite, a amiga foi assassinada no quarto dele. Por que a esposa fez tanta questão de cozinhar?
+
+EXAMPLE 2 — O hotel do aniversário
+Ele foi ao hotel encontrar a amante. Era o mesmo que a esposa havia reservado para o aniversário de casamento. Mas, no quarto, encontrou o corpo de outra mulher. E a reserva estava no nome dele. Quem armou tudo?
+
+
+CATEGORY 2: Beauty and dangerous charm / زیبایی و جذابیت قاتل
+
+EXAMPLE 1 — Três homens, uma foto
+Três homens desapareceram depois de sair com a mesma mulher deslumbrante. Antes, cada um enviou uma foto do quarto dela. Os investigadores perceberam o mesmo detalhe perturbador nas três imagens. O que ela tentava esconder?
+
+EXAMPLE 2 — A enfermeira querida por todos
+Os pacientes adoravam aquela enfermeira sorridente. Então três pessoas que estavam melhorando morreram no mesmo mês. As câmeras mostraram a enfermeira entrando nos quartos minutos antes das mortes. O que ela fazia ali sem ser chamada?
+
+
+CATEGORY 3: Jealousy and revenge / حسادت و انتقام
+
+EXAMPLE 1 — Convidando a rival
+Ela descobriu que o marido a traía com uma amiga. Em vez de terminar, convidou a rival para o aniversário. À meia-noite, um convidado estava morto. A polícia questionou primeiro alguém que nem tinha sido convidado. Por quê?
+
+EXAMPLE 2 — O segundo casamento
+Depois de descobrir a traição, ela propôs renovar os votos e convidar a amante. À meia-noite, a noiva desapareceu; o noivo voltou com a camisa ensanguentada. Quem realmente organizou aquela festa?
+
+
+CATEGORY 4: Killer in the closest circle / قاتل در نزدیک‌ترین فاصله
+
+EXAMPLE 1 — As lágrimas do marido
+Ele chorava diante das câmeras pela esposa assassinada. Todos achavam que era um marido dedicado. Mas uma ligação gravada revelou a última pessoa com quem ela falou. Ele nunca mencionou aquele nome à polícia. Por quê?
+
+EXAMPLE 2 — O irmão que consolava
+Depois do assassinato, o irmão o visitava diariamente para consolar e ajudar nas buscas. Três semanas depois, uma foto colocou esse irmão em frente à casa na noite do crime. Por que ele escondeu isso?
+
+
+CATEGORY 5: Male charm and forbidden relationships / جذابیت مردانه و رابطه ممنوع
+
+EXAMPLE 1 — Três mulheres, um convite
+Três mulheres achavam ser o único amor do mesmo homem bonito. Todas foram convidadas para a mesma casa. Só uma voltou. E os convites nem tinham saído do celular dele. Então, quem enviou?
+
+EXAMPLE 2 — A mesma mensagem
+Ele prometeu casamento a três mulheres. Certa noite, todas receberam: “Hoje você vai descobrir a verdade.” De manhã, duas haviam sumido. A mensagem não veio dele. Quem queria reunir as três?
+
+
+CATEGORY 6: Cold, calculated revenge / انتقام سرد و حساب‌شده
+
+EXAMPLE 1 — Doze pessoas à mesa
+Ela suportou anos de traição em silêncio. No aniversário de casamento, doze pessoas se sentaram à mesa. Pela manhã, restavam onze. O presente trazia o nome de alguém que jamais deveria estar ali.
+
+EXAMPLE 2 — Vinte anos de silêncio
+Vinte anos depois que um homem destruiu sua vida, uma mulher conseguiu emprego na mansão dele. Seis meses depois, ele morreu na festa de aniversário. Documentos mostraram que parte da fortuna já havia sido transferida. Quem era ela?
+
+
+CATEGORY 7: A victim reveals the killer / مقتولی که قاتلش را لو داد
+
+EXAMPLE 1 — A voz por trás do áudio
+O assassino achava que tinha apagado todas as pistas. Mas a vítima enviara um último áudio. Nenhum nome, nenhuma acusação: só um som familiar ao fundo. Por que os investigadores ouviram aqueles três segundos tantas vezes?
+
+EXAMPLE 2 — A gravação do relógio
+Não havia sinais de arrombamento na casa da vítima. Mas o relógio inteligente gravou seus últimos instantes. Os investigadores ouviram várias vezes. O detalhe decisivo não era um grito, e sim uma frase baixinha. Quem disse aquilo?
+
+
+CATEGORY 8: The mistress and the hidden plot / معشوقه و راز شیطانی
+
+EXAMPLE 1 — Amiga da esposa
+A amante virou amiga da esposa. As duas faziam compras e tiravam fotos juntas. Quando o homem desapareceu, ambas choraram. Mas uma delas já sabia onde o corpo estava enterrado. Como?
+
+EXAMPLE 2 — A amante na mesa de jantar
+A jovem amante se aproximou da esposa e passou a jantar na casa do casal. Depois, o homem sumiu. As duas negaram saber de algo. Mas uma câmera mostrou uma delas perto do enterro antes do desaparecimento ser comunicado.
+
+
+####################################################################
+AR | العربية — أثر خفي
+####################################################################
+
+
+CATEGORY 1: Desire, affairs and murder / هوس، خیانت و قتل
+
+EXAMPLE 1 — العشاء الأخير للعشيقة
+كانت تعرف أن زوجها يخونها مع أعز صديقاتها. لم تواجههما، بل أعدّت لهما العشاء. وفي تلك الليلة قُتلت الصديقة داخل غرفة نومه. لماذا أصرت الزوجة على إعداد الوجبة الأخيرة بنفسها؟
+
+EXAMPLE 2 — فندق ذكرى الزواج
+ذهب لمقابلة عشيقته في فندق حجزته زوجته لذكرى زواجهما. لكن داخل الغرفة وجد جثة امرأة أخرى، لا عشيقته. والأغرب أن الحجز كان باسمه. من الذي نصب له هذا الفخ؟
+
+
+CATEGORY 2: Beauty and dangerous charm / زیبایی و جذابیت قاتل
+
+EXAMPLE 1 — ثلاثة رجال وصورة واحدة
+اختفى ثلاثة رجال بعد لقاء المرأة الجميلة نفسها. وكان كل واحد منهم قد أرسل صورة من غرفة نومها قبل اختفائه. لاحظ المحققون تفصيلاً مقلقاً تكرر في خلفية الصور الثلاث. ما الذي حاولت إخفاءه؟
+
+EXAMPLE 2 — الممرضة المحبوبة
+كان المرضى يحبون تلك الممرضة الشابة المبتسمة. ثم مات ثلاثة مرضى كانوا يتعافون خلال شهر واحد. أظهرت الكاميرات دخولها غرفهم قبل الوفاة بدقائق. لماذا كانت هناك رغم أن أحداً لم يطلب المساعدة؟
+
+
+CATEGORY 3: Jealousy and revenge / حسادت و انتقام
+
+EXAMPLE 1 — دعوة الغريمة
+اكتشفت خيانة زوجها مع صديقتها. وبدلاً من الرحيل، دعت منافستها إلى حفل عيد ميلاد. عند منتصف الليل مات أحد الضيوف. وبدأت الشرطة باستجواب شخص لم يكن مدعواً أصلاً. لماذا؟
+
+EXAMPLE 2 — زفاف للمرة الثانية
+بعد اكتشاف الخيانة، اقترحت تجديد عهود الزواج ودعوة العشيقة أيضاً. عند منتصف الليل اختفت العروس، وعاد العريس بقميص ملطخ بالدماء. من الذي رتّب الحفل فعلاً، ولماذا؟
+
+
+CATEGORY 4: Killer in the closest circle / قاتل در نزدیک‌ترین فاصله
+
+EXAMPLE 1 — دموع الزوج
+بكى أمام الكاميرات على زوجته المقتولة، فظنه الجميع زوجاً مخلصاً. لكن مكالمة مسجلة كشفت هوية آخر شخص تحدثت إليه. كان يعرف الاسم ولم يخبر الشرطة به. لماذا أخفاه؟
+
+EXAMPLE 2 — الأخ الذي واساه
+بعد الجريمة، كان أخوه يأتي يومياً لمواساته ويساعد في البحث. وبعد ثلاثة أسابيع ظهرت صورة تُظهر الأخ أمام المنزل ليلة القتل. لماذا أخفى وجوده هناك عن المحققين؟
+
+
+CATEGORY 5: Male charm and forbidden relationships / جذابیت مردانه و رابطه ممنوع
+
+EXAMPLE 1 — ثلاث نساء ودعوة واحدة
+اعتقدت ثلاث نساء أن كل واحدة منهن هي الحب الوحيد لرجل وسيم. دُعين جميعاً إلى المنزل نفسه، وعادت واحدة فقط. لكن رسائل الدعوة لم تُرسل من هاتفه. فمن أرسلها؟
+
+EXAMPLE 2 — الرسالة نفسها
+وعد ثلاث نساء بالزواج. وفي ليلة واحدة وصلتهن الرسالة نفسها: «الليلة ستعرفين الحقيقة». وفي الصباح اختفت اثنتان. لم يرسل الرجل الرسالة. فمن أراد جمع النساء الثلاث؟
+
+
+CATEGORY 6: Cold, calculated revenge / انتقام سرد و حساب‌شده
+
+EXAMPLE 1 — اثنا عشر على المائدة
+تحملت خيانات زوجها سنوات بصمت. وفي ذكرى زواجهما جلس اثنا عشر شخصاً إلى المائدة، لكنهم أصبحوا أحد عشر صباحاً. حملت هدية الذكرى اسماً لم يكن ينبغي أن يكون هناك.
+
+EXAMPLE 2 — عشرون عاماً من الصمت
+بعد عشرين عاماً من تدمير رجل لحياتها، عملت امرأة في قصره. وبعد ستة أشهر مات خلال حفل ميلاده. أظهرت الوثائق أن جزءاً من ثروته نُقل قبل وفاته. من كانت تلك المرأة حقاً؟
+
+
+CATEGORY 7: A victim reveals the killer / مقتولی که قاتلش را لو داد
+
+EXAMPLE 1 — الصوت خلف الرسالة
+ظن القاتل أنه محا كل أثر. لكن الضحية أرسلت رسالة صوتية أخيرة قبل موتها. لا أسماء ولا اتهامات، بل صوت مألوف في الخلفية. لماذا أعاد المحققون الاستماع إلى تلك الثواني مراراً؟
+
+EXAMPLE 2 — تسجيل الساعة الذكية
+لم تجد الشرطة آثار اقتحام منزل الضحية. لكن ساعتها الذكية سجّلت اللحظات الأخيرة. استمع المحققون مراراً؛ لم يكن الصراخ هو المهم، بل جملة هادئة قيلت قربها. من قالها؟
+
+
+CATEGORY 8: The mistress and the hidden plot / معشوقه و راز شیطانی
+
+EXAMPLE 1 — صديقة الزوجة
+تقرّبت العشيقة من زوجة الرجل؛ خرجتا للتسوق والتقطتا صوراً معاً. وعندما اختفى الرجل بكت الاثنتان. لكن إحداهما كانت تعرف مكان دفن جثته مسبقاً. كيف؟
+
+EXAMPLE 2 — العشيقة على مائدة العشاء
+تقرّبت العشيقة الشابة من الزوجة، وأصبحت تزورهما على العشاء. ثم اختفى الرجل. أنكرت المرأتان معرفتهما بشيء، لكن كاميرا رصدت إحداهما قرب موقع الدفن قبل تقديم بلاغ الاختفاء.
+
+
+FINAL NOTE: All 144 examples are constructed fictional cases to illustrate specificity and emotional craft. 15–17 s is a target, not an asserted measured length. Measure with actual speech timing before use.

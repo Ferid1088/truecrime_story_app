@@ -311,6 +311,7 @@ class VoiceRenderer:
                 "language_code": req.language_code, "previous_text": req.previous_text, "next_text": req.next_text,
                 "dictionaries": req.pronunciation_dictionaries, "rules_sent": req.pronunciation_rules,
                 "character_cost": res.character_cost,
+                **({"uncertain_prior_attempts": res.extra["uncertain_prior_attempts"]} if res.extra.get("uncertain_prior_attempts") else {}),
                 "alignment": {
                     "characters": res.characters,
                     "starts": res.char_starts, "ends": res.char_ends,

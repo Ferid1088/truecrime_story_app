@@ -83,8 +83,8 @@
       }
     },
     "title": {
-      "min_words": 3,
-      "max_words": 8
+      "min_words": 7,
+      "max_words": 18
     },
     "scene": {
       "source": "generated",
@@ -348,6 +348,7 @@
       },
       "attempts": 3,
       "timeout_s": 300,
+      "max_retry_after_s": 60,
       "max_images_per_scene": 1,
       "empty_fraction": {
         "long": 0.55,
@@ -503,9 +504,9 @@
             "max_lines_fallback": 3
           },
           "photo": {
-            "x": 0.035,
-            "y": 0.71,
-            "width": 0.34
+            "x": 0.03,
+            "y": 0.455,
+            "width": 0.36
           },
           "banner": {
             "x": 0.55,
@@ -551,9 +552,9 @@
             "max_lines_fallback": 3
           },
           "photo": {
-            "x": 0.04,
-            "y": 0.62,
-            "width": 0.32
+            "x": 0.03,
+            "y": 0.42,
+            "width": 0.34
           },
           "banner": {
             "x": 0.56,
@@ -595,9 +596,9 @@
             "max_lines_fallback": 3
           },
           "photo": {
-            "x": 0.04,
-            "y": 0.6,
-            "width": 0.28
+            "x": 0.035,
+            "y": 0.55,
+            "width": 0.215
           },
           "banner": {
             "x": 0.55,
@@ -640,8 +641,8 @@
           },
           "photo": {
             "x": 0.04,
-            "y": 0.55,
-            "width": 0.2
+            "y": 0.42,
+            "width": 0.22
           },
           "banner": {
             "x": 0.3,
@@ -677,6 +678,23 @@
           "takes": "one thumbnail per video",
           "candidate": "film",
           "now": "The approved cover (long.jpg) is uploaded as the thumbnail; when a film cover made here is approved it is uploaded instead."
+        }
+      },
+      "subject_photo": {
+        "standing_approval": {
+          "enabled": true,
+          "by": "owner, standing instruction of 2026-11-19: every cover shows the photograph of the person it is about"
+        },
+        "grade": {
+          "tint": [214, 168, 112],
+          "tint_share": 0.42,
+          "contrast_cutoff": 1
+        },
+        "tape": {
+          "width": 0.42,
+          "height": 0.16,
+          "colour": [224, 206, 160],
+          "opacity": 0.82
         }
       },
       "rights_note": "An editorial approval records that someone looked at the photograph and judged it usable for reporting. It is not proof of copyright permission: the licence, credit and any permission still have to be settled outside this application.",

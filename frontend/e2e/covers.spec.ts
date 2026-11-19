@@ -71,12 +71,12 @@ async function mockCovers(page: import("@playwright/test").Page, covers: Cover[]
 
 const SHORTS_TAB = "/documentary/1?tab=Short%20clips%20%26%20covers";
 
-test("the Film cover tab sits right after Host and shows only the film's cover; the short covers are under Short clips & covers", async ({ page }) => {
+test("the Film cover tab comes after Host and shows only the film's cover; the short covers are under Short clips & covers", async ({ page }) => {
   await mockCovers(page, [cover({ key: "long", id: 1 }), cover({ key: "C1", id: 2, title: "Who opened it" })]);
   await page.goto("/documentary/1");
   await expect(page.getByRole("tab", { name: "Host" })).toBeVisible();
   const tabs = await page.getByRole("tab").allInnerTexts();
-  expect(tabs.indexOf("Film cover")).toBe(tabs.indexOf("Host") + 1);
+  expect(tabs.indexOf("Film cover")).toBeGreaterThan(tabs.indexOf("Host"));          // the Opening, Tags, Chapters, Titles and Descriptions tabs sit between them
   expect(tabs).not.toContain("Covers");
   await page.getByRole("tab", { name: "Film cover" }).click();
   await expect(page.getByTestId("cover-long")).toContainText("Film cover (16:9)");

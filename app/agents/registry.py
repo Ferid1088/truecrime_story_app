@@ -3,7 +3,7 @@ file, output kind); this module lists them and builds the agents that have a
 class of their own, only when invoked.
 
     from app.agents.registry import get_agent, invoke, catalog
-    await invoke("case_title_critic", language="de", ...)     # class agents
+    await invoke("case_naming_agent", language="de", ...)     # class agents
     await run_agent("language.inspect.en", gen, user, system=s) # any agent, by name
     catalog()        # every agent: name, role, model alias, prompt, class, used_by"""
 
@@ -17,8 +17,8 @@ from app.core.ai_config import ai_config
 # agents with a class of their own: name -> (module, class)
 CLASSES: dict[str, tuple[str, str]] = {
     "case_naming_agent": ("app.agents.naming", "CaseNamingAgent"),
-    "case_title_critic": ("app.agents.naming", "CaseTitleCritic"),
-    "native_title_critic": ("app.agents.naming", "NativeTitleCritic"),
+    "cover_subject_picker": ("app.agents.shorts", "CoverSubjectPicker"),
+    "creative_pack": ("app.agents.shorts", "CreativePack"),
     "thumbnail_critic": ("app.agents.thumbnail", "ThumbnailCritic"),
     "case_status_verifier": ("app.agents.status", "CaseStatusVerifier"),
 }

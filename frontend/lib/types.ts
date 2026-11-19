@@ -3097,7 +3097,6 @@ export interface TitleCandidate {
   specificity: number | null;
   brevity: number | null;
   sensationalism_risk: number | null;
-  spoiler_risk: number | null;
   epistemic_risk: number | null;
   native_quality: number | null;
   rank: number | null;

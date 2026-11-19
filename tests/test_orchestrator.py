@@ -30,7 +30,7 @@ def host(free_gb=32.0, load=0.2):
 
 
 def governor(sampler=None, clock=None) -> Governor:
-    return Governor(ai_config.orchestrator_settings().model_copy(update={"stagger_seconds": 20.0}), sampler or host(), clock or Clock())
+    return Governor(ai_config.orchestrator_settings().model_copy(update={"settle_seconds": 20.0}), sampler or host(), clock or Clock())
 
 
 # --- the own machine ---------------------------------------------------------------------------------------------------------------------
@@ -53,16 +53,32 @@ def test_a_machine_under_load_holds_the_next_film():
     assert not d.allowed and d.code == "cpu" and "per core" in d.reason
 
 
-def test_two_films_never_start_closer_than_the_stagger():
+def test_a_second_film_starts_at_once_when_there_is_room_for_both_and_waits_when_there_is_not():
     clock = Clock()
-    g = governor(clock=clock)
+    g = governor(host(free_gb=32.0), clock)
     assert g.decide(0, 9).allowed
     g.admitted()
-    clock.now += 5
-    d = g.decide(1, 9)
-    assert not d.allowed and d.code == "stagger"
-    clock.now += 16
-    assert g.decide(1, 9).allowed
+    assert g.decide(1, 9).allowed, "no fixed wait: 32 GB is free, the first film's expected memory is held back and there is still room"
+    limits = ai_config.orchestrator_settings().host
+    tight = limits.min_free_memory_gb + 2 * limits.job_memory_gb - 0.1       # room for the first film's memory, not for a second one on top of it
+    t = governor(host(free_gb=tight), clock)
+    t.admitted()
+    d = t.decide(1, 9)
+    assert not d.allowed and d.code == "memory" and "just started" in d.reason
+    clock.now += 21                                                           # the hold is over: what the machine reports is what is really left
+    assert t.decide(1, 9).allowed
+
+
+def test_nine_films_that_fit_are_all_admitted_in_one_pass_without_waiting():
+    clock = Clock()
+    g = governor(host(free_gb=96.0), clock)
+    admitted = 0
+    for running in range(9):
+        if not g.decide(running, 9).allowed:
+            break
+        g.admitted()
+        admitted += 1
+    assert admitted == 9, "the ninth film is not held back 160 s any more"
 
 
 def test_the_first_film_always_starts_even_on_a_machine_with_little_room():
@@ -207,7 +223,7 @@ def test_a_held_film_stays_queued_and_starts_when_the_machine_has_room(db_sessio
         await asyncio.sleep(0.2)
 
     free = {"gb": 1.0}
-    g = Governor(ai_config.orchestrator_settings().model_copy(update={"stagger_seconds": 0.0}),
+    g = Governor(ai_config.orchestrator_settings().model_copy(update={"settle_seconds": 0.0}),
                  lambda: HostSample(free_gb=free["gb"], total_gb=64.0, load_per_core=0.1, cores=8))
 
     async def go():
@@ -228,7 +244,7 @@ def test_a_held_film_stays_queued_and_starts_when_the_machine_has_room(db_sessio
 
 def test_the_worker_writes_what_the_orchestrator_saw_every_tick(db_session):
     make_jobs(db_session, 1)
-    g = Governor(ai_config.orchestrator_settings().model_copy(update={"stagger_seconds": 0.0}), host(free_gb=1.0))
+    g = Governor(ai_config.orchestrator_settings().model_copy(update={"settle_seconds": 0.0}), host(free_gb=1.0))
 
     async def go():
         w = W.Worker(run_job=lambda *a, **k: asyncio.sleep(0), worker_id="t", poll_seconds=0.02, lease_seconds=3, max_parallel=9, governor=g)
@@ -242,8 +258,8 @@ def test_the_worker_writes_what_the_orchestrator_saw_every_tick(db_session):
 
 
 def test_nine_queued_films_are_admitted_one_after_the_other_as_memory_allows(db_session):
-    """A simulated machine: every started film uses 2 GB; the orchestrator admits one film per stagger until the reserve is reached and
-    holds the rest, queued."""
+    """A simulated machine: every started film uses 2 GB. The orchestrator admits all the films that fit at once (the memory of a film that just started is held
+    back until it shows) and holds the rest, queued."""
     make_jobs(db_session, 9)
     started = []
     state = {"free": 12.0}
@@ -259,7 +275,7 @@ def test_nine_queued_films_are_admitted_one_after_the_other_as_memory_allows(db_
         await asyncio.sleep(0.5)
 
     settings = ai_config.orchestrator_settings()
-    settings = settings.model_copy(update={"stagger_seconds": 20.0, "host": settings.host.model_copy(update={"job_memory_gb": 1.5})})      # the proof does not move with the live estimate
+    settings = settings.model_copy(update={"settle_seconds": 20.0, "host": settings.host.model_copy(update={"job_memory_gb": 2.0})})      # the estimate equals the simulated use; the proof does not move with the live estimate
     g = Governor(settings, lambda: HostSample(free_gb=state["free"], total_gb=64.0, load_per_core=0.1, cores=8), clock)
 
     async def go():
@@ -273,7 +289,7 @@ def test_nine_queued_films_are_admitted_one_after_the_other_as_memory_allows(db_
 
     asyncio.run(go())
     limits = ai_config.orchestrator_settings().host
-    assert len(started) == 5                   # 12 -> 10 -> 8 -> 6 -> 4 -> 2 GB: a sixth would need 1.5 GB and leave less than the 2 GB reserve
+    assert len(started) == 5                   # 12 -> 10 -> 8 -> 6 -> 4 -> 2 GB: a sixth would need 2 GB and leave less than the 2 GB reserve
     assert state["free"] - limits.job_memory_gb < limits.min_free_memory_gb
     db_session.expire_all()
     assert db_session.query(DocumentaryJob).filter_by(status="queued").count() == 4

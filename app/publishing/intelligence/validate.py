@@ -5,11 +5,10 @@ from __future__ import annotations
 
 import re
 
-from app.documentary.host_firewall import reveal_issues
 from app.publishing.config import MetadataLimit
 from app.tags.validate import LATIN_WORD
 
-SCORES = ("hook_3s", "audience_appeal", "curiosity", "spoiler_risk", "follower_conversion", "film_conversion")
+SCORES = ("hook_3s", "audience_appeal", "curiosity", "follower_conversion", "film_conversion")
 ALLOWED_LATIN = {"youtube", "facebook", "instagram", "tiktok", "shorts", "short", "reels", "reel", "elevenlabs"}      # platform names; the music credit's provider (the app adds the credit itself)
 HASHTAG = re.compile(r"^#[^\s#]+$")
 MIN_PERSIAN_LETTERS = 80
@@ -108,7 +107,7 @@ def tidy(item: dict) -> tuple[dict, list[str]]:
 
 
 def metadata_findings(item: dict, kind: str, limit: MetadataLimit, *, fact_ids: set[str] | None = None, clip_keys: set[str] | None = None, known_words: set[str] | None = None,
-                      chapter_times: list[str] | None = None, story=None, cutoff: int = 0) -> list[dict]:
+                      chapter_times: list[str] | None = None) -> list[dict]:
     """The findings on one destination's metadata (`item` is already tidy). Each context that is given adds its checks: the case's names and facts, the film's chapter times, the story
     for spoilers. Without any context only the platform's own limits and formats are checked (what the owner's edit and an approval need)."""
     out: list[dict] = []
@@ -157,7 +156,4 @@ def metadata_findings(item: dict, kind: str, limit: MetadataLimit, *, fact_ids: 
         out.append(finding("error", "unknown_fact", f"facts_used names ids that do not exist: {', '.join(bad_refs[:6])}"))
     if known_words is not None and len(PERSIAN_LETTER.findall(posted)) >= MIN_PERSIAN_LETTERS and HALF_SPACE not in f"{title}{posted}":
         out.append(finding("error", "no_half_space", "Persian text without a single half-space (U+200C): compounds, «می» verbs and plurals need it, e.g. روایت‌های، می‌کند"))
-    if story is not None:
-        for issue in reveal_issues(story, cutoff, f"{title}. {posted}"):
-            out.append(finding("error", "spoiler", f"tells what comes after the clip's or film's last act: {issue['quote']}"))
     return out

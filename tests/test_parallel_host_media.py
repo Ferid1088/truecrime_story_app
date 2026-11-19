@@ -19,15 +19,16 @@ class _Mixer:
         return {}
 
 
-def test_music_mixes_run_one_at_a_time(tmp_path):
+def test_music_mixes_run_side_by_side_up_to_the_configured_limit(tmp_path):
     peak = {"now": 0, "max": 0}
+    limit = concurrency.limit_size("mix")
 
     async def go():
-        await asyncio.gather(*(mix_narration({}, {"directed": True}, tmp_path, mixer=_Mixer(peak)) for _ in range(4)))
+        await asyncio.gather(*(mix_narration({}, {"directed": True}, tmp_path, mixer=_Mixer(peak)) for _ in range(limit + 3)))
 
     asyncio.run(go())
-    assert concurrency.limit_size("mix") == 1
-    assert peak["max"] == 1
+    assert limit == 9, "one mix per language: measured, a mix takes as long with nine at once as alone"
+    assert peak["max"] == limit
 
 
 def test_a_chain_that_stops_stops_its_host_media(monkeypatch):
@@ -50,13 +51,13 @@ def test_a_chain_that_stops_stops_its_host_media(monkeypatch):
     assert seen["task"].cancelled()
 
 
-def test_only_one_voice_stage_and_one_render_run_at_a_time_and_the_limits_come_from_config():
+def test_several_voice_stages_but_only_one_render_run_at_a_time_and_the_limits_come_from_config():
     from app.core.concurrency import limit_size
 
-    assert limit_size("voice_stage") == 1 and limit_size("render") == 1
+    assert limit_size("voice_stage") == 9 and limit_size("render") == 1
 
 
-def test_the_voice_stages_of_several_languages_run_one_after_another():
+def test_the_voice_stages_of_several_languages_run_side_by_side_up_to_the_configured_limit():
     peak = {"now": 0, "max": 0}
 
     async def voice_stage():
@@ -67,10 +68,10 @@ def test_the_voice_stages_of_several_languages_run_one_after_another():
             peak["now"] -= 1
 
     async def go():
-        await asyncio.gather(*(voice_stage() for _ in range(5)))
+        await asyncio.gather(*(voice_stage() for _ in range(12)))
 
     asyncio.run(go())
-    assert peak["max"] == 1
+    assert peak["max"] == concurrency.limit_size("voice_stage") == 9
 
 
 def test_zoom_map_renders_wait_for_the_render_slot(monkeypatch):

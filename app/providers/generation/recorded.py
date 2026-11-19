@@ -39,18 +39,14 @@ class RecordedE2EGenerationProvider(GenerationProvider):
             "Arabic": "سر دفتر الميناء",
         }.get(language, "The Harbor Ledger")
         if role == "case_naming_agent":
+            scores = {"clarity": 0.9, "specificity": 0.9, "memorability": 0.8, "curiosity": 0.8, "documentary_tone": 0.9, "sensationalism_risk": 0.1, "spoiler_risk": 0.1,
+                      "epistemic_risk": 0.1, "native_quality": 0.95, "literal_translation": False, "reason": "recorded payload"}
+            if payload.get("score") is not None:
+                return ({"scores": [{"title": title, **scores} for title in payload["score"]]}, self._result(role))
             count = max(1, min(int(payload.get("count") or 1), 12))
             return ({"editorial_concept": "the last recorded signal",
-                     "candidates": [{"title": f"{titles} {index}", "angle": "the last signal"}
+                     "candidates": [{"title": f"{titles} {index}", "angle": "the last signal", "scores": scores}
                                     for index in range(1, count + 1)]}, self._result(role))
-        if role in {"case_title_critic", "native_title_critic"}:
-            titles_in = payload.get("titles") or []
-            return ({"scores": [{"title": title, "specificity": 0.9,
-                                  "memorability": 0.8, "curiosity": 0.8,
-                                  "documentary_tone": 0.9, "sensationalism_risk": 0.1,
-                                  "spoiler_risk": 0.1, "epistemic_risk": 0.1,
-                                  "native_quality": 0.95, "reason": "recorded payload"}
-                                 for title in titles_in]}, self._result(role))
         if role == "case_discovery_agent":
             results = payload.get("results") or []
             candidates = []

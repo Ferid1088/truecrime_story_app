@@ -42,15 +42,13 @@ class CoverPlanner:
         version = db.get(StoryVersion, clips[0].story_version_id)
         story = self._story(db, case, version)
         keys = P.keys_of([c.clip_key for c in clips])
-        cutoff = C.knowledge_cutoff(story)
         identity = db.query(EpisodeIdentity).filter(EpisodeIdentity.case_id == case.id, EpisodeIdentity.language == language).first()
         payload = {
             "language": language,
             "film": {"title": (identity.editorial_title if identity and identity.editorial_title else story.case_title), "central_question": story.central_question,
                      "open_questions": open_questions(story, 0)},
-            "answer_acts": [a.title for a in story.hidden(cutoff)],
-            "covers": [{"key": "long", "what": "the long film"}] + [
-                {"key": c.clip_key, "angle": json.loads(c.script_json).get("angle"), "idea": json.loads(c.script_json).get("idea"), "hook": json.loads(c.script_json).get("hook")}
+            "covers": [{"key": "long", "what": "the long film", "format": "16:9"}] + [
+                {"key": c.clip_key, "format": "9:16", "angle": json.loads(c.script_json).get("angle"), "idea": json.loads(c.script_json).get("idea"), "hook": json.loads(c.script_json).get("hook")}
                 for c in clips],
             "look": ai_config.covers_settings().themes[language].look,
             "limits": {"title_words": ai_config.covers_settings().title, "scene_words": [self.cfg["scene_min_words"], self.cfg["scene_max_words"]],
@@ -70,7 +68,7 @@ class CoverPlanner:
             return raw, res
 
         def problems_of(items: list[dict]) -> dict[str, list[dict]]:
-            found = {i["key"] or f"#{n}": P.item_issues(i, story, cutoff, language, options) for n, i in enumerate(items)}
+            found = {i["key"] or f"#{n}": P.item_issues(i, language, options) for n, i in enumerate(items)}
             if extra := P.set_issues(items, keys):
                 found["_set"] = extra
             return {k: v for k, v in found.items() if v}
@@ -91,7 +89,7 @@ class CoverPlanner:
         earlier = P.current(db, case.id, language)
         rows = []
         for key in keys:
-            item = by_key.get(key) or {"key": key, "title": "", "scene": "", "confidence": None, "reason": ""}
+            item = by_key.get(key) or {"key": key, "title": "", "scene": "", "confidence": None, "reason": "", "alt_title": ""}
             issues = problems.get(key, []) + problems.get("_set", [])
             status = P.status_of(item, issues)
             pick = (options or {}).get(item.get("title_pick") or "") if key == "long" else None
@@ -99,7 +97,8 @@ class CoverPlanner:
             rows.append(CoverProposal(
                 case_id=case.id, language=language, cover_key=key, kind="long" if key == "long" else "short", version=(earlier[key].version + 1) if key in earlier else 1,
                 source="agent", status=status, title=item["title"], scene_prompt=item["scene"], confidence=item["confidence"] if item["scene"] else None, reason=item["reason"],
-                validation_json=json.dumps({"issues": issues, "repair_iterations": repairs, **pairing}, ensure_ascii=False), generation_model=model))
+                validation_json=json.dumps({"issues": issues, "repair_iterations": repairs, "alt_title": item["alt_title"] or None, "format": "16:9" if key == "long" else "9:16", **pairing},
+                                           ensure_ascii=False), generation_model=model))
         db.add_all(rows)
         db.commit()
         for r in rows:

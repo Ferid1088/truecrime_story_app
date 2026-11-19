@@ -1,15 +1,14 @@
-"""CaseNamingAgent, CaseTitleCritic, native check and the selection loop.
+"""CaseNamingAgent (it proposes and scores the titles itself) and the selection loop.
 
 Per language the agent proposes native titles (never a translation of
 another language's title); every proposal runs through the deterministic
-gates (length, style, script, generic, spoiler, epistemic), the collision
-check against stored titles, then the critics. Rejected proposals are
+gates (length, style, script, generic, epistemic), the collision
+check against stored titles, then the model's own scores. Rejected proposals are
 stored with their reason, so they are never proposed again. The loop
 fills exactly `candidates_per_language` eligible titles, or reports how
 many are missing when `max_rounds` is reached — it never pads.
 
-LLM roles are routed centrally (case_naming_agent, case_title_critic,
-native_title_critic); no model name appears here, and no search backend
+The LLM role is routed centrally (case_naming_agent); no model name appears here, and no search backend
 is ever called."""
 
 from __future__ import annotations
@@ -21,7 +20,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
-from app.agents.naming import CaseNamingAgent, CaseTitleCritic, NativeTitleCritic
+from app.agents.naming import CaseNamingAgent
 from app.core.ai_config import ai_config
 from app.db.models import Case, CaseTitleCandidate
 from app.identity.titles import clean_title, get_identity, sync_identity
@@ -78,7 +77,7 @@ def unquote(raw: str | None) -> str:
 
 def rank_score(scores: dict, title: str) -> float:
     w = ai_config.case_naming.weights
-    risks = [scores.get(k) or 0 for k in ("spoiler_risk", "epistemic_risk", "sensationalism_risk")]
+    risks = [scores.get(k) or 0 for k in ("epistemic_risk", "sensationalism_risk")]
     vals = {"safety": 1 - max(risks), "clarity": scores.get("clarity") or 0, "curiosity": scores.get("curiosity") or 0, "specificity": scores.get("specificity") or 0,
             "memorability": scores.get("memorability") or 0, "documentary_tone": scores.get("documentary_tone") or 0, "brevity": brevity_score(title)}
     total = sum(w.values()) or 1.0
@@ -101,44 +100,38 @@ def _others(db: Session, case_id: int, language: str) -> dict[str, list[str]]:
     return out
 
 
-async def _critics(gen, ctx: dict, language: str, survivors: list[Verdict]) -> None:
+async def _score(gen, ctx: dict, language: str, survivors: list[Verdict], given: dict[str, dict]) -> None:
+    """The measures of the surviving titles: the ones the model gave its own candidates (there is no separate critic); a title a person wrote is scored by the same agent in its scoring mode."""
     cfg = ai_config.case_naming
     if not survivors:
         return
-    titles = [v.title for v in survivors]
-    brief = {k: ctx.get(k) for k in (
-        "canonical_case_name", "location", "central_question", "human_core", "key_facts",
-        "hold_back", "claim_limits", "resolution_status")}
-    scores = await CaseTitleCritic(gen).run(language=language, case=brief, titles=titles)
-    got = {norm_title(s.get("title")): s for s in scores}
-    native = {}
-    if language != "en":
-        native = {norm_title(s.get("title")): s
-                  for s in await NativeTitleCritic(gen).run(language=language, titles=titles)}
+    got = {key: s for key, s in given.items()}
+    missing = [v.title for v in survivors if norm_title(v.title) not in got]
+    if missing:
+        brief = {k: ctx.get(k) for k in (
+            "canonical_case_name", "location", "central_question", "human_core", "key_facts",
+            "claim_limits", "resolution_status")}
+        got.update({norm_title(s.get("title")): s for s in await CaseNamingAgent(gen).score(language=language, case=brief, titles=missing)})
     for v in survivors:
         s = got.get(norm_title(v.title))
         if s is None:
-            v.reasons.append("critic returned no score")
+            v.reasons.append("the model gave no scores")
             continue
         v.scores = {k: _f(s.get(k)) for k in (
             "clarity", "specificity", "memorability", "curiosity", "documentary_tone",
-            "sensationalism_risk", "spoiler_risk", "epistemic_risk")}
+            "sensationalism_risk", "epistemic_risk")}
         v.scores["reason"] = str(s.get("reason") or "")[:300]
         if language != "en":
-            n = native.get(norm_title(v.title)) or {}
-            v.scores["native_quality"] = _f(n.get("native_quality"))
-            v.scores["literal_translation"] = bool(n.get("literal_translation"))
-            v.scores["native_reason"] = str(n.get("reason") or "")[:300]
+            v.scores["native_quality"] = _f(s.get("native_quality"))
+            v.scores["literal_translation"] = bool(s.get("literal_translation"))
         sc = v.scores
-        if any(sc[k] is None for k in ("clarity", "specificity", "spoiler_risk", "epistemic_risk",
+        if any(sc[k] is None for k in ("clarity", "specificity", "epistemic_risk",
                                        "sensationalism_risk")):
-            v.reasons.append("critic scores incomplete")
+            v.reasons.append("scores incomplete")
         elif sc["clarity"] < cfg.min_clarity:
             v.reasons.append(f"unclear or abstract: a stranger would not know what happened (clarity {sc['clarity']:.2f})")
         elif sc["specificity"] < cfg.min_specificity:
             v.reasons.append(f"not case-specific (specificity {sc['specificity']:.2f})")
-        elif sc["spoiler_risk"] > cfg.max_spoiler_risk:
-            v.reasons.append(f"spoiler risk {sc['spoiler_risk']:.2f}")
         elif sc["epistemic_risk"] > cfg.max_epistemic_risk:
             v.reasons.append(f"epistemic risk {sc['epistemic_risk']:.2f}")
         elif sc["sensationalism_risk"] > cfg.max_sensationalism_risk:
@@ -151,9 +144,9 @@ async def _critics(gen, ctx: dict, language: str, survivors: list[Verdict]) -> N
 
 
 async def evaluate_titles(db: Session, case: Case, language: str, titles: list[str], ctx: dict,
-                          gen, embedder=None, angles: dict[str, str] | None = None
-                          ) -> list[Verdict]:
-    """Gates -> collision -> critics for a batch of proposed titles."""
+                          gen, embedder=None, angles: dict[str, str] | None = None,
+                          given: dict[str, dict] | None = None) -> list[Verdict]:
+    """Gates -> collision -> scores for a batch of proposed titles (`given`: the scores the model gave its own candidates, by title)."""
     corpus = get_corpus(db)
     others = _others(db, case.id, language)
     verdicts: list[Verdict] = []
@@ -194,7 +187,7 @@ async def evaluate_titles(db: Session, case: Case, language: str, titles: list[s
                 v.col.reasons_note = f"semantic check unavailable: {e}"
         for v in live:
             v.reasons.extend(r for r in v.col.reasons if r not in v.reasons)
-    await _critics(gen, ctx, language, [v for v in verdicts if v.ok])
+    await _score(gen, ctx, language, [v for v in verdicts if v.ok], {norm_title(t): sc for t, sc in (given or {}).items()})
     return verdicts
 
 
@@ -223,7 +216,7 @@ def _store(db: Session, case: Case, language: str, v: Verdict, *, round_no: int,
                         if col else None),
         memorability_score=sc.get("memorability"), curiosity_score=sc.get("curiosity"),
         specificity_score=sc.get("specificity"), brevity_score=brevity_score(v.title),
-        sensationalism_risk=sc.get("sensationalism_risk"), spoiler_risk=sc.get("spoiler_risk"),
+        sensationalism_risk=sc.get("sensationalism_risk"),
         epistemic_risk=sc.get("epistemic_risk"),
         critic_json=json.dumps({**sc, "angle": v.angle, "rank_score": rank_score(sc, v.title)
                                 if v.ok else None}, ensure_ascii=False),
@@ -259,9 +252,7 @@ def _enforce_exact(db: Session, case_id: int, language: str, keep: int) -> int:
 
 
 def mark_recommended(db: Session, case_id: int, language: str) -> None:
-    rows = sorted(_eligible(db, case_id, language),
-                  key=lambda r: json.loads(r.critic_json or "{}").get("rank_score") or 0,
-                  reverse=True)
+    rows = SEL.eligible(db, case_id, language)
     for i, r in enumerate(rows):
         d = json.loads(r.critic_json or "{}")
         d["rank"], d["recommended"] = i + 1, i == 0
@@ -290,7 +281,7 @@ async def fill_language(db: Session, case: Case, language: str, ctx: dict, gen, 
         cands = proposal["candidates"]
         angles = {c["title"]: c.get("angle") for c in cands}
         verdicts = await evaluate_titles(db, case, language, [c["title"] for c in cands], ctx, gen,
-                                         embedder, angles)
+                                         embedder, angles, {c["title"]: c["scores"] for c in cands if isinstance(c.get("scores"), dict)})
         for v in verdicts:
             _store(db, case, language, v, round_no=_next_round(db, case.id, language),
                    family=family, concept=concept)
@@ -301,6 +292,7 @@ async def fill_language(db: Session, case: Case, language: str, ctx: dict, gen, 
     n = len(_eligible(db, case.id, language))
     return {"language": language, "eligible": n, "rounds": rounds,
             "short_by": max(target - n, 0)}
+
 
 
 def _next_round(db: Session, case_id: int, language: str) -> int:

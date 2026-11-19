@@ -61,12 +61,13 @@
     "vision": 4,
     "elevenlabs_tts": 4,
     "elevenlabs_sound": 2,
-    "asr": 1,
-    "mix": 1,
-    "voice_stage": 1,
+    "image": 2,
+    "asr": 4,
+    "mix": 9,
+    "voice_stage": 9,
     "render": 1,
     "downloads": 4,
-    "jobs": 5
+    "jobs": 9
   },
   "host": {
     "enabled": true,

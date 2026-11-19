@@ -281,19 +281,18 @@ def test_cover_and_short_clip_configuration_is_untouched():
 
 
 def test_a_missing_or_unreadable_configuration_file_is_an_error(tmp_path, monkeypatch):
+    """The loader is called past its cache: clearing the shared cache would hand other tests a different config object than the one they hold."""
     import app.publishing.config as module
 
+    load = module.publishing_config.__wrapped__
     monkeypatch.setattr(module, "CONFIG_PATH", tmp_path / "missing.json")
-    module.publishing_config.cache_clear()
     with pytest.raises(FileNotFoundError):
-        module.publishing_config()
+        load()
     broken = tmp_path / "broken.json"
     broken.write_text("{not json")
     monkeypatch.setattr(module, "CONFIG_PATH", broken)
-    module.publishing_config.cache_clear()
     with pytest.raises(json.JSONDecodeError):
-        module.publishing_config()
-    module.publishing_config.cache_clear()
+        load()
 
 
 @pytest.mark.parametrize("change, message", [

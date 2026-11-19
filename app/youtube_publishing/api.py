@@ -32,6 +32,7 @@ log = logging.getLogger(__name__)
 
 class ConnectBody(BaseModel):
     return_to: str = "/"
+    discover: bool = False       # only for a language whose channel id is not registered yet: read which channel the account has, store nothing
 
 
 class RegisterBody(BaseModel):
@@ -92,7 +93,8 @@ def register(language: str, body: RegisterBody, db: Session = Depends(get_db)):
 def connect(language: str, body: ConnectBody, db: Session = Depends(get_db)):
     """The address to send the owner to for Google's consent screen (PKCE, offline access) for this language's channel."""
     try:
-        return {"authorization_url": _channels(db).oauth(language).authorization_url(_safe_return(body.return_to))}
+        _channels(db).require_existing(language)
+        return {"authorization_url": _channels(db).oauth(language).authorization_url(_safe_return(body.return_to), discover=body.discover)}
     except (OAuthError, ChannelError) as exc:
         raise _problem(exc) from exc
 
@@ -121,12 +123,16 @@ async def callback(code: str | None = None, state: str | None = None, error: str
     with SessionLocal() as db:
         channels_ = _channels(db)
         try:
-            await channels_.oauth(language).complete(code, state)
+            outcome = await channels_.oauth(language).complete(code, state)
         except OAuthError as exc:
             log.warning("youtube oauth for %s failed: %s: %s", language, exc.reason, exc)
             return back(youtube="error", language=language, reason=exc.reason, detail=str(exc)[:300])
         finally:
             channels_.sync(language)
+    if "discovered" in outcome:
+        found = outcome["discovered"]
+        log.info("youtube channel discovery for %s: %s", language, found["id"])
+        return back(youtube="discovered", language=language, channel_id=found["id"], channel_title=found["title"])
     log.info("youtube oauth for %s connected", language)
     return back(youtube="connected", language=language)
 

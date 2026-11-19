@@ -6,6 +6,9 @@ gateway reports tokens but no price, and the only rate the app knows (output ima
 
 from __future__ import annotations
 
+import asyncio
+import logging
+
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
@@ -16,6 +19,8 @@ from app.documentary import storage
 from app.providers.image.apimaster import APIMasterImageProvider, ImageProviderError
 from app.services.budget import BudgetService
 from app.services.cost_model import load_pricing
+
+log = logging.getLogger(__name__)
 
 RTL = ("fa", "ar")
 
@@ -86,6 +91,10 @@ async def paint(db: Session, case: Case, language: str, key: str, proposal_id: i
             return record
         last_error = result.error or "the image model returned no image"
         db.commit()
+        if result.uncertain:
+            log.warning("image request for %s got no answer and may have been billed: %s", key, last_error)
+        if result.rate_limited and attempt < cfg["attempts"]:
+            await asyncio.sleep(min(result.retry_after_s or 0.0, float(cfg.get("max_retry_after_s", 60))))          # the gateway asked for a pause: it is given, then the next attempt
     raise ImageProviderError(f"{cfg['attempts']} attempts failed: {last_error}")
 
 

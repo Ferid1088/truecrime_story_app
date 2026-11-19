@@ -78,4 +78,4 @@ async def make_opening(db: Session, case: Case, language: str, version: StoryVer
         degraded = f"the opening's pictures could not be made: {e}"[:300]
     media = await OM.make_media(db, case.id, row, master)
     return {**({"pictures_degraded": degraded} if degraded else {}), "pictures": len(media.get("pictures") or []), "opening_id": row.id, "status": row.status,
-            "seconds": media["audio"]["total"], "hook": json.loads(row.opening_json)["hook"], "music_prompt": media["music"]["prompt"]}
+            "seconds": media["audio"]["total"], "hook": json.loads(row.opening_json)["hook"], "music_prompts": [track["prompt"] for track in media["music"]["tracks"]]}

@@ -15,6 +15,7 @@ from typing import Protocol
 import httpx
 from sqlalchemy.orm import Session
 
+from app.core.concurrency import report_throttle, slot
 from app.core.prompts import prompt
 from app.db.models import HostLook, HostOutfit
 from app.documentary import stage_direction as SD
@@ -52,11 +53,13 @@ class ApimasterImageProvider:
     async def generate(self, prompt: str, reference_png: bytes, outfit_png: bytes) -> bytes:
         files = [("image[]", ("studio.png", reference_png, "image/png")),
                  ("image[]", ("outfit.png", outfit_png, "image/png"))]
-        async with httpx.AsyncClient(timeout=self.timeout_s) as client:
+        async with slot("image"), httpx.AsyncClient(timeout=self.timeout_s) as client:
             r = await client.post(f"{self.base_url}/images/edits",
                                   headers={"Authorization": f"Bearer {self.api_key}"},
                                   data={"model": self.model, "prompt": prompt, "n": "1"},
                                   files=files)
+            if r.status_code == 429:
+                report_throttle("image")
             r.raise_for_status()
             item = (r.json().get("data") or [{}])[0]
             if item.get("b64_json"):

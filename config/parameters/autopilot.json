@@ -19,7 +19,7 @@
     ],
     "owner_approval_languages": ["en", "fa"],
     "automatic_approver": "autopilot (automatic)",
-    "tick_seconds": 20,
+    "tick_seconds": 3,
     "render_profile": "publish",
     "schedule": {
       "first_slot_hour_utc": 15,

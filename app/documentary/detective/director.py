@@ -247,7 +247,7 @@ def _persist(db: Session, graph_id: int, run_id: int, mode: str, raw: dict) -> d
             raise MemoryValidationError(f"malformed output: {type(e).__name__} {e}") from e
         if ai_config.detective_toolkit.require_buildable:
             db.flush()
-            found = BD.unbuildable(db, graph_id, {a.get("id") for s in raw.get("scenes", []) for a in s.get("actions", [])})
+            found = BD.unbuildable(db, graph_id, {a["id"] for s in raw.get("scenes", []) for a in s.get("actions", []) if isinstance(a.get("id"), str)})
             if found:
                 raise UnbuildableCards(found)
     db.commit()

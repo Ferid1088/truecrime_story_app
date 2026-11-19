@@ -34,7 +34,7 @@ function stateOf(c: FacebookConnection): readonly [string, "warning" | "success"
 }
 
 export function FacebookConnectionPanel({ language, onChanged }: { language: string; onChanged: () => void }) {
-  const connection = useApi(() => facebookApi.connection(), [], { keepPrevious: true });
+  const connection = useApi(() => facebookApi.connection(language), [language], { keepPrevious: true });
   const [note, setNote] = useState<Note | null>(null);
   const [busy, setBusy] = useState(false);
   const c = connection.data;
@@ -42,7 +42,7 @@ export function FacebookConnectionPanel({ language, onChanged }: { language: str
   const test = async () => {
     setBusy(true); setNote(null);
     try {
-      const r = await facebookApi.testConnection();
+      const r = await facebookApi.testConnection(language);
       setNote({ tone: "ok", text: `Connection test passed at ${new Date(r.checked_at).toLocaleTimeString()}: Page ${r.page.name} (${r.page.id}) is the configured one and is linked to Instagram @${r.linked_instagram.username} (${r.linked_instagram.id}). Permissions: ${r.permissions.join(", ")}. Tasks: ${r.tasks.join(", ")}. The Page access token was obtained and identifies as the Page. Meta's upload limit: ${gigabytes(r.upload_limits.size)} and ${Math.round(r.upload_limits.length / 60)} minutes.` });
     } catch (e) { setNote({ tone: "bad", text: message(e) }); } finally { setBusy(false); connection.refetch(); onChanged(); }
   };

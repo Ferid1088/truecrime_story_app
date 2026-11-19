@@ -66,7 +66,7 @@ def test_the_writer_prompt_is_the_same_for_all_languages_but_the_language_and_br
     from app.documentary.host import LANG_NAMES
 
     def neutral(language: str) -> str:
-        text = H.writer_system_prompt(language).replace(H.register_of(language), "").replace(H.craft_of(language), "")      # the register note and the craft are the language's own
+        text = H.writer_system_prompt(language).replace(H.register_of(language), "").replace(H.craft_of(language), "").replace(H.punctuation_for_the_voice(language), "")      # the register note, the craft and the punctuation rules are the language's own
         text = text.replace(ai_config.channels[language].name, "BRAND")
         for name in LANG_NAMES.values():
             text = text.replace(name, "LANG")

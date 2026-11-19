@@ -3,6 +3,7 @@ face position is given); the checks are about the layout, the scripts, the key-w
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 import cv2
@@ -28,12 +29,12 @@ def assets(tmp_path, monkeypatch):
     return tmp_path
 
 
-def make(assets, language="en", title="The Break-In That Left Nothing", **kw):
+def make(assets, language="en", title="The Break-In That Left Nothing Behind At All", **kw):
     return T.compose_set(language, title, assets / "plate.png", assets / "logo.png", highlight=kw.pop("highlight", "Nothing"), **kw)
 
 
 def test_the_three_formats_are_composed_at_their_own_sizes_for_a_latin_and_a_right_to_left_language(assets):
-    for language, title, key in (("en", "The Break-In That Left Nothing", "Nothing"), ("fa", "زنی که هیچ ردی از خود برنگذاشت", "برنگذاشت"), ("ar", "اقتحامٌ لم يترك خلفه شيئًا", "شيئًا")):
+    for language, title, key in (("en", "The Break-In That Left Nothing Behind At All", "Nothing"), ("fa", "زنی که هیچ ردی از خود برنگذاشت و کسی ندید", "برنگذاشت"), ("ar", "اقتحامٌ لم يترك خلفه شيئًا ولم يره أحد قط", "شيئًا")):
         out = make(assets, language, title, highlight=key, subject="Name")
         assert {k: out[k]["image"].size for k in out} == {"reel": (1080, 1920), "feed": (1080, 1350), "grid": (1080, 1080)}
         for name, made in out.items():
@@ -58,11 +59,11 @@ def test_the_banner_names_the_person_and_never_runs_off_the_picture_however_long
     assert "banner" not in make(assets)["reel"]["elements"]                                       # no person named, no banner
 
 
-def test_a_photo_appears_only_when_one_is_given_and_a_title_of_two_words_is_refused(assets):
+def test_a_photo_appears_only_when_one_is_given_and_a_title_of_six_words_is_refused(assets):
     assert "photo" not in make(assets)["reel"]["elements"]
     assert "photo" in make(assets, photo=assets / "photo.png")["reel"]["elements"]
     with pytest.raises(CoverError):
-        make(assets, title="Two words")
+        make(assets, title="one two three four five six")
 
 
 def test_the_validator_reports_a_title_that_covers_the_host_and_a_picture_without_a_visible_face(assets):
@@ -98,11 +99,13 @@ from app.db.models import (  # noqa: E402
     VisualAsset,
 )
 from app.documentary import storage  # noqa: E402
+from app.agents import shorts as SA  # noqa: E402
+from app.covers import subject as SU  # noqa: E402
 from app.outfits import registry  # noqa: E402
 
 OUTFIT = Path(__file__).resolve().parents[1] / "data" / "outfits" / "en" / "navyBlazerBeigeChinos" / "en_navyBlazerBeigeChinos_front.png"
 needs_assets = pytest.mark.skipif(not OUTFIT.exists(), reason="the host's outfit image is needed")
-TITLE = "The Break-In That Left Nothing Behind"
+TITLE = "The Break-In That Left Nothing Behind At All"
 
 
 @pytest.fixture
@@ -114,6 +117,11 @@ def review(db_session, tmp_path, monkeypatch):
         folder.mkdir(parents=True)
         shutil.copy(OUTFIT, folder / f"{language}_{outfit}_front.png")
     monkeypatch.setattr(registry, "_ROOT", tmp_path / "outfits")
+
+    async def first_person(db, case, people, gen=None):                                                  # the model that reads the roles is not called here (it has its own tests)
+        return (people[0]["entity_key"] if people else None), "test: the first person", []
+
+    monkeypatch.setattr(SU, "choose", first_person)
     case = Case(canonical_title="Variants test", slug=f"variants-{uuid.uuid4().hex[:8]}", language="en")
     db_session.add(case)
     db_session.commit()
@@ -200,6 +208,7 @@ def test_a_version_with_problems_cannot_be_approved(review, monkeypatch):
 
 @needs_assets
 def test_a_photograph_is_used_only_when_authorized_and_its_approval_needs_the_copyright_acknowledgement(review, monkeypatch):
+    monkeypatch.setitem(T.settings()["subject_photo"]["standing_approval"], "enabled", False)          # without the owner's standing instruction only an editorial approval clears a photograph
     monkeypatch.setattr(T, "problems_of", lambda *a, **k: [])
     uncleared, cleared = asset(review), asset(review, approved_by="owner")
     candidates(monkeypatch, person(uncleared))
@@ -208,7 +217,7 @@ def test_a_photograph_is_used_only_when_authorized_and_its_approval_needs_the_co
     candidates(monkeypatch, person(cleared))
     with_photo = V.render(review.db, review.case, "en", "C1", shapes=["reel"])[0]
     note = json.loads(with_photo.evidence_json)["photo"]
-    assert with_photo.photo_asset_id == cleared.id and "photo" in json.loads(with_photo.elements_json)
+    assert with_photo.photo_asset_id == cleared.id and "photo" in json.loads(with_photo.elements_json) and with_photo.cover_key == "C1"          # the cover's own key, never the person's
     assert note["authorized"] and "not copyright permission" in note["why"] and "not proof of copyright permission" in note["copyright_note"]
     with pytest.raises(V.VariantError) as caught:
         V.approve(review.db, with_photo.id)
@@ -250,13 +259,13 @@ def test_a_missing_studio_video_a_missing_title_and_the_film_cover_are_reported_
     with pytest.raises(V.VariantError) as caught:
         V.render(review.db, review.case, "it", "C1")                                              # no Italian proposal, no Italian avatar video
     assert caught.value.reason == "no_title"
-    review.db.add(CoverProposal(case_id=review.case.id, language="it", cover_key="C1", kind="short", status="proposed", title="Titolo approvato di prova", scene_prompt="x", confidence=0.7))
+    review.db.add(CoverProposal(case_id=review.case.id, language="it", cover_key="C1", kind="short", status="proposed", title="Titolo approvato di prova per il caso di oggi", scene_prompt="x", confidence=0.7))
     review.db.commit()
     with pytest.raises(V.VariantError) as caught:
         V.render(review.db, review.case, "it", "C1")
     assert caught.value.reason == "plate_missing" and "no it avatar video for C1" in str(caught.value)
     state = V.overview(review.db, review.case, "it", "C1")
-    assert state["plate"]["available"] is False and state["can_render"] is False and state["hook"]["title"] == "Titolo approvato di prova"
+    assert state["plate"]["available"] is False and state["can_render"] is False and state["hook"]["title"] == "Titolo approvato di prova per il caso di oggi"
     with pytest.raises(V.VariantError) as caught:
         V.render(review.db, review.case, "en", "long", shapes=["reel"])                              # the film has its own 16:9 shape, not the Short's
     assert caught.value.reason == "unknown_shape" and V.shapes_of("long") == ("film",) and V.shapes_of("C1") == ("reel", "feed", "grid")
@@ -297,7 +306,7 @@ from app.db.models import StoryVersion  # noqa: E402
 
 
 def test_the_key_phrase_is_the_meaningful_words_by_rule_and_not_the_last_word():
-    assert T.key_phrase("The Break-In That Left Nothing Behind", "en") == "LEFT NOTHING"
+    assert T.key_phrase("The Break-In That Left Nothing Behind At All", "en") == "LEFT NOTHING"
     assert T.key_phrase("Le cambriolage qui n'a rien laissé derrière lui", "fr")== "RIEN LAISSÉ"
     assert T.key_phrase("Ein Einbruch, der nichts hinterließ", "de").startswith("NICHTS")
     assert "هیچ" in T.key_phrase("دزدی که هیچ ردی از خودش نگذاشت", "fa")
@@ -345,7 +354,7 @@ def test_the_stroke_of_a_key_phrase_is_measured_without_a_trailing_space_so_it_s
 
 def test_the_banner_keeps_a_latin_name_in_latin_letters_inside_arabic_and_persian(assets):
     for language in ("ar", "fa"):
-        out = make(assets, language, "اقتحامٌ لم يترك خلفه شيئًا", highlight="شيئًا", subject="Ashley Flynn")
+        out = make(assets, language, "اقتحامٌ لم يترك خلفه شيئًا ولم يره أحد قط", highlight="شيئًا", subject="Ashley Flynn")
         assert "banner" in out["reel"]["elements"] and not [p for p in out["reel"]["problems"] if "banner" in p]
 
 
@@ -404,7 +413,7 @@ def test_the_reel_keeps_its_logo_title_banner_and_face_inside_the_part_a_feed_cr
 
 
 def test_the_film_cover_is_one_16_by_9_picture_mirrored_for_right_to_left_languages_and_checked_like_the_others(assets):
-    for language, title, key, host_on_the_right in (("en", "The Love Song That Ended In Silence", "Silence", True), ("fa", "عاشقانه‌ای که در سکوت تمام شد", "تمام شد", False)):
+    for language, title, key, host_on_the_right in (("en", "The Love Song That Ended In Silence One Winter Night", "Night", True), ("fa", "عاشقانه‌ای که در سکوت یک شب زمستانی تمام شد", "تمام شد", False)):
         made = T.compose_set(language, title, assets / "plate.png", assets / "logo.png", highlight=key, subject="Name", shapes=T.FILM_SHAPES)
         assert list(made) == ["film"] and made["film"]["image"].size == (1920, 1080)
         title_box, logo = made["film"]["elements"]["title"], made["film"]["elements"]["logo"]
@@ -476,3 +485,71 @@ def test_an_approved_reel_cover_becomes_a_shorts_cover_and_its_youtube_thumbnail
     uploader.db = review.db
     assert uploader._cover_file(SimpleNamespace(cover_ref=ref, kind="short", case_id=review.case.id, language="en", asset_key="C1")) == picture
     assert registry._cover(review.case.id, "en", "C2")[0] != ref                                      # another Short is not affected
+
+
+# --- whose photograph the covers show ---------------------------------------------------------------------------------------------------------------------------
+
+def role(key, kind, gender):
+    return {"entity_key": key, "role": kind, "gender": gender}
+
+
+def test_the_woman_among_victim_and_culprit_is_on_every_cover_the_victim_first_else_the_victim():
+    rule = SU.apply_rule
+    assert rule([role("a", "victim", "female"), role("b", "culprit", "male")], ["a", "b"])[0] == "a"
+    assert rule([role("a", "victim", "male"), role("b", "culprit", "female")], ["a", "b"])[0] == "b"
+    assert rule([role("a", "victim", "female"), role("b", "culprit", "female")], ["a", "b"])[0] == "a"
+    assert rule([role("a", "victim", "male"), role("b", "culprit", "male")], ["a", "b"])[0] == "a"
+    assert rule([role("a", "victim", "unknown"), role("b", "culprit", "unknown")], ["a", "b"])[0] == "a"
+    assert rule([role("a", "victim", "female"), role("b", "culprit", "male")], ["b"])[0] is None               # the victim has no usable photograph: the rule names nobody, the caller falls back
+    assert rule([role("a", "other", "female")], ["a"])[0] is None
+    assert rule([role("a", "victim", "female")], ["a"])[1] == "the victim is a woman: her photograph is on every cover"
+
+
+def test_the_roles_are_read_by_the_model_and_the_rule_picks_the_person(db_session, monkeypatch):
+    case = Case(canonical_title="Subject test", slug=f"subject-{uuid.uuid4().hex[:8]}", language="en")
+    db_session.add(case)
+    db_session.commit()
+    asked = {}
+
+    async def roles(self, *, case, people):
+        asked.update(case=case, people=people)
+        return [role("husband", "culprit", "male"), role("wife", "victim", "female")]
+
+    monkeypatch.setattr(SA.CoverSubjectPicker, "run", roles)
+    asset_row = VisualAsset(case_id=case.id, asset_code=f"VIS_{uuid.uuid4().hex[:6]}", asset_type="photo", description="A smiling woman", title="t")
+    db_session.add(asset_row)
+    db_session.commit()
+    people = [{"entity_key": "husband", "name": "Caleb", "photos": [{"asset_id": asset_row.id}]}, {"entity_key": "wife", "name": "Ashley", "photos": [{"asset_id": asset_row.id}]}]
+    key, why, found = asyncio.run(SU.choose(db_session, case, people))
+    assert key == "wife" and "woman" in why and len(found) == 2 and asked["people"][1]["photo_descriptions"] == ["A smiling woman"]
+    assert asyncio.run(SU.choose(db_session, case, []))[0] is None
+    db_session.query(VisualAsset).filter_by(case_id=case.id).delete()
+    db_session.delete(case)
+    db_session.commit()
+
+
+def test_the_owners_standing_instruction_clears_a_photograph_of_the_person_but_never_one_marked_unusable(db_session):
+    from app.db.models import VisualAsset as Asset
+
+    def row(status):
+        return Asset(case_id=1, asset_code="x", asset_type="photo", rights_status=status)
+
+    ok, why = V.cleared(row("editorial_review_required"))
+    assert ok and "standing instruction" in why and "not copyright permission" in why
+    assert V.cleared(row("owned"))[0] and V.cleared(row("permission_required"))[0] is False and V.cleared(row("do_not_use"))[0] is False
+
+
+def test_the_standing_instruction_can_be_switched_off_in_the_config(monkeypatch):
+    from app.db.models import VisualAsset as Asset
+
+    monkeypatch.setitem(T.settings()["subject_photo"]["standing_approval"], "enabled", False)
+    assert V.cleared(Asset(case_id=1, asset_code="x", asset_type="photo", rights_status="editorial_review_required"))[0] is False
+
+
+@needs_assets
+def test_a_photo_that_covers_the_title_the_banner_or_the_logo_is_reported(assets):
+    made = make(assets, photo=assets / "photo.png")["reel"]
+    lay = T.settings()["layout"]["reel"]
+    assert not [p for p in made["problems"] if "photo" in p]
+    on_title = {**made["elements"], "photo": [made["elements"]["title"][0] - 20, made["elements"]["title"][1] - 20, 300, 300]}
+    assert "the photo covers the title" in T.problems_of(made["image"], on_title, (1080, 1920), lay)

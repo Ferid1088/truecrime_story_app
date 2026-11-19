@@ -7,9 +7,9 @@ import uuid
 
 import pytest
 from test_case_naming import FA, ScriptedGen
-from test_cover_proposals import SCENE, CoverGen, item
+from test_cover_proposals import CoverGen
 from test_host import _plan_story
-from test_short_clips import ClipGen  # noqa: F401  (the fixture's base)
+from pack_fixture import make_clips
 
 from app.core.ai_config import ai_config
 from app.covers import agents as CAG
@@ -18,8 +18,6 @@ from app.db.models import CaseTitleCandidate, CoverProposal, EpisodeIdentity
 from app.identity import titles as T
 from app.naming import agent as A
 from app.naming import selection as SEL
-from app.providers.generation.base import GenerationResult
-from app.shortform import clip_agents as CA
 
 
 def _case(db):
@@ -45,14 +43,14 @@ def cand(db, case, title, rank, angle="", language="en", status="candidate", con
 
 
 def three(db, case, language="en"):
-    return (cand(db, case, "Rita Haas Called From the Lamp Shop at Night", 0.80, "the call", language), cand(db, case, "The Borrowed Boat Was Found Upstream", 0.78, "the boat", language),
-            cand(db, case, "Two Neighbours Saw the Light Go Out Twice", 0.76, "the light", language))
+    return (cand(db, case, "Rita Haas Called From the Lamp Shop at Night", 0.80, "the call", language), cand(db, case, "A Rowing Boat Turned Up Downriver Before Anyone Looked", 0.78, "the boat", language),
+            cand(db, case, "Neighbours Watched One Window Go Dark Twice Running", 0.76, "the light", language))
 
 
 def test_the_options_are_the_best_titles_that_really_differ_with_the_story_hook(db_session):
     case = _case(db_session)
     a, b, c = three(db_session, case)
-    twin = cand(db_session, case, "The Borrowed Boat Was Found Upstream Again", 0.9, "the boat again")
+    twin = cand(db_session, case, "A Rowing Boat Turned Up Downriver Before Anyone Looked Again", 0.9, "the boat again")
     found = SEL.options(db_session, case, "en")
     assert [(o["id"], o["angle"], o["title"]) for o in found["options"]] == [("A", "the boat again", twin.title), ("B", "the call", a.title), ("C", "the light", c.title)]
     assert found["hook"] == "a lamp that was left burning" and {o["candidate_id"] for o in found["options"]} == {twin.id, a.id, c.id}
@@ -131,7 +129,7 @@ def test_the_title_writer_gives_its_angle_and_the_critic_its_clarity_in_their_ow
             out, res = await super().generate_structured(role, system, user, images)
             if role == "case_naming_agent":
                 payload = json.loads(user)
-                assert payload["limits"]["words"] == [ai_config.case_naming.min_words, ai_config.case_naming.max_words] and payload["limits"]["characters"] > 50 and "bad" in payload["example"]
+                assert payload["limits"]["words"] == [ai_config.case_naming.min_words, ai_config.case_naming.max_words] and payload["limits"]["characters"] > 50 and "example" not in payload
                 for i, c in enumerate(out["candidates"]):
                     c["angle"] = f"angle {i}"
             return out, res
@@ -141,16 +139,16 @@ def test_the_title_writer_gives_its_angle_and_the_critic_its_clarity_in_their_ow
     rows = db_session.query(CaseTitleCandidate).filter_by(case_id=case.id, language="fa").filter(CaseTitleCandidate.status != "rejected").all()
     assert len({json.loads(r.critic_json)["angle"] for r in rows}) == len(rows) and all(json.loads(r.critic_json)["clarity"] == 0.8 for r in rows)
     ident = T.get_identity(db_session, case.id, "fa")
-    assert ident.title_source == "auto" and ident.title_approved and gen.calls.count("case_naming_agent") == 1 and set(gen.calls) == {"case_naming_agent", "case_title_critic", "native_title_critic"}
+    assert ident.title_source == "auto" and ident.title_approved and gen.calls.count("case_naming_agent") == 1 and set(gen.calls) == {"case_naming_agent"}
 
 
 def test_a_title_the_critic_finds_unclear_is_rejected_whatever_its_other_scores(db_session):
     case = _case(db_session)
-    gen = ScriptedGen({"en": ["Her Classroom His Pulpit Burned Down", "She Called Police at 2 AM Then Vanished", "The Teacher Of Troy Remembered Always", "A Man Was Found Dead In A Hotel Room", "The Garage Door Was Open That Night"]},
-                      bad={"Her Classroom His Pulpit Burned Down": {"clarity": 0.2}, "The Teacher Of Troy Remembered Always": {"clarity": 0.3}})
+    gen = ScriptedGen({"en": ["Her Classroom and His Pulpit Burned Down Together", "She Called Police at 2 AM Then Vanished", "The Teacher Of Troy Was Remembered Always By All", "A Man Was Found Dead In A Hotel Room", "The Garage Door Was Open That Night"]},
+                      bad={"Her Classroom and His Pulpit Burned Down Together": {"clarity": 0.2}, "The Teacher Of Troy Was Remembered Always By All": {"clarity": 0.3}})
     asyncio.run(A.generate_case_titles(db_session, case, gen, None, ["en"]))
     rows = {r.title: r for r in db_session.query(CaseTitleCandidate).filter_by(case_id=case.id, language="en")}
-    assert rows["Her Classroom His Pulpit Burned Down"].status == "rejected" and "unclear or abstract" in rows["Her Classroom His Pulpit Burned Down"].rejection_reason
+    assert rows["Her Classroom and His Pulpit Burned Down Together"].status == "rejected" and "unclear or abstract" in rows["Her Classroom and His Pulpit Burned Down Together"].rejection_reason
     assert rows["She Called Police at 2 AM Then Vanished"].status != "rejected"
 
 
@@ -158,7 +156,7 @@ def test_a_title_the_critic_finds_unclear_is_rejected_whatever_its_other_scores(
 
 
 class PairGen(CoverGen):
-    def __init__(self, pick="B", cover_title="Title number 0 here", reason="a boat the title only hints at"):
+    def __init__(self, pick="B", cover_title="Title number 0 here and what it all means", reason="a boat the title only hints at"):
         super().__init__()
         self.pick, self.cover_title, self.reason = pick, cover_title, reason
 
@@ -174,9 +172,8 @@ class PairGen(CoverGen):
 def film(db_session, monkeypatch):
     case, master, _ = _plan_story(db_session)
     gen = PairGen()
-    monkeypatch.setattr("app.shortform.clip_agents.get_generation_provider", lambda: gen)
     monkeypatch.setattr("app.covers.agents.get_generation_provider", lambda: gen)
-    asyncio.run(CA.ClipPlanner().plan_english(db_session, case, master))
+    make_clips(db_session, case, master, languages=["en"])
     return case, gen
 
 
@@ -192,9 +189,10 @@ def test_the_planner_gets_the_options_in_its_one_call_picks_one_and_the_app_choo
     assert [o["id"] for o in payload["youtube_titles"]["options"]] == ["A", "B", "C"] and set(payload["youtube_titles"]["options"][0]) == {"id", "angle", "title"}
     assert payload["youtube_titles"]["story_hook"] == "a lamp that was left burning" and len([c for c in gen.calls if c[0] == "cover_planner"]) == 1
     pairing = json.loads(rows["long"].validation_json)["pairing"]
-    assert pairing == {"pick": "B", "title": c.title, "angle": "the light", "reason": "a boat the title only hints at"} and all("pairing" not in json.loads(r.validation_json) for k, r in rows.items() if k != "long")
+    second = payload["youtube_titles"]["options"][1]                                                          # the title of option B, whichever of the three titles that is
+    assert pairing == {"pick": "B", "title": second["title"], "angle": second["angle"], "reason": "a boat the title only hints at"} and all("pairing" not in json.loads(r.validation_json) for k, r in rows.items() if k != "long")
     ident = T.get_identity(db_session, case.id, "en")
-    assert ident.editorial_title == c.title and ident.title_source == "auto" and rows["long"].status == "proposed"
+    assert ident.editorial_title == second["title"] and ident.title_source == "auto" and rows["long"].status == "proposed"
 
 
 def test_without_options_the_planner_works_as_before(db_session, film):
@@ -210,7 +208,7 @@ def test_the_pick_must_be_an_option_and_the_cover_title_must_not_repeat_the_pick
     gen.pick = "Z"
     issues = {i["type"] for i in json.loads({r.cover_key: r for r in plan(db_session, case)}["long"].validation_json)["issues"]}
     assert "title_pick" in issues
-    gen.pick, gen.cover_title = "B", "Two Neighbours Saw the Light Go Out Twice"
+    gen.pick, gen.cover_title = "B", SEL.options(db_session, case, "en")["options"][1]["title"]
     long = {r.cover_key: r for r in plan(db_session, case)}["long"]
     assert "repeats_title" in {i["type"] for i in json.loads(long.validation_json)["issues"]} and long.status == "open"
     gen.cover_title, gen.reason = "A different promise here", ""
@@ -241,11 +239,11 @@ def test_the_titles_view_shows_the_choice_the_options_the_pairing_and_the_cover(
     plan(db_session, case)
     out = client.get(f"/api/cases/{case.id}/titles").json()
     en = next(x for x in out["languages"] if x["language"] == "en")
-    assert en["title"] == "Two Neighbours Saw the Light Go Out Twice" and en["source"] == "auto" and en["approved"] and [o["id"] for o in en["options"]] == ["A", "B", "C"] and [o["selected"] for o in en["options"]] == [False, True, False]
-    assert en["hook"] and en["pairing"]["pick"] == "B" and en["cover"]["title"] == "Title number 0 here" and en["validation"] == {"ok": True, "issues": []}
+    assert en["title"] == en["options"][1]["title"] and en["source"] == "auto" and en["approved"] and [o["id"] for o in en["options"]] == ["A", "B", "C"] and [o["selected"] for o in en["options"]] == [False, True, False]
+    assert en["hook"] and en["pairing"]["pick"] == "B" and en["cover"]["title"] == "Title number 0 here and what it all means" and en["validation"] == {"ok": True, "issues": []}
     de = next(x for x in out["languages"] if x["language"] == "de")
     assert de["title"] is None and de["options"] == [] and de["cover"] is None
-    db_session.query(CoverProposal).filter(CoverProposal.case_id == case.id, CoverProposal.cover_key == "long").update({"title": "Two Neighbours Saw the Light Go Out Twice"})
+    db_session.query(CoverProposal).filter(CoverProposal.case_id == case.id, CoverProposal.cover_key == "long").update({"title": en["options"][1]["title"]})
     db_session.commit()
     again = next(x for x in client.get(f"/api/cases/{case.id}/titles").json()["languages"] if x["language"] == "en")
     assert again["validation"]["ok"] is False and "repeats the title" in again["validation"]["issues"][0]

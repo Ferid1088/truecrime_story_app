@@ -110,9 +110,9 @@
     "pair_margin": 0.1,
     "cover_max_repeat": 0.5,
     "max_rounds": 4,
-    "max_words": 16,
+    "max_words": 18,
     "preferred_words": [
-      6,
+      7,
       14
     ],
     "near_token_threshold": 88.0,
@@ -131,7 +131,6 @@
     "max_chars": 100,
     "min_native_quality": 0.7,
     "min_specificity": 0.4,
-    "max_spoiler_risk": 0.5,
     "max_epistemic_risk": 0.4,
     "max_sensationalism_risk": 0.5,
     "weights": {
@@ -450,7 +449,7 @@
       ]
     },
     "generate_in_pipeline": true,
-    "min_words": 4,
+    "min_words": 7,
     "reject_bare_questions": true,
     "min_clarity": 0.6,
     "option_max_overlap": 0.5,
@@ -597,5 +596,48 @@
     "opening_beats": 2,
     "min_host_height": 0.8,
     "min_host_width": 0.15
+  },
+  "title_standard": {
+    "agents": [
+      "case_naming_agent",
+      "thumbnail_critic",
+      "cover_planner",
+      "tag_generator",
+      "publishing_planner",
+      "publishing_metadata_writer",
+      "creative_pack"
+    ]
+  },
+  "shorts_standard": {
+    "agents": [
+      "opening_director",
+      "opening_native_writer",
+      "creative_pack"
+    ],
+    "scouting": {
+      "min_concepts": 8,
+      "min_reliability": 5.0,
+      "weights": {
+        "emotional_intensity": 0.28,
+        "specificity_originality": 0.2,
+        "question_strength": 0.22,
+        "case_connection": 0.15,
+        "reliability": 0.15
+      }
+    },
+    "pack": {
+      "repairs": 1
+    }
+  },
+  "second_look": {
+    "agents": [
+      "case_naming_agent",
+      "cover_planner",
+      "publishing_planner",
+      "publishing_metadata_writer",
+      "tag_generator",
+      "opening_director",
+      "opening_native_writer"
+    ]
   }
 }

@@ -1212,7 +1212,12 @@ export const shortClipsApi = {
   overview: (caseId: number) => request<ShortClipsOverview>(`/api/cases/${caseId}/short-clips`),
 };
 
+export type VisualApproval = { state: "none" | "awaiting_owner" | "changed" | "approved"; open: boolean; reason?: string; approved_at?: string; note?: string | null };
+
 export const mvpApi = {
+  visualApproval: (caseId: number) => request<VisualApproval>(`/api/cases/${caseId}/mvp/visual-approval`),
+  approveVisualPackage: (caseId: number, note?: string) => post<VisualApproval>(`/api/cases/${caseId}/mvp/visual-approval`, { note: note ?? null }),
+  withdrawVisualApproval: (caseId: number) => request<VisualApproval>(`/api/cases/${caseId}/mvp/visual-approval`, { method: "DELETE" }),
   plan: (caseId: number) => request<MvpPlan>(`/api/cases/${caseId}/mvp/plan`),
   candidates: (caseId: number, status = "needs_review", beat?: string, cutOnly = false) =>
     request<MvpCandidateGroup[]>(
@@ -1451,12 +1456,14 @@ export type InstagramConnection = {
 };
 export type InstagramTest = { ok: boolean; account: { id: string; username: string }; permissions: string[]; missing_for_publishing: string[]; quota_usage: number | null; checked_at: string };
 
-/** The owner's test interface of the Instagram Reels publisher (Farsi account only). */
+const languageQuery = (language?: string) => (language ? `?language=${encodeURIComponent(language)}` : "");
+
+/** The owner's connection and test interface of the Instagram accounts (one per language). */
 export const metaPublishingApi = {
-  connection: () => request<InstagramConnection>("/api/meta-publishing/connection"),
-  connect: (returnTo: string) => post<{ authorization_url: string }>("/api/meta-publishing/connection/connect", { return_to: returnTo }),
-  testConnection: () => post<InstagramTest>("/api/meta-publishing/connection/test"),
-  disconnect: () => post<{ disconnected: boolean; still_set_by_environment: boolean }>("/api/meta-publishing/connection/disconnect"),
+  connection: (language?: string) => request<InstagramConnection>(`/api/meta-publishing/connection${languageQuery(language)}`),
+  connect: (returnTo: string, language?: string) => post<{ authorization_url: string }>(`/api/meta-publishing/connection/connect${languageQuery(language)}`, { return_to: returnTo }),
+  testConnection: (language?: string) => post<InstagramTest>(`/api/meta-publishing/connection/test${languageQuery(language)}`),
+  disconnect: (language?: string) => post<{ disconnected: boolean; still_set_by_environment: boolean }>(`/api/meta-publishing/connection/disconnect${languageQuery(language)}`),
   status: () => request<MetaStatus>("/api/meta-publishing/status"),
   authorization: () => post<{ steps: MetaStep[] }>("/api/meta-publishing/authorization"),
   dryRun: (clipKey: string) =>
@@ -1526,7 +1533,14 @@ export const coverShapesApi = {
 
 export type Propagation = { changed: { id: number; platform: string; kind: string; fields: string[] }[]; skipped: { id: number; platform: string; kind: string; reason: string }[]; pieces: { old: string; new: string }[]; unplaced: number };
 
+export type ConnectionState = "verified" | "known_not_authenticated" | "not_created" | "awaiting_creation" | "auth_failed" | "needs_owner_authorization";
+export type AccountConnection = {
+  language: string; platform: "youtube" | "instagram" | "facebook"; brand: string; account_id: string | null; identity_verified: boolean; credentials_valid: boolean | null; state: ConnectionState;
+  last_verified: string | null; last_error: string | null; owner_action: string | null; missing_permissions: string[]; testable: boolean;
+};
+
 export const publishingApi = {
+  connections: () => request<{ connections: AccountConnection[] }>("/api/publishing/connections"),
   overview: (caseId: number) => request<{ publications: PublicationLamp[] }>(`/api/cases/${caseId}/publishing-overview`),
   studio: (caseId: number, language: string) => request<StudioSnapshot>(`/api/cases/${caseId}/publishing/${language}`),
   plan: (caseId: number, language: string, body: { start_date?: string; reset_schedule?: boolean }) =>
@@ -1616,8 +1630,8 @@ export type FacebookThumbnails = { video_id: string; checked_at: string; preferr
 export const facebookApi = {
   thumbnails: (publicationId: number) => request<FacebookThumbnails>(`/api/facebook-publishing/publications/${publicationId}/thumbnails`),
   setCover: (publicationId: number, variantId: number) => post<FacebookThumbnails & { variant_id: number }>(`/api/facebook-publishing/publications/${publicationId}/cover`, { variant_id: variantId }),
-  connection: () => request<FacebookConnection>("/api/facebook-publishing/connection"),
-  testConnection: () => post<FacebookTest>("/api/facebook-publishing/connection/test"),
+  connection: (language?: string) => request<FacebookConnection>(`/api/facebook-publishing/connection${languageQuery(language)}`),
+  testConnection: (language?: string) => post<FacebookTest>(`/api/facebook-publishing/connection/test${languageQuery(language)}`),
   uploads: (caseId: number, language: string) => request<FacebookUploads>(`/api/facebook-publishing/cases/${caseId}/${language}/uploads`),
   upload: (publicationId: number, mode: FacebookMode, confirm: string | null) => post<{ started: boolean }>(`/api/facebook-publishing/publications/${publicationId}/upload`, { mode, confirm }),
   checkProcessing: (publicationId: number) => post<{ session: FacebookSession | null }>(`/api/facebook-publishing/publications/${publicationId}/check-processing`),
@@ -1626,7 +1640,7 @@ export const facebookApi = {
 export const youtubeApi = {
   channels: () => request<YouTubeChannels>("/api/youtube-publishing/channels"),
   register: (language: string, channelId: string) => post<YouTubeChannel>(`/api/youtube-publishing/channels/${language}/register`, { channel_id: channelId }),
-  connect: (language: string, returnTo: string) => post<{ authorization_url: string }>(`/api/youtube-publishing/channels/${language}/connect`, { return_to: returnTo }),
+  connect: (language: string, returnTo: string, discover = false) => post<{ authorization_url: string }>(`/api/youtube-publishing/channels/${language}/connect`, { return_to: returnTo, discover }),
   test: (language: string) => post<{ ok: boolean; language: string; channel_id: string; channel_title: string; scopes: string[]; checked_at: string }>(`/api/youtube-publishing/channels/${language}/test`),
   disconnect: (language: string) => post<{ disconnected: boolean; language: string; revoked: boolean; kept_connected: string[] }>(`/api/youtube-publishing/channels/${language}/disconnect`),
   uploads: (caseId: number, language: string) => request<YouTubeUploads>(`/api/youtube-publishing/cases/${caseId}/${language}/uploads`),

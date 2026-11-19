@@ -32,6 +32,7 @@ from app.db.models import (
     StoryVersion,
     Video,
 )
+from app.documentary.mvp import visual_gate as VG
 from app.documentary.pipeline.errors import JobPaused
 from app.identity.titles import approved_title
 from app.services.budget import BudgetService, BudgetStopped
@@ -97,7 +98,9 @@ class Ports:
     async def write_titles(self, db: Session, case: Case, languages: list[str]) -> None:
         from app.naming import agent as naming_agent
         from app.naming import api as naming_api
+        from app.shortform import pack as creative_pack
 
+        await creative_pack.ensure(db, case, naming_api._gen())         # every title, cover text and Short of every language from one request, once per case
         await naming_agent.generate_case_titles(
             db, case, naming_api._gen(), naming_api._embedder(), languages)
 
@@ -244,12 +247,11 @@ class AutopilotRunner:
             S.set_step(run, phase, "done" if done else ("waiting" if waiting else "running"),
                        S.step_detail(run, phase))
             db.commit()
-            # Research must finish before writing can start.  Film jobs, however, are
-            # deliberately allowed to start for languages whose text is already approved
-            # while the remaining language texts are being written.  Nothing downstream of
-            # the film phase may be advertised as running until every film is finished.
-            if phase == "films" and (not done or languages != planned):
-                # English alone is being made: nothing after the films, and no other language, starts until it is approved
+            # Research must finish before writing can start.  Film jobs are allowed to start for languages whose text is already approved while the remaining
+            # language texts are being written, and titles, Shorts and the dry-run publish queue work on every language that is ready for them,
+            # without waiting for the films of the other languages.
+            if phase == "films" and languages != planned:
+                # the legacy English-first rule (English alone is being made): nothing after the films, and no other language, starts until it is approved
                 for later in ("titles", "shorts", "publish"):
                     if S.step_status(run, later) != "done":
                         S.set_step(run, later, "pending")
@@ -456,45 +458,15 @@ class AutopilotRunner:
                        f"The {lang} final text is not approved: {why}.", language=lang)
         return not still
 
-    def _visual_searches_done(self, db: Session, run: AutopilotRun, ids: dict[str, int],
-                              english: str, languages: list[str]) -> bool:
-        """The non-base film jobs wait until the base language's job has run its case-level
-        visual searches: the search ledger dedups only queries already recorded, so two jobs
-        whose gap filling overlaps would pay for the same search twice. The gate opens when the
-        English job's mvp_research stage settled, when the job itself settled (a broken English
-        film never blocks the others), or when English's text failed for good."""
-        if english not in languages:
-            return True
-        job_id = ids.get(english)
-        if job_id is not None:
-            job = db.get(DocumentaryJob, job_id)
-            if job is None or job.status not in ("queued", "running"):
-                return True
-            stage = next((s for s in json.loads(job.stages_json or "[]")
-                          if s["name"] == "mvp_research"), None)
-            return stage is not None and stage["status"] in (
-                "done", "skipped", "degraded", "failed")
-        if approved_final(db, run.case_id, english) is not None:
-            return False  # the English film starts on this pass; the others wait for it
-        return (S.step_status(run, "texts") == "done"
-                or S.recall(run, "texts", "failure") is not None
-                or S.recall(run, "texts", "outcomes") is not None
-                or S.attempts(run, "texts") >= self.cfg.max_attempts_per_phase)
-
     async def _films(self, db: Session, run: AutopilotRun, case: Case, languages) -> bool:
         ids = S.film_job_ids(run)
         from app.documentary import jobs as J
 
         english = ai_config.language_pipeline.draft_language
-        gate_open = self._visual_searches_done(db, run, ids, english, languages)
-        held: list[str] = []
         for lang in sorted(languages, key=lambda lg: lg != english):
             final = approved_final(db, case.id, lang)
             if final is None or lang in ids:
-                continue
-            if lang != english and not gate_open:
-                held.append(lang)
-                continue
+                continue          # a language's film starts the moment its own final text is approved: its voice needs nothing from another language
             self._budget(db, case)
             await self.ports.authorize()
             job = J.create_job(db, case, final, [lang], "full", None, self.cfg.render_profile)
@@ -517,15 +489,18 @@ class AutopilotRunner:
                     continue
                 finished += 1
             elif film.status not in FILM_ACTIVE:
-                if self._auto_resume_transient_film(db, film, J):
+                if self._auto_resume_transient_film(db, film, J) or self._resume_after_visual_approval(db, case.id, film, J):
+                    continue
+                if VG.WAITING_MARK in (film.error or "") or "waits for your decision" in (film.error or ""):
+                    S.add_need(run, "films:all:visual_approval", "visual_approval",
+                               "Review and approve the case's pictures and videos (Review pictures). No film is directed or rendered before; every language goes on by itself afterwards.")
                     continue
                 S.add_need(run, f"films:{lang}:film_stopped", "film_stopped",
                            f"The {lang} film (job {film.id}) is {film.status}: "
                            f"{film.error or 'no reason recorded'}", language=lang)
         detail = f"{finished} of {len(languages)} films finished"
-        if held:
-            detail += (f"; {', '.join(held)} wait for the {english} film's "
-                       "visual searches to finish")
+        if not VG.status(db, case.id)["open"]:
+            detail += "; no film is directed or rendered before you approve the case's pictures and videos"
         S.set_step(run, "films", "running", detail)
         return finished == len(languages)
 
@@ -535,6 +510,18 @@ class AutopilotRunner:
 
         row = RV.current(db, case_id, language)
         return row is not None and row.state == "APPROVED"
+
+    @staticmethod
+    def _resume_after_visual_approval(db: Session, case_id: int, film: DocumentaryJob, jobs_module) -> bool:
+        """A film that stopped to wait for the owner's approval of the case's pictures goes on by itself once the approval is given (no click on every language)."""
+        message = film.error or ""
+        waiting = VG.WAITING_MARK in message or "waits for your decision" in message         # the gate itself, and the English film's first stop for the owner's review
+        if film.status != "failed" or not waiting or not VG.status(db, case_id)["open"]:
+            return False
+        jobs_module.prepare_resume(film)
+        db.commit()
+        jobs_module.launch(film.id)
+        return True
 
     @staticmethod
     def _auto_resume_transient_film(db: Session, film: DocumentaryJob, jobs_module) -> bool:
@@ -573,7 +560,7 @@ class AutopilotRunner:
 
     async def _titles(self, db: Session, run: AutopilotRun, case: Case, languages) -> bool:
         target = ai_config.case_naming.candidates_per_language
-        ready = list(self._ready_jobs(db, run))
+        ready = [lang for lang in languages if approved_final(db, case.id, lang) is not None]      # a title needs the case and the language's approved final text, not its film
         tried = S.recall(run, "titles", "tried", [])
         short = [lang for lang in ready
                  if len(live_titles(db, case.id, lang)) < target and lang not in tried]
@@ -582,6 +569,7 @@ class AutopilotRunner:
             await self._try(db, run, "titles", lambda: self.ports.write_titles(db, case, short),
                             settled_on_return=False)
             S.remember(run, "titles", "tried", sorted({*tried, *short}))
+            S.set_attempts(run, "titles", 0)           # each batch of newly ready languages is its own call: the limit counts failures in a row
             db.commit()
             db.expire_all()
         for lang in ready:
@@ -618,17 +606,36 @@ class AutopilotRunner:
         return (len(jobs) == len(languages) and bool(rows)
                 and not any(r.status in SHORT_ACTIVE or r.status == "failed" for r in rows))
 
+    def _plan_ready(self, db: Session, run: AutopilotRun, case: Case, languages) -> list[str]:
+        """The languages whose part of the dry-run publish queue can be planned: their film is finished, their titles exist and their Shorts are settled (done, skipped or
+        queued by nobody). A language never waits for another language's film."""
+        target = ai_config.case_naming.candidates_per_language
+        ready = []
+        for lang, job in self._ready_jobs(db, run).items():
+            if lang not in languages or len(live_titles(db, case.id, lang)) < target:
+                continue
+            rendered = db.query(Video).filter(Video.job_id == job.id, Video.language == lang, Video.state == "rendered").first() is not None
+            rows = db.query(ShortProductionJob).filter(ShortProductionJob.film_job_id == job.id).all()
+            if rendered and rows and not any(r.status in SHORT_ACTIVE or r.status == "failed" for r in rows):          # a finished status without a rendered film is not a film
+                ready.append(lang)
+        return sorted(ready)
+
     async def _publish(self, db: Session, run: AutopilotRun, case: Case, languages) -> bool:
-        if not all(S.step_status(run, p) == "done" for p in ("films", "titles", "shorts")):
+        ready = self._plan_ready(db, run, case, languages)
+        if not ready:
             return False
         films, shorts, handles, avatar_missing, outfit_missing, clip_review = \
             self._publish_inputs(db, run, case)
-        for lang in outfit_missing:
+        films = [f for f in films if f.language in ready]
+        shorts = [x for x in shorts if x.language in ready]
+        for lang in (lang for lang in outfit_missing if lang in ready):
             # O2: the final version needs an outfit chosen for its language; drafts do not.
             S.add_need(run, f"publish:{lang}:choose_outfit", "choose_outfit",
                        f"Needs you: choose outfit ({lang}) in the Autopilot start dialog "
                        "before starting the run.", language=lang)
         for lang, codes in clip_review.items():
+            if lang not in ready:
+                continue
             # V5: a YouTube clip in the film whose rights still need a human look is never a
             # silent skip — the owner approves or rejects it in the visuals review queue.
             S.add_need(run, f"publish:{lang}:review_youtube_clips", "review_youtube_clips",
@@ -636,38 +643,44 @@ class AutopilotRunner:
                        + ", ".join(codes)
                        + " — approve or reject them in the case's visuals review queue.",
                        language=lang)
-        for lang in avatar_missing:
+        for lang in (lang for lang in avatar_missing if lang in ready):
             # Owner decision 2026-10-22 (A3): the autopilot never publishes a film with no
             # approved avatar look for its language; it only ever asks the owner to approve one.
             S.add_need(run, f"publish:{lang}:approve_avatar", "approve_avatar",
                        f"No approved avatar look for {lang}: the selected outfit photo could not "
                        "be prepared for this film.", language=lang)
-        planned, skipped = P.plan_requests(films, shorts, handles, utc_now())
-        P.store_requests(db, run.id, case.id, planned)
-        for item in skipped:
-            S.add_need(run, f"publish:{item['short_id']}:{item['platform']}:skipped",
-                       "publish_skipped",
-                       f"Short {item['short_id']} ({item['language']}) is not queued for "
-                       f"{item['platform']}: {item['reason']}", language=item["language"],
-                       blocking=False)
+        signature = {"languages": ready, "films": sorted(f.video_id for f in films), "shorts": sorted(x.short_id for x in shorts)}
+        planned_count = S.recall(run, "publish", "queued", 0)
+        if S.recall(run, "publish", "signature") != signature:
+            planned, skipped = P.plan_requests(films, shorts, handles, utc_now())
+            P.store_requests(db, run.id, case.id, planned)           # the dry-run queue is replaced as languages become ready; nothing is ever sent from it
+            S.remember(run, "publish", "signature", signature)
+            S.remember(run, "publish", "queued", len(planned))
+            planned_count = len(planned)
+            for item in skipped:
+                S.add_need(run, f"publish:{item['short_id']}:{item['platform']}:skipped",
+                           "publish_skipped",
+                           f"Short {item['short_id']} ({item['language']}) is not queued for "
+                           f"{item['platform']}: {item['reason']}", language=item["language"],
+                           blocking=False)
         waiting = (db.query(RenderedShort)
                    .filter(RenderedShort.film_job_id.in_(S.film_job_ids(run).values()),
                            RenderedShort.status == "done",
                            RenderedShort.approval_state != "approved").all())
-        for lang in languages:
+        for lang in ready:
             count = sum(1 for r in waiting if r.language == lang)
             if count:
                 S.add_need(run, f"publish:{lang}:approve_shorts", "approve_shorts",
                            f"{count} {lang} shorts wait for your approval before real publishing.",
                            language=lang, blocking=False)
-        unchosen = [lang for lang in languages if not approved_title(db, case.id, lang)]
+        unchosen = [lang for lang in ready if not approved_title(db, case.id, lang)]
         if unchosen:
             S.add_need(run, "publish:all:confirm_titles", "confirm_titles",
                        f"No title is chosen for {', '.join(unchosen)}; the dry run used suggestion 1 as an "
                        "unconfirmed default.", blocking=False)
         S.set_step(run, "publish", "running",
-                   f"{len(planned)} dry-run requests queued; nothing was sent")
-        return True
+                   f"{planned_count} dry-run requests queued for {', '.join(ready)}; nothing was sent")
+        return len(ready) == len(languages)
 
     def _publish_inputs(self, db: Session, run: AutopilotRun, case: Case
                         ) -> tuple[list[P.FilmInput], list[P.ShortInput],

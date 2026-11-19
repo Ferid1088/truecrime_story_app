@@ -194,7 +194,6 @@ function LanguageCard({
                   <th className="pr-3">Mem</th>
                   <th className="pr-3">Cur</th>
                   <th className="pr-3">Spec</th>
-                  <th className="pr-3">Spoiler</th>
                   <th className="pr-3">Epistemic</th>
                   <th />
                 </tr>
@@ -335,7 +334,6 @@ function CandidateRow({
       <td className="pr-3 tabular-nums">{score(c.memorability)}</td>
       <td className="pr-3 tabular-nums">{score(c.curiosity)}</td>
       <td className="pr-3 tabular-nums">{score(c.specificity)}</td>
-      <td className="pr-3"><Badge variant={riskVariant(c.spoiler_risk)}>{score(c.spoiler_risk)}</Badge></td>
       <td className="pr-3"><Badge variant={riskVariant(c.epistemic_risk)}>{score(c.epistemic_risk)}</Badge></td>
       <td className="whitespace-nowrap text-right">
         {editing ? (

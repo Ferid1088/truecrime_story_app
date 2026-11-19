@@ -566,7 +566,7 @@
       "repairs": 2,
       "film_excerpt_chars": 6000,
       "concurrency": 2,
-      "running_timeout_seconds": 900, "examples_dir": "data/publishing_examples", "examples_per_call": 30, "example_caption_chars": 220, "hook_min_score": 7, "hook_critic_examples": 12,
+      "running_timeout_seconds": 900, "examples_dir": "data/publishing_examples", "examples_per_call": 30, "example_caption_chars": 220,
       "proofread_languages": ["fa"],
       "proofread_min_similarity": 0.8
     },

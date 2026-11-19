@@ -4,7 +4,7 @@ The agent's *definition* (model role, prompt file, output kind) is data in
 config/agents.json; the class adds the job around it — building the input and
 validating the answer — and is invoked only when a service needs it:
 
-    verdict = await get_agent("case_title_critic").run(language="de", case=brief, titles=[...])
+    verdict = await get_agent("case_naming_agent").score(language="de", case=brief, titles=[...])
 
 No agent contains prompt text or a model name. Agents take a generation
 provider so tests can inject a fake."""

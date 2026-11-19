@@ -120,8 +120,12 @@ class ConnectBody(BaseModel):
     return_to: str = "/"
 
 
-def _connection() -> InstagramConnection:
-    return InstagramConnection()
+def _connection(language: str | None = None) -> InstagramConnection:
+    """The connection of one language's Instagram account (the configured default when none is given); a language without an account is refused."""
+    try:
+        return InstagramConnection(meta_config().instagram.for_language(language) if language else None)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail={"message": str(exc), "reason": "no_account"}) from exc
 
 
 def _problem(exc: ConnectError) -> HTTPException:
@@ -133,18 +137,18 @@ def _safe_return(path: str) -> str:
 
 
 @router.get("/connection")
-def connection(db: Session = Depends(get_db)):
+def connection(language: str | None = None, db: Session = Depends(get_db)):
     """The Instagram account's connection state (the files and the registry: no call to Meta). The registry's account row is brought in line with it."""
-    conn = _connection()
+    conn = _connection(language)
     conn.sync(db)
     return conn.status()
 
 
 @router.post("/connection/connect")
-def connect(body: ConnectBody):
+def connect(body: ConnectBody, language: str | None = None):
     """The address to send the owner to for Facebook's consent screen."""
     try:
-        return {"authorization_url": _connection().authorization_url(_safe_return(body.return_to))}
+        return {"authorization_url": _connection(language).authorization_url(_safe_return(body.return_to))}
     except ConnectError as exc:
         raise _problem(exc) from exc
 
@@ -179,8 +183,8 @@ async def callback(code: str | None = None, state: str | None = None, error: str
 
 
 @router.post("/connection/test")
-async def test_connection(db: Session = Depends(get_db)):
-    conn = _connection()
+async def test_connection(language: str | None = None, db: Session = Depends(get_db)):
+    conn = _connection(language)
     try:
         return {"ok": True, **await conn.test()}
     except ConnectError as exc:
@@ -190,8 +194,8 @@ async def test_connection(db: Session = Depends(get_db)):
 
 
 @router.post("/connection/disconnect")
-def disconnect(db: Session = Depends(get_db)):
-    conn = _connection()
+def disconnect(language: str | None = None, db: Session = Depends(get_db)):
+    conn = _connection(language)
     result = conn.disconnect()
     conn.sync(db)
     return result

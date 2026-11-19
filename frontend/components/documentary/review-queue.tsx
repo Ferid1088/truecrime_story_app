@@ -5,6 +5,7 @@ import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { ApiError, apiFileUrl, mvpApi } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
+import { VisualApprovalBar } from "./visual-approval";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -334,6 +335,7 @@ export function ReviewQueuePage({
   const Frame = embedded ? "section" : "main";
   return (
     <Frame className={embedded ? "w-full" : "w-full px-6 py-5"} data-testid="review-queue-page">
+      <VisualApprovalBar caseId={caseId} />
       <header className="mb-3 flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
         <div className="min-w-0">
           {!embedded && (

@@ -994,7 +994,9 @@ def test_every_language_of_the_studio_has_its_own_channel_slot_that_stays_closed
         assert caught.value.reason == "channel_not_registered"
         assert channels.oauth(language).tokens.path.name == f"token_{language}.json"
     for language in ("de", "ar", "es", "it", "fr", "pt", "tr"):
-        world.db.query(PublicationAccount).filter_by(platform="youtube", language=language).delete()
+        accounts = world.db.query(PublicationAccount).filter_by(platform="youtube", language=language)
+        world.db.query(Publication).filter(Publication.account_ref_id.in_([a.id for a in accounts])).update({"account_ref_id": None}, synchronize_session=False)      # publications that earlier tests left keep no reference
+        accounts.delete()
     world.db.commit()
 
 
@@ -1026,3 +1028,28 @@ def test_the_film_address_goes_to_the_first_rows_of_a_public_shorts_description_
     assert sent["description"].startswith("https://www.youtube.com/watch?v=FILM123\n\n") and sent["title"] == "T" and sent["tags"] == ["a"] and sent["categoryId"] == google.fake.category      # nothing else was lost
     assert pub(world, "youtube", "short", "C1").caption.startswith("https://www.youtube.com/watch?v=FILM123\n\n")
     assert asyncio.run(uploader(world, google).add_film_addresses(world.case.id, "fa")) == [] and len(google.fake.snippet_updates) == 1       # nothing is sent twice
+
+
+def test_discovering_a_channel_reports_which_channel_the_account_has_and_stores_nothing(google):
+    url = google.oauth.authorization_url("/cases/15?tab=Publishing", discover=True)
+    state = parse_qs(urlparse(url).query)["state"][0]
+    outcome = asyncio.run(google.oauth.complete("auth-code", state))
+    assert outcome["discovered"]["id"] == CHANNEL and not google.tokens.exists()
+
+
+def test_discovery_does_not_open_the_door_to_connecting_a_channel_that_is_not_the_registered_one(google):
+    google.fake.channel = "UCsomeoneElse"
+    state = parse_qs(urlparse(google.oauth.authorization_url()).query)["state"][0]
+    with pytest.raises(OAuthError, match="not the fa channel"):
+        asyncio.run(google.oauth.complete("auth-code", state))
+    assert not google.tokens.exists()
+
+
+def test_a_channel_that_does_not_exist_yet_cannot_be_connected(db_session):
+    from app.youtube_publishing.channels import ChannelError, YouTubeChannels
+
+    channels = YouTubeChannels(db_session)
+    with pytest.raises(ChannelError) as caught:
+        channels.require_existing("pt")
+    assert caught.value.reason == "awaiting_channel" and channels.status("pt")["awaiting"] == "channel_creation"
+    channels.require_existing("de")

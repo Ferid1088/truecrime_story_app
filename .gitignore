@@ -119,3 +119,6 @@ OAuth-Client*.json
 
 # third-party Shorts titles and captions collected as few-shot examples (public repository: not committed)
 data/publishing_examples/
+
+# creative pack results: they hold the case story and facts (research material), kept locally only
+data/creative_packs/

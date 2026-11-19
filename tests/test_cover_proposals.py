@@ -6,21 +6,20 @@ import json
 
 import pytest
 from test_host import _plan_story, _version, story
-from test_short_clips import ClipGen
+from pack_fixture import make_clips
 
 from app.covers import agents as CAG
 from app.covers import proposals as P
 from app.db.models import CoverProposal
 from app.providers.generation.base import GenerationResult
-from app.shortform import clip_agents as CA
 
 
 
 SCENE = "A front door standing slightly open at night, a narrow strip of warm light falling across the dark floor"
 
 
-def item(key="long", title="The open door", scene=SCENE, confidence=0.9, reason="a front door, as the title says"):
-    return {"key": key, "title": title, "scene": scene, "confidence": confidence, "reason": reason}
+def item(key="long", title="The open door that nobody ever closed again", scene=SCENE, confidence=0.9, reason="a front door, as the title says", alt_title="A door left ajar in the middle of the night"):
+    return {"key": key, "title": title, "scene": scene, "confidence": confidence, "reason": reason, "alt_title": alt_title}
 
 
 def types(issues):
@@ -29,22 +28,21 @@ def types(issues):
 
 def test_a_good_proposal_has_no_issue_and_is_proposed():
     s = story()
-    assert P.item_issues(item(), s, 3, "en") == [] and P.status_of(item(), []) == "proposed"
+    assert P.item_issues(item(), "en") == [] and P.status_of(item(), []) == "proposed"
 
 
 def test_a_long_title_a_late_detail_a_short_scene_and_no_certainty_are_refused():
     s = story()
-    found = types(P.item_issues(item(title="one two three four five six seven eight nine ten eleven", scene="a door", confidence=None, reason=""), s, 3, "en"))
+    found = types(P.item_issues(item(title=" ".join(["word"] * 19), scene="a door", confidence=None, reason=""), "en"))
     assert {"title_length", "scene_length", "no_confidence", "reason"} <= found
-    assert "tells_what_comes_later" in types(P.item_issues(item(title="Wexford lock opened"), s, 3, "en"))
-    assert "greeting" in types(P.item_issues(item(title="Hello and welcome"), s, 3, "en"))
+    assert "greeting" in types(P.item_issues(item(title="Hello and welcome to the channel everyone"), "en"))
 
 
 def test_a_scene_with_a_person_a_victim_or_a_weapon_is_refused():
     s = story()
     for scene in ("A man standing in the doorway of a dark house at night with a pistol in his hand",
                   "The dead victim lying on the kitchen floor next to an overturned chair at night"):
-        assert "scene_not_symbolic" in types(P.item_issues(item(scene=scene), s, 3, "en"))
+        assert "scene_not_symbolic" in types(P.item_issues(item(scene=scene), "en"))
 
 
 def test_an_uncertain_or_missing_scene_or_an_issue_leaves_the_cover_open():
@@ -55,21 +53,21 @@ def test_an_uncertain_or_missing_scene_or_an_issue_leaves_the_cover_open():
 def test_the_set_needs_every_cover_with_its_own_title_and_scene():
     keys = ["long", "C1", "C2"]
     assert P.set_issues([item(), item("C1", "Other title for it", SCENE + " and a hall"), item("C2", "Third title for it", SCENE + " in snow")], keys) == []
-    found = types(P.set_issues([item(), item("C1", "The open door", SCENE), item("C9", "x", "another")], keys))
+    found = types(P.set_issues([item(), item("C1", "The open door that nobody ever closed again", SCENE), item("C9", "x", "another")], keys))
     assert {"missing_cover", "unknown_cover", "same_title", "same_scene"} <= found
 
 
-class CoverGen(ClipGen):
+class CoverGen:
     def __init__(self, bad_first=False, unsure=()):
-        super().__init__()
-        self.bad_first, self.unsure = bad_first, set(unsure)
+        self.calls, self.bad_first, self.unsure = [], bad_first, set(unsure)
+
+    def is_configured(self):
+        return True
 
     async def generate_structured(self, role, system, user, images=None):
-        if role != "cover_planner":
-            return await super().generate_structured(role, system, user, images)
         data = json.loads(user)
         self.calls.append((role, data))
-        covers = [item(c["key"], f"Title number {n} here", f"{SCENE} number {n}", 0.4 if c["key"] in self.unsure else 0.9) for n, c in enumerate(data["covers"])]
+        covers = [item(c["key"], f"Title number {n} here and what it all means", f"{SCENE} number {n}", 0.4 if c["key"] in self.unsure else 0.9) for n, c in enumerate(data["covers"])]
         if self.bad_first and "problems_to_fix" not in data:
             covers[0]["scene"] = "A man with a pistol stands in the doorway of the dark house at night"
         return {"covers": covers}, GenerationResult(text="{}", model="m/cover_planner", provider="fake")
@@ -79,9 +77,8 @@ class CoverGen(ClipGen):
 def clips(db_session, monkeypatch):
     case, master, _ = _plan_story(db_session)
     gen = CoverGen()
-    monkeypatch.setattr("app.shortform.clip_agents.get_generation_provider", lambda: gen)
     monkeypatch.setattr("app.covers.agents.get_generation_provider", lambda: gen)
-    english = asyncio.run(CA.ClipPlanner().plan_english(db_session, case, master))
+    _, english = make_clips(db_session, case, master, languages=["en"])
     return case, master, english, gen
 
 
@@ -135,7 +132,7 @@ def test_another_language_gets_the_english_covers_as_reference_and_needs_its_own
     de = _version(db_session, case, master, "en")
     de.language = "de"
     db_session.commit()
-    asyncio.run(CA.ClipPlanner().write_native(db_session, case, de, english))
+    make_clips(db_session, case, master, languages=["de"], keep_titles=True)
     asyncio.run(planner.propose(db_session, case, "de"))
     payload = gen.calls[-1][1]
     assert payload["language"] == "de" and [c["key"] for c in payload["english_covers"]] == ["long", "C1", "C2", "C3", "C4", "C5"] and payload["english_covers"][0]["scene"]

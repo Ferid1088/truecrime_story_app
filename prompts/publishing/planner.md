@@ -16,9 +16,9 @@ One JSON object:
 
 ## What to judge, for every clip
 
-Scores are whole numbers from 1 (poor) to 10 (excellent); for `spoiler_risk` 10 means a high risk:
+Scores are whole numbers from 1 (poor) to 10 (excellent):
 - `hook_3s`: does the first spoken sentence create a concrete question or tension within three seconds, truthfully?
-- `audience_appeal`, `curiosity`, `follower_conversion` (would a stranger follow the channel after this), `film_conversion` (would the viewer want the full documentary), `spoiler_risk` (does the clip give away what only the film's later acts tell).
+- `audience_appeal`, `curiosity`, `follower_conversion` (would a stranger follow the channel after this), `film_conversion` (would the viewer want the full documentary).
 - `platform_fit` for each of the platforms the case is planned on: how well this clip suits that platform.
 - `strengths`, `risks`: one short sentence each, in English.
 
@@ -37,7 +37,7 @@ Scores are whole numbers from 1 (poor) to 10 (excellent); for `spoiler_risk` 10 
 
 Return one JSON object and nothing else:
 
-{"clips": [{"clip_key": "C1", "scores": {"hook_3s": 8, "audience_appeal": 7, "curiosity": 9, "spoiler_risk": 3, "follower_conversion": 6, "film_conversion": 8}, "platform_fit": {"youtube": 7, "instagram": 8}, "strengths": "...", "risks": "..."}],
+{"clips": [{"clip_key": "C1", "scores": {"hook_3s": 8, "audience_appeal": 7, "curiosity": 9, "follower_conversion": 6, "film_conversion": 8}, "platform_fit": {"youtube": 7, "instagram": 8}, "strengths": "...", "risks": "..."}],
  "sequences": {"youtube": [{"clip_key": "C3", "reason": "..."}]},
  "schedule": {"items": [{"destination": "youtube/film", "asset": "film", "date_offset_days": 0, "local_time": "20:30", "reason": "..."}], "summary": "...", "assumptions": ["..."]},
  "routing": {"youtube/short": {"method": "related_video", "reason": "..."}},

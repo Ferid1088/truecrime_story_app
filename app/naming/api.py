@@ -59,7 +59,7 @@ def candidate_dict(c: CaseTitleCandidate) -> dict:
                                  ai_config.case_naming.near_char_threshold) else "clear"),
         "memorability": c.memorability_score, "curiosity": c.curiosity_score,
         "specificity": c.specificity_score, "brevity": c.brevity_score,
-        "sensationalism_risk": c.sensationalism_risk, "spoiler_risk": c.spoiler_risk,
+        "sensationalism_risk": c.sensationalism_risk,
         "epistemic_risk": c.epistemic_risk,
         "native_quality": crit.get("native_quality"), "rank": crit.get("rank"),
         "recommended": bool(crit.get("recommended")), "angle": crit.get("angle"), "clarity": crit.get("clarity"),
@@ -100,7 +100,7 @@ def title_issues(row: CaseTitleCandidate | None) -> list[str]:
         return ["the title was not written by the title writer (no critic scores)"]
     cfg = ai_config.case_naming
     found = []
-    for name, value, limit in (("spoiler risk", row.spoiler_risk, cfg.max_spoiler_risk), ("epistemic risk", row.epistemic_risk, cfg.max_epistemic_risk),
+    for name, value, limit in (("epistemic risk", row.epistemic_risk, cfg.max_epistemic_risk),
                                ("sensationalism risk", row.sensationalism_risk, cfg.max_sensationalism_risk)):
         if value is not None and value > limit:
             found.append(f"{name} {value:.2f}")

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { facebookApi, metaPublishingApi, youtubeApi, type FacebookConnection, type InstagramConnection, type LampState, type PublicationLamp, type YouTubeChannel } from "@/lib/api";
+import { facebookApi, metaPublishingApi, publishingApi, youtubeApi, type AccountConnection, type ConnectionState, type LampState, type PublicationLamp } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,43 +11,31 @@ export const PORTALS = ["YouTube", "Instagram", "Facebook", "TikTok"] as const;
 export type Portal = (typeof PORTALS)[number];
 export const LANGUAGES = ["fa", "en", "de", "ar", "es", "it", "fr", "pt", "tr"];
 const DISABLED = "disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-dashed disabled:border-border disabled:cursor-not-allowed";
+const PORTAL_OF: Record<string, Portal> = { youtube: "YouTube", instagram: "Instagram", facebook: "Facebook" };
 const NOT_BUILT = "The connection for this portal is not built yet.";
 
 /** One lamp of the report: a language on a portal. `ok` is green only when the account is connected, is the registered one and holds every permission. */
-export type Lamp = { portal: Portal; language: string; ok: boolean; why: string; registered: boolean };
+export type Lamp = { portal: Portal; language: string; ok: boolean; why: string; registered: boolean; testable: boolean };
 
-function youtubeLamp(c: YouTubeChannel): Lamp {
-  const ok = c.connected && c.channel_matches && c.scopes_ok;
-  const why = !c.registered ? "channel id not registered" : !c.connected ? "not connected" : !c.channel_matches ? "connected to a different channel" : !c.scopes_ok ? "permissions missing" : `connected: ${c.channel_title}`;
-  return { portal: "YouTube", language: c.language, ok, why, registered: c.registered };
+const STATE_TEXT: Record<ConnectionState, string> = {
+  verified: "verified", known_not_authenticated: "not connected", not_created: "account not created", awaiting_creation: "awaiting channel creation", auth_failed: "last check failed",
+  needs_owner_authorization: "needs owner authorization",
+};
+
+function lampOf(row: AccountConnection): Lamp {
+  return { portal: PORTAL_OF[row.platform], language: row.language, ok: row.state === "verified", why: row.state === "auth_failed" && row.last_error ? `last check failed: ${row.last_error}` : STATE_TEXT[row.state],
+    registered: row.account_id !== null, testable: row.testable && row.state !== "known_not_authenticated" };
 }
 
-function instagramLamp(language: string, c: InstagramConnection | null | undefined): Lamp {
-  if (language !== c?.language) return { portal: "Instagram", language, ok: false, why: "no Instagram account is configured for this language", registered: false };
-  const ok = c.connected && !c.expired && !(c.last_test && !c.last_test.ok);
-  const why = !c.app_configured && !c.connected ? "Meta app not set up" : !c.connected ? "not connected" : c.expired ? "token expired" : c.last_test && !c.last_test.ok ? "last test failed" : `connected: @${c.expected_account.username}`;
-  return { portal: "Instagram", language, ok, why, registered: true };
-}
-
-function facebookLamp(language: string, c: FacebookConnection | null | undefined): Lamp {
-  if (language !== c?.language) return { portal: "Facebook", language, ok: false, why: "no Facebook Page is configured for this language", registered: false };
-  const ok = c.connected && c.verified;
-  const why = !c.connected ? "not connected" : c.last_test && !c.last_test.ok ? "last test failed" : !c.verified ? "not tested yet" : `connected: ${c.page.name}`;
-  return { portal: "Facebook", language, ok, why, registered: true };
-}
-
-/** The connection state of every portal and language: the one source of the lamps, Connect all and Test all. */
+/** The connection state of every portal and language: the one source of the lamps, Connect all and Test all (the server's connection table: one row per language and platform). */
 export function usePortalLamps() {
-  const youtube = useApi(() => youtubeApi.channels(), [], { keepPrevious: true });
-  const instagram = useApi(() => metaPublishingApi.connection(), [], { keepPrevious: true });
-  const facebook = useApi(() => facebookApi.connection(), [], { keepPrevious: true });
+  const table = useApi(() => publishingApi.connections(), [], { keepPrevious: true });
+  const rows = table.data?.connections ?? [];
   const lamps: Lamp[] = PORTALS.flatMap((portal) => LANGUAGES.map((language): Lamp => {
-    if (portal === "YouTube") { const c = youtube.data?.channels.find((x) => x.language === language); return c ? youtubeLamp(c) : { portal, language, ok: false, why: "no channel configured", registered: false }; }
-    if (portal === "Instagram") return instagramLamp(language, instagram.data);
-    if (portal === "Facebook") return facebookLamp(language, facebook.data);
-    return { portal, language, ok: false, why: NOT_BUILT, registered: false };
+    const row = rows.find((r) => r.platform === portal.toLowerCase() && r.language === language);
+    return row ? lampOf(row) : { portal, language, ok: false, why: portal === "TikTok" ? NOT_BUILT : "no account configured", registered: false, testable: false };
   }));
-  return { lamps, youtube, instagram, facebook, loaded: !!youtube.data && !!instagram.data && !!facebook.data, refetch: () => { youtube.refetch(); instagram.refetch(); facebook.refetch(); } };
+  return { lamps, table, loaded: !!table.data, refetch: table.refetch };
 }
 
 function Dot({ lamp }: { lamp: Lamp }) {
@@ -105,7 +93,7 @@ export function ConnectAll({ portals, returnTo, lamps, loaded }: { portals: read
     setBusy(true); setError(null);
     try {
       const back = `${returnTo}&connect_all=${scope}`;
-      const { authorization_url } = first.portal === "YouTube" ? await youtubeApi.connect(first.language, back) : await metaPublishingApi.connect(back);
+      const { authorization_url } = first.portal === "YouTube" ? await youtubeApi.connect(first.language, back) : await metaPublishingApi.connect(back, first.language);
       window.location.assign(authorization_url);
     } catch (e) { setError(message(e)); setBusy(false); }
   };
@@ -149,7 +137,7 @@ export function ConnectAll({ portals, returnTo, lamps, loaded }: { portals: read
 export function TestAll({ portals, lamps, onDone }: { portals: readonly Portal[]; lamps: Lamp[]; onDone: () => void }) {
   const scope = portals.length === 1 ? portals[0].toLowerCase() : "all";
   const all = lamps.filter((l) => portals.includes(l.portal));
-  const testable = (l: Lamp) => l.registered && l.why !== "not connected" && l.why !== "Meta app not set up" && (l.portal === "YouTube" || l.portal === "Instagram" || l.portal === "Facebook");
+  const testable = (l: Lamp) => l.testable;
   const rows = all.filter(testable);
   const untestable = all.filter((l) => !testable(l));
   const [results, setResults] = useState<Record<string, Result>>({});
@@ -161,8 +149,8 @@ export function TestAll({ portals, lamps, onDone }: { portals: readonly Portal[]
       let result: Result;
       try {
         if (l.portal === "YouTube") { const r = await youtubeApi.test(l.language); result = { ok: true, text: `${r.channel_title} (${r.channel_id}): token works, permissions ${r.scopes.join(", ")}` }; }
-        else if (l.portal === "Facebook") { const r = await facebookApi.testConnection(); result = { ok: true, text: `${r.page.name} (${r.page.id}): token works, Page token verified, linked to Instagram @${r.linked_instagram.username}, permissions ${r.permissions.join(", ")}` }; }
-        else { const r = await metaPublishingApi.testConnection(); result = { ok: true, text: `@${r.account.username} (${r.account.id}): token works, permissions ${r.permissions.join(", ")}` }; }
+        else if (l.portal === "Facebook") { const r = await facebookApi.testConnection(l.language); result = { ok: true, text: `${r.page.name} (${r.page.id}): token works, Page token verified, linked to Instagram @${r.linked_instagram.username}, permissions ${r.permissions.join(", ")}` }; }
+        else { const r = await metaPublishingApi.testConnection(l.language); result = { ok: true, text: `@${r.account.username} (${r.account.id}): token works, permissions ${r.permissions.join(", ")}` }; }
       } catch (e) { result = { ok: false, text: message(e) }; }
       setResults((r) => ({ ...r, [key(l)]: result }));
     }

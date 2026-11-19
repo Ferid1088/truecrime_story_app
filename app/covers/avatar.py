@@ -46,6 +46,20 @@ def host_face(image: Path) -> tuple[float, float, float, float]:
     return float(x), float(y), float(w), float(h)
 
 
+def face_of(picture: Image.Image) -> tuple[float, float, float, float] | None:
+    """(x, y, width, height) of the largest face in a picture, or None when no face is found (a photograph of one person)."""
+    import numpy as np
+
+    cfg = ai_config.covers_settings().avatar
+    frame = cv2.cvtColor(np.asarray(picture.convert("RGB")), cv2.COLOR_RGB2BGR)
+    height, width = frame.shape[:2]
+    found = cv2.FaceDetectorYN.create(str(_model()), "", (width, height), cfg["min_score"], 0.3, 5000).detect(frame)[1]
+    if found is None or len(found) == 0:
+        return None
+    x, y, w, h = max(found, key=lambda f: f[2] * f[3])[:4]
+    return float(x), float(y), float(w), float(h)
+
+
 def portrait(image: Path, aspect: float, face_widths: float) -> Image.Image:
     """The host's head and shoulders: a crop `face_widths` face widths wide with the width/height `aspect`, the face a little above its middle (moved inside the image when it would leave it)."""
     x, y, w, h = host_face(image)

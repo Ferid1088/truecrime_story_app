@@ -147,20 +147,6 @@
       "description": "Short native-language detective-board card titles.",
       "used_by": "app/agents/detective_board.py"
     },
-    "short_clip_director": {
-      "role": "short_clip_director",
-      "prompt": null,
-      "output": "json",
-      "description": "Plans the short clips of a film from its English spoken text: up to five clips, each with its own angle and a script of about 25 seconds in four parts.",
-      "used_by": "app/shortform/clip_agents.py"
-    },
-    "short_clip_native_writer": {
-      "role": "short_clip_native_writer",
-      "prompt": null,
-      "output": "json",
-      "description": "Writes the short clips of one language again in it from the English clips (not a translation).",
-      "used_by": "app/shortform/clip_agents.py"
-    },
     "shorts.write": {
       "role": "chapter_writer",
       "prompt": "shortform/writer",
@@ -208,20 +194,6 @@
       "prompt": "agents/case_naming_agent",
       "output": "json",
       "description": "Native title candidates.",
-      "used_by": "app/agents/naming.py"
-    },
-    "case_title_critic": {
-      "role": "case_title_critic",
-      "prompt": "agents/case_title_critic",
-      "output": "json",
-      "description": "Title scores.",
-      "used_by": "app/agents/naming.py"
-    },
-    "native_title_critic": {
-      "role": "native_title_critic",
-      "prompt": "agents/native_title_critic",
-      "output": "json",
-      "description": "Native-language title check.",
       "used_by": "app/agents/naming.py"
     },
     "thumbnail_critic": {
@@ -749,13 +721,6 @@
       "description": "Writes the native-language metadata of one platform (title, description or caption, hashtags, keywords, chapters, call to action) for the film and the Shorts of one case, from the verified dossier, the clips' own scripts and the film's story before its answer.",
       "used_by": "app/publishing/intelligence/agents.py"
     },
-    "publishing_hook_critic": {
-      "role": "publishing_hook_critic",
-      "prompt": "publishing/hook_critic",
-      "output": "json",
-      "description": "Judges the hooks (the title of a Short, or the first line of a caption where there is no title) written by the publishing metadata writer against the real top-viewed Shorts of the language: stakes, an open question, a concrete detail. Its verdict decides which hooks are sent back for a rewrite.",
-      "used_by": "app/publishing/intelligence/agents.py"
-    },
     "publishing_orthography_fixer": {
       "role": "publishing_orthography_fixer",
       "prompt": "publishing/orthography",
@@ -769,6 +734,20 @@
       "output": "json",
       "description": "A careful copy editor for the texts of one film or Short on every portal in a language the owner reads (Persian): spelling, half-spaces, punctuation, grammar and stray words in another script, the same correction on every portal, no change of meaning, facts, names or numbers. Its answer is checked and refused where it rewrites instead of correcting.",
       "used_by": "app/publishing/intelligence/agents.py"
+    },
+    "cover_subject_picker": {
+      "role": "cover_subject_picker",
+      "prompt": "covers/subject_picker",
+      "output": "json",
+      "description": "Roles and genders of the people a cover may show (victim, culprit, other).",
+      "used_by": "app/agents/shorts.py"
+    },
+    "creative_pack": {
+      "role": "creative_pack",
+      "prompt": "agents/creative_pack",
+      "output": "json",
+      "description": "Every title, cover text, Short hook and Short script of a case for all languages in one request, checked twice inside the call.",
+      "used_by": "app/agents/shorts.py"
     }
   }
 }

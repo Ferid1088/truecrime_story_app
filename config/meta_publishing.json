@@ -141,10 +141,22 @@
     "upload_host": "https://rupload.facebook.com",
     "api_version": "v27.0",
     "language": "fa",
-    "account": {
-      "ig_account_id": "17841431693135313",
-      "username": "fe.rashidi.tc.fa",
-      "brand": "رد خاموش"
+    "accounts": {
+      "fa": {
+        "ig_account_id": "17841431693135313",
+        "username": "radekhamush",
+        "brand": "رد خاموش"
+      },
+      "en": {
+        "ig_account_id": "17841466656462894",
+        "username": "clue.vera",
+        "brand": "ClueVera"
+      },
+      "de": {
+        "ig_account_id": "17841466157044582",
+        "username": "fall.spur",
+        "brand": "Fallspur"
+      }
     },
     "connection_permissions": [
       "instagram_basic",
@@ -188,6 +200,16 @@
         "page_id": "1524968800689127",
         "brand": "رد خاموش",
         "linked_instagram_id": "17841431693135313"
+      },
+      "en": {
+        "page_id": "1551002194753910",
+        "brand": "ClueVera",
+        "linked_instagram_id": "17841466656462894"
+      },
+      "de": {
+        "page_id": "1403440062859312",
+        "brand": "Fallspur",
+        "linked_instagram_id": "17841466157044582"
       }
     },
     "app_id": "1441358334321247",

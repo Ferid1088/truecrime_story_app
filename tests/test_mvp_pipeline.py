@@ -264,14 +264,27 @@ def _review_inputs(tmp_path):
     return film, {"blocking": []}, probe
 
 
+def _script(db, case, language):
+    """The production script a review points to: a real row (PostgreSQL enforces the foreign key)."""
+    from factories import make_story_version
+
+    from app.db.models import ProductionScript
+
+    version = make_story_version(db, case, kind="final", language=language)
+    row = ProductionScript(case_id=case.id, story_version_id=version.id, language=language)
+    db.add(row)
+    db.commit()
+    return row.id
+
+
 def test_a_film_that_passed_the_checks_is_approved_at_once_unless_its_language_is_reviewed_by_the_owner(db_session, tmp_path):
     case = Case(canonical_title="Review gate", slug=f"rg-{uuid4().hex[:8]}", language="en")
     db_session.add(case)
     db_session.commit()
     film, coverage, probe = _review_inputs(tmp_path)
 
-    german = P.stage_review(db_session, case, "de", 1, film, coverage, probe)
-    persian = P.stage_review(db_session, case, "fa", 1, film, coverage, probe)
+    german = P.stage_review(db_session, case, "de", _script(db_session, case, "de"), film, coverage, probe)
+    persian = P.stage_review(db_session, case, "fa", _script(db_session, case, "fa"), film, coverage, probe)
 
     assert german["state"] == "APPROVED"
     assert persian["state"] == "AWAITING_OWNER_REVIEW"
@@ -283,8 +296,8 @@ def test_the_dark_gap_of_the_opening_block_is_not_counted_as_black_frames_of_the
     db_session.commit()
     film, _, probe = _review_inputs(tmp_path)
     probe["black_seconds"] = 2.1
-    meant = P.stage_review(db_session, case, "de", 1, film, {"blocking": [], "opening_gap_seconds": 2.0}, probe)
-    other = P.stage_review(db_session, case, "fr", 1, film, {"blocking": []}, probe)
+    meant = P.stage_review(db_session, case, "de", _script(db_session, case, "de"), film, {"blocking": [], "opening_gap_seconds": 2.0}, probe)
+    other = P.stage_review(db_session, case, "fr", _script(db_session, case, "fr"), film, {"blocking": []}, probe)
     assert meant["state"] == "APPROVED" and other["state"] == "PRODUCING"
 
 
@@ -294,7 +307,7 @@ def test_a_film_the_checks_held_back_is_not_approved_whatever_its_language(db_se
     db_session.commit()
     film, _, probe = _review_inputs(tmp_path)
 
-    held = P.stage_review(db_session, case, "de", 1, film, {"blocking": ["a gap in the pictures"]}, probe)
+    held = P.stage_review(db_session, case, "de", _script(db_session, case, "de"), film, {"blocking": ["a gap in the pictures"]}, probe)
 
     assert held["state"] == "PRODUCING" and held["review_ready"] is False
 

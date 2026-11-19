@@ -105,9 +105,8 @@ class PublicationRegistry:
         youtube = ((social_config().get("accounts") or {}).get("youtube_short") or {}).get(language) or {}
         if youtube.get("account_id"):
             known["youtube"] = (youtube["account_id"], youtube.get("channel_url") or "", "connected")
-        ig = meta_config().instagram
-        if language == ig.language:
-            known["instagram"] = (ig.account.ig_account_id, f"@{ig.account.username}", "not_connected")      # known, not yet verified: the connection check decides
+        if (ig := meta_config().instagram.accounts.get(language)) is not None:
+            known["instagram"] = (ig.ig_account_id, f"@{ig.username}", "not_connected")      # known, not yet verified: the connection check decides
         if (page := meta_config().facebook.pages.get(language)) is not None:
             known["facebook"] = (page.page_id, page.brand, "not_connected")
         out = {}

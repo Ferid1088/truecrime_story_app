@@ -548,29 +548,13 @@ class PipelineGen:
             return {
                 "editorial_concept": "the evidence left behind",
                 "candidates": [
-                    {"title": f"{prefixes[language]} {i}", "angle": "evidence"}
+                    {"title": f"{prefixes[language]} {i}", "angle": "evidence",
+                     "scores": {"clarity": 0.8, "specificity": 0.8, "memorability": 0.8, "curiosity": 0.8, "documentary_tone": 0.8, "sensationalism_risk": 0.1, "spoiler_risk": 0.1,
+                                "epistemic_risk": 0.1, "native_quality": 0.9, "literal_translation": False, "reason": "ok"}}
                     for i in range(1, count + 1)
                 ],
                 "_mock_request_sha256": fingerprint,
             }, self._res(role)
-        if role in ("case_title_critic", "native_title_critic"):
-            data = json.loads(user)
-            scores = []
-            for title in data["titles"]:
-                scores.append({
-                    "title": title,
-                    "specificity": 0.8,
-                    "memorability": 0.8,
-                    "curiosity": 0.8,
-                    "documentary_tone": 0.8,
-                    "sensationalism_risk": 0.1,
-                    "spoiler_risk": 0.1,
-                    "epistemic_risk": 0.1,
-                    "native_quality": 0.9,
-                    "literal_translation": False,
-                    "reason": "ok",
-                })
-            return {"scores": scores, "_mock_request_sha256": fingerprint}, self._res(role)
         if role == "timeline_builder":
             return {"timeline": [], "_mock_request_sha256": fingerprint}, self._res(role)
         if role == "contradiction_analyzer":
@@ -720,6 +704,9 @@ OPENING_SCENES = ["A brick house at night in snow with its garage door standing 
                   "A long empty hallway in a quiet house at night with one bedroom door ajar and a faint cool glow at its end."]
 
 ORIGINAL_STAGE_ATTENTION = __import__("app.documentary.mvp.pipeline", fromlist=["stage_owner_attention"]).stage_owner_attention
+from app.documentary.mvp import visual_gate as VG  # noqa: E402
+
+ORIGINAL_GUARD = VG.guard
 
 
 @pytest.fixture(autouse=True)
@@ -729,6 +716,7 @@ def the_owner_has_reviewed(monkeypatch):
     from app.documentary.mvp import pipeline as MVP
 
     monkeypatch.setattr(MVP, "stage_owner_attention", lambda db, plan, language: None)
+
     async def portraits_ready(*args, **kw):
         return {"portraits": 1, "usable": 1, "gaps_checked": 0}
 
@@ -747,6 +735,9 @@ def documentary_env(tmp_path, monkeypatch):
 
     from app.documentary.mvp import pipeline as MVP
 
+    # the owner's approval of the case's pictures is tested on its own (test_visual_gate) and once through the whole run (test_one_button_pipeline_pilot_end_to_end); a run that
+    # is about something else is taken as approved. (Not an autouse fixture: this module is a plugin of test_input_sensitive_mocks, and an autouse fixture would reach every test.)
+    monkeypatch.setattr(VG, "guard", lambda db, case_id, language: None)
     # the owner's picture review is tested on its own (test_one_button_pipeline_pilot_end_to_end); the other
     # films here are small fixtures whose few empty moments are not what they test
     monkeypatch.setattr(MVP, "stage_complete", lambda plan_row, language, reviews=0: {"gaps": 0})
@@ -977,6 +968,7 @@ def documentary_env(tmp_path, monkeypatch):
         "app.agents.voice_performance",
         "app.agents.host",
         "app.agents.chapters",
+        "app.agents.opening",
     ):
         monkeypatch.setattr(f"{mod}.get_generation_provider", lambda: gen, raising=False)
     monkeypatch.setattr("app.providers.generation.get_generation_provider", lambda: gen)
@@ -1007,6 +999,7 @@ def documentary_env(tmp_path, monkeypatch):
         lambda: DocumentaryMixer(MusicLibrary(provider=FakeSound())),
     )
     monkeypatch.setattr("app.documentary.opening_media.MusicLibrary", lambda: MusicLibrary(provider=FakeSound()))      # the opening block's music, from the same fake sound provider
+    monkeypatch.setattr("app.documentary.opening_music.MusicLibrary", lambda: MusicLibrary(provider=FakeSound()))      # (OpeningMusic builds its own library when it is given none)
     from test_cover_images import FakeImages, good
 
     monkeypatch.setattr("app.covers.images.APIMasterImageProvider", lambda: FakeImages([good() for _ in range(8)]))      # the opening block's pictures: never the real image model
@@ -1096,8 +1089,9 @@ def documentary_env(tmp_path, monkeypatch):
 
 
 @needs_ffmpeg
+@pytest.mark.parametrize("approved", [True, False], ids=["owner_approved_the_pictures", "pictures_not_approved"])
 def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isolated_host_history,
-                                              monkeypatch):
+                                              monkeypatch, approved):
     from test_host import HostGen
     # this film checks where the chapter card sits: two pictures must not be re-used to hold the break
     for name in ("max_generic_appearances", "max_context_appearances", "max_person_appearances",
@@ -1134,10 +1128,18 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     assert first["zoom_maps:en"]["status"] != "done" and first["render:en"]["status"] != "done"
     assert "Review pictures" in J.failure_details(job.error)["next_action"]
     monkeypatch.setattr(MVP, "stage_owner_attention", lambda db, plan, language: None)   # (the owner reviewed and resumed)
+    monkeypatch.setattr(VG, "guard", ORIGINAL_GUARD)            # the real gate: automated validation is not the owner's approval
+    if approved:
+        VG.approve(db_session, case.id)
     J.prepare_resume(job)
     asyncio.run(J.run_job(job.id))
     db_session.expire_all()
     job = db_session.get(DocumentaryJob, job.id)
+    if not approved:
+        stopped = {s["name"]: s for s in json.loads(job.stages_json)}
+        assert job.status == "failed" and VG.WAITING_MARK in job.error, job.error
+        assert stopped["mvp_direct:en"]["status"] != "done" and stopped["render:en"]["status"] != "done"
+        return
     stages = {s["name"]: s for s in json.loads(job.stages_json)}
     assert job.status in {"completed", "completed_warnings"}, (job.error, stages)
     assert stages["mvp_direct:en"]["attempts"] == first["mvp_direct:en"]["attempts"] + 1   # direction ran again

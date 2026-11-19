@@ -17,17 +17,14 @@ from app.core.prompts import prompt
 from app.db.base import SessionLocal
 from app.documentary.pipeline.errors import JobPaused
 from app.providers.generation import get_generation_provider
-from app.publishing.config import GenerationSettings
 from app.publishing.intelligence import validate as V
-from app.publishing.intelligence.examples import examples_for
-from app.publishing.intelligence.inputs import Inputs, critic_view, metadata_view, planner_view
+from app.publishing.intelligence.inputs import Inputs, metadata_view, planner_view
 from app.publishing.registry import PublicationRegistry
 from app.services.budget import BudgetStopped
 from app.services.tracking import stamp_run, track_run
 
-PLANNER, WRITER, CRITIC, FIXER, PROOFREADER = "publishing_planner", "publishing_metadata_writer", "publishing_hook_critic", "publishing_orthography_fixer", "publishing_proofreader"
+PLANNER, WRITER, FIXER, PROOFREADER = "publishing_planner", "publishing_metadata_writer", "publishing_orthography_fixer", "publishing_proofreader"
 ZWNJ = "\u200c"
-HOOK_SCORES = ("stakes", "gap", "concrete")
 
 
 def _json(payload: dict) -> str:
@@ -40,7 +37,7 @@ def judge_for(registry: PublicationRegistry, inputs: Inputs, platform: str):
 
     def judge(kind: str, item: dict) -> list[dict]:
         return V.metadata_findings(item, kind, registry.cfg.intelligence.metadata_limits[f"{platform}/{kind}"], fact_ids=facts, clip_keys=set(inputs.clip_keys),
-                                   known_words=inputs.dossier["known_words"], chapter_times=inputs.chapter_times, story=inputs.story, cutoff=inputs.cutoff)
+                                   known_words=inputs.dossier["known_words"], chapter_times=inputs.chapter_times)
 
     return judge
 
@@ -87,7 +84,6 @@ class PublishingAI:
         """The metadata of every destination of one platform: {"<kind>/<asset>": {"item": {...}, "findings": [...]}} and the model. Uses its own session, so that platforms can run side by side."""
         view = metadata_view(registry, inputs, platform, analysis)
         wanted = [(i["kind"], i["asset"]) for i in view["items"]]
-        limits = {kind: registry.cfg.intelligence.metadata_limits[f"{platform}/{kind}"] for kind, _ in wanted}
         attribution = ai_config.shorts_host_led.music_attribution_text.get(inputs.language)
         db = SessionLocal()
         try:
@@ -113,10 +109,6 @@ class PublishingAI:
                     findings = judge(kind, item)
                     results[f"{kind}/{asset}"] = {"item": item, "findings": findings, "fixes": fixes}
                     problems += [f"{kind}/{asset}: {m}" for m in V.errors(findings)]
-                if not problems and results:
-                    for asset, why in (await self.weak_hooks(db, inputs, registry.cfg.intelligence.generation, platform, results, limits["short"].title_max, runs)).items():
-                        problems.append(f"short/{asset}: the hook is weak ({why})")
-                        results[f"short/{asset}"]["findings"].append(V.finding("warning", "weak_hook", f"The hook was judged weak by the critic: {why}"))
                 if not problems or attempt == repairs:
                     break
                 # a text that lost its half-spaces is rewritten, not patched: the model copies its own earlier spelling when it sees it again (live: Facebook failed the same way on every repair)
@@ -156,30 +148,6 @@ class PublishingAI:
             results[key]["findings"], results[key]["fixes"] = findings, [*results[key]["fixes"], note]
             fixed.append(key)
         return fixed
-
-    async def weak_hooks(self, db: Session, inputs: Inputs, settings: GenerationSettings, platform: str, results: dict[str, dict], title_max: int, runs: list[int]) -> dict[str, str]:
-        """The Shorts of one platform whose hook the critic found weak: {asset: what to fix}. A hook is weak when stakes, open question or concrete detail scores below `hook_min_score`,
-        or when it gives the answer away or accuses. The scores decide, never the critic's own verdict word; an unreadable answer judges nothing."""
-        written = {key.split("/", 1)[1]: r["item"] for key, r in results.items() if key.startswith("short/")}
-        if settings.hook_min_score == 0 or not written:
-            return {}
-        titles = [e["title"] for e in examples_for(inputs.language, settings)[: settings.hook_critic_examples]]
-        view = critic_view(inputs, platform, written, title_max, titles)
-        raw, _ = await self._ask(db, inputs.case.id, CRITIC, f"Publishing hook critic ({inputs.language}, {platform})", lambda: run_agent("publishing_hook_critic", self.gen, _json(view)), runs)
-        weak: dict[str, str] = {}
-        for entry in (raw.get("items") if isinstance(raw, dict) else None) or []:
-            if not isinstance(entry, dict) or str(entry.get("asset")) not in written:
-                continue
-            scores = {k: entry.get(k) for k in HOOK_SCORES}
-            if not all(isinstance(v, (int, float)) for v in scores.values()):
-                continue
-            low = [k for k, v in scores.items() if v < settings.hook_min_score]
-            risk = str(entry.get("risk") or "none")
-            if low or risk != "none":
-                parts = [f"{', '.join(low)} too low ({', '.join(f'{k} {scores[k]}' for k in HOOK_SCORES)} of 10)"] if low else []
-                parts += [f"risk: {risk}"] if risk != "none" else []
-                weak[str(entry["asset"])] = "; ".join(parts) + (f". Direction: {entry['direction']}" if entry.get("direction") else "")
-        return weak
 
     def _proof_accepted(self, original: dict, corrected: dict, judge, kind: str, attribution: str | None, min_similarity: float) -> str | None:
         """None when the corrected texts are a correction of the original ones; else why not: a rewrite, a lost credit line or hashtag, or an error the original did not have."""

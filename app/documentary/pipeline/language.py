@@ -260,6 +260,7 @@ class LanguageChain:
 
         from app.documentary.mvp import pipeline as MVP
         from app.documentary.mvp import review as RV
+        from app.documentary.mvp import visual_gate as VG
 
         RV.guard_no_progress_past_review(db, case.id, lang)
         if (lang != "en" and ai_config.mvp().review.require_english_first
@@ -284,6 +285,8 @@ class LanguageChain:
             except AwaitingPictureReview:
                 MVP.request_review(db, needs_plan)
                 raise
+            if not planning:
+                VG.guard(db, case.id, lang)          # no film is directed or rendered before the owner approved the case's pictures and videos
             plan, report = await MVP.stage_direct(db, case, needs_plan, state["bp"], manifest, lang)
             holder["plan"] = plan
             out = {"visual_plan_id": plan.id, **{k: report[k] for k in (

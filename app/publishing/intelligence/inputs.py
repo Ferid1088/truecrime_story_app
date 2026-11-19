@@ -30,7 +30,6 @@ from app.tags import dossier as D
 # The first thing the model reads in the request: without a plain instruction a model answers a bare JSON payload as a conversation (it did, twice, in the first live run).
 PLANNER_TASK = prompt("publishing/planner_task")
 WRITER_TASK = prompt("publishing/metadata_task")
-CRITIC_TASK = prompt("publishing/hook_critic_task")
 EDITABLE_BEFORE_APPROVAL = ("draft", "voided", "expired", "failed")
 
 
@@ -40,7 +39,6 @@ class Inputs:
     language: str
     dossier: dict
     story: object | None
-    cutoff: int
     clips: list[dict]
     film: dict | None
     excerpt: str
@@ -73,11 +71,11 @@ def _story(db: Session, case: Case, version_id: int | None):
     return load_story(db, case, version, _pack(db, case.id), blueprint)
 
 
-def _excerpt(story, cutoff: int, budget: int) -> str:
-    """The film's story as far as a viewer of a clip may know it: the acts before the answer, each cut to an equal share of the budget."""
-    if story is None or cutoff <= 0:
+def _excerpt(story, budget: int) -> str:
+    """The film's story: its acts, each cut to an equal share of the budget."""
+    if story is None:
         return ""
-    acts = story.visible(cutoff)
+    acts = story.acts
     share = max(budget // max(len(acts), 1), 200)
     return "\n\n".join(a.text[:share].strip() for a in acts)[:budget]
 
@@ -120,7 +118,6 @@ def build(db: Session, registry: PublicationRegistry, case: Case, language: str)
         media = (json.loads(asset.clip.media_json or "{}").get("video") or {})
         clips.append({"clip_key": asset.key, "angle": script.get("angle"), "idea": script.get("idea"), **{p: script.get(p, "") for p in C.TEXT_PARTS}, "seconds": media.get("seconds")})
     story = _story(db, case, next((a.clip.story_version_id for a in assets if a.clip is not None and a.clip.story_version_id), None))
-    cutoff = C.knowledge_cutoff(story) if story is not None else 0
     film_asset = next((a for a in assets if a.kind is Kind.FILM), None)
     film = None
     if film_asset is not None:
@@ -136,7 +133,7 @@ def build(db: Session, registry: PublicationRegistry, case: Case, language: str)
             destinations[str(d.destination)] = ["film"]
         elif d.kind is Kind.SHORT and clips:
             destinations[str(d.destination)] = [c["clip_key"] for c in clips]
-    inputs = Inputs(case, language, dossier, story, cutoff, clips, film, _excerpt(story, cutoff, cfg.intelligence.generation.film_excerpt_chars), plan_start, destinations, existing, existing_films)
+    inputs = Inputs(case, language, dossier, story, clips, film, _excerpt(story, cfg.intelligence.generation.film_excerpt_chars), plan_start, destinations, existing, existing_films)
     inputs.fingerprint = hashlib.sha256(json.dumps({"dossier": dossier["fingerprint"], "clips": clips, "film": film and {k: v for k, v in film.items() if k not in ("ready", "blockers")},
                                                     "excerpt": inputs.excerpt, "destinations": destinations, "config": cfg.intelligence.model_dump(mode="json"),
                                                     "prompts": [prompt_sha256(n) for n in ("publishing/planner", "publishing/planner_task", "publishing/metadata", "publishing/metadata_task")]}, ensure_ascii=False, sort_keys=True,
@@ -209,16 +206,3 @@ def hook_of(item: dict, title_max: int) -> tuple[str, str]:
     return "first_line", next((line.strip() for line in item["text"].splitlines() if line.strip()), "")
 
 
-def critic_view(inputs: Inputs, platform: str, written: dict[str, dict], title_max: int, example_titles: list[str]) -> dict:
-    """What the hook critic reads: each Short's hook with the clip's own words (what the hook may be built from), the case, and the language's top titles for calibration."""
-    clips = {c["clip_key"]: c for c in inputs.clips}
-    items = []
-    for asset, item in written.items():
-        source, hook = hook_of(item, title_max)
-        clip = clips[asset]
-        items.append({"asset": asset, "hook_source": source, "hook": hook, "hook_context": {"idea": clip.get("idea"), **{p: clip.get(p, "") for p in C.TEXT_PARTS}}})
-    case = inputs.dossier["case"]
-    return {"task": CRITIC_TASK, "language": inputs.language, "platform": platform,
-            "case": {"title": case["title"], "status": case["resolution_status"], "status_public": bool(public_status(case["resolution_status"])), "people": case["people"], "location": case["location"],
-                     "facts": [{"id": f["id"], "claim": f["claim"]} for f in inputs.dossier["facts"][:20]]},
-            "examples": example_titles, "items": items}

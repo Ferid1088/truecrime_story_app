@@ -26,7 +26,7 @@ def fake_pictures(monkeypatch, made=None, fail=None):
 def fake_media(calls):
     async def make_media(db, case_id, row, master, renderer=None, library=None):
         calls.append((row.language, row.kind, master.id))
-        return {"audio": {"total": 23.0}, "music": {"prompt": "drone"}}
+        return {"audio": {"total": 23.0}, "music": {"tracks": [{"path": "music/drone.wav", "track_id": 1, "code": "M001", "prompt": "drone", "seconds": 60.0}]}}          # the shape ensure_music really returns
     return make_media
 
 

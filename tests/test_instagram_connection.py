@@ -217,7 +217,7 @@ def test_monitoring_shows_a_broken_connection_and_ignores_one_that_was_never_mad
 
 
 def use_fake(monkeypatch, meta) -> None:
-    monkeypatch.setattr("app.meta_publishing.api._connection", lambda: meta.conn)
+    monkeypatch.setattr("app.meta_publishing.api._connection", lambda language=None: meta.conn)
 
 
 def test_the_api_reads_the_connection_without_any_call_to_meta_and_never_returns_a_token(meta, client, monkeypatch):

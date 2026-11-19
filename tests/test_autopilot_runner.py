@@ -524,8 +524,48 @@ def test_without_the_english_first_rule_no_language_waits_for_the_english_film_t
     ports = Recording()
     passes(db_session, run, ports)
     assert seen == [LANGS], "the texts of every language are written at once, no language waits for the English film's approval"
-    assert set(S.film_job_ids(run)) == {"en"} and "wait for the en film's visual searches" in S.step_detail(run, "films"), (
-        "the other films wait only for the pictures they share with the English film, not for an approval")
+    assert set(S.film_job_ids(run)) == set(LANGS), "a language's film starts the moment its own final text is approved: nothing waits for the English film's searches"
+    assert "before you approve the case's pictures and videos" in S.step_detail(run, "films")
+
+
+def test_a_film_that_waits_for_the_visual_approval_goes_on_by_itself_when_the_owner_approves(db_session, run, monkeypatch):
+    monkeypatch.setattr(ai_config.mvp().review, "require_english_first", False)
+    from app.documentary import jobs as J
+    from app.documentary.mvp import visual_gate as VG
+
+    ports = FakePorts()
+    passes(db_session, run, ports)
+    job = db_session.get(DocumentaryJob, S.film_job_ids(run)["de"])
+    job.status, job.error = "failed", f"Awaiting picture review: the de film waits for {VG.WAITING_MARK}. Open Review pictures and approve the package."
+    db_session.commit()
+    launched = []
+    monkeypatch.setattr(J, "launch", launched.append)
+    monkeypatch.setattr(VG, "status", lambda db, case_id: {"open": False, "state": "awaiting_owner", "reason": "x"})
+    passes(db_session, run, ports)
+    assert launched == [] and any(n["kind"] == "visual_approval" for n in S.needs(run)), "closed gate: one clear owner task, nothing resumed, no per-language 'film stopped'"
+    assert not any(n["kind"] == "film_stopped" and n["language"] == "de" for n in S.needs(run))
+    monkeypatch.setattr(VG, "status", lambda db, case_id: {"open": True, "state": "approved"})
+    passes(db_session, run, ports)
+    assert launched == [job.id]
+    db_session.refresh(job)
+    assert job.status == "queued" and job.error is None
+
+
+def test_an_unrelated_failed_film_is_not_resumed_by_the_visual_approval(db_session, run, monkeypatch):
+    monkeypatch.setattr(ai_config.mvp().review, "require_english_first", False)
+    from app.documentary import jobs as J
+    from app.documentary.mvp import visual_gate as VG
+
+    ports = FakePorts()
+    passes(db_session, run, ports)
+    job = db_session.get(DocumentaryJob, S.film_job_ids(run)["de"])
+    job.status, job.error = "failed", "The voice provider refused the text."
+    db_session.commit()
+    launched = []
+    monkeypatch.setattr(J, "launch", launched.append)
+    monkeypatch.setattr(VG, "status", lambda db, case_id: {"open": True, "state": "approved"})
+    passes(db_session, run, ports)
+    assert launched == [] and any(n["kind"] == "film_stopped" and n["language"] == "de" for n in S.needs(run))
 
 
 def test_a_failed_texts_write_is_retried_up_to_the_limit_then_listed(db_session, run):

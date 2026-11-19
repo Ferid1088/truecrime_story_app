@@ -14,9 +14,10 @@ from app.db.base import get_db
 from app.db.models import MvpCandidate, MvpFilmReview, MvpRequirement, VisualAsset, VisualPlan
 from app.documentary.mvp import direct as DR
 from app.documentary.mvp import overlays as OV
+from app.documentary.mvp import rejected_media as RM
 from app.documentary.mvp import review as RV
 from app.documentary.mvp import verify as VF
-from app.documentary.mvp import rejected_media as RM
+from app.documentary.mvp import visual_gate as VG
 from app.documentary.visuals import storage_budget as SB
 
 router = APIRouter(tags=["main-visual-planner"])
@@ -34,6 +35,29 @@ def review_dict(row: MvpFilmReview) -> dict:
             "production_script_id": row.production_script_id, "render_path": row.render_path,
             "render_sha256": row.render_sha256, "validation": json.loads(row.validation_json or "{}"),
             "owner_note": row.owner_note, "created_at": row.created_at, "decided_at": row.decided_at}
+
+
+class VisualApproval(BaseModel):
+    note: str | None = None
+
+
+@router.get("/api/cases/{case_id}/mvp/visual-approval")
+def visual_approval(case_id: int, db: Session = Depends(get_db)):
+    """The owner's approval of the case's shared picture package (required before any film is directed or rendered)."""
+    return VG.status(db, case_id)
+
+
+@router.post("/api/cases/{case_id}/mvp/visual-approval")
+def approve_visual_package(case_id: int, payload: VisualApproval, db: Session = Depends(get_db)):
+    try:
+        return VG.approve(db, case_id, payload.note)
+    except VG.VisualApprovalError as e:
+        raise HTTPException(409, str(e)) from e
+
+
+@router.delete("/api/cases/{case_id}/mvp/visual-approval")
+def withdraw_visual_approval(case_id: int, db: Session = Depends(get_db)):
+    return VG.withdraw(db, case_id)
 
 
 @router.get("/api/cases/{case_id}/mvp/reviews")

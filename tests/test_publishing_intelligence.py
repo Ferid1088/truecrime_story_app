@@ -27,14 +27,14 @@ CFG = publishing_config()
 class Model:
     """A scripted provider: it answers the planner and the metadata writer from the request itself and counts every call."""
 
-    def __init__(self, planner=None, writer=None, critic=None, fixer=None, proofreader=None):
+    def __init__(self, planner=None, writer=None, fixer=None, proofreader=None):
         self.calls: list[tuple[str, dict]] = []
-        self.planner, self.writer, self.critic, self.fixer, self.proofreader = planner, writer, critic, fixer, proofreader
+        self.planner, self.writer, self.fixer, self.proofreader = planner, writer, fixer, proofreader
 
     async def generate_structured(self, role, system, user, images=None, **extra):
         data = json.loads(user)
         self.calls.append((role, data))
-        answer = {"publishing_planner": lambda: (self.planner or self.default_plan)(data), "publishing_hook_critic": lambda: (self.critic or self.default_critic)(data),
+        answer = {"publishing_planner": lambda: (self.planner or self.default_plan)(data),
                                                                                                                                                   "publishing_orthography_fixer": lambda: (self.fixer or (lambda d: {"fields": {}}))(data),
                                                                                                                                                   "publishing_proofreader": lambda: (self.proofreader or self.default_proof)(data)}.get(role, lambda: (self.writer or self.default_metadata)(data))()
         if isinstance(answer, Exception):
@@ -60,11 +60,6 @@ class Model:
     def default_proof(view):
         """Nothing to correct: every text comes back as it went."""
         return {"items": [{**{k: i[k] for k in ("key", "title", "text", "hashtags", "keywords", "cta")}, "changes": []} for i in view["items"]]}
-
-    @staticmethod
-    def default_critic(view):
-        """Every hook is strong: the critic changes nothing unless a test scripts it."""
-        return {"items": [{"asset": i["asset"], "stakes": 8, "gap": 8, "concrete": 8, "natural": 8, "risk": "none", "direction": ""} for i in view["items"]]}
 
     @staticmethod
     def default_metadata(view):
@@ -114,7 +109,7 @@ def test_reading_the_state_never_calls_a_model(world, client, monkeypatch):
     monkeypatch.setattr("app.publishing.intelligence.agents.get_generation_provider", lambda: called.append("provider") or Model())
     planned(world)
     state = S.state(world.db, world.registry, world.case, "fa")
-    assert called == [] and state["latest"] is None and state["running"] is None and state["estimate"]["calls"] == 9
+    assert called == [] and state["latest"] is None and state["running"] is None and state["estimate"]["calls"] == 5
     api_state = client.get(f"/api/cases/{world.case.id}/publishing/fa/ai").json()
     studio = client.get(f"/api/cases/{world.case.id}/publishing/fa").json()
     assert called == [] and api_state["estimate"]["eur_high"] > api_state["estimate"]["eur_low"] > 0 and studio["planned"] is True
@@ -124,7 +119,7 @@ def test_reading_the_state_never_calls_a_model(world, client, monkeypatch):
 def test_the_estimate_names_the_models_and_is_not_a_price(world):
     planned(world)
     estimate = S.state(world.db, world.registry, world.case, "fa")["estimate"]
-    assert estimate["models"] == {"publishing_planner": "claude-sonnet-5-5", "publishing_metadata_writer": "claude-sonnet-5-5", "publishing_hook_critic": "claude-sonnet-5-5"} and "Not a price" in estimate["basis"]
+    assert estimate["models"] == {"publishing_planner": "gpt-6.1-sol", "publishing_metadata_writer": "gpt-6.1-sol"} and "Not a price" in estimate["basis"]
 
 
 def test_a_language_without_a_schedule_cannot_be_planned(world):
@@ -138,11 +133,11 @@ def test_a_language_without_a_schedule_cannot_be_planned(world):
 def test_a_run_saves_its_recommendations_and_writes_them_into_the_publications(world):
     model = Model()
     run = generate(world, model)
-    assert run.status == "done" and len(model.calls) == 9 and [r for r, _ in model.calls].count("publishing_planner") == 1 and [r for r, _ in model.calls].count("publishing_hook_critic") == 4
+    assert run.status == "done" and len(model.calls) == 5 and [r for r, _ in model.calls].count("publishing_planner") == 1
     result = json.loads(run.result_json)
-    assert set(result) >= {"analysis", "schedule", "metadata", "usage", "models", "fingerprint"} and result["usage"]["calls"] == 9 and result["usage"]["input_tokens"] == 9000 and result["usage"]["output_tokens"] == 4500
-    assert result["usage"]["priced_calls"] == 9 and result["usage"]["cost_eur"] >= 0 and "ledger" in result["usage"]["cost_source"] and len(result["usage"]["detail"]) == 9      # the ledger books every call
-    assert result["usage"]["models"] == ["fake-publishing_hook_critic", "fake-publishing_metadata_writer", "fake-publishing_planner"] and len(result["usage"]["agent_run_ids"]) == 9
+    assert set(result) >= {"analysis", "schedule", "metadata", "usage", "models", "fingerprint"} and result["usage"]["calls"] == 5 and result["usage"]["input_tokens"] == 5000 and result["usage"]["output_tokens"] == 2500
+    assert result["usage"]["priced_calls"] == 5 and result["usage"]["cost_eur"] >= 0 and "ledger" in result["usage"]["cost_source"] and len(result["usage"]["detail"]) == 5      # the ledger books every call
+    assert result["usage"]["models"] == ["fake-publishing_metadata_writer", "fake-publishing_planner"] and len(result["usage"]["agent_run_ids"]) == 5
     assert [s["status"] for s in json.loads(run.progress_json)] == ["done"] * 6
     short = pub(world, "instagram", "short", "C1")
     assert short.metadata_source == "ai" and without_reserved_rows(short.caption).startswith("سطر اول جذاب برای C1") and "ElevenLabs" in short.caption
@@ -169,7 +164,7 @@ def test_reopening_reads_the_saved_plan_and_a_second_start_is_refused_unless_for
     monkeypatch.setattr("app.publishing.intelligence.agents.get_generation_provider", lambda: (_ for _ in ()).throw(AssertionError("a model was asked")))
     state = client.get(f"/api/cases/{world.case.id}/publishing/fa/ai").json()
     assert state["latest"]["status"] == "done" and state["up_to_date"] is True and state["latest"]["result"]["schedule"]["slots"]
-    assert state["latest"]["usage"]["calls"] == 9 and state["latest"]["result"]["schedule"]["notice"].startswith("No audience analytics")
+    assert state["latest"]["usage"]["calls"] == 5 and state["latest"]["result"]["schedule"]["notice"].startswith("No audience analytics")
     with pytest.raises(S.PlanRunError, match="up to date"):
         S.start(world.db, world.registry, world.case, "fa")
     assert S.start(world.db, world.registry, world.case, "fa", force=True).status == "running"
@@ -290,12 +285,10 @@ def test_the_validators_catch_the_bad_things_and_say_which(world):
     assert "chapters_changed" not in {f["type"] for f in V.metadata_findings(item, "film", film, chapter_times=["00:00", "03:00"])}
 
 
-def test_a_sentence_that_tells_what_comes_later_is_an_error(world, monkeypatch):
-    monkeypatch.setattr(V, "reveal_issues", lambda story, cutoff, text: [{"quote": "He confessed."}] if "confessed" in text else [])
+def test_a_sentence_that_tells_how_the_case_ended_is_no_error_any_more(world):
     limit = CFG.intelligence.metadata_limits["youtube/short"]
     item, _ = V.tidy({"title": "t", "text": "He confessed. Then.", "hashtags": [], "keywords": [], "chapters": []})
-    found = V.metadata_findings(item, "short", limit, story=object(), cutoff=2)
-    assert [f["type"] for f in found if f["severity"] == "error"] == ["spoiler"]
+    assert [f for f in V.metadata_findings(item, "short", limit) if f["severity"] == "error"] == []
 
 
 def test_the_music_credit_is_added_by_the_app_to_every_short_and_never_to_a_film(world):
@@ -531,7 +524,7 @@ def test_the_api_uses_a_suggestion_and_refuses_when_there_is_none(world, client)
 def test_the_planner_and_the_writer_are_two_distinct_roles_on_the_model_that_kept_to_json():
     from app.core.ai_config import ai_config
 
-    assert ai_config.alias_for("publishing_planner") == "premium" and ai_config.alias_for("publishing_metadata_writer") == "premium"
+    assert ai_config.alias_for("publishing_planner") == "sol" and ai_config.alias_for("publishing_metadata_writer") == "sol"
     assert ai_config.agents["publishing_planner"].prompt == "publishing/planner" and ai_config.agents["publishing_metadata_writer"].prompt == "publishing/metadata"
 
 
@@ -609,95 +602,7 @@ def test_the_metadata_request_carries_the_examples_and_the_prompt_teaches_the_ho
     requests = [data for role, data in model.calls if role == "publishing_metadata_writer"]
     assert requests and all("examples" in r for r in requests)
     text = prompt("publishing/metadata")
-    for needle in ("## Hook craft", "`examples`", "Never copy a title", "open loop", "no spoiler"):
-        assert needle in text
-
-
-# --- the hook critic -------------------------------------------------------------------------------------------------------------------------------------------------
-
-def _scripted_critic(weak_assets, *, then_strong=True):
-    """A critic that finds `weak_assets` weak on its first look at each platform and strong on the second."""
-    seen: dict[str, int] = {}
-
-    def critic(view):
-        n = seen[view["platform"]] = seen.get(view["platform"], 0) + 1
-        return {"items": [{"asset": i["asset"], "stakes": 3 if i["asset"] in weak_assets and (n == 1 or not then_strong) else 8, "gap": 8, "concrete": 8, "natural": 8, "risk": "none",
-                           "direction": "Lead with the open console and ask where the pistol is." if i["asset"] in weak_assets else ""} for i in view["items"]]}
-    return critic
-
-
-def test_a_weak_hook_is_sent_back_once_with_the_critics_direction_and_the_rewrite_is_kept(world):
-    """The owner's complaint: weak hooks. The critic's low score (not its words) sends exactly that Short back; the writer sees the direction; the second answer replaces the first."""
-    first_titles: list[str] = []
-    writer_calls: list[dict] = []
-
-    def writer(view):
-        writer_calls.append(view)
-        answer = Model.default_metadata(view)
-        for item in answer["items"]:
-            item["title"] = f"{item['title']} v{len(writer_calls)}" if item["title"] else ""
-        return answer
-
-    model = Model(writer=writer, critic=_scripted_critic({"C2"}))
-    run = generate(world, model)
-    assert run.status == "done"
-    youtube = [c for c in writer_calls if c["platform"] == "youtube"]
-    assert len(youtube) == 2 and "problems_to_fix" not in youtube[0] and any("C2" in p and "stakes" in p and "open console" in p for p in youtube[1]["problems_to_fix"])
-    assert not any("C1" in p for p in youtube[1]["problems_to_fix"])
-    result = json.loads(run.result_json)
-    assert result["metadata"]["youtube/short/C2"]["item"]["title"].endswith("v2") and result["unresolved"] == {}
-    assert first_titles == []
-
-
-def test_a_hook_still_weak_after_the_repair_stays_visible_as_a_warning_and_does_not_block(world):
-    model = Model(critic=_scripted_critic({"C2"}, then_strong=False))
-    run = generate(world, model)
-    result = json.loads(run.result_json)
-    findings = result["metadata"]["youtube/short/C2"]["findings"]
-    assert any(f["type"] == "weak_hook" and f["severity"] == "warning" for f in findings)
-    assert any("hook is weak" in p for p in result["unresolved"]["youtube"])
-    assert not [f for f in findings if f["severity"] == "error"]
-
-
-def test_the_scores_decide_not_the_critics_word_and_an_unreadable_answer_judges_nothing(world):
-    """A critic that says 'good' with a low score is overruled; a critic whose answer is not scores judges nothing (the writer's text stands)."""
-    def lying(view):
-        return {"items": [{"asset": i["asset"], "verdict": "pass", "stakes": 2, "gap": 9, "concrete": 9, "natural": 9, "risk": "none", "direction": "x"} for i in view["items"]]}
-    model = Model(critic=lying)
-    generate(world, model)
-    assert sum(1 for r, d in model.calls if r == "publishing_metadata_writer" and d["platform"] == "youtube") == 3      # first look weak, repaired twice, still weak: kept as it stands
-    silent = Model(critic=lambda view: {"nonsense": True})
-    run = generate(world, silent, force=True)
-    assert sum(1 for r, d in silent.calls if r == "publishing_metadata_writer" and d["platform"] == "youtube") == 1 and run.status == "done"
-
-
-def test_an_accusation_or_a_spoiler_risk_sends_the_hook_back_even_with_good_scores(world):
-    def risky(view):
-        return {"items": [{"asset": i["asset"], "stakes": 9, "gap": 9, "concrete": 9, "natural": 9, "risk": "names the husband as the killer" if i["asset"] == "C1" else "none", "direction": ""} for i in view["items"]]}
-    model = Model(critic=risky)
-    generate(world, model)
-    youtube = [d for r, d in model.calls if r == "publishing_metadata_writer" and d["platform"] == "youtube"]
-    assert any("names the husband" in p for p in youtube[1]["problems_to_fix"])
-
-
-def test_the_critic_is_off_when_the_threshold_is_zero_and_is_never_asked_about_films(world, monkeypatch):
-    model = Model()
-    generate(world, model)
-    asked = [d for r, d in model.calls if r == "publishing_hook_critic"]
-    assert asked and all(i["asset"] != "film" for d in asked for i in d["items"]) and all(d["examples"] is not None for d in asked)
-    off = CFG.intelligence.generation.model_copy(update={"hook_min_score": 0})
-    monkeypatch.setattr(world.registry.cfg.intelligence, "generation", off)
-    silent = Model()
-    generate(world, silent, force=True)
-    assert not [1 for r, _ in silent.calls if r == "publishing_hook_critic"]
-
-
-def test_the_critic_is_a_role_with_its_own_prompt_that_names_the_three_scores():
-    from app.core.ai_config import ai_config
-    from app.core.prompts import prompt
-    assert ai_config.alias_for("publishing_hook_critic") == "premium" and ai_config.agents["publishing_hook_critic"].prompt == "publishing/hook_critic"
-    text = prompt("publishing/hook_critic")
-    for needle in ("`stakes`", "`gap`", "`concrete`", "`direction`", "Calibration"):
+    for needle in ("## Hook craft", "`examples`", "Never copy a title", "open loop", "Any verified fact"):
         assert needle in text
 
 

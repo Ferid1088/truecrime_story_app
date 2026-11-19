@@ -109,11 +109,6 @@ def gate_not_copy_of(title: str, language: str, others: dict[str, list[str]]) ->
     return None
 
 
-def gate_spoiler(title: str, ctx: dict) -> str | None:
-    hits = sorted(t for t in norm_title(title).split() if t in set(ctx.get("reveal_terms", [])))
-    return f"uses withheld story information ({', '.join(hits)})" if hits else None
-
-
 def gate_epistemic(title: str, language: str, ctx: dict) -> str | None:
     if ctx.get("claim_limits", {}).get("may_state_guilt"):
         return None
@@ -135,7 +130,7 @@ def run_gates(title: str, language: str, ctx: dict,
     """First failing gate's reason, else None."""
     for reason in (gate_length(title, language), gate_style(title, language),
                    gate_script(title, language), gate_generic(title, language), gate_hint(title, language),
-                   gate_not_just_the_name(title, ctx), gate_spoiler(title, ctx),
+                   gate_not_just_the_name(title, ctx),
                    gate_epistemic(title, language, ctx),
                    gate_not_copy_of(title, language, others or {})):
         if reason:
