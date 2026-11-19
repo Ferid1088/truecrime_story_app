@@ -374,6 +374,17 @@ def test_render_without_asr_is_reported(workdir):
     assert m["asr"] is None and m["blocks"][0]["asr"] is None
 
 
+def test_with_the_asr_check_switched_off_in_the_config_a_block_is_accepted_without_a_speech_to_text_result(workdir, monkeypatch):
+    monkeypatch.setattr(ai_config.asr_check, "enabled", False)
+    tts = FakeTTS()
+    renderer = VoiceRenderer(provider=tts)                       # no checker is passed: it is built from the config, which says off
+    assert renderer.asr is None and renderer.asr_error is None
+    m = _render(renderer, [_block("EN_a_01", "act1", TEXT_A)])
+    assert len(tts.requests) == 1 and m["blocks_rendered"] == 1
+    assert m["asr"] is None and m["asr_error"] is None and m["blocks"][0]["asr"] is None
+    assert m["flags"] == [] and m["blocks"][0]["flags"] == [], "no retake, no 'asr_check_failed': the block stands as voiced"
+
+
 # ---------------------------------------------------------------------------
 # ElevenLabs provider (network replaced)
 # ---------------------------------------------------------------------------

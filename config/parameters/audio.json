@@ -502,7 +502,7 @@
     }
   },
   "asr_check": {
-    "enabled": true,
+    "enabled": false,
     "provider": "faster_whisper",
     "model": "small",
     "compute_type": "int8",
