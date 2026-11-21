@@ -96,7 +96,7 @@ def candidate_dict(db: Session, cand: MvpCandidate, req: MvpRequirement) -> dict
             "clip_start": asset.clip_start, "clip_end": asset.clip_end,
             "width": asset.width, "height": asset.height, "cut": OV.cut_view(asset),
             "duration_seconds": asset.duration_seconds,
-            "owner_note": asset.owner_note, "must_use": asset.must_use, "draw_priority": asset.draw_priority,
+            "owner_note": asset.owner_note, "must_use": asset.must_use, "draw_priority": asset.draw_priority, "cover_photo": asset.cover_photo,
             "thumb_url": f"/api/visuals/{asset.id}/file?thumb=1", "role": cand.role,
             "status": cand.final_status, "provenance": cand.provenance_status,
             "identity": cand.identity_status, "rights_decision": cand.rights_status,
@@ -270,6 +270,7 @@ class AssetSelection(BaseModel):
 
     must_use: bool = False
     draw_priority: int | None = Field(default=None, ge=0, le=10)       # 0 (or none) unselects the photo and frees its number
+    cover_photo: bool = False                                           # a photo of a person the covers must use
 
 
 @router.put("/api/cases/{case_id}/mvp/assets/{asset_id}/selection")
@@ -289,9 +290,12 @@ def set_asset_selection(case_id: int, asset_id: int, payload: AssetSelection, db
                                               VisualAsset.draw_priority == draw_priority).first())
         if taken is not None:
             raise HTTPException(409, f"Priority {draw_priority} already belongs to {taken.asset_code}; give that one another first")
-    asset.must_use, asset.draw_priority = must_use, draw_priority
+    cover_photo = payload.cover_photo if "cover_photo" in payload.model_fields_set else asset.cover_photo
+    if cover_photo and asset.asset_type != "photo":
+        raise HTTPException(422, "Only a photo can be used on a cover")
+    asset.must_use, asset.draw_priority, asset.cover_photo = must_use, draw_priority, cover_photo
     db.commit()
-    return {"asset_id": asset.id, "must_use": asset.must_use, "draw_priority": asset.draw_priority}
+    return {"asset_id": asset.id, "must_use": asset.must_use, "draw_priority": asset.draw_priority, "cover_photo": asset.cover_photo}
 
 
 def reject_scope(db: Session, case_id: int, cands: list[MvpCandidate]) -> list[MvpCandidate]:

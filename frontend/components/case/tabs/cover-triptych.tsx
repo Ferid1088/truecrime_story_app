@@ -58,8 +58,8 @@ function PhoneMockup({ variant }: { variant: CoverVariantView }) {
   );
 }
 
-function ShapeColumn({ shape, data, busy, ack, setAck, onZoom, onApprove, onReject, onRender }: {
-  shape: CoverShapeKey; data: CoverShapes["shapes"][CoverShapeKey]; busy: boolean; ack: boolean; setAck: (v: boolean) => void;
+function ShapeColumn({ shape, data, busy, onZoom, onApprove, onReject, onRender }: {
+  shape: CoverShapeKey; data: CoverShapes["shapes"][CoverShapeKey]; busy: boolean;
   onZoom: (v: CoverVariantView, mode: "full" | "phone") => void; onApprove: (v: CoverVariantView) => void; onReject: (v: CoverVariantView) => void; onRender: () => void;
 }) {
   const shown = data.newest;
@@ -83,14 +83,8 @@ function ShapeColumn({ shape, data, busy, ack, setAck, onZoom, onApprove, onReje
             ? <ul className="list-disc space-y-0.5 pl-4 text-xs text-rose-700 dark:text-rose-400" data-testid={`triptych-problems-${shape}`}>{shown.problems.map((p) => <li key={p}>{p}</li>)}</ul>
             : <p className="text-xs text-emerald-700 dark:text-emerald-400" data-testid={`triptych-clean-${shape}`}>No problems found by the checks.</p>}
           {measured && <p className="text-xs text-muted-foreground">Measured: host sharpness {measured.host_sharpness}, title contrast {measured.title_contrast}, title {measured.title_px}px high. {shown.subject ? `Banner names ${shown.subject}${shown.photo_asset_id ? ", with a cleared photograph" : ", no photograph (none cleared)"}.` : "No person on it."}</p>}
-          {shown.evidence.photo && (
-            <label className="flex max-w-60 items-start gap-1.5 text-xs" data-testid={`triptych-rights-${shape}`}>
-              <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5" aria-label={`I know an editorial approval is not copyright permission (${shape})`} />
-              <span>I know an editorial approval is not copyright permission for the photograph on this cover.</span>
-            </label>
-          )}
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" className={DISABLED} disabled={busy || shown.status !== "proposed" || shown.problems.length > 0 || (!!shown.evidence.photo && !ack)} onClick={() => onApprove(shown)} data-testid={`triptych-approve-${shape}`}>Approve</Button>
+            <Button type="button" size="sm" className={DISABLED} disabled={busy || shown.status !== "proposed" || shown.problems.length > 0} onClick={() => onApprove(shown)} data-testid={`triptych-approve-${shape}`}>Approve</Button>
             <Button type="button" size="sm" variant="outline" className={DISABLED} disabled={busy || shown.status !== "proposed"} onClick={() => onReject(shown)} data-testid={`triptych-reject-${shape}`}>Reject</Button>
             <Button type="button" size="sm" variant="outline" className={DISABLED} disabled={busy} onClick={onRender} data-testid={`triptych-again-${shape}`}>Render again</Button>
             {shape !== "film" && <Button type="button" size="sm" variant="ghost" onClick={() => onZoom(shown, "phone")} data-testid={`triptych-phone-${shape}`}>Phone preview</Button>}
@@ -110,7 +104,6 @@ function Panel({ caseId, language, coverKey, onChanged }: { caseId: number; lang
   const [photo, setPhoto] = useState("");
   const [highlight, setHighlight] = useState("");
   const [bannerName, setBannerName] = useState("");
-  const [acks, setAcks] = useState<Record<number, boolean>>({});
   if (error && !data) return <p className="text-xs text-rose-700 dark:text-rose-400">{error}</p>;
   if (!data) return <p className="text-xs text-muted-foreground">Loading…</p>;
   const act = async (work: () => Promise<string>) => {
@@ -154,9 +147,9 @@ function Panel({ caseId, language, coverKey, onChanged }: { caseId: number; lang
       {note && <p role="status" data-testid={`triptych-note-${coverKey}`} className={note.tone === "ok" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}>{note.text}</p>}
       <div className="flex flex-wrap items-start gap-6" data-testid={`triptych-shapes-${coverKey}`}>
         {shapesOf(coverKey).map((shape) => (
-          <ShapeColumn key={shape} shape={shape} data={data.shapes[shape]} busy={busy} ack={!!acks[data.shapes[shape].newest?.id ?? -1]} setAck={(v) => setAcks({ ...acks, [data.shapes[shape].newest?.id ?? -1]: v })}
+          <ShapeColumn key={shape} shape={shape} data={data.shapes[shape]} busy={busy}
             onZoom={(variant, mode) => setZoom({ variant, mode })} onReject={(v) => void act(async () => { await coverShapesApi.reject(v.id); return `${v.label} version ${v.version} rejected.`; })}
-            onApprove={(v) => void act(async () => { await coverShapesApi.approve(v.id, !!acks[v.id]); return `${v.label} version ${v.version} approved. An older approved version of this shape is kept as superseded.`; })} onRender={() => void render([shape])} />
+            onApprove={(v) => void act(async () => { await coverShapesApi.approve(v.id); return `${v.label} version ${v.version} approved. An older approved version of this shape is kept as superseded.`; })} onRender={() => void render([shape])} />
         ))}
       </div>
       <div className="space-y-2 rounded border border-border p-2" data-testid={`triptych-people-${coverKey}`}>

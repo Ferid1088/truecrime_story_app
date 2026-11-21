@@ -187,7 +187,7 @@ def test_the_owner_marks_what_must_be_used_and_gives_photos_a_draw_priority(db_s
     asset = db_session.get(VisualAsset, cand.visual_asset_id)
     client, url = TestClient(app), f"/api/cases/{case.id}/mvp/assets/{asset.id}/selection"
     assert client.put(url, json={"must_use": True, "draw_priority": 1}).json() == {
-        "asset_id": asset.id, "must_use": True, "draw_priority": 1}
+        "asset_id": asset.id, "must_use": True, "draw_priority": 1, "cover_photo": False}
     other = VisualAsset(case_id=case.id, asset_code="PRIO2", local_path="y.jpg", asset_type="photo")
     clip = VisualAsset(case_id=case.id, asset_code="CLIP1", local_path="z.mp4", asset_type="video")
     db_session.add_all([other, clip])
@@ -196,6 +196,7 @@ def test_the_owner_marks_what_must_be_used_and_gives_photos_a_draw_priority(db_s
     assert client.put(f"/api/cases/{case.id}/mvp/assets/{clip.id}/selection", json={"draw_priority": 2}).status_code == 422
     assert client.put(url, json={"draw_priority": 11}).status_code == 422
     assert client.put(f"/api/cases/{case.id}/mvp/assets/{clip.id}/selection", json={"must_use": True}).json()["must_use"] is True
+    assert client.put(f"/api/cases/{case.id}/mvp/assets/{clip.id}/selection", json={"cover_photo": True}).status_code == 422          # a clip cannot be on a cover
     assert client.put(f"/api/cases/{case.id + 999}/mvp/assets/{asset.id}/selection", json={}).status_code == 404
 
 
@@ -285,10 +286,12 @@ def test_saving_one_selection_field_keeps_the_other(db_session):
     asset.asset_type = "photo"
     db_session.commit()
     client, url = TestClient(app), f"/api/cases/{case.id}/mvp/assets/{asset.id}/selection"
-    assert client.put(url, json={"must_use": True}).json() == {"asset_id": asset.id, "must_use": True, "draw_priority": None}
-    assert client.put(url, json={"draw_priority": 4}).json() == {"asset_id": asset.id, "must_use": True, "draw_priority": 4}
+    assert client.put(url, json={"must_use": True}).json() == {"asset_id": asset.id, "must_use": True, "draw_priority": None, "cover_photo": False}
+    assert client.put(url, json={"draw_priority": 4}).json() == {"asset_id": asset.id, "must_use": True, "draw_priority": 4, "cover_photo": False}
     assert client.put(url, json={"must_use": False}).json()["draw_priority"] == 4
-    assert client.put(url, json={"draw_priority": None}).json() == {"asset_id": asset.id, "must_use": False, "draw_priority": None}
+    assert client.put(url, json={"cover_photo": True}).json() == {"asset_id": asset.id, "must_use": False, "draw_priority": 4, "cover_photo": True}          # the covers use this photo
+    assert client.put(url, json={"must_use": True}).json()["cover_photo"] is True
+    assert client.put(url, json={"draw_priority": None, "cover_photo": False}).json() == {"asset_id": asset.id, "must_use": True, "draw_priority": None, "cover_photo": False}
 
 
 def test_rejecting_a_picture_rejects_it_for_every_person_and_requirement_it_was_offered_for(db_session):

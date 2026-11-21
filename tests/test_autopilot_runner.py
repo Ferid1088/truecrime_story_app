@@ -46,7 +46,7 @@ class FakePorts(R.Ports):
                                approved_by="automatic")
         return {"languages": [{"language": lang, "status": "done"} for lang in self.approve]}
 
-    async def write_titles(self, db, case, languages):
+    async def write_titles(self, db, case, languages, selected):
         self.calls.append(f"titles:{','.join(languages)}")
         for lang in languages:
             for n in range(self.titles):
@@ -180,9 +180,28 @@ def test_a_stopped_film_is_listed_with_its_reason_and_clears_when_the_job_is_res
     assert run.status == "running"
 
 
+def test_english_titles_come_first_and_the_other_languages_wait_for_the_owner_to_release_them(db_session, run, case, monkeypatch):
+    from app.covers import text_gate as TG
+
+    monkeypatch.setattr(ai_config.covers_settings(), "text_review_languages", ["en", "fa"])           # the owner's review is off in the other tests
+    ports = FakePorts(titles=ai_config.case_naming.candidates_per_language)
+    passes(db_session, run, ports)
+    approve_english(db_session, run)
+    passes(db_session, run, ports)
+    finish_films(db_session, run)
+    passes(db_session, run, ports)
+    assert "titles:en" in ports.calls and not any(call.startswith("titles:") and "de" in call for call in ports.calls)
+    assert any(n["kind"] == "texts_release" and n["language"] == "en" and n["blocking"] for n in S.needs(run))
+    monkeypatch.setattr(TG, "status", lambda db, c, lang: {"released": True})
+    passes(db_session, run, ports)
+    assert "titles:de" in ports.calls
+    assert not any(n["kind"] == "texts_release" for n in S.needs(run))
+
+
 def test_titles_are_made_for_languages_that_lack_their_candidates_and_never_confirmed(
         db_session, run, case):
-    ports = FakePorts(titles=3)
+    short_by_one = ai_config.case_naming.candidates_per_language - 1
+    ports = FakePorts(titles=short_by_one)
     passes(db_session, run, ports)
     approve_english(db_session, run)
     passes(db_session, run, ports)
@@ -190,7 +209,7 @@ def test_titles_are_made_for_languages_that_lack_their_candidates_and_never_conf
     passes(db_session, run, ports)
     assert "titles:en,de" in ports.calls
     need = next(n for n in S.needs(run) if n["kind"] == "titles_short")
-    assert f"3 of {ai_config.case_naming.candidates_per_language}" in need["message"]
+    assert f"{short_by_one} of {ai_config.case_naming.candidates_per_language}" in need["message"]
     assert db_session.query(CaseTitleCandidate).filter_by(
         case_id=case.id, status="selected").count() == 0
     assert S.step_status(run, "titles") == "waiting"

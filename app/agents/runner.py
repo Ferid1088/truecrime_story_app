@@ -11,16 +11,11 @@ agent call (cost ledger, retries, tracing) hooks in here."""
 
 from __future__ import annotations
 
-import json
-import logging
 from typing import Any
 
 from app.agents.base import AgentError
 from app.core.ai_config import ai_config
 from app.core.prompts import prompt
-
-log = logging.getLogger(__name__)
-
 
 def agent_def(name: str):
     try:
@@ -43,30 +38,10 @@ async def run_agent(name: str, gen, user: str, *, system: str | None = None,
             raise AgentError(f"agent {name!r} has no prompt file; the stage must pass `system`")
         text = prompt(d.prompt)
         system = text.format(**fmt) if fmt else text
-    from app.naming.standard import with_standard
-
-    system = with_standard(name, system)
     use_role = role or d.role
     extra: dict[str, Any] = {"images": images} if images else {}
     if prefix or cache_key:
         extra.update({k: v for k, v in (("prefix", prefix), ("cache_key", cache_key)) if v})
     if (output or d.output) == "text":
         return await gen.generate_text(use_role, system, user, **extra)
-    answer, result = await gen.generate_structured(use_role, system, user, **extra)
-    if name in ai_config.second_look.agents and isinstance(answer, dict) and answer:
-        return await _second_look(gen, use_role, system, user, answer, result, extra)
-    return answer, result
-
-
-async def _second_look(gen, use_role: str, system: str, user: str, answer: dict, result, extra: dict):
-    """The same model, in the same request, reads its own first answer once more against the evidence and the rules and returns the final one (config second_look). A second answer that is
-    missing or empty leaves the first; nothing here is a separate inspector."""
-    from app.providers.generation.base import GenerationError
-
-    again = json.dumps({"request": user, "your_first_answer": answer, "second_look": prompt("agents/second_look")}, ensure_ascii=False)
-    try:
-        final, second = await gen.generate_structured(use_role, system, again, **extra)
-    except GenerationError as exc:
-        log.warning("second look of %s failed, the first answer stands: %s", use_role, exc)
-        return answer, result
-    return (final, second) if isinstance(final, dict) and final else (answer, result)
+    return await gen.generate_structured(use_role, system, user, **extra)

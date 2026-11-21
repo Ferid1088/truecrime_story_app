@@ -67,7 +67,8 @@
     "voice_stage": 9,
     "render": 1,
     "downloads": 4,
-    "jobs": 9
+    "jobs": 9,
+    "spoken_text": 2
   },
   "host": {
     "enabled": true,

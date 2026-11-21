@@ -501,9 +501,9 @@ def short_form_candidates(blueprint_id: int, db: Session = Depends(get_db)):
 
 @router.post("/api/cases/{case_id}/creative-pack")
 async def creative_pack_make(case_id: int, store: bool = True, db: Session = Depends(get_db)):
-    """Every title, cover text, Short hook and Short script of the case for all languages from ONE request (the model checks its answer twice inside the call), validated by the code and, unless
-    `store=false`, stored as proposals (new versions: nothing approved, voiced or the owner's is replaced). It costs one model call plus at most the configured repairs; it makes no speech or
-    picture and publishes nothing."""
+    """The creative pack of the case: ONE GPT-6 request writes every title, cover text and Short narration for all languages and ONE GPT-Luna request rewrites it all (none of the two when the input
+    is unchanged and cached); deterministic checks follow. Unless `store=false` the pack is stored as proposals (new versions: nothing approved, voiced or the owner's is replaced). The answer carries
+    the tokens and the cost of each request. It makes no speech or picture and publishes nothing."""
     from app.db.models import StoryVersion
     from app.providers.generation import get_generation_provider
     from app.services.tracking import track_run
@@ -514,6 +514,5 @@ async def creative_pack_make(case_id: int, store: bool = True, db: Session = Dep
     version = db.query(StoryVersion).filter(StoryVersion.case_id == case_id, StoryVersion.language == "en").order_by(StoryVersion.id.desc()).first()
     if version is None:
         raise HTTPException(409, "The case has no English story yet: the pack is made from the approved English master story")
-    with track_run(db, case_id, "Creative pack (all languages)", input_summary="all languages"):
-        result = await creative_pack.generate(get_generation_provider(), creative_pack.story_of(db, case, version))
+    result = await creative_pack.generate(get_generation_provider(), creative_pack.story_of(db, case, version), case_key=str(case_id), ledger=lambda label: track_run(db, case_id, label))
     return {**result, "stored": creative_pack.store(db, case, version, result) if store else None}

@@ -36,3 +36,14 @@ def test_a_spoken_without_stored_cut_info_is_rewritten():
     blueprint = {"beats": [{"id": "B01"}]}
     assert reusable_spoken({}, pilot_seconds=100, focus_beats=["B01"],
                            blueprint=blueprint) is False
+
+
+def test_each_spoken_text_is_written_once_in_chunks_of_six_beats():
+    """A whole-story call ran away to 64,000 output tokens for an 8,000-word story, and one call per beat repeated the 1,300-word system
+    prompt 78 times per language: the writer tells six beats per call, each text once, inspected by the one small inspector only; a beat it flags is rewritten in one repair round, and a version with open findings goes on with them on record."""
+    from app.core.ai_config import ai_config
+
+    assert ai_config.spoken.write_beats_per_call == 6 and ai_config.spoken.beats_per_call == 6
+    assert ai_config.spoken.max_repair_iterations == 1 and ai_config.spoken.max_redos == 0
+    assert ai_config.spoken.llm_checks is False and ai_config.spoken.addition_inspector is True
+    assert ai_config.production_policies.retry_policy.spoken_versions == "DEGRADE"

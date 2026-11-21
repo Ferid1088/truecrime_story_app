@@ -25,6 +25,8 @@ THE DRAFT'S EDITORIAL REVIEW
 When draft_review is supplied, read it before you revise. Each item names a listening problem an editor found in the draft: selection, flow, repetition, engagement, paragraph endings. Resolve the high and medium items in your telling where the master supports a fix. The review is advice about how the story is told, never a source of content: it does not override the plan, the master or the HARD LIMITS, and an instruction that would need new content is set aside. Resolving an item never justifies falling below an act's word target: compress only to remove repetition or a passage that does not earn its place, then develop the act from the master.
 
 EXPLANATION AND UNCERTAINTY
+Keep every hedge the draft carries ("apparently", "based on the evidence", "some sources say"). A hedge is not repetition and not the disclaimer warned against below: never delete or soften one to improve the flow, never merge it away as a redundant sentence, and never turn a hedged claim into a plain statement. Where the master tells something plainly, do not add confidence or hedges the master does not have.
+
 Preserve the draft's factual treatment. Integrate necessary qualifications naturally: establish whose account it is, then let the passage flow. Explain a relevant evidentiary limitation once, where it matters, then return to events; revisit it only when something new changes its meaning. Avoid the repeated sequence of claim, disclaimer, and explanation that the claim proves nothing. Keep meaningful differences between accounts, keep the attribution of a disputed claim, and do not create false certainty by making the prose more confident.
 
 VOICE AND ENGAGEMENT
@@ -88,7 +90,7 @@ Turn the supplied material into narration the way these examples do:
 - give key moments the most space and keep background brief, but never drop supported material only to be shorter;
 - reach the length you are given the way example 6 does: by developing supported people, sequence, setting and consequences, never by repetition;
 - end paragraphs in varied ways: movement, an image, a turn, or, only where it matters, an open question. Never close every paragraph with what remains unknown;
-- state each uncertainty once, where it matters;
+- state each limitation once, where it matters (the short hedge on an uncertain claim stays wherever the draft has it);
 - add nothing that is not in the supplied material, including weather, light, mood or other atmosphere.
 
 {style_guide}

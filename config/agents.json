@@ -280,6 +280,13 @@
       "description": "Same facts and meaning?",
       "used_by": "app/agents/spoken.py"
     },
+    "spoken_addition_inspector": {
+      "role": "spoken_addition_inspector",
+      "prompt": null,
+      "output": "json",
+      "description": "Does the retelling give anything the script does not give?",
+      "used_by": "app/agents/spoken.py"
+    },
     "spoken_style_critic": {
       "role": "spoken_style_critic",
       "prompt": null,
@@ -744,9 +751,16 @@
     },
     "creative_pack": {
       "role": "creative_pack",
-      "prompt": "agents/creative_pack",
+      "prompt": null,
       "output": "json",
-      "description": "Every title, cover text, Short hook and Short script of a case for all languages in one request, checked twice inside the call.",
+      "description": "The first creative version of a case's whole pack (film and Shorts titles, cover texts, Short narrations) for all languages in one request.",
+      "used_by": "app/agents/shorts.py"
+    },
+    "creative_polisher": {
+      "role": "creative_polisher",
+      "prompt": null,
+      "output": "text",
+      "description": "The final creative rewrite of the whole pack for all languages in one request; returns JSON as text.",
       "used_by": "app/agents/shorts.py"
     }
   }

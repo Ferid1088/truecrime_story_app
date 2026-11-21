@@ -34,6 +34,7 @@ class Plan:
     segments: list[dict]
     total: float
     music_start: float
+    music_end: float
 
 
 def plan_timeline(seconds: dict[str, float], cfg: ClipVideoConfig | None = None) -> Plan:
@@ -42,12 +43,12 @@ def plan_timeline(seconds: dict[str, float], cfg: ClipVideoConfig | None = None)
     starts, t = {}, 0.0
     for part in ORDER:
         starts[part] = round(t, 3)
-        t += seconds[part] + cfg.gap_seconds
+        t += seconds[part] + (cfg.gap_seconds if seconds[part] else 0.0)           # a part with no voice takes no time
     total = round(starts["cta"] + seconds["cta"] + cfg.tail_seconds, 3)
     segments = [{"kind": "avatar", "part": "hook", "start": 0.0, "end": starts["context"]},
                 {"kind": "pictures", "start": starts["context"], "end": starts["reaction"]},
                 {"kind": "avatar", "part": "reaction", "start": starts["reaction"], "end": total}]
-    return Plan(starts, dict(seconds), segments, total, round(seconds["hook"], 3))
+    return Plan(starts, dict(seconds), segments, total, 0.0, segments[2]["start"])        # the music plays from the first second until the second avatar part begins; that part has none
 
 
 def picture_count(seconds: float, cfg: ClipVideoConfig | None = None) -> int:
@@ -72,7 +73,7 @@ def chunks(voices: dict[str, dict], plan: Plan, cfg: ClipVideoConfig | None = No
     so that the word goes away and the next one comes. The times are those of the words of every part, moved to its start."""
     cfg = cfg or ai_config.short_clips_settings().video
     out = []
-    for part in ORDER:
+    for part in (p for p in ORDER if p in voices):                # a part with no words has no voice and no captions
         words = [(shown, w[1], w[2]) for w in voices[part].get("words") or [] if (shown := caption_word(w[0]))]
         for i, (text, start, end) in enumerate(words):
             begin = plan.starts[part] + start
@@ -180,7 +181,7 @@ def assemble_command(plan: Plan, *, voices: dict[str, Path], avatars: dict[str, 
         graph.append(f"[{last}][{n}:v]overlay=0:{top}:enable='between(t,{chunk['start']:.3f},{chunk['end']:.3f})'[c{k}]")
         last, n = f"c{k}", n + 1
     voice_labels = []
-    for part in ORDER:
+    for part in (p for p in ORDER if p in voices):               # only the parts that have a voice
         cmd += ["-i", str(voices[part])]
         graph.append(f"[{n}:a]aformat=sample_rates=48000:channel_layouts=stereo,adelay={round(plan.starts[part] * 1000)}:all=1[v{n}]")
         voice_labels.append(f"[v{n}]")
@@ -188,7 +189,7 @@ def assemble_command(plan: Plan, *, voices: dict[str, Path], avatars: dict[str, 
     graph.append("".join(voice_labels) + f"amix=inputs={len(voice_labels)}:normalize=0:duration=longest,apad=whole_dur={plan.total:.3f}[voice]")
     if music is not None:
         m = cfg.music
-        length = plan.total - plan.music_start
+        length = plan.music_end - plan.music_start
         fade_out = min(m.fade_out, length / 2)
         ratio = round(1.0 / max(1.0 - m.duck, 0.05), 2)
         cmd += ["-i", str(music)]

@@ -254,13 +254,17 @@
     "fa": {
       "enabled": true,
       "timezone": "Asia/Tehran",
-      "publish_time_local": "20:30"
+      "publish_time_local": "18:00"
     },
     "en": {
-      "enabled": false
+      "enabled": true,
+      "timezone": "America/New_York",
+      "publish_time_local": "18:00"
     },
     "de": {
-      "enabled": false
+      "enabled": true,
+      "timezone": "Europe/Berlin",
+      "publish_time_local": "18:00"
     },
     "ar": {
       "enabled": false
@@ -332,7 +336,9 @@
     ]
   },
   "routing": {
-    "bio_link_platforms": ["instagram"],
+    "bio_link_platforms": [
+      "instagram"
+    ],
     "bio_link_note": {
       "fa": "لینک فیلم کامل را در بیوی پروفایل ما پیدا می‌کنید.",
       "en": "The full film: link in our bio.",
@@ -345,8 +351,16 @@
       "tr": "Tam film: bağlantı profilimizin biyografisinde."
     },
     "film_address_in_text": {
-      "youtube/film": ["youtube", "facebook", "instagram"],
-      "facebook/film": ["youtube", "facebook", "instagram"]
+      "youtube/film": [
+        "youtube",
+        "facebook",
+        "instagram"
+      ],
+      "facebook/film": [
+        "youtube",
+        "facebook",
+        "instagram"
+      ]
     },
     "methods": [
       "related_video",
@@ -566,8 +580,13 @@
       "repairs": 2,
       "film_excerpt_chars": 6000,
       "concurrency": 2,
-      "running_timeout_seconds": 900, "examples_dir": "data/publishing_examples", "examples_per_call": 30, "example_caption_chars": 220,
-      "proofread_languages": ["fa"],
+      "running_timeout_seconds": 900,
+      "examples_dir": "data/publishing_examples",
+      "examples_per_call": 30,
+      "example_caption_chars": 220,
+      "proofread_languages": [
+        "fa"
+      ],
       "proofread_min_similarity": 0.8
     },
     "scheduling": {
@@ -653,5 +672,48 @@
         "title_required": false
       }
     }
+  },
+  "file_names": {
+    "folder": "published_names",
+    "separator": "-",
+    "film_title_words": 16,
+    "short_title_words": 14,
+    "include_channel": true,
+    "ascii_fold_languages": [
+      "en",
+      "de",
+      "es",
+      "tr",
+      "fr",
+      "it",
+      "pt"
+    ],
+    "kind_words": {
+      "film": {
+        "fa": "مستند کامل",
+        "en": "full documentary",
+        "de": "vollständige dokumentation",
+        "es": "documental completo",
+        "tr": "tam belgesel",
+        "fr": "documentaire complet",
+        "it": "documentario completo",
+        "pt": "documentário completo",
+        "ar": "وثائقي كامل"
+      },
+      "short": {
+        "fa": "شورت",
+        "en": "short",
+        "de": "short",
+        "es": "short",
+        "tr": "short",
+        "fr": "short",
+        "it": "short",
+        "pt": "short",
+        "ar": "شورت"
+      }
+    },
+    "max_bytes": 250,
+    "min_film_words": 4,
+    "min_short_words": 3
   }
 }

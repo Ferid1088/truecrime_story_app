@@ -698,3 +698,32 @@ def test_the_chains_one_length_correction_is_not_used_a_second_time_after_a_revi
     out = run(gen, setup)
     assert out["languages"][0]["status"] == "failed"
     assert len([c for c in gen.calls if "acts_to_expand" in c["user"]]) == 1
+
+
+def test_an_audit_fix_that_leaves_the_text_under_the_minimum_gets_one_correction_of_its_own(setup, db_session, monkeypatch):
+    monkeypatch.setattr(ai_config.language_pipeline, "final_accepted_minutes", 100000)
+    def removes_a_tenth(task):
+        paragraph = next(p for p in task["paragraphs"] if p["act"] == "act1")["text"]
+        total = len(paragraph.split()) * len(ACTS)
+        old = " ".join(paragraph.split()[: int(total * 0.12)])
+        return [{"finding_id": 1, "decision": "confirmed", "reason": "unsupported", "evidence_ids": ["F001"],
+                 "edits": [{"act": "act1", "old": old, "new": ""}]}]
+
+    class Restores(Confirms):
+        async def generate_text(self, role, system, user, images=None, **k):
+            task = json.loads(user)
+            if "acts_to_expand" in task:
+                self.calls.append({"role": role, "system": system, "user": task, **k})
+                return self._result("\n\n".join(
+                    f"[[ACT:{a['act_id']}]]\n\n" + " ".join(f"back{a['act_id']}w{i}" for i in range(a["target_words"]))
+                    for a in task["acts_to_expand"]), role)
+            return await super().generate_text(role, system, user, images, **k)
+
+    gen = Restores([finding("high")], removes_a_tenth)
+    out = run(gen, setup)
+    assert len([c for c in gen.calls if "acts_to_expand" in c["user"]]) == 1
+    finals = rows(db_session, setup, kind=FINAL)
+    assert [json.loads(f.narrative_structure)["pipeline"].get("stage") for f in finals][-2:] == ["audit_fix", "length_correction"]
+    restored = finals[-1]
+    assert restored.status == "ready" and "audit_fix" in json.loads(restored.critic_notes)
+    assert out["languages"][0]["status"] == "done"

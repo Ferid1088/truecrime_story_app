@@ -33,7 +33,8 @@ def test_config_file_loads():
     assert ai_config.generation_provider().secret_env == "TRUECRIME_APIMASTER_API_KEY"
     for role in REQUIRED_ROLES:
         assert ai_config.model_for(role)
-        assert ai_config.generation_for(role).max_tokens > 0
+        limit = ai_config.generation_for(role).max_tokens
+        assert limit is None or limit > 0                      # None: no limit is sent
 
 
 def test_invalid_config_fails():

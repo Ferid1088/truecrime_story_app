@@ -35,7 +35,7 @@ House style:
 
 For each beat give:
 - verdict: storyteller | mixed | newsreader
-- problems: at most 4, the worst first, each {{"quote": "exact phrase
+- problems: at most {max_problems}, the worst first, each {{"quote": "exact phrase
   from the beat", "why": "short reason", "suggestion": "how a native
   {name} storyteller would say it, same facts and nothing added"}}
 Every beat id you are given appears once in "beats".
@@ -43,4 +43,4 @@ Every beat id you are given appears once in "beats".
 Return JSON only:
 {{"overall": "storyteller|mixed|newsreader",
   "beats": [{{"beat_id": "B01", "verdict": "storyteller", "problems": []}}],
-  "notes": "one or two sentences"}}
+  "notes": "one short sentence"}}

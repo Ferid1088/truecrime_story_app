@@ -35,6 +35,7 @@ from app.documentary.spoken import (
     clean_writer_output,
     critic_system_prompt,
     has_meta_text,
+    missing_anchors,
     read_aloud_metrics,
     writer_system_prompt,
 )
@@ -127,7 +128,7 @@ class SpokenNarrator:
             res.text = text
             return res
 
-        size = self.cfg.beats_per_call
+        size = self.cfg.write_beats_per_call or self.cfg.beats_per_call
         if not size:
             res = await call(source)
             sections, ok = realign_sections(source, res.text,
@@ -157,13 +158,22 @@ class SpokenNarrator:
         return out, res, log
 
     async def _check(self, db, case_id, language, source: list[dict],
-                     spoken: list[dict], beat_ids: set[str] | None = None):
-        """Meaning check + native style critic per chunk of beats (all
-        chunks and both critics in parallel)."""
+                     spoken: list[dict], beat_ids: set[str] | None = None,
+                     style_ids: set[str] | None = None, previous: dict | None = None):
+        """Meaning check + native style critic per chunk of beats (all chunks and both critics in
+        parallel). The meaning check (the fact guard) covers every beat asked for; the style critic
+        only `style_ids` (default: the same beats), the others keep the verdict they had in `previous`."""
         src = {s["id"]: s["text"] for s in source}
         subset = [s for s in spoken if beat_ids is None or s["id"] in beat_ids]
+        if not self.cfg.llm_checks:
+            backed = self._backed(language, src, subset)
+            if self.cfg.addition_inspector:
+                await self._inspect_additions(db, case_id, language, src, subset, backed)
+            return backed, None, ""
         size = self.cfg.beats_per_call or len(subset) or 1
         chunks = [subset[i:i + size] for i in range(0, len(subset), size)]
+        styled = [s for s in subset if style_ids is None or s["id"] in style_ids]
+        style_chunks = [styled[i:i + size] for i in range(0, len(styled), size)]
 
         def meaning_payload(chunk):
             return {"source_language": language, "spoken_language": language,
@@ -173,48 +183,78 @@ class SpokenNarrator:
         def style_payload(chunk):
             return {"language": language, "narration": _mark_sections(chunk)}
 
-        calls = []
-        for chunk in chunks:
-            calls.append(self._json(db, case_id, f"Spoken Meaning Check ({language})",
-                                    "spoken_meaning_checker", MEANING_SYSTEM,
-                                    meaning_payload(chunk)))
-            calls.append(self._json(db, case_id, f"Spoken Style Critic ({language})",
-                                    "spoken_style_critic", critic_system_prompt(language),
-                                    style_payload(chunk)))
+        calls = [self._json(db, case_id, f"Spoken Meaning Check ({language})",
+                            "spoken_meaning_checker", MEANING_SYSTEM, meaning_payload(chunk))
+                 for chunk in chunks]
+        calls += [self._json(db, case_id, f"Spoken Style Critic ({language})",
+                             "spoken_style_critic", critic_system_prompt(language), style_payload(chunk))
+                  for chunk in style_chunks]
         results = await gather_limited(None, calls)
         by_id_m: dict[str, dict] = {}
         by_id_s: dict[str, dict] = {}
         overall, notes = [], []
-        for k in range(0, len(results), 2):
-            meaning, _ = results[k]
-            style, _ = results[k + 1]
-            for b in meaning.get("beats") or []:
+        for k, (data, _) in enumerate(results):
+            for b in data.get("beats") or []:
                 if isinstance(b, dict):
-                    by_id_m[str(b.get("beat_id"))] = b
-            for b in style.get("beats") or []:
-                if isinstance(b, dict):
-                    by_id_s[str(b.get("beat_id"))] = b
-            if style.get("overall"):
-                overall.append(style["overall"])
-            if style.get("notes"):
-                notes.append(str(style["notes"]))
+                    (by_id_m if k < len(chunks) else by_id_s)[str(b.get("beat_id"))] = b
+            if k >= len(chunks):
+                if data.get("overall"):
+                    overall.append(data["overall"])
+                if data.get("notes"):
+                    notes.append(str(data["notes"]))
         result = {}
         for s in subset:
             m = by_id_m.get(s["id"])
+            kept = (previous or {}).get(s["id"]) if s["id"] not in {x["id"] for x in styled} else None
             st = by_id_s.get(s["id"]) or {}
-            verdict = st.get("verdict") if st.get("verdict") in (
-                "storyteller", "mixed", "newsreader") else "unrated"
+            verdict = kept["verdict"] if kept else (st.get("verdict") if st.get("verdict") in (
+                "storyteller", "mixed", "newsreader") else "unrated")
             result[s["id"]] = {
                 # A beat the checker did not return is NOT assumed fine.
                 "meaning": m if m is not None else {"unchecked": True},
                 "meaning_ok": m is not None and _meaning_ok(m),
                 "verdict": verdict,
-                "problems": [p for p in st.get("problems") or [] if isinstance(p, dict)][:4],
+                "problems": kept["problems"] if kept else
+                [p for p in st.get("problems") or [] if isinstance(p, dict)][:self.cfg.max_style_problems],
                 "ear": read_aloud_metrics(s["text"], language),
                 "length": self._length(language, src[s["id"]], s["text"]),
             }
         worst = next((v for v in ("newsreader", "mixed", "storyteller") if v in overall), None)
         return result, worst, " ".join(notes)[:800]
+
+    async def _inspect_additions(self, db, case_id, language: str, src: dict[str, str], subset: list[dict], checks: dict) -> None:
+        """The small inspector: one cheap call per chunk of beats (all chunks at once), answering only with the beats that give the listener something
+        the script does not give. A flagged beat is not backed, and its quoted additions go back to the writer as the problem to fix. A beat it does not
+        mention is fine."""
+        size = self.cfg.beats_per_call or len(subset) or 1
+        chunks = [subset[i:i + size] for i in range(0, len(subset), size)]
+        calls = [self._json(db, case_id, f"Spoken Addition Inspector ({language})", "spoken_addition_inspector",
+                            prompt("documentary/spoken/addition_inspector"),
+                            {"beats": [{"beat_id": s["id"], "source": src[s["id"]], "spoken": s["text"]} for s in chunk]})
+                 for chunk in chunks]
+        for data, _ in await gather_limited(None, calls):
+            for item in data.get("beats") or []:
+                entry = checks.get(str(item.get("beat_id"))) if isinstance(item, dict) else None
+                added = [str(a) for a in (item.get("added") or []) if str(a).strip()] if entry is not None else []
+                if added:
+                    entry["meaning"]["added"] = added
+                    entry["meaning_ok"] = False
+
+    def _backed(self, language: str, src: dict[str, str], subset: list[dict]) -> dict:
+        """The check without a model: a beat is backed while the narration still holds the names (people, places, organisations) of its
+        source, up to `max_missing_name_share`. The beat is not rated for style (verdict "unrated"); its length, digits and long sentences are
+        measured as before."""
+        result = {}
+        for s in subset:
+            missing, names = missing_anchors(src[s["id"]], s["text"], language)
+            result[s["id"]] = {
+                "meaning": {"missing": missing, "added": [], "changed": [], "certainty": []},
+                "meaning_ok": not names or len(missing) / names <= self.cfg.max_missing_name_share,
+                "verdict": "unrated", "problems": [],
+                "ear": read_aloud_metrics(s["text"], language),
+                "length": self._length(language, src[s["id"]], s["text"]),
+            }
+        return result
 
     def _length(self, language: str, source_text: str, spoken_text: str) -> dict:
         """A beat told much longer than its script: how long it is against what the whole film may
@@ -227,18 +267,26 @@ class SpokenNarrator:
                 if ratio else spoken_words,
                 "too_long": ratio > self.cfg.max_duration_ratio}
 
-    @staticmethod
-    def _needs_repair(entry: dict) -> bool:
-        ear = entry.get("ear") or {}
-        return (not entry["meaning_ok"]) or bool((entry.get("length") or {}).get("too_long")) or (
-            entry["verdict"] in ("mixed", "newsreader") and entry["problems"]
-        ) or bool(ear.get("long_sentences") or ear.get("stiff_phrases") or ear.get("digits"))
+    def _repair_targets(self, spoken: list[dict], checks: dict, failures: list[str],
+                        repaired: dict[str, int]) -> list[dict]:
+        """The beats worth another rewrite: a fact problem, a newsreader beat or a digit left in a beat (each fails the version
+        by itself), and, only while the gate they belong to fails, a beat too long, a "mixed" beat with problems, or a beat with
+        long sentences. A beat already rewritten `max_repairs_per_beat` times is not sent back again."""
+        targets = []
+        for s in spoken:
+            if repaired.get(s["id"], 0) >= self.cfg.max_repairs_per_beat:
+                continue
+            c = checks[s["id"]]
+            ear = c.get("ear") or {}
+            if (not c["meaning_ok"] or c["verdict"] == "newsreader" or ear.get("digits")
+                    or ("duration_out_of_range" in failures and (c.get("length") or {}).get("too_long"))
+                    or ("not_enough_storytelling" in failures and c["verdict"] == "mixed" and c["problems"])
+                    or ("sentences_too_long" in failures and ear.get("long_sentences"))):
+                targets.append(s)
+        return targets
 
     async def _repair(self, db, case_id, language, source, spoken, checks,
-                      uncertain) -> list[dict]:
-        targets = [s for s in spoken if self._needs_repair(checks[s["id"]])]
-        if not targets:
-            return spoken
+                      uncertain, targets: list[dict]) -> list[dict]:
         size = self.cfg.beats_per_call or len(targets)
         # chunks repair different beats: all at once
         results = await gather_limited(None, [
@@ -286,6 +334,36 @@ class SpokenNarrator:
             return {}  # keep current text; checks stay honest
         return {s["id"]: s["text"] for s in fixed}
 
+    def _gates(self, language: str, source: list[dict], spoken: list[dict], checks: dict):
+        """The gates of the whole narration: the names of the ones that fail, with the numbers they were judged on."""
+        text = _join_sections(spoken)
+        failures = []
+        changed = sum(1 for c in checks.values() if not c["meaning_ok"])
+        if changed / max(len(checks), 1) > self.cfg.max_meaning_changed_share:
+            failures.append("meaning_changed")
+        n = max(len(checks), 1)
+        storyteller = sum(1 for c in checks.values() if c["verdict"] == "storyteller")
+        if self.cfg.llm_checks:             # the verdicts come from the style critic
+            if any(c["verdict"] == "newsreader" for c in checks.values()):
+                failures.append("newsreader_tone")
+            if storyteller / n < self.cfg.min_storyteller_share:
+                failures.append("not_enough_storytelling")
+        ear = read_aloud_metrics(text, language)
+        if ear["long_sentence_share"] > self.cfg.max_long_sentence_share:
+            failures.append("sentences_too_long")
+        lq = language_quality(text, language, ai_config.language_quality_for(language))
+        if not lq["pass"]:
+            failures.append("language_quality")
+        if ear["digits"]:
+            failures.append("digits_left")
+        if re.search(r"https?://|www\.", text) or has_meta_text(text):
+            failures.append("output_purity")
+        ratio = _words_minutes(text, language) / max(
+            _words_minutes(_join_sections(source), language), 1e-6)
+        if not (self.cfg.min_duration_ratio <= ratio <= self.cfg.max_duration_ratio):
+            failures.append("duration_out_of_range")
+        return failures, text, ear, lq, ratio, storyteller, n
+
     # ------------------------------------------------------------------
     # public
     # ------------------------------------------------------------------
@@ -325,45 +403,33 @@ class SpokenNarrator:
             db, case.id, language, source, uncertain)
         checks, overall, notes = await self._check(db, case.id, language, source, spoken)
         repairs = 0
-        while (repairs < self.cfg.max_repair_iterations
-               and any(self._needs_repair(c) for c in checks.values())):
+        repaired: dict[str, int] = {}
+        while repairs < self.cfg.max_repair_iterations:
+            failures, *_ = self._gates(language, source, spoken, checks)
+            targets = self._repair_targets(spoken, checks, failures, repaired)
+            if not targets:
+                break                       # the version passes, or what is left is not worth another rewrite
             repairs += 1
+            # the style critic judges again only the beats that were sent back for how they sound; the meaning check
+            # (the fact guard) judges every beat the writer touched
+            by_style = {s["id"] for s in targets if checks[s["id"]]["verdict"] != "storyteller" or any(
+                (checks[s["id"]].get("ear") or {}).get(k) for k in ("digits", "long_sentences"))}
             before = {s["id"]: s["text"] for s in spoken}
             spoken = await self._repair(db, case.id, language, source, spoken,
-                                        checks, uncertain)
+                                        checks, uncertain, targets)
+            for s in targets:
+                repaired[s["id"]] = repaired.get(s["id"], 0) + 1
             changed = {s["id"] for s in spoken if s["text"] != before[s["id"]]}
             if not changed:
                 continue            # the writer answered with the same words: the next round asks again
-            rechecked, overall, notes = await self._check(
-                db, case.id, language, source, spoken, changed)
+            rechecked, new_overall, new_notes = await self._check(
+                db, case.id, language, source, spoken, changed, style_ids=changed & by_style,
+                previous=checks)
             checks.update(rechecked)
+            if new_overall:
+                overall, notes = new_overall, new_notes
 
-        text = _join_sections(spoken)
-        failures = []
-        changed = sum(1 for c in checks.values() if not c["meaning_ok"])
-        if changed / max(len(checks), 1) > self.cfg.max_meaning_changed_share:
-            failures.append("meaning_changed")
-        if any(c["verdict"] == "newsreader" for c in checks.values()):
-            failures.append("newsreader_tone")
-        n = max(len(checks), 1)
-        storyteller = sum(1 for c in checks.values() if c["verdict"] == "storyteller")
-        if storyteller / n < self.cfg.min_storyteller_share:
-            failures.append("not_enough_storytelling")
-        ear = read_aloud_metrics(text, language)
-        if ear["long_sentence_share"] > self.cfg.max_long_sentence_share:
-            failures.append("sentences_too_long")
-        lq = language_quality(text, language, ai_config.language_quality_for(language))
-        if not lq["pass"]:
-            failures.append("language_quality")
-        if ear["digits"]:
-            failures.append("digits_left")
-        if re.search(r"https?://|www\.", text) or has_meta_text(text):
-            failures.append("output_purity")
-        ratio = _words_minutes(text, language) / max(
-            _words_minutes(_join_sections(source), language), 1e-6)
-        if not (self.cfg.min_duration_ratio <= ratio <= self.cfg.max_duration_ratio):
-            failures.append("duration_out_of_range")
-
+        failures, text, ear, lq, ratio, storyteller, n = self._gates(language, source, spoken, checks)
         meaning_ok = sum(1 for c in checks.values() if c["meaning_ok"])
         critique = {
             "quality_gates": {"pass": not failures, "failures": failures},
@@ -387,8 +453,8 @@ class SpokenNarrator:
             language, writer_res, kind="spoken",
             writer_prompt="documentary/spoken/writer_system_prompt",
             master_version_id=master.id,
-            native_quality_score=round(100 * storyteller / n, 1),
-            semantic_consistency_score=round(100 * meaning_ok / n, 1),
+            native_quality_score=round(100 * storyteller / n, 1) if self.cfg.llm_checks else None,
+            semantic_consistency_score=round(100 * meaning_ok / n, 1) if self.cfg.llm_checks else None,
             factual_consistency_score=round(meaning_ok / n, 3),
             extra_structure={
                 "blueprint_id": row.id, "source_version_id": master.id,

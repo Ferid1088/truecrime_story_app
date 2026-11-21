@@ -233,9 +233,10 @@ class PublicationRegistry:
         if case is not None and language in ai_config.covers_settings().themes:
             covers_service.auto_approve(self.db, case, language)
 
-    def plan(self, case_id: int, language: str, *, start_date: date | None = None, reset_schedule: bool = False) -> list[Publication]:
+    def plan(self, case_id: int, language: str, *, start_date: date | None = None, reset_schedule: bool = False, revise: frozenset[str] = frozenset()) -> list[Publication]:
         """Create the missing publications of the language (every asset on every destination that supports its kind) and refresh the existing ones. A plan can only be made for a
-        language that has a publishing schedule. Publications of an older render that were never published are voided."""
+        language that has a publishing schedule. Publications of an older render that were never published are voided. A Short whose key is in `revise`, whose newest publication is already
+        published and whose clip is no longer the published one, gets a NEW publication (the next revision) for the new clip; the published one is never changed."""
         if not self.cfg.language_enabled(language):
             raise PublishingRefused(f"Language '{language}' has no publishing schedule (config/publishing.json): its publishing is not active.")
         accounts = self.ensure_accounts(language)
@@ -253,11 +254,16 @@ class PublicationRegistry:
         made: list[Publication] = []
         for asset in assets:
             for dest in self._destinations(asset.kind):
-                pub = (self.db.query(Publication).filter_by(case_id=case_id, language=language, platform=dest.platform.value, kind=dest.kind.value, asset_key=asset.key).first())
+                pub = (self.db.query(Publication).filter_by(case_id=case_id, language=language, platform=dest.platform.value, kind=dest.kind.value, asset_key=asset.key)
+                       .order_by(Publication.revision.desc()).first())
+                revision = 1 if pub is None else pub.revision
+                if (pub is not None and asset.kind is Kind.SHORT and asset.clip is not None and pub.short_clip_id != asset.clip.id
+                        and ((pub.status == "published" and asset.key in revise) or pub.status == "voided")):
+                    pub, revision = None, pub.revision + 1                       # a published one stays as it is, a voided one stays as history; the new clip is its own publication
                 fresh = pub is None
                 if fresh:
                     account = accounts[dest.platform.value]
-                    pub = Publication(case_id=case_id, language=language, platform=dest.platform.value, kind=dest.kind.value, asset_key=asset.key,
+                    pub = Publication(case_id=case_id, language=language, platform=dest.platform.value, kind=dest.kind.value, asset_key=asset.key, revision=revision,
                                       video_id=asset.video.id if asset.video else None, short_clip_id=asset.clip.id if asset.clip else None,
                                       account_ref_id=account.id, account_id=account.external_id, visibility=self.cfg.plan.default_visibility, status="draft",
                                       caption=self._default_caption(asset, dest, language, case_id))
@@ -280,6 +286,22 @@ class PublicationRegistry:
                 with contextlib.suppress(PublishingRefused):       # not ready (no platform text yet, a blocker): it is approved when it becomes ready, at the next plan or at its publishing
                     self.ensure_approved(pub)
         return made
+
+    def retire_old_drafts(self, case_id: int, language: str) -> list[dict]:
+        """Void every Short publication that is not live and is bound to an older clip than the Short's newest one (its title, caption and cover belong to that old clip). Nothing is deleted: the row
+        stays as history with its texts, and the next plan makes a fresh publication for the new clip. Published and uploading publications are never touched. Returns {id, destination, asset, title}."""
+        from app.shortform import clips as C
+
+        newest = {row.clip_key: row.id for row in C.clips_of(self.db, case_id, language)}
+        retired = []
+        for pub in self.db.query(Publication).filter_by(case_id=case_id, language=language, kind=Kind.SHORT.value).all():
+            if pub.status in PLAN_STATUSES and pub.status != "voided" and pub.asset_key in newest and pub.short_clip_id != newest[pub.asset_key]:
+                title = json.loads(pub.metadata_json or "{}").get("title")
+                pub.status, pub.error = "voided", "Superseded by a newer clip: its texts and cover belong to the old one."
+                self.event(pub, "voided", "bound to an older clip than the Short's newest", actor="owner")
+                retired.append({"id": pub.id, "destination": f"{pub.platform}/{pub.kind}", "asset": pub.asset_key, "title": title})
+        self.db.commit()
+        return retired
 
     @staticmethod
     def _path_for(asset: Asset, platform: str) -> Path | None:
@@ -778,7 +800,7 @@ class PublicationRegistry:
     def reorder(self, case_id: int, language: str, platform: str, order: list[str], actor: str = "owner") -> list[Publication]:
         """Put the Shorts of one platform in this order. The calendar's slots stay where they are and move with the order: the first slot goes to the first Short, and so on. An edit of
         the time of an approved Short still voids that approval, as any change of its settings does."""
-        pubs = {p.asset_key: p for p in self.db.query(Publication).filter_by(case_id=case_id, language=language, platform=platform, kind="short").all()}
+        pubs = {p.asset_key: p for p in self.db.query(Publication).filter_by(case_id=case_id, language=language, platform=platform, kind="short").order_by(Publication.revision).all()}      # the newest revision of each Short
         if not pubs or sorted(order) != sorted(pubs):
             raise PublishingRefused("The order must list every Short of the platform exactly once.")
         locked = [p.asset_key for p in pubs.values() if p.status not in EDITABLE]
@@ -827,7 +849,7 @@ class PublicationRegistry:
     def overview(self, case_id: int) -> list[dict]:
         """One compact row per publication of the case, every language: the Studio's lamps (published, waiting for its time, failed, uncertain, not scheduled). Nothing is changed."""
         rows = self.db.query(Publication).filter_by(case_id=case_id).order_by(Publication.language, Publication.platform, Publication.sequence, Publication.asset_key).all()
-        return [{"id": p.id, "language": p.language, "platform": p.platform, "kind": p.kind, "asset_key": p.asset_key, "status": p.status, "state": self.lamp_state(p),
+        return [{"id": p.id, "language": p.language, "platform": p.platform, "kind": p.kind, "asset_key": p.asset_key, "revision": p.revision, "status": p.status, "state": self.lamp_state(p),
                  "scheduled_at": p.scheduled_at.isoformat() if p.scheduled_at else None, "error": p.error}
                 for p in rows if p.status != "voided" or p.error != "Superseded by a newer render."]
 
@@ -1015,7 +1037,7 @@ class PublicationRegistry:
                        "approve_publication": content_ok and pub.status in PUBLICATION_APPROVABLE and not blockers,
                        "schedule": self.approval_valid(pub) and pub.status == "publication_approved" and not blockers and not schedule_blockers,
                        "withdraw": pub.status in ("content_approved", "publication_approved", "scheduled")}
-        return {"id": pub.id, "platform": pub.platform, "kind": pub.kind, "asset_key": pub.asset_key, "status": pub.status, "visibility": pub.visibility, "mode": pub.mode,
+        return {"id": pub.id, "platform": pub.platform, "kind": pub.kind, "asset_key": pub.asset_key, "revision": pub.revision, "status": pub.status, "visibility": pub.visibility, "mode": pub.mode,
                 "caption": pub.caption, "scheduled_at": _iso(pub.scheduled_at), "scheduled_local": local, "window_ends_at": _iso(pub.window_ends_at),
                 "content_approved_at": _iso(pub.content_approved_at), "publication_approved_at": _iso(pub.publication_approved_at),
                 "approval_valid": self.approval_valid(pub),

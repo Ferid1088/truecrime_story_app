@@ -70,7 +70,7 @@ const PRIORITIES = Array.from({ length: 10 }, (_, i) => i + 1);
 /** The border and the badge of a photo the owner chose for the pencil drawing. */
 const CHOSEN_BORDER = "border-violet-500 ring-2 ring-violet-500/60";
 
-type SelectionValue = { must_use: boolean; draw_priority: number | null };
+type SelectionValue = { must_use: boolean; draw_priority: number | null; cover_photo: boolean };
 
 /** The owner's selection of one picture or clip: checked, it is used 100 % in the film (a clip: its whole approved cut
  * once); a photo can also be given a drawing priority from 1 to 10 (the planner draws in that order). Saved at once; the
@@ -83,11 +83,11 @@ function Selection({ caseId, item, value, onSaved }: {
 }) {
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
 
-  async function save(selection: { must_use?: boolean; draw_priority?: number | null }) {
+  async function save(selection: { must_use?: boolean; draw_priority?: number | null; cover_photo?: boolean }) {
     setStatus(null);
     try {
       const out = await mvpApi.saveSelection(caseId, item.asset_id, selection);
-      onSaved(item.asset_id, { must_use: out.must_use, draw_priority: out.draw_priority });
+      onSaved(item.asset_id, { must_use: out.must_use, draw_priority: out.draw_priority, cover_photo: out.cover_photo });
       setStatus({ text: "Saved.", error: false });
     } catch (e) {
       setStatus({ text: e instanceof ApiError ? e.message : "Could not save your selection.", error: true });
@@ -105,6 +105,17 @@ function Selection({ caseId, item, value, onSaved }: {
         />
         Must be used in the film (100 %{isVideo(item) ? ", the whole approved cut once" : ""})
       </label>
+      {!isVideo(item) && (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={value.cover_photo}
+            data-testid="review-queue-cover-photo"
+            onChange={(e) => void save({ cover_photo: e.target.checked })}
+          />
+          Use this photo of the person on the covers
+        </label>
+      )}
       {!isVideo(item) && (
         <label className="flex items-center gap-2 text-sm">
           Drawing priority
@@ -600,7 +611,7 @@ export function ReviewQueuePage({
               key={`selection-${item.asset_id}`}
               caseId={caseId}
               item={item}
-              value={selections[item.asset_id] ?? { must_use: item.must_use, draw_priority: item.draw_priority }}
+              value={selections[item.asset_id] ?? { must_use: item.must_use, draw_priority: item.draw_priority, cover_photo: item.cover_photo }}
               onSaved={(assetId, value) => setSelections((all) => ({ ...all, [assetId]: value }))}
             />
             <OwnerNote key={item.asset_id} caseId={caseId} item={item} flushRef={flushNote} />

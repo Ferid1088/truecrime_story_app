@@ -117,11 +117,21 @@ from app.main import app  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _no_second_look(monkeypatch):
-    """The fake models of the tests answer each request once; the second look (config second_look) has its own tests."""
+def _pack_cache_in_a_temp_folder(monkeypatch, tmp_path):
+    """A finished creative pack is cached on disk (config creative_pack.cache_dir): a test's packs go to its own temp folder, never to the application's data."""
+    from app.core.ai_config import ai_config
+    from app.shortform import pack
+
+    monkeypatch.setattr(ai_config.creative_pack, "cache_dir", "pack_cache")
+    monkeypatch.setattr(pack, "ROOT", tmp_path)
+
+
+@pytest.fixture(autouse=True)
+def _no_text_review(monkeypatch):
+    """The owner's review of Persian titles and cover texts (config covers.text_review_languages) is off in the other tests: they make covers without it. Its own tests switch it on."""
     from app.core.ai_config import ai_config
 
-    monkeypatch.setattr(ai_config.second_look, "agents", [])
+    monkeypatch.setattr(ai_config.covers_settings(), "text_review_languages", [])
 
 
 @pytest.fixture(autouse=True)

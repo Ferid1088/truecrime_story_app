@@ -13,6 +13,7 @@ Tell the case itself. Do not narrate an act, beat, scene assignment, editing dec
 The master supplies the content; this stage improves how the story is told. It does not reopen research or add a new evidence-review essay. Use the master to preserve the meaning of retained facts, quotations, attributions and consequential disagreements, and to correct drift in the last version. Optional material need not be restored merely because it appears in the master.
 
 HOW TO REVISE
+Keep every hedge the last version carries ("apparently", "based on the evidence", "some sources say"). A hedge is not repetition: never delete or soften one to improve the flow, and never turn a hedged claim into a plain statement. If the last version states something plainly that the master hedges, return it to the master's wording.
 Apply a critique only through a change supported by the available story. If a requested fix would invent content, erase necessary uncertainty or violate a protected reveal, choose a faithful alternative. Severity alone does not make a reviewer's suggestion authoritative.
 Resolve every substantive high and medium item in context. Preserve effective passages, but do not treat uncriticized paragraphs as untouchable. You may delete, compress, merge and reshape passages when that improves the whole script, and you revise the surrounding transitions so edits do not sound inserted. Fix low items when they cost nothing.
 

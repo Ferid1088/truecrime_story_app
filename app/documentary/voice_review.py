@@ -85,3 +85,22 @@ def guard(version: StoryVersion, language: str) -> None:
         raise AwaitingVoiceReview(
             f"Awaiting voice review: the {language} narration is made ({link}).{held} Listen to it, approve it "
             f"(POST /api/documentary/versions/{version.id}/voice-review), then resume. Nothing else is planned or rendered before.")
+
+
+def guard_host_and_opening(db, version: StoryVersion, language: str) -> None:
+    """Stops the run (resumable) until the owner approved the host's voice and the film's opening of a language he hears first: the host's videos are not made
+    and nothing is rendered with a host or an opening he has not approved. A version that has no host voice or no opening yet has nothing to approve."""
+    from app.documentary.block_review import host_review as HR
+    from app.documentary.block_review import opening_review as OR
+
+    waiting = []
+    for label, module, parts in (("host voice", HR, HR.scenes_of), ("opening (hook)", OR, OR.parts_of)):
+        if not module.allowed(language) or not parts(db, version):
+            continue
+        review = module.current_review(db, version)
+        if review is None or review.status != "approved":
+            waiting.append(label)
+    if waiting:
+        raise AwaitingVoiceReview(
+            f"Awaiting your approval of the {language} {' and the '.join(waiting)}: open Farsi review, listen, correct if needed and approve "
+            "(changing anything afterwards reopens the review). The host's videos are not made and nothing is rendered before.")

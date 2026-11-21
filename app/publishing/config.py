@@ -318,6 +318,24 @@ class IntelligenceConfig(BaseModel):
     metadata_limits: dict[str, MetadataLimit]
 
 
+class FileNameConfig(BaseModel):
+    """The names of the files that are published (config/publishing.json: file_names): the full film's title words first (a Short's name always shows which film it belongs to), then the Short's own
+    title words, the kind and number, the channel and the language; words joined by `separator`, the whole name at most `max_bytes` bytes of UTF-8 (the Short's words are cut first)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    folder: str                                    # beside the clips: where the named copies are kept
+    separator: str = Field(min_length=1, max_length=1)
+    max_bytes: int = Field(ge=60, le=250)          # file systems take 255 bytes of UTF-8 per name: Persian letters are two bytes each
+    film_title_words: int = Field(ge=1)
+    short_title_words: int = Field(ge=1)
+    min_film_words: int = Field(ge=1)              # a long name is cut down to these many words of the film's title (the Short's words are cut first, down to `min_short_words`)
+    min_short_words: int = Field(ge=1)
+    include_channel: bool
+    ascii_fold_languages: list[str]                # languages written in the Latin alphabet: accents are folded (é becomes e); Persian and Arabic stay in their own letters
+    kind_words: dict[str, dict[str, str]]          # {"film" | "short": {language: the words that say what the file is}}
+
+
 class PublishingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -334,6 +352,7 @@ class PublishingConfig(BaseModel):
     plan: PlanConfig
     readiness: ReadinessConfig
     intelligence: IntelligenceConfig
+    file_names: FileNameConfig
 
     @model_validator(mode="after")
     def _consistent(self):

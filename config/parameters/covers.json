@@ -83,7 +83,7 @@
       }
     },
     "title": {
-      "min_words": 7,
+      "min_words": 8,
       "max_words": 18
     },
     "scene": {
@@ -455,7 +455,7 @@
         "gold": "#ffd23f"
       },
       "plate": {
-        "pose_role": "front"
+        "pose_roles": ["front", "stand", "standHand"]
       },
       "banner": {
         "labels": {
@@ -521,8 +521,8 @@
         },
         "feed": {
           "host": {
-            "face_width": 0.165,
-            "face_x": 0.66,
+            "face_width": 0.155,
+            "face_x": 0.64,
             "face_y": 0.56
           },
           "veil": {
@@ -565,8 +565,8 @@
         },
         "grid": {
           "host": {
-            "face_width": 0.185,
-            "face_x": 0.72,
+            "face_width": 0.155,
+            "face_x": 0.64,
             "face_y": 0.6
           },
           "veil": {
@@ -625,13 +625,13 @@
             "blur_full": 0.97
           },
           "logo": {
-            "x": 0.12,
-            "y": 0.06,
-            "height": 0.14
+            "x": 0.9,
+            "y": 0.05,
+            "height": 0.12
           },
           "title": {
             "x": 0.3,
-            "y": 0.3,
+            "y": 0.07,
             "width": 0.5,
             "size": 0.05,
             "max_lines": 3,
@@ -640,13 +640,13 @@
             "max_height": 0.4
           },
           "photo": {
-            "x": 0.04,
-            "y": 0.42,
-            "width": 0.22
+            "x": 0.05,
+            "y": 0.4,
+            "width": 0.17
           },
           "banner": {
             "x": 0.3,
-            "y": 0.8,
+            "y": 0.875,
             "height": 0.09,
             "size": 0.026
           }
@@ -686,14 +686,22 @@
           "by": "owner, standing instruction of 2026-11-19: every cover shows the photograph of the person it is about"
         },
         "grade": {
-          "tint": [214, 168, 112],
+          "tint": [
+            214,
+            168,
+            112
+          ],
           "tint_share": 0.42,
           "contrast_cutoff": 1
         },
         "tape": {
           "width": 0.42,
           "height": 0.16,
-          "colour": [224, 206, 160],
+          "colour": [
+            224,
+            206,
+            160
+          ],
           "opacity": 0.82
         }
       },
@@ -1057,7 +1065,20 @@
         "blur": 0.8
       },
       "safe_band_note": "Facebook's feed shows a Reel's 9:16 cover cut to about 4:5 (the top and bottom 15% go; seen on the Page 2026-11-17) and Instagram's grid may cut to 3:4 (unresolved, docs/platform_specs.md). Everything that matters stays inside this band of the reel cover.",
-      "film_note": "The full film's cover (16:9, one shape): host on the right, title and key phrase on the left; mirrored for right-to-left languages. YouTube: JPEG under max_bytes of covers.formats.long."
-    }
+      "film_note": "The full film's cover (16:9, one shape): host on the right, title and key phrase on the left; mirrored for right-to-left languages. YouTube: JPEG under max_bytes of covers.formats.long.",
+      "approval": {
+        "rights_acknowledgement_required": false,
+        "auto_approve_upload_shapes": true,
+        "upload_shapes": [
+          "reel",
+          "film"
+        ],
+        "note": "Owner decision 2026-11-20: no acknowledgement click is asked when a cover carries a photograph, and the app approves the shapes that get uploaded (the reel and the film) by itself as soon as it has rendered them without problems; the owner's own checkpoints are the texts (Persian) and the Publishing Plan."
+      }
+    },
+    "text_review_languages": [
+      "en",
+      "fa"
+    ]
   }
 }

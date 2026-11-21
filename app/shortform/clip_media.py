@@ -48,10 +48,10 @@ async def voice_clip(db: Session, row: ShortClip, renderer: VoiceRenderer | None
     script = json.loads(row.script_json)
     folder = clip_dir(row.case_id, row.language)
     voice = {}
-    for part in PARTS:
+    for part in (p for p in PARTS if script[p].strip()):          # a part with no words is not voiced
         voice[part] = await OM.voice_part(db, row.case_id, row.language, part, script[part], renderer, folder=folder, block_id=block_id(row.clip_key, part), tempo=OB.post_speed_for(row.language))
     media = json.loads(row.media_json or "{}")
-    if stale := OM.stale_voices({p: script[p] for p in PARTS}, voice):
+    if stale := OM.stale_voices({p: script[p] for p in PARTS if script[p].strip()}, voice):
         raise OM.OpeningMediaError(f"the voice of {', '.join(stale)} was not made from the clip's text")
     media["voice"] = voice
     media["voice_seconds"] = round(sum(v["seconds"] for v in voice.values()), 3)
@@ -121,9 +121,10 @@ async def make_video(db: Session, case: Case, row: ShortClip, *, renderer: Voice
     media = await voice_clip(db, row, renderer)
     voices = media["voice"]
     folder = clip_dir(row.case_id, row.language)
-    plan = CV.plan_timeline({p: voices[p]["seconds"] for p in CV.ORDER}, cfg)
+    plan = CV.plan_timeline({p: (voices.get(p) or {}).get("seconds", 0.0) for p in CV.ORDER}, cfg)
+    closing = [storage.resolve(voices[p]["path"]) for p in ("reaction", "cta") if voices.get(p)]
     audio = {"hook": storage.resolve(voices["hook"]["path"]),
-             "reaction": _join_audio([storage.resolve(voices["reaction"]["path"]), storage.resolve(voices["cta"]["path"])], cfg.gap_seconds, folder / f"voice_{row.clip_key}_reaction_cta.mp3")}
+             "reaction": closing[0] if len(closing) == 1 else _join_audio(closing, cfg.gap_seconds, folder / f"voice_{row.clip_key}_reaction_cta.mp3")}
     if avatar_provider is None:
         from app.documentary import studio as ST
         from app.providers.avatar import get_avatar_provider
@@ -163,11 +164,11 @@ async def _assemble_video(db: Session, row: ShortClip, media: dict, plan, avatar
         CV.caption_image(chunk["text"], row.language, image, cfg)
         captions.append((image, chunk))
     out = folder / f"clip_{row.clip_key}.mp4"
-    command = CV.assemble_command(plan, voices={p: storage.resolve(voices[p]["path"]) for p in CV.ORDER}, avatars=avatars, crops=crops, pictures=[p["path"] for p in pictures],
+    command = CV.assemble_command(plan, voices={p: storage.resolve(voices[p]["path"]) for p in CV.ORDER if p in voices}, avatars=avatars, crops=crops, pictures=[p["path"] for p in pictures],
                                   captions=captions, music=storage.resolve(music["path"]), out=out, cfg=cfg)
     await asyncio.to_thread(CV.assemble, command)
     media["video"] = {"path": storage.rel(out), "seconds": plan.total, "size": [cfg.width, cfg.height], "bytes": out.stat().st_size, "pictures": [{k: p[k] for k in ("code", "what")} for p in pictures],
-                      "music": music, "captions": len(captions), "plan": {"starts": plan.starts, "segments": plan.segments}, "platform_check": await asyncio.to_thread(_platform_check, out)}
+                      "music": music, "captions": len(captions), "plan": {"starts": plan.starts, "segments": plan.segments, "music": [plan.music_start, plan.music_end]}, "platform_check": await asyncio.to_thread(_platform_check, out)}
     row.media_json = json.dumps(media, ensure_ascii=False)
     db.commit()
     return media["video"]
@@ -189,7 +190,7 @@ async def reassemble(db: Session, row: ShortClip, *, keep_previous: bool = True)
     if not voices or not all(p in kept for p in ("hook", "reaction")) or not old.get("pictures") or not (old.get("music") or {}).get("path"):
         raise NotRebuildable(f"{row.language} {row.clip_key} has no complete voice, avatar videos, pictures and music to build from")
     folder = clip_dir(row.case_id, row.language)
-    plan = CV.plan_timeline({p: voices[p]["seconds"] for p in CV.ORDER}, cfg)
+    plan = CV.plan_timeline({p: (voices.get(p) or {}).get("seconds", 0.0) for p in CV.ORDER}, cfg)
     avatars, crops = {}, {}
     for part in ("hook", "reaction"):
         avatars[part] = storage.resolve(kept[part]["path"])

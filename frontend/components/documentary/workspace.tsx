@@ -28,6 +28,8 @@ import { CoversTab } from "./tabs/covers";
 import { ShortClipsAndCoversTab } from "./tabs/short-clips-and-covers";
 import { VoicePerformanceTab } from "./tabs/voice-performance";
 import { HostTab } from "./tabs/host";
+import { PhotosTab } from "./tabs/photos";
+import { TextsTab } from "./tabs/texts";
 import { OpeningTab } from "./tabs/opening";
 import { TagsTab } from "./tabs/tags";
 import { ChaptersTab } from "./tabs/chapters";
@@ -55,6 +57,8 @@ const TABS = [
   "Farsi review",
   "Voice",
   "Host",
+  "Photos",
+  "Texts",
   "Opening",
   "Tags",
   "Chapters",
@@ -227,6 +231,8 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
         {tab === "Film cover" && <CoversTab {...languageProps} which="film" />}
         {tab === "Voice" && <VoiceTab {...languageProps} />}
         {tab === "Host" && <HostTab {...languageProps} />}
+        {tab === "Photos" && <PhotosTab {...languageProps} />}
+        {tab === "Texts" && <TextsTab {...languageProps} />}
         {tab === "Opening" && <OpeningTab {...languageProps} />}
         {tab === "Tags" && <TagsTab {...languageProps} />}
         {tab === "Chapters" && <ChaptersTab {...languageProps} />}

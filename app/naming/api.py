@@ -90,6 +90,7 @@ def naming_state(db: Session, case: Case) -> dict:
         "editorial_concept": family.editorial_concept if family else None,
         "provenance": T.resolution_provenance(db, case),
         "externally_verified": False,
+        "candidates_per_language": ai_config.case_naming.candidates_per_language,
         "corpus": get_corpus(db).counts(), "languages": langs,
     }
 
@@ -164,7 +165,7 @@ async def generate_naming(case_id: int, req: GenerateRequest | None = None,
     job = background_jobs.create_job(
         db, case_id=case.id, kind="naming_generate",
         input_data={"languages": list(req.languages) if req and req.languages else None},
-        timeout_seconds=20,
+        timeout_seconds=ai_config.case_naming.job_timeout_seconds,
     )
     background_jobs.launch(job.id)
     return {"job_id": job.id, "status": job.status}

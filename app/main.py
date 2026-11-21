@@ -115,6 +115,7 @@ from app.documentary.block_review.host_api import router as host_voice_review_ro
 from app.documentary.block_review.clip_api import router as clip_voice_review_router  # noqa: E402
 from app.documentary.block_review.opening_api import router as opening_voice_review_router  # noqa: E402
 from app.covers.api import router as covers_router  # noqa: E402
+from app.covers.text_api import router as cover_texts_router  # noqa: E402
 from app.covers.variants_api import router as cover_variants_router  # noqa: E402
 from app.tags.api import router as tags_router  # noqa: E402
 from app.documentary.youtube_chapters_api import router as youtube_chapters_router  # noqa: E402
@@ -169,6 +170,7 @@ for _router in (
     clip_voice_review_router,
     covers_router,
     cover_variants_router,
+    cover_texts_router,
     tags_router,
     youtube_chapters_router,
     youtube_description_router,

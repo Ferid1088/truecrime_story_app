@@ -82,7 +82,8 @@ _LATIN_MARKS = {"de": (re.compile(r"[äöüß]"), 2), "es": (re.compile(r"[ñ¿�
                 "tr": (re.compile(r"[ğışİ]"), 2), "fr": (re.compile(r"œ"), 2)}
 _LATIN_STOPS = {"en": _EN_STOP, "de": _DE_STOP, "es": _ES_STOP, "it": _IT_STOP, "fr": _FR_STOP, "pt": _PT_STOP, "tr": _TR_STOP}
 
-_WORD = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+|[؀-ۿݐ-ࣿ]+")
+_LATIN_LETTERS = "A-Za-zÀ-ÖØ-öø-ÿĀ-ſ"       # Latin-1 and Latin Extended-A: Turkish ğ ı ş İ must not split a word
+_WORD = re.compile(rf"[{_LATIN_LETTERS}]+|[؀-ۿݐ-ࣿ]+")
 
 
 def primary_language(code: str | None) -> str | None:
@@ -108,7 +109,7 @@ def detect_language(text: str, min_chars: int = 80) -> tuple[str | None, float]:
     if not words:
         return None, 0.0
     arabic_words = [w for w in words if _ARABIC_CHAR.search(w)]
-    latin_words = [w for w in words if re.match(r"^[A-Za-zÀ-ÖØ-öø-ÿ]+$", w)]
+    latin_words = [w for w in words if re.match(rf"^[{_LATIN_LETTERS}]+$", w)]
     total = len(words)
     if len(sample) < min_chars or total < 15:
         return None, 0.0

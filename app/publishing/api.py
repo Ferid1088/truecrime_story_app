@@ -19,6 +19,7 @@ router = APIRouter(tags=["publishing"])
 class PlanBody(BaseModel):
     start_date: date | None = None
     reset_schedule: bool = False
+    revise: list[str] = []                     # Short keys that are already published and have a new clip: each gets a new publication (the next revision)
 
 
 class EditBody(BaseModel):
@@ -69,26 +70,51 @@ def make_plan(case_id: int, language: str, body: PlanBody, db: Session = Depends
     _case(db, case_id)
     registry = PublicationRegistry(db)
     try:
-        registry.plan(case_id, language, start_date=body.start_date, reset_schedule=body.reset_schedule)
+        registry.plan(case_id, language, start_date=body.start_date, reset_schedule=body.reset_schedule, revise=frozenset(body.revise))
     except PublishingRefused as exc:
         raise _refuse(exc) from exc
     return registry.snapshot(case_id, language)
 
 
+class HookTitlesBody(BaseModel):
+    clip_keys: list[str]
+    apply: bool = False                        # write each winner into its Short (a reviewed language still waits for the owner's release)
+
+
+@router.post("/api/cases/{case_id}/publishing/{language}/hook-titles")
+async def hook_titles(case_id: int, language: str, body: HookTitlesBody, db: Session = Depends(get_db)):
+    """Hook titles for the given Shorts, written to the title standard: three candidates, a winner and a backup each (one GPT-6 request per Short, booked to the case)."""
+    from app.covers import text_gate as TG
+    from app.providers.generation import get_generation_provider
+    from app.publishing import hook_titles as HT
+
+    case, out = _case(db, case_id), {}
+    for key in body.clip_keys:
+        try:
+            out[key] = await HT.write(get_generation_provider(), db, case, language, key)
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if body.apply:
+            TG.edit(db, case, language, "short_title", key, out[key]["candidates"][out[key]["winner"]]["title"])
+    return {"language": language, "applied": body.apply, "titles": out}
+
+
 @router.post("/api/cases/{case_id}/publishing/{language}/prepare-files")
 def prepare_files(case_id: int, language: str, db: Session = Depends(get_db)):
     """Make the delivery copy of every Short of the language, each opening with its approved reel cover (the same for every language; nothing is made twice), then plan again so the
-    publications send those files. Uploads and publishes nothing."""
+    publications send those files. Every published file also gets a named copy (the film's title words, the Short's, what it is, the channel and the language: publishing/filenames.py). Uploads and
+    publishes nothing."""
+    from app.publishing import filenames
     from app.shortform.delivery import prepare_shorts
 
-    _case(db, case_id)
+    case = _case(db, case_id)
     registry = PublicationRegistry(db)
     try:
         files = prepare_shorts(db, case_id, language)
         registry.plan(case_id, language)
     except PublishingRefused as exc:
         raise _refuse(exc) from exc
-    return {"files": files, **registry.snapshot(case_id, language)}
+    return {"files": files, "named_files": filenames.name_all(db, case, language, registry), **registry.snapshot(case_id, language)}
 
 
 def _act(db: Session, publication_id: int, action: str):

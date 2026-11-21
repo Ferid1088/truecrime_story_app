@@ -100,6 +100,9 @@ async def paint(db: Session, case: Case, language: str, key: str, proposal_id: i
 
 async def make_image(db: Session, case: Case, language: str, row: CoverProposal, provider: APIMasterImageProvider | None = None, *, again: bool = False) -> CoverImage:
     """The scene picture of a cover row: the one it has (unless `again`), else a new one. Raises ImageProviderError when every attempt failed."""
+    from app.covers import text_gate as TG
+
+    TG.guard_cover(db, case, language)               # a language whose texts the owner reviews gets no picture, preview or approved cover before he released them
     cfg = ai_config.covers_settings().scene_image
     if row.image_id and not again:
         return db.get(CoverImage, row.image_id)

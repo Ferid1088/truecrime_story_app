@@ -89,7 +89,7 @@ class CoverPlanner:
         earlier = P.current(db, case.id, language)
         rows = []
         for key in keys:
-            item = by_key.get(key) or {"key": key, "title": "", "scene": "", "confidence": None, "reason": "", "alt_title": ""}
+            item = by_key.get(key) or {"key": key, "title": "", "scene": "", "confidence": None, "reason": ""}
             issues = problems.get(key, []) + problems.get("_set", [])
             status = P.status_of(item, issues)
             pick = (options or {}).get(item.get("title_pick") or "") if key == "long" else None
@@ -97,7 +97,7 @@ class CoverPlanner:
             rows.append(CoverProposal(
                 case_id=case.id, language=language, cover_key=key, kind="long" if key == "long" else "short", version=(earlier[key].version + 1) if key in earlier else 1,
                 source="agent", status=status, title=item["title"], scene_prompt=item["scene"], confidence=item["confidence"] if item["scene"] else None, reason=item["reason"],
-                validation_json=json.dumps({"issues": issues, "repair_iterations": repairs, "alt_title": item["alt_title"] or None, "format": "16:9" if key == "long" else "9:16", **pairing},
+                validation_json=json.dumps({"issues": issues, "repair_iterations": repairs, "format": "16:9" if key == "long" else "9:16", **pairing},
                                            ensure_ascii=False), generation_model=model))
         db.add_all(rows)
         db.commit()

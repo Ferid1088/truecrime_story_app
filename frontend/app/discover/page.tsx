@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Compass, Globe, History, MapPin, Sparkles, Users } from "lucide-react";
+import { CalendarDays, Compass, Globe, History, MapPin, Search, Sparkles, Users } from "lucide-react";
 import { ApiError, api, duplicateConflict, pollResearchJob } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type {
@@ -76,6 +76,9 @@ export default function DiscoverPage() {
   const [error, setError] = useState<string | null>(null);
   const [noCandidatesReason, setNoCandidatesReason] = useState<string | null>(null);
   const [busy, setBusy] = useState<{ id: number; force: boolean } | null>(null);
+  const [searchText, setSearchText] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchNote, setSearchNote] = useState<string | null>(null);
   const pollAbort = useRef<AbortController | null>(null);
 
   // Suggestions of earlier runs nobody acted on yet (offered, not shown by default).
@@ -255,6 +258,31 @@ export default function DiscoverPage() {
     }
   }
 
+  async function searchFound() {
+    if (!searchText.trim()) return;
+    setSearching(true);
+    try {
+      const found = await api.searchDiscovered(searchText.trim());
+      setCandidates(found.results);
+      setRejected([]);
+      setStats(null);
+      setSkippedDupes(null);
+      setFromHistory(false);
+      setIgnored(new Set());
+      setConflicts({});
+      setError(null);
+      setSearchNote(
+        `${found.results.length} suggestion${found.results.length === 1 ? "" : "s"} for "${found.query}" — matched by ${
+          found.mode === "lexical+semantic" ? "words and meaning" : "words only (no embedding model configured)"
+        }, best first.`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSearching(false);
+    }
+  }
+
   function showHistory() {
     setCandidates(openHistory);
     setRejected([]);
@@ -301,6 +329,24 @@ export default function DiscoverPage() {
         title="Find New Cases"
         description="Discover cases nobody has covered yet — each suggestion says why, with status evidence and legal-risk cautions."
       />
+
+      <Card className="mb-6">
+        <CardContent className="flex flex-wrap items-center gap-3">
+          <Input
+            className="min-w-64 flex-1"
+            value={searchText}
+            placeholder="Search the suggestions found so far: words or a description (any language)"
+            aria-label="Search found cases"
+            onChange={(e) => setSearchText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void searchFound(); }}
+          />
+          <Button variant="outline" onClick={searchFound} loading={searching} disabled={!searchText.trim()}>
+            <Search className="size-4" />
+            Search
+          </Button>
+          {searchNote && <p className="w-full text-xs text-muted-foreground" data-testid="discovery-search-note">{searchNote}</p>}
+        </CardContent>
+      </Card>
 
       <Card className="mb-6">
         <CardContent className="space-y-4">

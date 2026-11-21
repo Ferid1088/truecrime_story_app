@@ -119,6 +119,20 @@ def test_relying_on_unrevealed_evidence_is_flagged():
     assert "relies_on_unrevealed" in codes(rep["warnings"])
 
 
+def test_a_dependency_that_is_not_known_yet_is_dropped_so_every_later_stage_accepts_the_blueprint():
+    data = _good()
+    data["beats"][0]["relies_on"] = ["F003"]               # revealed only in B04
+    data["beats"][1]["relies_on"] = ["F001"]               # revealed in B01: a real dependency, kept
+    blueprint, rep = validate_blueprint(data, SECTIONS, PACK)
+    assert blueprint["beats"][0]["relies_on"] == []
+    assert blueprint["beats"][1]["relies_on"] == ["F001"]
+    assert [w for w in rep["warnings"] if w["code"] == "relies_on_unrevealed"][0]["dropped"] is True
+    first = {e: i for i, b in enumerate(blueprint["beats"]) for e in b["reveals"]}
+    for order, beat in enumerate(blueprint["beats"]):
+        for dependency in beat["relies_on"]:
+            assert dependency in beat["viewer_knows"] and first[dependency] < order
+
+
 def test_listener_load_warnings():
     data = _good()
     data["questions"] += [{"id": f"Q{i}", "question": "?"} for i in range(3, 6)]

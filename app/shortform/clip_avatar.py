@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.db.models import HostLook, HostScene
+from app.db.models import HostLook, HostScene, ShortClip
 from app.documentary import outfits as OF
 from app.documentary import storage
 from app.documentary import studio as ST
@@ -25,12 +26,27 @@ class NoFilmLook(RuntimeError):
     pass
 
 
+def earlier_clip_look(db: Session, case_id: int, language: str) -> tuple[str, str] | None:
+    """(HeyGen look id, studio asset id) the language's earlier clips were made with, when the film has no host scene to take them from: the look recorded in the newest clip that has an avatar video, in
+    the language's studio (its first asset). An approved look only."""
+    for row in db.query(ShortClip).filter(ShortClip.case_id == case_id, ShortClip.language == language).order_by(ShortClip.id.desc()):
+        look_id = (((json.loads(row.media_json or "{}").get("avatars") or {}).get("hook") or {}).get("look_id"))
+        approved = look_id and db.query(HostLook).filter_by(heygen_look_id=look_id, status="approved").first()
+        studio = ST.load_registry().assets_of(language)
+        if approved and studio:
+            return look_id, studio[0].id
+    return None
+
+
 def film_look(db: Session, case_id: int, language: str) -> tuple[str, str]:
-    """(HeyGen look id, studio asset id) of the language's film: the outfit of its first host scene with a video, in the closest framing that was uploaded and approved."""
+    """(HeyGen look id, studio asset id) of the language's film: the outfit of its first host scene with a video, in the closest framing that was uploaded and approved; without such a scene the look
+    the language's earlier clips were made with."""
     scene = (db.query(HostScene).filter(HostScene.case_id == case_id, HostScene.language == language, HostScene.avatar_video_path.isnot(None)).order_by(HostScene.id).first())
     outfit = OF.scene_outfit(db, scene) if scene is not None else None
     if scene is None or outfit is None:
-        raise NoFilmLook(f"the {language} film has no host scene with a video: its look is unknown")
+        if (earlier := earlier_clip_look(db, case_id, language)) is not None:
+            return earlier
+        raise NoFilmLook(f"the {language} film has no host scene with a video and no earlier {language} clip has a look: its look is unknown")
     looks = db.query(HostLook).filter(HostLook.host_outfit_id == outfit.id, HostLook.status == "approved", HostLook.heygen_look_id.isnot(None)).all()
     for framing in ai_config.short_clips_settings().video.avatar_framing:
         for look in looks:

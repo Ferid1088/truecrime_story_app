@@ -334,13 +334,11 @@ def compose_set(language: str, title: str, plate: Path, logo: Path, *, highlight
             _text(canvas, (cx, y), line, font, language, colours["ink"], "ma", max(4, size // 14), outline, between=paint)
             y += line_h
         elements["title"] = [round(t["x"] * w - t["width"] * w / 2), round(t["y"] * h), round(t["width"] * w), y - round(t["y"] * h)]
-        # the person's photo, pinned to the wall behind the host (only a cleared one): the host stands in front of its edge
+        # the person's photo (only a cleared one) is the top layer: above the plate, the host and everything else, so nothing, whatever the outfit's cutout holds, ever covers it
         if photo is not None:
             sheet = _photo(photo, round(lay["photo"]["width"] * w), f"{seed}-photo")
             px, py = round(lay["photo"]["x"] * w), round(lay["photo"]["y"] * h)
-            wall = canvas.copy()
             canvas.alpha_composite(sheet, (px, py))
-            canvas = Image.composite(wall, canvas, host_alpha.point(lambda v: 255 if v > 150 else 0).filter(ImageFilter.GaussianBlur(2)))          # the host's own outline, not the soft glow round him
             elements["photo"] = [px, py, sheet.width, sheet.height]
         # the banner: "real case: name"
         if subject:
@@ -369,9 +367,27 @@ def compose_set(language: str, title: str, plate: Path, logo: Path, *, highlight
             elements["banner"] = [bx, by, band.width, band.height]
         image = canvas.convert("RGB")
         out[name] = {"image": image, "elements": elements, "problems": problems_of(image, elements, (w, h), lay), "metrics": metrics_of(image, elements, lay)}
+        if cut := host_cut_by_edge(host_alpha, lay["host"], (w, h)):
+            out[name]["problems"].append(f"the host's {cut} is cut by the edge of the cover")
         if out[name]["metrics"]["host_sharpness"] < cfg["min_sharpness"]:
             out[name]["problems"].append(f"the host is too soft (sharpness {out[name]['metrics']['host_sharpness']}, at least {cfg['min_sharpness']})")
     return out
+
+
+def host_cut_by_edge(host_alpha: Image.Image, host: dict, size: tuple[int, int]) -> str | None:
+    """"left shoulder" or "right shoulder" when the host's body (his mask) reaches the left or right edge of the cover at the height of his shoulders, so a layout that pushes a
+    standing host against the side shows it; the bottom edge always cuts a standing host and is fine."""
+    w, h = size
+    mask = np.asarray(host_alpha.convert("L"))
+    face_w = host["face_width"] * w
+    top, bottom = round(host["face_y"] * h + face_w * 0.8), min(h, round(host["face_y"] * h + face_w * 1.4))
+    band = mask[max(0, top):max(1, bottom)]
+    if not band.size:
+        return None
+    for side, columns in (("left shoulder", band[:, :2]), ("right shoulder", band[:, -2:])):
+        if (columns > 128).any():
+            return side
+    return None
 
 
 def title_contrast(box: Image.Image) -> float:

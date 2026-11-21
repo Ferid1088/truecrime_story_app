@@ -5,6 +5,7 @@
       "pmtiles_source": "https://build.protomaps.com/{build}.pmtiles",
       "build": "latest",
       "build_search_days": 10,
+      "user_agent": "truecrime-story-app zoom-map",
       "bbox_margin_km": 30.0,
       "min_zoom": 0,
       "max_zoom": 15,

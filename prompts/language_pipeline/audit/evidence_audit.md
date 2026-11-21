@@ -33,13 +33,13 @@ Low: a minor imprecision.
 Judge by consequence for the listener's understanding. Consolidate duplicate findings: group repeated instances of the same error in one item and list the acts. Report the findings that matter most first.
 
 USEFUL FINDINGS
-For each item quote the exact wording from the script, state the claim in one sentence, cite the evidence ids that bear on it (an empty list if there is none), state in one sentence what the supplied material actually says or that it is silent, and give the smallest effective correction that uses only the supplied material: correct the wording, restore a necessary attribution, narrow an overstatement, or "remove" when nothing supports the passage. Never replace an unsupported claim with another speculative claim. If a claim is supported, say nothing about it. If nothing is wrong, return an empty items list.
+For each item quote the exact wording from the script, state the claim in one sentence, cite the evidence ids that bear on it (an empty list if there is none), state in one sentence what the supplied material actually says or that it is silent, and give the smallest effective correction that uses only the supplied material: correct the wording, restore a necessary attribution, narrow an overstatement, or rebuild the passage from what the material does give (verified actions, context, contrasts, consequences); suggest "remove" only when no part of the passage is supported and nothing can take its place. Never replace an unsupported claim with another speculative claim. If a claim is supported, say nothing about it. If nothing is wrong, return an empty items list.
 Report at most {max_items} items per call, most severe first, and say in the summary whether more may exist.
 
 OUTPUT: JSON only.
 {{"verdict":"pass","items":[],"summary":"One or two sentences: what you checked and the most important finding, if any."}}
 
 Item shape:
-{{"id":1,"severity":"high","kind":"wrong_detail","act":"act_id","quote":"exact wording from the script","claim":"What the script asserts.","evidence_ids":[12,40],"evidence":"What the supplied material says.","problem":"How the script differs.","correction":"Minimal correction using only the supplied material, or remove."}}
+{{"id":1,"severity":"high","kind":"wrong_detail","act":"act_id","quote":"exact wording from the script","claim":"What the script asserts.","evidence_ids":[12,40],"evidence":"What the supplied material says.","problem":"How the script differs.","correction":"Minimal correction using only the supplied material (a repair that keeps the story), or remove as a last resort."}}
 
 Verdict is "issues" if any item exists, otherwise "pass". A pass means only that you found no unsupported claim in the material you were given, not that the script is correct.

@@ -78,6 +78,7 @@ from app.db.models import (
 )
 from app.documentary.audio_director import latest_audio_plan
 from app.documentary.blueprint import latest_blueprint
+from app.documentary.spoken_turns import spoken_turn
 from app.utils import ensure_utc, utc_now
 
 log = logging.getLogger(__name__)
@@ -446,9 +447,10 @@ class DocumentaryPipeline(StageRunner):
                 async def produce(feedback):
                     nonlocal current
                     if current is None or feedback["reasons"]:
-                        current = await get_stage_agent("spoken").create(
-                            db, case, master, lang, beat_ids=set(focus_beats or []),
-                            pilot_seconds=pilot_seconds if pilot else None)
+                        async with spoken_turn(case.id, lang):
+                            current = await get_stage_agent("spoken").create(
+                                db, case, master, lang, beat_ids=set(focus_beats or []),
+                                pilot_seconds=pilot_seconds if pilot else None)
                     return current
 
                 async def audit(version):
@@ -461,18 +463,22 @@ class DocumentaryPipeline(StageRunner):
                             "reasons": failures, "failed_item_ids": [lang]}
 
                 outcome = await RetryAuditPolicy(db, case_id=case.id, language=lang).run_with_audit(
-                    produce, audit, ai_config.documentary.max_redos,
+                    produce, audit, ai_config.spoken.max_redos,
                     ai_config.production_policies.retry_policy.spoken_versions,
                     stage="spoken_versions")
-                if outcome.status != "approved":
+                if outcome.status not in ("approved", "degraded"):
                     raise SpokenRejected(
                         f"spoken version not approved after {outcome.attempts - 1} redo(s): "
                         + ", ".join(map(str, outcome.reasons)))
                 v = current
                 gates = json.loads(v.critic_notes or "{}").get("quality_gates") or {}
-                return {"version_id": v.id, "status": v.status, "verdict": "approved",
-                        "redos": len(history), "rejected_before": history,
-                        "failures": gates.get("failures", [])}
+                result = {"version_id": v.id, "status": v.status,
+                          "verdict": "approved" if outcome.status == "approved" else "degraded",
+                          "redos": len(history), "rejected_before": history,
+                          "failures": gates.get("failures", [])}
+                if outcome.status == "degraded":      # written once, as configured: the version goes on with its open findings on record
+                    result["degraded"] = "the spoken version has open findings: " + ", ".join(map(str, outcome.reasons))
+                return result
 
             try:
                 d = await self._stage(f"spoken:{lang}", make_spoken)

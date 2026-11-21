@@ -1,9 +1,10 @@
-"""A scripted model for the creative pack, shared by the tests: it answers the ONE request of the whole pack with a valid pack for every language (`damage` changes its first answer) and
-`make_clips` stores such a pack the way the application does."""
+"""A scripted model for the creative pack, shared by the tests: GPT-6 answers its ONE request with a pack for every language it is given, GPT-Luna answers its ONE request with the same pack
+rewritten. `make_clips` stores such a pack the way the application does. No real model is ever called."""
 
 import asyncio
 import json
 
+from app.providers.generation.base import GenerationError, GenerationResult
 from app.shortform import pack as PK
 
 FILL = {"fa": "در خانه شب سایه نامه همسایه تلفن آشپزخانه گزارش پنجره خیابان خانواده ساعت لحظه دفتر راه باغ".split(),
@@ -16,44 +17,62 @@ def filler(code: str, n: int, seed: int = 0) -> str:
     return " ".join(words[(seed + i) % len(words)] for i in range(n))
 
 
-def good_language(code: str, limits: dict, slots: list[dict], fact_ids: list[str]) -> dict:
-    words = limits["words"]
-    mid = lambda part: (words[part][0] + words[part][1]) // 2          # noqa: E731
-    title_n, cover_n = limits["title_words"][0] + 1, limits["cover_words"][0] + 1
-    question = "؟" if code in ("fa", "ar") else "?"
-    shorts = []
-    for i, slot in enumerate(slots):
-        shorts.append({"clip_key": slot["clip_key"], "angle": slot["angle"], "idea": f"idea {i}", "hook": filler(code, mid("hook"), i), "context": filler(code, mid("context"), i + 1),
-                       "detail": filler(code, mid("detail"), i + 2), "reaction": filler(code, mid("reaction") - 3, i + 3) + question, "cta": filler(code, 2, i),
-                       "title_candidates": [filler(code, title_n, k) for k in range(3)], "title": filler(code, title_n, i), "title_backup": filler(code, title_n, i + 5),
-                       "cover_candidates": [filler(code, cover_n, k) for k in range(3)], "cover_text": filler(code, cover_n, i), "cover_backup": filler(code, cover_n, i + 4), "cover_alternative": filler(code, cover_n, i + 6),
-                       "evidence_ids": [fact_ids[i % len(fact_ids)]], "tease_question": "why?"})
-    film = {"title_candidates": [filler(code, title_n, k) for k in range(3)], "title": filler(code, title_n), "title_backup": filler(code, title_n, 3), "cover_candidates": [filler(code, cover_n, k) for k in range(3)],
-            "cover_text": filler(code, cover_n), "cover_backup": filler(code, cover_n, 2), "hook": filler(code, 8), "hook_justification": "F: the call"}
-    return {"film": film, "shorts": shorts}
+def gpt6_answer(request: dict) -> dict:
+    """What GPT-6 returns: five anchors, the situations, a summary, speculations and, for every language it was given, the film's title and cover and five Shorts (a hook, a story and an avatar line,
+    ONE title and ONE cover text each)."""
+    keys = request["clip_keys"]
+    languages = {}
+    for code in request["languages"]:
+        languages[code] = {"film": {"title": filler(code, 9), "cover_text": filler(code, 8, 2)},
+                           "shorts": [{"clip_key": k, "hook": filler(code, 5, i) + ".", "story": filler(code, 14 + i, i + 2) + ". " + filler(code, 6, i + 5) + ".", "avatar": filler(code, 5, i + 7) + "?",
+                                       "title": filler(code, 9, i + 1), "cover_text": filler(code, 8 + i % 3, i + 3)} for i, k in enumerate(keys)]}
+    return {"anchors": [{"clip_key": k, "anchor": f"plain summary {i} of what happened and who said it"} for i, k in enumerate(keys)],
+            "situations": [{"theme": 1 + i % 7, "text": f"situation number {i} of the story, plainly told"} for i in range(request["situation_count"])],
+            "speculations": [{"theme": 1 + i % 7, "text": f"a bold unproven what if number {i}"} for i in range(request["speculation_count"])], "summary": "a plain summary of the whole story", "languages": languages}
 
 
 class PackGen:
-    """A scripted model that answers the one request of the whole pack; `damage` changes its first answer, `second` is what it answers to the repair."""
+    """The two creative models. `damage(pack)` changes GPT-6's answer, `polish(languages)` changes what Luna returns (default: every text gets one more lower-case word), `luna` can be "fail" (a
+    GenerationError), "words" (an answer without JSON) or "off"."""
 
-    def __init__(self, damage=None, junk=False):
-        self.calls, self.damage, self.junk = [], damage, junk
+    def __init__(self, damage=None, polish=None, luna="ok", cost=0.02):
+        self.calls, self.damage, self.polish, self.luna, self.cost = [], damage, polish, luna, cost
+
+    def is_configured(self):
+        return True
+
+    def called(self, role: str) -> list:
+        return [data for r, data in self.calls if r == role]
+
+    def _result(self, role: str, text: str = "{}") -> GenerationResult:
+        return GenerationResult(text=text, model=f"fake/{role}", provider="fake", input_tokens=1000, output_tokens=500, total_tokens=1500, cost_usd=self.cost)
 
     async def generate_structured(self, role, system, user, images=None):
         data = json.loads(user)
         self.calls.append((role, data))
-        if self.junk:
-            return {"languages": "nonsense", "scouting": [1, 2, 3]}, None
-        fact_ids = [f["id"] for f in data["facts"]] or ["F001"]
-        concepts = [{"concept": f"concept {i}", "category": "Desire, affairs and murder", "angle": "question", "act_ids": ["act1"], "evidence_ids": [fact_ids[i % len(fact_ids)]], "proof": "quote",
-                     "status": "testimony", "risk": "none", "scores": {"emotional_intensity": 9 - i * 0.3, "specificity_originality": 8, "question_strength": 8, "case_connection": 8, "reliability": 8}}
-                    for i in range(data["minimum_concepts"])]
-        pack = {"scouting": {"concepts": concepts, "chosen": [{"clip_key": s["clip_key"], "index": i, "why": "strongest"} for i, s in enumerate(data["slots"])], "runner_ups": [5, 6]},
-                "languages": {code: good_language(code, limits, data["slots"], fact_ids) for code, limits in data["languages"].items()},
-                "checks": {"first": "facts and rules checked", "second": "strength and consistency checked"}, "flags": []}
-        if self.damage and "problems_to_fix" not in data:
+        assert role == "creative_pack", role
+        pack = gpt6_answer(data)
+        if self.damage:
             self.damage(pack)
-        return pack, None
+        return pack, self._result(role)
+
+    async def generate_text(self, role, system, user, images=None):
+        data = json.loads(user)
+        self.calls.append((role, data))
+        assert role == "creative_polisher", role
+        if self.luna == "fail":
+            raise GenerationError("provider", "the gateway gave an empty completion", provider="fake")
+        if self.luna == "words":
+            return self._result(role, "I rewrote everything, here it is: it was lovely.")
+        languages = {code: {"film": {k: f"{v} polished" for k, v in body["film"].items()},
+                            "shorts": [{**s, "hook": f"{s['hook'][:-1]} polished{s['hook'][-1]}", "story": f"{s['story']}", "avatar": f"{s['avatar'][:-1]} polished{s['avatar'][-1]}", "title": f"{s['title']} polished",
+                                        "cover_text": f"{s['cover_text']} polished"} for s in body["shorts"]]}
+                     for code, body in data["languages"].items()}
+        if self.polish:
+            self.polish(languages)
+        picks = [{"theme": 1 + i % 7, "text": f"an anonymous pick number {i}"} for i in range(data["pick_count"])]
+        speculations = [{"theme": 1 + i % 7, "text": f"a paranoid unproven theory number {i}"} for i in range(data["speculation_count"])]
+        return self._result(role, "Here is the final version:\n```json\n" + json.dumps({"picks": picks, "speculations": speculations, "languages": languages}, ensure_ascii=False) + "\n```")
 
 
 def make_clips(db, case, version, languages=None, keep_titles=False, **gen_kw):
@@ -63,7 +82,7 @@ def make_clips(db, case, version, languages=None, keep_titles=False, **gen_kw):
 
     gen = PackGen(**gen_kw)
     story = PK.story_of(db, case, version)
-    result = asyncio.run(PK.generate(gen, story, languages))
+    result = asyncio.run(PK.generate(gen, story, languages, case_key=f"test-{case.id}-{id(gen)}"))
     PK.store(db, case, version, result)
     if not keep_titles:
         db.query(CoverProposal).filter(CoverProposal.case_id == case.id).delete()

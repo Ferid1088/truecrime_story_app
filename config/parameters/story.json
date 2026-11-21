@@ -254,7 +254,8 @@
         ],
         "reviewers": [
           "spoken_meaning_checker",
-          "spoken_style_critic"
+          "spoken_style_critic",
+          "spoken_addition_inspector"
         ],
         "strict": true
       },
@@ -374,7 +375,18 @@
     ],
     "min_duration_ratio": 0.85,
     "max_duration_ratio": 1.3,
-    "max_repair_iterations": 20,
+    "max_repair_iterations": 1,
+    "max_repairs_per_beat": 2,
+    "max_redos": 0,
+    "text_order": ["en", "fa", "de"],
+    "text_order_wait_s": 1800,
+    "llm_checks": false,
+    "addition_inspector": true,
+    "anchor_languages": ["en", "es", "fr", "it", "pt", "tr"],
+    "max_missing_name_share": 0.25,
+    "max_style_problems": 2,
+    "beats_per_call": 6,
+    "write_beats_per_call": 6,
     "min_storyteller_share": 0.7,
     "max_sentence_words": {
       "en": 24,

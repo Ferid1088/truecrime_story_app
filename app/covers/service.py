@@ -85,11 +85,17 @@ def final_path(case_id: int, language: str, key: str) -> Path:
 
 
 def make_preview(db: Session, case: Case, language: str, row: CoverProposal) -> dict:
+    from app.covers import text_gate as TG
+
+    TG.guard_cover(db, case, language)
     return render_cover(db, case, language, row, preview_path(case.id, language, row), scale=ai_config.covers_settings().proposal["preview_scale"])
 
 
 def approve_cover(db: Session, case: Case, language: str, row: CoverProposal) -> dict:
     """Approves the cover as it is, made in its full size. Raises C.CoverError when it cannot be approved (no title or picture, no preview of this very version, or a problem in the drawing)."""
+    from app.covers import text_gate as TG
+
+    TG.guard_cover(db, case, language)
     if not row.title or row.image_id is None:
         raise C.CoverError("A cover needs a title and its scene picture before it can be approved")
     if not preview_path(case.id, language, row).exists():
@@ -109,6 +115,12 @@ def auto_approve(db: Session, case: Case, language: str) -> list[str]:
     by default, also those the planner was only moderately sure of (status `open` for its low confidence alone): the preview is made and the cover is drawn in full size, exactly as an
     approval by the owner does it (code only, nothing paid). A cover that cannot be drawn cleanly stays as it is. The owner can still change any of them; a changed cover is the owner's
     and waits for the owner's approval. Returns the keys approved now."""
+    from app.covers import text_gate as TG
+
+    try:
+        TG.guard(db, case, language)
+    except TG.TextsNotReleased:
+        return []                    # nothing is approved by itself while the owner has not released the language's texts
     if not ai_config.covers_settings().proposal.get("auto_approve"):
         return []
     approved = []

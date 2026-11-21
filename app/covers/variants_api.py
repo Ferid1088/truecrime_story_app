@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.files import serve as serve_file
 from app.covers import triptych as T
+from app.covers import photo_gate as PG
 from app.covers import variants as V
 from app.db.base import get_db
 from app.db.models import Case, CoverVariant
@@ -81,3 +82,28 @@ def image(variant_id: int, db: Session = Depends(get_db)):
     if path is None or not path.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
     return serve_file(path, "image/jpeg")
+
+
+class FinishBody(BaseModel):
+    approved_by: str = "owner"
+
+
+@router.get("/api/cases/{case_id}/cover-photos/finished")
+def cover_photos_status(case_id: int, db: Session = Depends(get_db)):
+    _case(db, case_id)
+    return PG.status(db, case_id)
+
+
+@router.post("/api/cases/{case_id}/cover-photos/finished")
+def cover_photos_finish(case_id: int, body: FinishBody, db: Session = Depends(get_db)):
+    """The owner is finished with the photographs for the covers: records it with the approved photographs and makes every cover with them (no paid call; new proposed versions only)."""
+    try:
+        return PG.finish(db, _case(db, case_id), body.approved_by)
+    except PG.PhotoGateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.delete("/api/cases/{case_id}/cover-photos/finished")
+def cover_photos_withdraw(case_id: int, db: Session = Depends(get_db)):
+    _case(db, case_id)
+    return PG.withdraw(db, case_id)

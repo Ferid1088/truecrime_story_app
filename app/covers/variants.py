@@ -84,6 +84,8 @@ def cleared(asset: VisualAsset) -> tuple[bool, str]:
     """Whether the photograph of the person a cover is about may be used: by its rights or editorial approval, else by the owner's standing instruction (config triptych.subject_photo), which
     is an editorial decision and no copyright permission."""
     ok, why = authorization(asset)
+    if not ok and asset.cover_photo and asset.rights_status not in ("permission_required", "do_not_use"):
+        return True, "chosen by the owner for the covers; rights status '" + str(asset.rights_status) + "': this is not copyright permission"
     standing = T.settings()["subject_photo"]["standing_approval"]
     if ok or not standing["enabled"] or asset.rights_status in ("permission_required", "do_not_use"):
         return ok, why
@@ -108,6 +110,17 @@ def subject_candidates(db: Session, case: Case, language: str) -> list[dict]:
     mentions: dict[str, int] = {}
     for row in rows:
         mentions[row.entity_key] = mentions.get(row.entity_key, 0) + 1
+    for asset in db.query(VisualAsset).filter(VisualAsset.case_id == case.id, VisualAsset.cover_photo.is_(True), VisualAsset.file_removed_at.is_(None)).order_by(VisualAsset.id):
+        key = asset.entity_key or next(iter(json.loads(asset.entities_json or "[]")), None)          # a photo the owner chose for the covers counts for its person even when the inspector never listed it
+        if key is None or not asset.local_path:
+            continue
+        person = people.setdefault(key, {"entity_key": key, "name": key.replace("_", " ").title(), "photos": []})
+        if all(p["asset_id"] != asset.id for p in person["photos"]):
+            ok, why = authorization(asset)
+            person["photos"].append({"asset_id": asset.id, "code": asset.asset_code, "authorized": ok, "why": why, "rights_status": asset.rights_status, "license": asset.license, "credit": asset.credit,
+                                     "source": asset.source_name or asset.page_url or asset.provider, "width": asset.width, "height": asset.height, "editorial_approved_by": asset.editorial_approved_by,
+                                     "image_url": f"/api/visuals/{asset.id}/file", "cover_photo": True})
+        mentions[key] = mentions.get(key, 0) + 100                # the owner's choice makes this person the one the covers show
     return sorted(people.values(), key=lambda p: (-mentions[p["entity_key"]], p["name"]))
 
 
@@ -150,11 +163,11 @@ def plate_for(db: Session, case_id: int, language: str, key: str) -> tuple[Path 
         outfit = OutfitRegistry().resolve(outfit_id)
     except KeyError:
         return None, None, f"The outfit {outfit_id} has no pictures in the outfit library."
-    role = T.settings()["plate"]["pose_role"]
-    pose = outfit.poses.get(role)
-    if pose is None:
-        return None, None, f"The outfit {outfit_id} has no {role!r} picture."
-    return pose.path, {**source, "outfit": outfit_id, "pose": role}, None
+    roles = T.settings()["plate"]["pose_roles"]          # the first the outfit has: a calm, front-facing standing picture (some outfits have no "front" one, only "stand")
+    role = next((r for r in roles if r in outfit.poses), None)
+    if role is None:
+        return None, None, f"The outfit {outfit_id} has none of the pictures {', '.join(roles)}."
+    return outfit.poses[role].path, {**source, "outfit": outfit_id, "pose": role}, None
 
 
 def banner_name(db: Session, case_id: int, language: str, latin: str) -> tuple[str, dict]:
@@ -188,6 +201,12 @@ def render(db: Session, case: Case, language: str, key: str, *, shapes: list[str
     """New versions (status proposed) of the chosen shapes (all three by default). The title is the cover's current one; the person is `subject_entity` (the most photographed when not given,
     "none" for no person; `subject_name` is how the banner writes the name, the person's name as the story holds it when not given); the photograph is `photo_asset_id`, else the first authorized one of that person, and none when nothing is authorized or `use_photo` is false. Approved versions are
     never touched."""
+    from app.covers import text_gate as TG
+
+    try:
+        TG.guard(db, case, language)                                    # a language whose texts the owner reviews gets no cover before he has released them
+    except TG.TextsNotReleased as exc:
+        raise VariantError("texts_not_released", str(exc)) from exc
     shapes = shapes or list(shapes_of(key))
     if bad := [s for s in shapes if s not in shapes_of(key)]:
         raise VariantError("unknown_shape", f"Unknown shape {bad[0]} for {key}: {', '.join(shapes_of(key))}.")
@@ -209,7 +228,8 @@ def render(db: Session, case: Case, language: str, key: str, *, shapes: list[str
         found = [db.get(VisualAsset, p["asset_id"]) for p in person["photos"] if photo_asset_id is None or p["asset_id"] == photo_asset_id]
         usable = [a for a in found if a is not None and cleared(a)[0]]
         solo = [a for a in usable if json.loads(a.entities_json or "[]") == [person["entity_key"]] and a.subject_type in ("person", "portrait_person")]        # the person alone, not in a group
-        photo = max(solo or usable, key=lambda a: (a.width or 0) * (a.height or 0)) if usable else None          # the sharpest, largest picture of the person
+        chosen_by_owner = [a for a in usable if a.cover_photo]                                                  # what the owner chose in the picture review is used first
+        photo = max(chosen_by_owner or solo or usable, key=lambda a: (a.width or 0) * (a.height or 0)) if usable else None          # the sharpest, largest picture of the person
     named, name_check = ((subject_name or "").strip(), {"source": "typed by the owner"}) if (subject_name or "").strip() else banner_name(db, case.id, language, person["name"]) if person else ("", {})
     chosen = (highlight or T.key_phrase(proposal.title, language)).strip()
     made = T.compose_set(language, proposal.title, plate, storage.ROOT / ai_config.channels[language].logo, highlight=chosen, subject=named if person else None, shapes=tuple(shapes),
@@ -232,6 +252,11 @@ def render(db: Session, case: Case, language: str, key: str, *, shapes: list[str
     for old in earlier:
         old.status = "superseded"                                          # an older proposal the new render replaces; an approved version is never touched
     db.commit()
+    rule = T.settings()["approval"]
+    if rule["auto_approve_upload_shapes"]:
+        for row in rows:
+            if row.shape in rule["upload_shapes"] and not json.loads(row.problems_json):
+                approve(db, row.id, actor="automatic")                     # the shapes that get uploaded are approved by the app itself when they have no problem
     return rows
 
 
@@ -255,7 +280,7 @@ def approve(db: Session, variant_id: int, *, actor: str = "owner", acknowledge_r
         ok, why = authorization(asset) if asset else (False, "the photograph is gone")
         if not ok:
             raise VariantError("photo_not_authorized", f"The photograph on this cover is not authorized any more: {why}.")
-        if not acknowledge_rights:
+        if T.settings()["approval"]["rights_acknowledgement_required"] and not acknowledge_rights:
             raise VariantError("rights_not_acknowledged", "This cover carries a photograph of a real person. " + T.settings()["rights_note"] + " Confirm that you know this to approve it.")
     for older in db.query(CoverVariant).filter_by(case_id=row.case_id, language=row.language, cover_key=row.cover_key, shape=row.shape, status="approved").all():
         older.status = "superseded"

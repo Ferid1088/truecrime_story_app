@@ -163,7 +163,7 @@ def test_specific_title_passes_and_generic_is_penalized():
     ctx = {"claim_limits": {}, "canonical_case_name": "Celle lantern"}
     assert G.run_gates("The Lantern Of Celle", "en", ctx) is None
     assert G.run_gates("The Final Night", "en", ctx)
-    assert G.brevity_score("The Lantern Of Celle Burned All Night Long") > G.brevity_score("The Lantern")
+    assert G.brevity_score("The Lantern") == 1.0                                         # no title is too short: there is no minimum
     assert G.brevity_score("The Lantern Of Celle Burned All Night Long") > G.brevity_score(" ".join(["Lantern"] * 20))
 
 
@@ -298,7 +298,7 @@ def real_rules(monkeypatch):
     ("She Called Police at 2 AM. Hours Later, She Was Missing", "en", True),
     ("A Man Was Found Dead in His Hotel Room. What Happened?", "en", True),
     ("Um 2 Uhr rief sie die Polizei – Stunden später war sie verschwunden", "de", True),
-    ("The Midnight Mystery", "en", False),
+    ("The Midnight Mystery", "en", True),
     ("She Called Police at 2 AM and Hours Later She Was Missing From Her Home After a Strange Night", "en", False)])
 def test_a_title_may_say_what_happened_in_a_sentence_or_two(real_rules, title, language, fits):
     assert (G.gate_length(title, language) is None) is fits and (G.gate_style(title, language) is None) is True
@@ -353,3 +353,15 @@ def test_a_title_states_what_was_reported_without_a_word_that_casts_doubt_on_it(
 def test_quotation_marks_that_wrap_the_whole_title_go_a_quotation_inside_it_stays():
     assert A.unquote("«Qualcuno ha sparato a mia moglie»: la chiamata di Caleb Flynn al 911") == "«Qualcuno ha sparato a mia moglie»: la chiamata di Caleb Flynn al 911"
     assert A.unquote('"She Called Police at 2 AM"') == "She Called Police at 2 AM" and A.unquote("«Der Anruf um 2 Uhr»") == "Der Anruf um 2 Uhr" and A.unquote("  Plain title ") == "Plain title"
+
+
+def test_naming_job_timeout_comes_from_config(client, db_session, monkeypatch):
+    from app.core.ai_config import ai_config
+    from app.db.models import BackgroundJob
+    from app.services import background_jobs
+
+    case = _case(db_session, "Celle timeout")
+    monkeypatch.setattr(background_jobs, "launch", lambda job_id: None)
+    started = client.post(f"/api/cases/{case.id}/naming/generate", json={}).json()
+    job = db_session.get(BackgroundJob, started["job_id"])
+    assert job.timeout_seconds == ai_config.case_naming.job_timeout_seconds >= 600

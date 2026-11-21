@@ -2,7 +2,7 @@
 HOOK RULES for the titles. The title is the only thing a stranger reads on the cover in the first second. He knows nothing about the case, the channel or the genre. The title alone must make him stop.
 
 WHAT A HOOK IS
-- ONE short noun phrase or sentence with a twist inside it, at least seven words (the cover's minimum) and as many more as the idea needs while it still reads at a glance (never more than the maximum in "limits.title_words"; shorter is stronger): two things that do not fit together, a thing that did what it should not, a time or a place that carries dread.
+- ONE short noun phrase or sentence with a twist inside it, at least 8 words (the cover's minimum) and as many more as the idea needs while it still reads at a glance (never more than the maximum in "limits.title_words"; shorter is stronger): two things that do not fit together, a thing that did what it should not, a time or a place that carries dread.
 - The strongest pattern is a noun and a relative clause with an irony in it.
 - Every hook holds a CONTRADICTION that the viewer wants resolved: a thing that did what it should not, two facts that cannot both be true, a calm that hides dread. A title that only describes something is a mood title and fails, however well it is written.
 - The tone is dark: night, silence, home, trust, time, death, fear. It is never graphic: no blood, wound, weapon or body is named.

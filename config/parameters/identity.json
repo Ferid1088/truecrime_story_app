@@ -106,13 +106,14 @@
     "max_title_chars": 100
   },
   "case_naming": {
-    "candidates_per_language": 5,
+    "candidates_per_language": 3,
+    "job_timeout_seconds": 600,
     "pair_margin": 0.1,
     "cover_max_repeat": 0.5,
     "max_rounds": 4,
     "max_words": 18,
     "preferred_words": [
-      7,
+      1,
       14
     ],
     "near_token_threshold": 88.0,
@@ -449,7 +450,7 @@
       ]
     },
     "generate_in_pipeline": true,
-    "min_words": 7,
+    "min_words": 8,
     "reject_bare_questions": true,
     "min_clarity": 0.6,
     "option_max_overlap": 0.5,
@@ -597,47 +598,47 @@
     "min_host_height": 0.8,
     "min_host_width": 0.15
   },
-  "title_standard": {
-    "agents": [
-      "case_naming_agent",
-      "thumbnail_critic",
-      "cover_planner",
-      "tag_generator",
-      "publishing_planner",
-      "publishing_metadata_writer",
-      "creative_pack"
-    ]
-  },
-  "shorts_standard": {
-    "agents": [
-      "opening_director",
-      "opening_native_writer",
-      "creative_pack"
+  "creative_pack": {
+    "languages": [
+      "fa",
+      "en",
+      "de",
+      "es",
+      "tr",
+      "fr",
+      "it",
+      "pt",
+      "ar"
     ],
-    "scouting": {
-      "min_concepts": 8,
-      "min_reliability": 5.0,
-      "weights": {
-        "emotional_intensity": 0.28,
-        "specificity_originality": 0.2,
-        "question_strength": 0.22,
-        "case_connection": 0.15,
-        "reliability": 0.15
-      }
+    "name_check_languages": ["en", "es", "fr", "it", "pt", "tr"],
+    "clip_keys": [
+      "C1",
+      "C2",
+      "C3",
+      "C4",
+      "C5"
+    ],
+    "target_seconds": [
+      15,
+      17
+    ],
+    "cache_dir": "data/creative_packs/cache",
+    "polisher": {
+      "enabled": true,
+      "max_input_chars": 60000
     },
-    "pack": {
-      "repairs": 1
-    }
-  },
-  "second_look": {
-    "agents": [
-      "case_naming_agent",
-      "cover_planner",
-      "publishing_planner",
-      "publishing_metadata_writer",
-      "tag_generator",
-      "opening_director",
-      "opening_native_writer"
-    ]
+    "short_title_max_characters": 100,
+    "min_words": 8,
+    "max_words": 18,
+    "duration_tolerance_seconds": 2,
+    "max_seconds": 30,
+    "voice_run_slack": 4,
+    "avatar_invitation": {"fa": "می‌خوای داستان کامل رو بشنوی؟ روی لینک کلیک کن.", "en": "Want to hear the complete story? Click the link.", "de": "Möchtest du die ganze Geschichte hören? Klick auf den Link.", "es": "¿Quieres escuchar la historia completa? Haz clic en el enlace.", "tr": "Hikâyenin tamamını dinlemek ister misin? Bağlantıya tıkla.", "fr": "Tu veux entendre l'histoire complète ? Clique sur le lien.", "it": "Vuoi ascoltare la storia completa? Clicca sul link.", "pt": "Quer ouvir a história completa? Clique no link.", "ar": "هل تريد سماع القصة كاملة؟ اضغط على الرابط."},
+    "situation_count": 15,
+    "pick_count": 6,
+    "speculation_count": 6,
+    "forbidden_words": ["court", "courtroom", "trial", "judge", "verdict", "sentence", "sentenced", "sentencing", "jury", "juror", "prosecutor", "prosecutors", "prosecution", "convicted", "conviction", "defense", "parole"],
+    "theme_count": 7,
+    "max_stray_closers": 12
   }
 }

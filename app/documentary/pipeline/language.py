@@ -272,6 +272,7 @@ class LanguageChain:
             await pipe._stage(f"mvp_host:{lang}", lambda: skipped("planning job: the Host is not made"))
         else:
             await self.host_media          # made next to the narration; a failure of it stops the film here, as it always did
+            VRV.guard_host_and_opening(db, version, lang)          # the owner approved the host's voice and the opening before the host's videos are made and the film is rendered
             if voices_first:
                 await pipe._stage(f"mvp_host:{lang}", mvp_host)          # the narration is approved (the guard above): now the videos are made
 

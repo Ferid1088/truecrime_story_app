@@ -21,7 +21,7 @@ export function BlockReview({ versionId, kind = "narration" }: { versionId: numb
   const calls = reviewCalls(kind);
   const host = kind !== "narration";          // the host's and the opening's reviews have nothing to assemble or approve
   const what = kind === "opening" ? "opening" : kind === "clips" ? "clips" : "host voice";
-  const finishable = kind === "clips" || kind === "opening";          // these reviews end with the owner's word: the clips' "I'm finished", the opening's "approved"
+  const finishable = kind === "clips" || kind === "opening" || kind === "host";          // these reviews end with the owner's word: the clips' "I'm finished", the opening's and the host's "approved"
   const state = useApi(() => calls.get(versionId), [versionId, kind]);
   const [local, setReview] = useState<BlockReviewOverview | null>(null);          // what the person changed here; before that, what the server sent
   const review = local ?? (state.data?.exists ? state.data : null);
@@ -97,7 +97,7 @@ export function BlockReview({ versionId, kind = "narration" }: { versionId: numb
     if (!review) return null;
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={finishable ? (review.approved ? "success" : "warning") : host ? "outline" : review.approved ? "success" : "warning"} data-testid="review-state">{finishable ? (review.approved ? (kind === "opening" ? "approved" : "finished") : "in review") : host ? what : review.approved ? "approved" : review.assembled_current ? "assembled — not approved" : "in review"}</Badge>
+        <Badge variant={finishable ? (review.approved ? "success" : "warning") : host ? "outline" : review.approved ? "success" : "warning"} data-testid="review-state">{finishable ? (review.approved ? (kind === "clips" ? "finished" : "approved") : "in review") : host ? what : review.approved ? "approved" : review.assembled_current ? "assembled — not approved" : "in review"}</Badge>
         <span className="text-xs text-muted-foreground">{blocks.length} blocks · {review.corrected_blocks} corrected · {review.to_send} to send</span>
       </div>
     );
@@ -130,17 +130,17 @@ export function BlockReview({ versionId, kind = "narration" }: { versionId: numb
           </Button>
           {finishable && (review.approved ? (
             <Button size="sm" variant="secondary" disabled={busy !== null} data-testid={`${kind}-reopen`}
-              onClick={() => act("reopen", () => (kind === "opening" ? api.reopenOpeningReview(versionId) : api.reopenClipsReview(versionId)), () => (kind === "opening" ? "Reopened: the opening is in review again." : "Reopened: the clips are in review again."))}>
+              onClick={() => act("reopen", () => (kind === "opening" ? api.reopenOpeningReview(versionId) : kind === "host" ? api.reopenHostReview(versionId) : api.reopenClipsReview(versionId)), () => (kind === "opening" ? "Reopened: the opening is in review again." : kind === "host" ? "Reopened: the host voice is in review again." : "Reopened: the clips are in review again."))}>
               {busy === "reopen" ? "Reopening…" : "Reopen the review"}
             </Button>
           ) : (
             <Button size="sm" disabled={busy !== null || review.to_send > 0} data-testid={`${kind}-finish`}
               title={review.to_send > 0 ? "Send the corrected blocks to ElevenLabs first" : undefined}
               onClick={() => {
-                if (!window.confirm(kind === "opening" ? "Do you approve the opening? Its voice and words are final from now on. Changing anything later reopens the review." : "Are you finished with the clips? Their voices and words are final from now on, so the next steps may go on. Changing anything later reopens the review.")) return;
-                void act("finish", () => (kind === "opening" ? api.finishOpeningReview(versionId) : api.finishClipsReview(versionId)), () => (kind === "opening" ? "Approved. The opening's voice and words are final." : "Finished. The clips' voices are final; the next steps may go on."));
+                if (!window.confirm(kind === "opening" ? "Do you approve the opening? Its voice and words are final from now on. Changing anything later reopens the review." : kind === "host" ? "Do you approve the host voice? Its words and voice are final from now on and the host videos are made from them. Changing anything later reopens the review." : "Are you finished with the clips? Their voices and words are final from now on, so the next steps may go on. Changing anything later reopens the review.")) return;
+                void act("finish", () => (kind === "opening" ? api.finishOpeningReview(versionId) : kind === "host" ? api.finishHostReview(versionId) : api.finishClipsReview(versionId)), () => (kind === "opening" ? "Approved. The opening's voice and words are final." : kind === "host" ? "Approved. The host voice and words are final." : "Finished. The clips' voices are final; the next steps may go on."));
               }}>
-              {busy === "finish" ? "Saving…" : kind === "opening" ? "Approve the opening" : "I'm finished - continue"}
+              {busy === "finish" ? "Saving…" : kind === "opening" ? "Approve the opening" : kind === "host" ? "Approve the host voice" : "I'm finished - continue"}
             </Button>
           ))}
           {!host && (

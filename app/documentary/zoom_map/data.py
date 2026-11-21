@@ -54,7 +54,7 @@ def union(a: tuple, b: tuple) -> tuple:
 
 def build_exists(url: str) -> bool:
     """Whether the provider still serves this build (it keeps only the last days' builds)."""
-    request = urllib.request.Request(url, method="HEAD")
+    request = urllib.request.Request(url, method="HEAD", headers={"User-Agent": str(ai_config.zoom().data["user_agent"])})      # the provider answers 403 to Python's own agent
     try:
         with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310 (host checked against the allow-list)
             return response.status == 200

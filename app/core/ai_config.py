@@ -78,6 +78,7 @@ REQUIRED_ROLES = {
     "spoken_writer",
     "spoken_meaning_checker",
     "spoken_style_critic",
+    "spoken_addition_inspector",
     # Voice performance: ElevenLabs v4 audio tags, emphasis and the
     # narrator's tension arc (neutral -> dark -> slow and plain climaxes, never whispered).
     "voice_performance_director",
@@ -185,6 +186,7 @@ REQUIRED_ROLES = {
     "case_naming_agent",
     "cover_subject_picker",
     "creative_pack",
+    "creative_polisher",
     # Thumbnails: optional 0-4 word text, and the vision critic.
     "thumbnail_critic",
 }
@@ -502,7 +504,8 @@ ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "
 
 class GenerationSettings(BaseModel):
     temperature: float = Field(ge=0.0, le=2.0)
-    max_tokens: int = Field(ge=1, le=262144)
+    # None = no limit is sent: the model's own limit applies (a role whose answer must never be cut off, such as a small inspector that thinks before it answers).
+    max_tokens: int | None = Field(default=None, ge=1, le=262144)
     seed: int | None = None
     # Sent as `reasoning_effort` to a model that declares the capability;
     # a role without it asks for the model's default.
@@ -1094,6 +1097,8 @@ class LanguagePipelineConfig(BaseModel):
     # shared prefix (plan, evidence, draft) from the provider's cache.
     stage2_cache_primer: bool
     final_length_tolerance: float = Field(ge=0.0, le=0.5)
+    # A final text (any stage 2-4 gate, before or after the correction or the audit fix) is accepted from this many spoken minutes, whatever the requested length.
+    final_accepted_minutes: float = Field(gt=0)
     # How far an act may stray from its word target before the non-blocking per-act report marks it.
     act_length_tolerance: float = Field(ge=0.0, le=0.5)
     words_per_minute: dict[str, int]
@@ -1178,6 +1183,10 @@ class DiscoveryPolicies(BaseModel):
     """Discover-page (D4) soft-delete policy."""
 
     soft_delete_restore_days: int = Field(default=30, ge=0)
+    # Search of the suggestions already found: a result needs a word match or this much meaning match.
+    search_semantic_weight: float = Field(default=0.6, ge=0.0, le=1.0)
+    search_min_semantic: float = Field(default=0.45, ge=0.0, le=1.0)
+    search_max_results: int = Field(default=30, ge=1, le=200)
 
 
 class ResearchDepthConfig(BaseModel):
@@ -1887,10 +1896,35 @@ class SpokenConfig(BaseModel):
     # language words-per-minute). Storytelling may breathe a little more.
     min_duration_ratio: float = Field(default=0.85, gt=0.0, le=1.0)
     max_duration_ratio: float = Field(default=1.3, ge=1.0, le=3.0)
-    max_repair_iterations: int = Field(default=20, ge=0, le=20)
+    # Repair rounds, all beats together; the rounds stop earlier when the version's gates pass or no beat is left to repair.
+    max_repair_iterations: int = Field(default=3, ge=0, le=20)
+    # Whole redos of a language's spoken version when it fails its gates (0 = none: a failing version is mended by the repair round, which rewrites only the beats that failed, and then goes on with its findings; the global documentary.max_redos does not apply here).
+    max_redos: int = Field(default=0, ge=0, le=5)
+    # Who writes its spoken text first when more languages are ready than spoken_text allows: these languages in this order, then the others in the order of
+    # the production languages. A language waits for a language before it in this order only while that one is running a film of the same case and has not started;
+    # after `text_order_wait_s` seconds it goes on anyway.
+    text_order: list[str] = []
+    text_order_wait_s: int = Field(default=1800, ge=0)
+    # False = no model inspects the spoken text (the meaning checker and the style critic are not called): the writer's answer stands, and code
+    # checks that what it was given is still there (the names of people, places and organisations of each beat, its length, digits, long sentences).
+    llm_checks: bool = False
+    # The small inspector (one cheap model, a short prompt, an answer that lists only the beats with a problem): it looks for what the retelling gives that the script
+    # does not give (a fact, a legal frame, an attribution or hedge, a spoiler, an announcement). A beat it flags goes back to the writer with the quoted additions.
+    addition_inspector: bool = True
+    # The languages whose beats are checked for the capitalized names of their source (the others have no capital letters, or capitalize every noun).
+    anchor_languages: list[str] = ["en", "es", "fr", "it", "pt", "tr"]
+    # The share of a beat's source names the narration may leave out before the beat counts as not backed.
+    max_missing_name_share: float = Field(default=0.25, ge=0.0, le=1.0)
+    # A beat the writer has already rewritten this many times is not sent back again (the gates still judge it).
+    max_repairs_per_beat: int = Field(default=2, ge=1, le=10)
+    # The problems the style critic lists per beat, the worst first (a shorter answer is a faster and cheaper call).
+    max_style_problems: int = Field(default=2, ge=1, le=6)
     # 0 = the whole story in one writer call (best flow); N = N beats per
     # call, each continuing from the previous chunk's spoken ending.
     beats_per_call: int = Field(default=0, ge=0)
+    # The same for the writer's first pass only (0 = beats_per_call): a beat is one or two paragraphs, so 1 sends the story paragraph by paragraph, each
+    # once, while the checks and the repairs keep their larger chunks.
+    write_beats_per_call: int = Field(default=0, ge=0)
     # Share of beats the native style critic must rate "storyteller"
     # ("mixed" beats are tolerated up to the rest; "newsreader" fails).
     min_storyteller_share: float = Field(default=0.7, ge=0.0, le=1.0)
@@ -3524,22 +3558,8 @@ class ShortClipsConfig(BaseModel):
     `target_seconds` in four parts (`segments`: the hook, the context, the detail the pictures show, the avatar's reaction with the invitation). A script
     the checks refuse is written again `repairs` times. `knowledge` is what a clip may tell: "before_payoff" = only what the acts before the story's answer have told."""
 
-    enabled: bool
-    max_clips: int = Field(ge=1, le=5)
-    min_clips: int = Field(ge=1, le=5)
-    angles: list[str]
     target_seconds: float = Field(gt=0.0)
-    repairs: int = Field(ge=0, le=5)
-    knowledge: Literal["before_payoff"]
     segments: dict[str, ShortClipSegmentConfig]
-    word_tolerance: float = Field(gt=0.0, lt=1.0)
-    # A hook is spoken for at least this many seconds (the words of the language that fill them): three words are too little for the first thing a viewer hears.
-    hook_min_seconds: float = Field(gt=0.0)
-    hook_max_words: int = Field(ge=3)
-    hook_max_sentences: int = Field(ge=1)          # a hook may be a whole opening sentence or two short ones
-    # Empty suspense phrases per language: a sentence that is essentially one of them (and no concrete, unusual fact) is refused and the writer is sent back
-    generic_phrases: dict[str, list[str]]
-    cta_max_words: int = Field(ge=3)
     video: ClipVideoConfig
 
     @model_validator(mode="after")
@@ -3548,8 +3568,6 @@ class ShortClipsConfig(BaseModel):
             raise ValueError("short_clips: the segments are hook, context, detail and reaction")
         if abs(sum(s.seconds for s in self.segments.values()) - self.target_seconds) > 0.01:
             raise ValueError("short_clips: the segments must add up to target_seconds")
-        if self.min_clips > self.max_clips or len(self.angles) < self.max_clips:
-            raise ValueError("short_clips: min_clips <= max_clips <= the number of angles")
         return self
 
 
@@ -3709,6 +3727,7 @@ class CoversConfig(BaseModel):
     layout: dict[str, dict]
     scrim: dict
     min_title_contrast: float = Field(gt=1.0)
+    text_review_languages: list[str] = []           # languages whose titles and cover texts the owner reviews (and may correct) before any cover is made
     watermark: dict
     themes: dict[str, CoverThemeConfig]
     triptych: dict
@@ -4313,48 +4332,37 @@ class VideoIdentityConfig(BaseModel):
     max_title_chars: int = Field(default=100, ge=30)
 
 
-class TitleStandardConfig(BaseModel):
-    """The shared creative standard for titles, Shorts/Reels titles, captions, tags and cover text (prompts/agents/title_standard.md with the whole library of
-    examples): the agents that get it, how many candidates every language and format needs, the GPT-6 review and the cover copy."""
+class PolisherConfig(BaseModel):
+    """The second creative request (GPT-Luna): `enabled`; `max_input_chars` is the most its request may hold (a larger pack keeps the GPT-6 result and reports the capacity problem)."""
 
-    agents: list[str]
-
-
-class ScoutingConfig(BaseModel):
-    """How the concepts of a film's Shorts are scouted: at least `min_concepts` genuinely different ones, each scored on five measures (0 to 10); the code weighs them (`weights`, summing to
-    1) and takes the strongest by that overall score; a concept whose factual reliability and spoiler safety is below `min_reliability`, or that cites no verified fact id, is never chosen."""
-
-    min_concepts: int = Field(ge=3)
-    min_reliability: float = Field(ge=0, le=10)
-    weights: dict[str, float]
-
-    @model_validator(mode="after")
-    def _weights_sum_to_one(self):
-        if set(self.weights) != {"emotional_intensity", "specificity_originality", "question_strength", "case_connection", "reliability"} or abs(sum(self.weights.values()) - 1) > 1e-6:
-            raise ValueError("scouting weights: the five measures, summing to 1")
-        return self
+    enabled: bool
+    max_input_chars: int = Field(ge=1000)
 
 
-class PackConfig(BaseModel):
-    """The creative pack (all titles, cover texts, Short hooks and scripts of a case for all languages in one request): `repairs` more requests when the code finds a problem."""
+class CreativePackConfig(BaseModel):
+    """The creative pack of a case (config/parameters/identity.json): ONE GPT-6 request writes the film title and cover text and, per Short, narration, title and cover text for all `languages`,
+    ONE GPT-Luna request rewrites it all; nothing else is asked. `clip_keys` are the Shorts, `target_seconds` the spoken length aimed at, `cache_dir` where finished packs are kept (a pack
+    whose input is unchanged is never paid for twice) and `short_title_max_characters` the platform limit of a Short's title."""
 
-    repairs: int = Field(ge=0)
-
-
-class ShortsStandardConfig(BaseModel):
-    """The shared creative standard for Shorts/Reels hooks and narration (prompts/agents/shorts_standard.md with all 144 scripts): the agents that get it, how many complete
-    candidates a Short needs and the GPT-6 review (candidates -> critique -> rewrite -> GPT-6 picks the strongest accurate version)."""
-
-    agents: list[str]
-    scouting: ScoutingConfig
-    pack: PackConfig
-
-
-class SecondLookConfig(BaseModel):
-    """The agents whose every answer is checked once by the same model in the same request (prompts/agents/second_look.md): it re-reads its own answer against the evidence and the rules and
-    returns the final version. One model, two passes, no separate inspector."""
-
-    agents: list[str]
+    languages: list[str]
+    clip_keys: list[str]
+    target_seconds: list[int]
+    cache_dir: str
+    polisher: PolisherConfig
+    short_title_max_characters: int = Field(ge=20)
+    min_words: int = Field(ge=1)                  # the fewest words of a title or cover text
+    max_words: int = Field(ge=1)
+    situation_count: int = Field(ge=1)                  # the important situations GPT-6 returns
+    forbidden_words: list[str] = []                     # words the situations, picks and speculations never use (no talk of courts and verdicts)
+    speculation_count: int = Field(ge=1)                # the speculative what-ifs GPT-Luna invents (kept apart from the facts, never used in a text)
+    pick_count: int = Field(ge=1)                       # the anonymous picks GPT-Luna chooses from them
+    max_stray_closers: int = Field(ge=0)               # how many surplus closing brackets of a model's JSON answer may be dropped (a long answer sometimes closes an object twice)
+    theme_count: int = Field(ge=1)                      # the themes of the prompts (a situation names one of them)
+    voice_run_slack: int = Field(ge=0)                  # words a voice text may run beyond the language's longest sentence before a missing mark is suspected
+    max_seconds: float = Field(ge=1)                    # a Short is accepted up to this many estimated spoken seconds (the target is what the models aim at)
+    avatar_invitation: dict[str, str] = {}              # the closing invitation the code adds to every avatar line, per language
+    duration_tolerance_seconds: float = Field(ge=0)     # how far the estimated spoken length may be outside target_seconds
+    name_check_languages: list[str] = []          # languages whose narration is checked for a capitalized name the original does not hold (not German: it capitalizes every noun)
 
 
 class CaseNamingConfig(BaseModel):
@@ -4362,6 +4370,8 @@ class CaseNamingConfig(BaseModel):
     checks read stored data only — no search backend is ever called."""
 
     candidates_per_language: int = Field(default=7, ge=1)
+    # how long the queued title-generation job may run (all languages, several model rounds) before it is marked failed
+    job_timeout_seconds: int = Field(default=600, ge=30)
     # How the film's cover takes part in the choice of the title: the title the cover planner pairs with its scene wins only when its rank is within `pair_margin` of
     # the best (else the best wins); a cover title may repeat at most `cover_max_repeat` of its words from the YouTube title; the options shown are the best titles
     # that differ from each other (two options share at most `option_max_overlap` of their words).
@@ -4376,7 +4386,7 @@ class CaseNamingConfig(BaseModel):
     max_rounds: int = Field(default=4, ge=1)
     # A title says what happened, so it needs room: `min_words` to `max_words` words, the preferred band for the brevity score, and at most `max_chars`
     # characters or what is left of YouTube's 100 once the status and the channel are added (never shortened afterwards).
-    min_words: int = Field(default=4, ge=2)
+    min_words: int = Field(default=1, ge=1)
     max_words: int = Field(default=16, ge=4)
     preferred_words: tuple[int, int] = (6, 14)
     # lexical (rapidfuzz 0-100) — a candidate this close to a stored title is rejected
@@ -4686,6 +4696,8 @@ class ConcurrencyConfig(BaseModel):
     # (the per-provider semaphores below, which shrink when a provider throttles) have room.
     # More jobs than that wait in "queued", with the reason.
     jobs: int = Field(default=4, ge=1, le=16)
+    # Languages whose spoken text is being written at the same time (the writer's calls of one language run together; see spoken.text_order for who starts first).
+    spoken_text: int = Field(default=2, ge=1, le=16)
 
 
 class AgentDef(BaseModel):
@@ -4940,9 +4952,7 @@ class AIConfig(BaseModel):
     youtube_metadata: YouTubeMetadataConfig = Field(default_factory=YouTubeMetadataConfig)
     video_identity: VideoIdentityConfig = Field(default_factory=VideoIdentityConfig)
     case_naming: CaseNamingConfig = Field(default_factory=CaseNamingConfig)
-    title_standard: TitleStandardConfig
-    shorts_standard: ShortsStandardConfig
-    second_look: SecondLookConfig
+    creative_pack: CreativePackConfig
     thumbnail: ThumbnailConfig = Field(default_factory=ThumbnailConfig)
     opening: OpeningConfig = Field(default_factory=OpeningConfig)
     visual_direction: VisualDirectionConfig = Field(default_factory=VisualDirectionConfig)

@@ -5,6 +5,7 @@
     "requested_minutes_default": 60,
     "rewrite_headroom_minutes": 10,
     "final_length_tolerance": 0.03,
+    "final_accepted_minutes": 40,
     "words_per_minute": {
       "en": 150,
       "de": 140,

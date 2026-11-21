@@ -4,7 +4,10 @@
     "usd_to_eur": 0.92
   },
   "discovery": {
-    "soft_delete_restore_days": 30
+    "soft_delete_restore_days": 30,
+    "search_semantic_weight": 0.6,
+    "search_min_semantic": 0.45,
+    "search_max_results": 30
   },
   "production_policies": {
     "user_media": {
@@ -41,7 +44,7 @@
     },
     "retry_policy": {
       "chapter_texts": "OMIT",
-      "spoken_versions": "OMIT",
+      "spoken_versions": "DEGRADE",
       "host_segments": "OMIT",
       "video_pieces": "OMIT",
       "audio_plan": "DEGRADE"

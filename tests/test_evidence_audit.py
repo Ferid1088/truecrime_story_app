@@ -354,3 +354,14 @@ def test_the_auditor_reads_the_contradictions_the_writer_read_so_a_claim_from_th
     assert evidence["contradictions"][0]["id"] == "C008" and "pile of ash" in evidence["contradictions"][0]["description"]
     assert evidence["timeline"] == [{"id": "T001", "event_date": "1892-08-04", "claim": "The murders."}]
     assert evidence["approved_context"][0]["summary"] == "context"
+
+
+def test_audit_fix_prompt_repairs_instead_of_deleting():
+    from app.core.ai_config import ai_config
+    from app.core.prompts import prompt
+
+    text = prompt(ai_config.prompt_of("english.audit_fix"))
+    assert "REPAIR, DON'T DELETE" in text
+    assert "attribute it to its source" in text
+    assert "Deletion (an empty `new`) is the last resort" in text
+    assert "remove the sentence when nothing supports it" not in text

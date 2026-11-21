@@ -835,3 +835,55 @@ def test_a_short_waits_for_every_film_whose_address_is_in_its_text_unless_the_la
     finally:
         account.external_id = page_id                                                                                     # the account row is shared by every test: put it back
         world.db.commit()
+
+
+# --- a new clip of an already published Short -----------------------------------------------------------------------------------------------------------------
+
+def test_a_new_clip_of_an_already_published_short_gets_its_own_publication_only_when_asked_and_the_published_one_is_never_changed(world):
+    planned(world)
+    old = pub(world, "youtube", "short", "C1")
+    old.status, old.remote_id, old.published_at = "published", "oldvideo", utc_now()
+    world.db.commit()
+    old_id, old_clip, old_hash = old.id, old.short_clip_id, old.content_hash
+    fresh = _video(world.clips / "clip_C1_new.mp4", seconds=8)                                  # the Short was made again: another clip row, another file
+    world.db.add(ShortClip(case_id=world.case.id, language="fa", clip_key="C1", status="valid", version=2, media_json=json.dumps({"video": {"path": storage.rel(fresh), "seconds": 8}})))
+    world.db.commit()
+
+    def rows(platform):
+        world.db.expire_all()
+        return world.db.query(Publication).filter_by(case_id=world.case.id, platform=platform, kind="short", asset_key="C1").order_by(Publication.revision).all()
+
+    planned(world)
+    assert [p.revision for p in rows("youtube")] == [1]                                          # nothing is made unless the owner names the Short
+    planned(world, revise=frozenset({"C1"}))
+    youtube = rows("youtube")
+    assert [p.revision for p in youtube] == [1, 2]
+    assert (youtube[0].id, youtube[0].status, youtube[0].remote_id, youtube[0].short_clip_id, youtube[0].content_hash) == (old_id, "published", "oldvideo", old_clip, old_hash)
+    assert youtube[1].status == "draft" and youtube[1].short_clip_id != old_clip and storage.resolve(youtube[1].video_path).name == "clip_C1_new.mp4"
+    assert [p.revision for p in rows("facebook")] == [1] and rows("facebook")[0].status == "draft"          # a Short not yet published is simply updated
+    planned(world, revise=frozenset({"C1"}))
+    assert [p.revision for p in rows("youtube")] == [1, 2]                                       # the new draft is not revised again
+    assert [p["revision"] for p in world.registry.overview(world.case.id) if p["platform"] == "youtube" and p["asset_key"] == "C1"] == [1, 2]
+
+
+def test_drafts_bound_to_an_older_clip_are_retired_not_deleted_published_ones_stay_and_the_next_plan_makes_fresh_drafts_for_the_new_clip(world):
+    planned(world)
+    live = pub(world, "youtube", "short", "C1")
+    live.status, live.remote_id = "published", "livevideo"
+    world.db.commit()
+    old_drafts = {p.id: p.short_clip_id for p in world.db.query(Publication).filter_by(case_id=world.case.id, kind="short").all() if p.id != live.id}
+    for key in ("C1", "C2"):                                                                       # the Shorts were made again: new clip rows and files
+        fresh = _video(world.clips / f"clip_{key}_new.mp4", seconds=8)
+        world.db.add(ShortClip(case_id=world.case.id, language="fa", clip_key=key, status="valid", version=2, media_json=json.dumps({"video": {"path": storage.rel(fresh), "seconds": 8}})))
+    world.db.commit()
+    retired = world.registry.retire_old_drafts(world.case.id, "fa")
+    world.db.expire_all()
+    assert {r["id"] for r in retired} <= set(old_drafts) and live.id not in {r["id"] for r in retired} and len(retired) == len([p for p in old_drafts if True and world.db.get(Publication, p).short_clip_id != None and world.db.get(Publication, p).asset_key in ("C1", "C2")])
+    assert world.db.get(Publication, live.id).status == "published" and all(world.db.get(Publication, r["id"]).status == "voided" for r in retired)
+    assert world.db.query(Publication).filter_by(case_id=world.case.id, kind="short").count() == len(old_drafts) + 1               # nothing was deleted
+    planned(world)
+    world.db.expire_all()
+    c2 = world.db.query(Publication).filter_by(case_id=world.case.id, platform="youtube", kind="short", asset_key="C2").order_by(Publication.revision).all()
+    assert [p.status for p in c2] == ["voided", "draft"] and [p.revision for p in c2] == [1, 2] and c2[1].short_clip_id != c2[0].short_clip_id
+    c3 = world.db.query(Publication).filter_by(case_id=world.case.id, platform="youtube", kind="short", asset_key="C3").all()
+    assert len(c3) == 1 and c3[0].status == "draft"                                                # a Short whose clip did not change is untouched

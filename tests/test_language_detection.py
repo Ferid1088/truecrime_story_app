@@ -32,3 +32,13 @@ def test_a_short_english_script_full_of_one_letter_words_is_not_taken_for_portug
 
 def test_too_little_text_decides_nothing():
     assert detect_language("Oi tudo bem", min_chars=30) == (None, 0.0)
+
+
+def test_turkish_letters_do_not_split_words_so_turkish_is_not_taken_for_german():
+    """A real Turkish Short script (names and numbers included) was read as German at 0.58, and a draft a little higher was rejected."""
+    text = ("5 Mayıs 2024, gece yarısından sonra. Navjeet Singh, Ormond'da bir evin önünde arabasını durdurdu. "
+            "Saat gece on iki buçuk sularıydı. Bir arkadaşının eşyalarını toplamasına yardım etmeye gelmişti, "
+            "ama ağır bir saldırıya uğradı ve çok geçmeden öldü.")
+    language, confidence = detect_language(text, min_chars=30)
+    assert language == "tr"
+    assert confidence >= 0.6

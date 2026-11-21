@@ -1,7 +1,7 @@
 """The hand review of the host's voice (review kind "host"): the same review as the narration's (blocks with text and voice, corrections, words and their alias,
 takes ticked, replace in all blocks), the blocks being the host's scenes of a version. A ticked take becomes the scene's voice at once (the avatar is made
-again from it, never from an older voice). There is nothing to assemble and nothing to approve here: the approval of a film's voice is the narration review's
-alone. Only for the languages in `voice.host_review_languages`."""
+again from it, never from an older voice). There is nothing to assemble here; the owner approves the host's voice when he has listened to it (the review's status becomes "approved") and any
+change reopens it: the host's videos are not made before. Only for the languages in `voice.host_review_languages`."""
 
 from __future__ import annotations
 

@@ -519,17 +519,20 @@ class LanguagePipeline:
 
     # -- stage 5: the bounded length correction
     async def _correct_length(self, db, case, store, material, base, rewrite, inspection, final,
-                              language, span, requested) -> StoryVersion:
+                              language, span, requested, after_audit_fix: bool = False) -> StoryVersion:
         """At most once per chain, and only for a final below the length minimum: the acts that need
         words (to their own lower bound first, then what the whole text still lacks) and that the
         English text has the material for are expanded in one call and spliced into the final by code.
         The editors' decisions about what was removed on purpose go with the call and bind it. The
         corrected text is a new final version (the old one stays); the gates and the report run again.
-        A rejected or unusable answer leaves the final as it was. Never a second call."""
+        A rejected or unusable answer leaves the final as it was. Never a second call for one text.
+        The audit fix removes what the evidence does not support, so it can leave a text under the minimum
+        that the chain's earlier correction had lifted over it: the fixed text gets one correction of its own
+        (`after_audit_fix`), and its changed acts are audited again by the caller."""
         notes = json.loads(final.critic_notes or "{}")
         if pipeline_of(final).get("stage") == LENGTH_CORRECTION or "length_correction" in notes:
             return final
-        if self._chain_corrected(db, final):
+        if not after_audit_fix and self._chain_corrected(db, final):
             return final                       # the one correction of this chain was already made
         if not LengthCorrection.is_due(final.story_text, span):
             return final
@@ -806,12 +809,24 @@ class LanguagePipeline:
             parents={"parent_id": inspection.id, "rewrite_id": rewrite.id},
             extra={"stage": "audit_fix", "fixes_version_id": final.id, "acts_changed": fix["acts_changed"]},
             similarity=gates.similarity, ledger_kind=AUDIT_FIX)
+        changed_acts = set(fix["acts_changed"])
+        if row.status != "ready" and failures == ["length"]:
+            restored = await self._correct_length(db, case, store, material, base, rewrite, inspection, row,
+                                                  language, span, requested, after_audit_fix=True)
+            if restored.id != row.id:
+                row = restored
+                new_sections = self.stages._sections(row.story_text, material)[0]
+                row_notes = json.loads(row.critic_notes)
+                changed_acts |= set((row_notes.get("length_correction") or {}).get("acts_changed") or [])
+                row_notes.update({"audit_fix": {k: v for k, v in fix.items()}, "audit_fix_from": final.id})
+                row.critic_notes = json.dumps(row_notes, ensure_ascii=False)
+                db.commit()
         if row.status != "ready":
             return row, [{"severity": "high", "kind": "length", "problem": "the corrected text fails the gates: "
                           + ", ".join(failures), "decision": "confirmed"}]
-        EvidenceAudit.carry_over(db, row, report, set(fix["acts_changed"]), material, new_sections)
+        EvidenceAudit.carry_over(db, row, report, changed_acts, material, new_sections)
         self._emit(event="stage_started", stage="evidence_audit", language=language, version_id=row.id,
-                   acts=fix["acts_changed"])
+                   acts=sorted(changed_acts))
         again = await self.audit.run(db, case, material, row, new_sections)
         self._emit(event="stage_done", stage="evidence_audit", language=language, status=again["status"],
                    items=len(again.get("items") or []), cost_eur=(again.get("usage") or {}).get("cost_eur"))

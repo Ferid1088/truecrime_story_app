@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 
 from sqlalchemy.orm import Session
 
@@ -38,6 +39,7 @@ from app.agents.story import (
     _MARKER_INSTRUCTION,
     _paragraphs,
     stored_sections,
+    strip_section_markers,
 )
 from app.core.ai_config import ai_config
 from app.core.prompts import prompt
@@ -243,6 +245,35 @@ def _examples_block(language: str) -> str:
     return "\n".join(f"  READ:  {a}\n  TOLD:  {b}\n" for a, b in pairs)
 
 
+_WORD = re.compile(r"[^\W\d_][\w'’-]*", re.UNICODE)
+
+
+def _fold(word: str) -> str:
+    """A name in a comparable form: no suffix after an apostrophe (Martin'in, Martin's), no accents, lower case."""
+    base = re.split(r"['’]", word)[0]
+    return "".join(c for c in unicodedata.normalize("NFKD", base) if not unicodedata.combining(c)).casefold()
+
+
+def named_anchors(text: str) -> list[str]:
+    """The capitalized words that do not open a sentence: names of people, places and organisations, each once, in a comparable form."""
+    found: list[str] = []
+    for sentence in re.split(r"(?<=[.!?…])\s+|\n+", text or ""):
+        for i, word in enumerate(_WORD.findall(sentence)):
+            base = re.split(r"['’]", word)[0]
+            if i and len(base) >= 3 and base[0].isupper():
+                found.append(_fold(base))
+    return list(dict.fromkeys(found))
+
+
+def missing_anchors(source: str, spoken: str, language: str) -> tuple[list[str], int]:
+    """(the names of the source the narration does not hold, how many names the source has), for the languages that are checked."""
+    if language not in ai_config.spoken.anchor_languages:
+        return [], 0
+    names = named_anchors(source)
+    have = {_fold(w) for w in _WORD.findall(spoken or "")}
+    return [n for n in names if n not in have], len(names)
+
+
 def read_aloud_metrics(text: str, language: str) -> dict:
     """Deterministic ear-friendliness: sentence lengths and stiff phrases."""
     from app.documentary.voice_blocks import split_sentences
@@ -266,13 +297,15 @@ def read_aloud_metrics(text: str, language: str) -> dict:
 
 
 def beat_sections(source_sections: list[dict], blueprint: dict) -> list[dict]:
-    """Source text per beat (beat id = section id)."""
+    """Source text per beat (beat id = section id). The act markers of the story are not part of a beat's text: a story saved as one
+    section keeps them as paragraphs of their own (the blueprint counts them), and a marker inside a beat made the writer answer with
+    the wrong ids, so the whole chunk was thrown away and told again beat by beat."""
     paras = {s["id"]: _paragraphs(s["text"]) for s in source_sections}
     out = []
     for b in blueprint.get("beats") or []:
         first, last = b["paragraphs"]
         out.append({"id": b["id"],
-                    "text": "\n\n".join(paras[b["act_id"]][first - 1:last])})
+                    "text": strip_section_markers("\n\n".join(paras[b["act_id"]][first - 1:last]))})
     return out
 
 
@@ -295,7 +328,8 @@ MEANING_SYSTEM = prompt("documentary/spoken/meaning_system")
 def critic_system_prompt(language: str) -> str:
     name = LANG_NAMES.get(language, language)
     house = STYLE_GUIDES.get(language, STYLE_GUIDES["en"])
-    return prompt("documentary/spoken/critic_system_prompt").format(name=name, house=house)
+    return prompt("documentary/spoken/critic_system_prompt").format(
+        name=name, house=house, max_problems=ai_config.spoken.max_style_problems)
 
 
 _RULE_LINE = re.compile(r"^\s*(?:-{3,}|\*{3,}|_{3,}|={3,})\s*$", re.M)

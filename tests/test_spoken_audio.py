@@ -81,7 +81,7 @@ def test_groups_are_independent_of_each_other():
     # (the spoken critics are moved to the other model so that the spoken
     # group itself stays independent)
     _routing(raw)["spoken_writer"] = _routing(raw)["grounding_validator"]
-    for role in ("spoken_meaning_checker", "spoken_style_critic"):
+    for role in ("spoken_meaning_checker", "spoken_style_critic", "spoken_addition_inspector"):
         _routing(raw)[role] = "premium"
     cfg = AIConfig.model_validate(raw)
     assert cfg.model_for("spoken_writer") == cfg.model_for("grounding_validator")
@@ -189,8 +189,9 @@ class SpokenGen:
     Meaning check: always fine. Style critic: verdicts from a script
     (per call), default storyteller."""
 
-    def __init__(self, style_rounds=(), lead_in=False, short=False, meaning_flags=()):
+    def __init__(self, style_rounds=(), lead_in=False, short=False, meaning_flags=(), additions=None):
         self.meaning_flags = set(meaning_flags)
+        self.additions = dict(additions or {})          # beat id -> what the retelling "adds"; the small inspector flags it until the beat is rewritten
         self.style_rounds = list(style_rounds)
         self.lead_in = lead_in
         self.short = short
@@ -223,6 +224,10 @@ class SpokenGen:
     async def generate_structured(self, role, system, user):
         self.calls.append((role, system, user))
         payload = json.loads(user)
+        if role == "spoken_addition_inspector":
+            flagged = [{"beat_id": b["beat_id"], "added": [self.additions[b["beat_id"]]]}
+                       for b in payload["beats"] if b["beat_id"] in self.additions and self.additions[b["beat_id"]] in b["spoken"]]
+            return {"beats": flagged}, GenerationResult(text="{}", model=f"m/{role}", provider="fake")
         if role == "spoken_meaning_checker":
             data = {"beats": [{"beat_id": b["beat_id"], "missing": [], "added": [],
                                "changed": ["a relative"] if b["beat_id"] in self.meaning_flags else [], "certainty": []}
@@ -250,7 +255,10 @@ def _with_blueprint(db, monkeypatch):
     return case, v
 
 
-def _narrate(db, monkeypatch, gen, language="en", case_v=None):
+def _narrate(db, monkeypatch, gen, language="en", case_v=None, repair_rounds=3):
+    """The repair rounds are off in the shipped config (each text is written once); these tests of the repair itself switch them on."""
+    monkeypatch.setattr(ai_config.spoken, "max_repair_iterations", repair_rounds)
+    monkeypatch.setattr(ai_config.spoken, "llm_checks", True)      # shipped off; the tests of the inspectors switch them on
     case, v = case_v or _with_blueprint(db, monkeypatch)
     monkeypatch.setattr("app.agents.spoken.get_generation_provider", lambda: gen)
     return case, v, asyncio.run(SP.SpokenNarrator().create(db, case, v, language))
@@ -278,6 +286,7 @@ class FailsOnce(SpokenGen):
 
 
 def test_a_run_that_stops_on_a_provider_error_continues_without_paying_again(db_session, monkeypatch, tmp_path):
+    monkeypatch.setattr(ai_config.spoken, "llm_checks", True)
     case, v = _with_blueprint(db_session, monkeypatch)
     first = FailsOnce(fail_at=3)
     monkeypatch.setattr("app.agents.spoken.get_generation_provider", lambda: first)
@@ -296,7 +305,7 @@ def test_a_run_that_stops_on_a_provider_error_continues_without_paying_again(db_
 
 
 def test_spoken_version_is_told_beat_by_beat(db_session, monkeypatch):
-    gen = SpokenGen(style_rounds=[{"B02": "mixed"}], lead_in=True)
+    gen = SpokenGen(style_rounds=[{"B02": "mixed", "B03": "mixed"}], lead_in=True)
     case, master, sv = _narrate(db_session, monkeypatch, gen)
     notes = json.loads(sv.critic_notes)
     spoken = notes["spoken"]
@@ -306,14 +315,14 @@ def test_spoken_version_is_told_beat_by_beat(db_session, monkeypatch):
     # the writer's comment to the 'user' never reaches the narration
     assert "Sure!" not in sv.story_text and "**" not in sv.story_text
     assert spoken["write_log"] == ["meta_output_retry_B01"]
-    # the mixed beat was repaired and re-checked
+    # two of five beats are mixed: 60 percent storyteller is under the 70 the version needs, so the mixed beats are repaired and re-checked
     assert spoken["repair_iterations"] == 1
     assert spoken["per_beat"]["B02"]["verdict"] == "storyteller"
     assert "That part is fixed now." in stored_sections(sv)[1]["text"]
     writer_msgs = [u for r, _, u in gen.calls if r == "spoken_writer"]
     assert all(u.startswith("TASK:") for u in writer_msgs)
     repair = json.loads(writer_msgs[-1].split("INPUT:\n", 1)[1])
-    assert [b["beat_id"] for b in repair["beats"]] == ["B02"]
+    assert [b["beat_id"] for b in repair["beats"]] == ["B02", "B03"]
     assert repair["beats"][0]["style_problems"][0]["suggestion"] == "went"
     assert sv.native_quality_score == 100.0
     struct = json.loads(sv.narrative_structure)
@@ -335,14 +344,14 @@ def test_the_story_meaning_check_covers_every_beat_in_fa_and_ar(db_session, monk
 
 def test_newsreader_tone_fails_the_gates(db_session, monkeypatch):
     stubborn = {"B03": "newsreader", "B04": "newsreader"}
-    gen = SpokenGen(style_rounds=[stubborn] * (ai_config.spoken.max_repair_iterations + 1))
+    gen = SpokenGen(style_rounds=[stubborn] * 10)
     _, _, sv = _narrate(db_session, monkeypatch, gen)
     gates = json.loads(sv.critic_notes)["quality_gates"]
     assert not gates["pass"]
     assert {"newsreader_tone", "not_enough_storytelling"} <= set(gates["failures"])
     spoken = json.loads(sv.critic_notes)["spoken"]
-    # every round is used, also when the writer answers with the same words (the fake writer settles after two rounds)
-    assert spoken["repair_iterations"] == ai_config.spoken.max_repair_iterations
+    # a beat is sent back at most max_repairs_per_beat times, also when the writer answers with the same words; then the gates judge it
+    assert spoken["repair_iterations"] == ai_config.spoken.max_repairs_per_beat
 
 
 def test_lost_content_fails_the_duration_gate(db_session, monkeypatch):
@@ -724,3 +733,148 @@ def test_a_full_run_skips_the_cut_of_a_pilot_when_it_picks_its_spoken_version(db
     blueprint_id = json.loads(full.narrative_structure)["blueprint_id"]
     assert J.latest_spoken(db_session, master, "en", blueprint_id).id == pilot.id                           # a pilot is still the newest for a pilot
     assert J.latest_spoken(db_session, master, "en", blueprint_id, whole_film=True).id == full.id       # a full run narrates every beat
+
+
+def test_a_mixed_beat_is_left_alone_while_the_version_passes_the_storytelling_gate(db_session, monkeypatch):
+    gen = SpokenGen(style_rounds=[{"B02": "mixed"}])
+    _, _, sv = _narrate(db_session, monkeypatch, gen)
+    notes = json.loads(sv.critic_notes)
+    assert notes["quality_gates"] == {"pass": True, "failures": []}      # 4 of 5 beats are storyteller: 80 percent, the gate asks 70
+    assert notes["spoken"]["repair_iterations"] == 0
+    assert notes["spoken"]["per_beat"]["B02"]["verdict"] == "mixed"
+    assert not [u for r, _, u in gen.calls if r == "spoken_writer" and "output_template" in u]
+
+
+def test_a_beat_is_never_rewritten_more_often_than_the_limit_and_the_rounds_stay_under_the_cap(db_session, monkeypatch):
+    gen = SpokenGen(style_rounds=[{"B03": "newsreader"}] * 10)
+    _, _, sv = _narrate(db_session, monkeypatch, gen)
+    spoken = json.loads(sv.critic_notes)["spoken"]
+    repairs = [u for r, _, u in gen.calls if r == "spoken_writer" and "output_template" in u]
+    assert len(repairs) <= ai_config.spoken.max_repairs_per_beat
+    assert spoken["repair_iterations"] <= ai_config.spoken.max_repair_iterations
+
+
+def test_after_a_fact_repair_the_meaning_is_checked_again_but_the_style_critic_only_for_beats_that_sounded_wrong(db_session, monkeypatch):
+    gen = SpokenGen(meaning_flags={"B02"})
+    _, _, sv = _narrate(db_session, monkeypatch, gen)
+    first = len([1 for r, _, _ in gen.calls if r == "spoken_style_critic"])
+    meanings = [json.loads(u) for r, _, u in gen.calls if r == "spoken_meaning_checker"]
+    assert [b["beat_id"] for b in meanings[-1]["beats"]] == ["B02"]      # the rewritten beat was fact-checked again
+    assert first == 1, "the style critic ran once, on the first pass: B02 was rewritten for its facts and sounded right"
+
+
+def test_the_style_critic_is_asked_for_at_most_the_configured_number_of_problems():
+    from app.documentary.spoken import critic_system_prompt
+
+    assert f"at most {ai_config.spoken.max_style_problems}, the worst first" in critic_system_prompt("en")
+
+
+def test_a_story_saved_as_one_section_gives_beats_without_the_act_markers():
+    """The act markers of a one-section story are paragraphs of their own that the blueprint counts. Left in a beat's text they made the
+    writer answer with the wrong ids, and the whole chunk was told again beat by beat (more than half of all chunks)."""
+    from app.documentary.spoken import beat_sections
+
+    text = "[[ACT:act1]]\n\nFirst paragraph.\n\nSecond paragraph.\n\n[[ACT:act2]]\n\nThird paragraph."
+    blueprint = {"beats": [{"id": "B01", "act_id": "full", "paragraphs": [1, 2]},
+                           {"id": "B02", "act_id": "full", "paragraphs": [3, 5]}]}
+    beats = beat_sections([{"id": "full", "text": text}], blueprint)
+    assert [b["text"] for b in beats] == ["First paragraph.", "Second paragraph.\n\nThird paragraph."]
+    assert not any("[[ACT" in b["text"] for b in beats)
+
+
+def test_the_writer_makes_one_call_per_beat_in_its_first_pass_and_the_checks_stay_in_chunks(db_session, monkeypatch):
+    monkeypatch.setattr(ai_config.spoken, "write_beats_per_call", 1)
+    gen = SpokenGen()
+    _, _, sv = _narrate(db_session, monkeypatch, gen)
+    writes = [json.loads(u.split("INPUT:\n", 1)[1]) for r, _, u in gen.calls if r == "spoken_writer"]
+    assert len(writes) == 5 and all(w["script"].count("[[ACT:B") == 1 for w in writes)      # five beats, five calls, one beat each
+    assert len([1 for r, _, _ in gen.calls if r == "spoken_meaning_checker"]) == 1          # one chunk of beats, not one call per beat
+    assert sv.kind == "spoken"
+
+
+def test_by_default_only_the_small_inspector_looks_at_the_spoken_text_and_a_clean_text_is_written_once(db_session, monkeypatch):
+    gen = SpokenGen(style_rounds=[{"B04": "newsreader"}] * 10, meaning_flags={"B02"})      # what the two big inspectors would say is never asked for
+    case, v = _with_blueprint(db_session, monkeypatch)
+    monkeypatch.setattr("app.agents.spoken.get_generation_provider", lambda: gen)
+    sv = asyncio.run(SP.SpokenNarrator().create(db_session, case, v, "en"))
+    roles = [r for r, _, _ in gen.calls]
+    assert "spoken_meaning_checker" not in roles and "spoken_style_critic" not in roles
+    assert roles.count("spoken_writer") == 1 and roles.count("spoken_addition_inspector") == 1     # one chunk of five beats: one write, one cheap inspection
+    notes = json.loads(sv.critic_notes)
+    assert notes["quality_gates"] == {"pass": True, "failures": []} and notes["spoken"]["repair_iterations"] == 0
+    assert sv.native_quality_score is None and sv.semantic_consistency_score is None
+
+
+def test_a_beat_the_small_inspector_flags_goes_back_to_the_writer_with_the_quoted_addition_and_only_that_beat_is_written_again(db_session, monkeypatch):
+    class AddsAFrame(SpokenGen):
+        async def generate_text(self, role, system, user):
+            res = await super().generate_text(role, system, user)
+            if "output_template" not in user:                       # the first telling of B03 adds a legal frame the script does not have
+                res.text = res.text.replace("[[ACT:B03]]\n\n", "[[ACT:B03]]\n\nBut the court was told that it began. ")
+            return res
+
+    gen = AddsAFrame(additions={"B03": "But the court was told that it began."})
+    case, v = _with_blueprint(db_session, monkeypatch)
+    monkeypatch.setattr("app.agents.spoken.get_generation_provider", lambda: gen)
+    sv = asyncio.run(SP.SpokenNarrator().create(db_session, case, v, "en"))
+    repairs = [json.loads(u.split("INPUT:\n", 1)[1]) for r, _, u in gen.calls if r == "spoken_writer" and "output_template" in u]
+    assert [[b["beat_id"] for b in r["beats"]] for r in repairs] == [["B03"]]                          # only the flagged beat
+    assert repairs[0]["beats"][0]["fact_problems"]["added"] == ["But the court was told that it began."]
+    inspections = [json.loads(u)["beats"] for r, _, u in gen.calls if r == "spoken_addition_inspector"]
+    assert [b["beat_id"] for b in inspections[-1]] == ["B03"]                                        # the repaired beat is inspected again, nothing else
+    assert "court was told" not in sv.story_text
+    assert json.loads(sv.critic_notes)["spoken"]["repair_iterations"] == 1
+
+
+def test_a_beat_that_loses_names_of_its_source_is_not_backed():
+    from app.agents.spoken import SpokenNarrator
+
+    src = {"B01": "At midnight Navjeet Singh left Ormond. He met Sharwan on North Road."}
+    kept = {"id": "B01", "text": "At midnight Navjeet left Ormond. He met Sharwan on North Road."}
+    lost = {"id": "B01", "text": "At midnight he left. He met him on the road."}
+    checker = SpokenNarrator.__new__(SpokenNarrator)
+    checker.cfg = ai_config.spoken
+    assert checker._backed("en", src, [kept])["B01"]["meaning_ok"] is True            # one of six names left out (Singh): within the share
+    result = checker._backed("en", src, [lost])["B01"]
+    assert result["meaning_ok"] is False and {"navjeet", "singh", "ormond", "sharwan", "north", "road"} >= set(result["meaning"]["missing"])
+    assert "navjeet" in result["meaning"]["missing"] and result["verdict"] == "unrated"
+
+
+def test_names_are_compared_without_accents_case_or_a_suffix_after_an_apostrophe():
+    from app.documentary.spoken import missing_anchors, named_anchors
+
+    assert named_anchors("Then Martin met Zoë near Köln. Later Ayşe left.") == ["martin", "zoe", "koln", "ayse"]
+    assert missing_anchors("Then Martin met Zoë in Köln.", "Martin'in Zoe ile Koln'de karşılaşması.", "tr") == ([], 3)
+    assert missing_anchors("Then Martin met Zoë.", "Then he met her.", "en") == (["martin", "zoe"], 2)
+    assert missing_anchors("Dann traf Martin Zoë.", "Dann traf er sie.", "de") == ([], 0)     # German is not checked: it capitalizes every noun
+
+
+def test_the_documentary_overview_reports_the_spoken_version_of_every_language_not_only_of_the_master(db_session, client, monkeypatch):
+    """Each language has its own final text, blueprint and spoken version; the Language Versions tab showed "not generated" for every
+    language but the one of the master story."""
+    from datetime import UTC, datetime
+
+    from app.db.models import StoryVersion
+    from app.documentary.blueprint import NarrativeDirector
+
+    case, en_final, en_spoken = _narrate(db_session, monkeypatch, SpokenGen())
+    de_final = StoryVersion(
+        case_id=case.id, version=2, kind="final", language="de", narrative_angle="{}", narrative_structure=en_final.narrative_structure,
+        story_text=en_final.story_text, text_hash="h-de", engagement_score=80.0, status="ready", approved_by="test",
+        approved_at=datetime(2026, 1, 1, tzinfo=UTC))
+    db_session.add(de_final)
+    db_session.commit()
+    _director(monkeypatch, [_no_contradiction(_good())])
+    asyncio.run(NarrativeDirector().create(db_session, case, de_final))
+    monkeypatch.setattr("app.agents.spoken.get_generation_provider", lambda: SpokenGen())
+    de_spoken = asyncio.run(SP.SpokenNarrator().create(db_session, case, de_final, "de"))
+
+    languages = client.get(f"/api/cases/{case.id}/documentary").json()["languages"]
+    assert languages["en"]["version_id"] == en_spoken.id
+    assert languages["de"]["version_id"] == de_spoken.id
+
+
+def test_the_small_inspector_has_no_token_limit_so_its_answer_is_never_cut_off():
+    assert ai_config.generation_for("spoken_addition_inspector").max_tokens is None
+    assert ai_config.generation_for("spoken_writer").max_tokens is not None            # the other roles keep their limit
+    assert ai_config.model_for("spoken_addition_inspector") != ai_config.model_for("spoken_writer")

@@ -182,6 +182,17 @@ def discovery_history(state: str | None = None, discovery_job_id: int | None = N
     ]
 
 
+@router.get("/api/discovery/search")
+async def search_discovered(q: str, db: Session = Depends(get_db)):
+    """The suggestions already found that match the words (lexical) or the meaning (semantic) of `q`."""
+    from app.lifecycle.library_search import search_candidates
+    from app.naming.agent import default_embedder
+
+    if not q.strip():
+        raise HTTPException(status_code=422, detail="Give at least one search word.")
+    return await search_candidates(db, q, default_embedder())
+
+
 @router.get("/api/discovery/searches")
 def discovery_searches(db: Session = Depends(get_db)):
     """D2: every discovery run as a Search — one row per `ResearchJob`

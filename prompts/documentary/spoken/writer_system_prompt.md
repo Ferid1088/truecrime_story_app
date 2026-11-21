@@ -77,6 +77,8 @@ FACTS (non-negotiable)
   listed in "if_mentioned_keep_uncertain" stays uncertain wherever this
   part of the script mentions it — and is never added where the script
   does not.
+- You are not allowed to write anything from your own knowledge. Use only
+  the given text and these instructions as your reference.
 - Do not drop details to shorten, do not pad. Each beat takes about the
   same speaking time as its script (it may breathe a little more, within
   about 15 percent).

@@ -509,3 +509,21 @@ def test_the_token_is_read_from_the_instagram_environment_variable_and_the_old_n
     assert TokenStore(settings).source() == "environment" and TokenStore(settings).get().startswith("OLD_NAME")
     monkeypatch.setenv(TOKEN_ENV, TOKEN)
     assert TokenStore(settings).get() == TOKEN                                     # the canonical name wins
+
+
+def test_a_new_revision_of_an_already_published_short_is_what_instagram_resolves_and_the_published_one_is_not_the_target(world):
+    old = op(world)
+    old.status, old.remote_id, old.caption = "published", "oldmedia", "the old caption"
+    world.db.commit()
+    fresh = _video(world.video.parent / "clip_C1_new.mp4")
+    world.db.add(ShortClip(case_id=world.case.id, language="fa", clip_key="C1", status="valid", version=2, media_json=json.dumps({"video": {"path": storage.rel(fresh), "seconds": 7}})))
+    world.db.commit()
+    PublicationRegistry(world.db).plan(world.case.id, "fa", revise=frozenset({"C1"}))
+    new = world.db.query(Publication).filter_by(case_id=world.case.id, platform="instagram", asset_key="C1", revision=2).one()
+    new.caption = "the new caption"
+    world.db.commit()
+    target = world.publisher.resolve(world.db, "fa", "C1")
+    assert target.caption == "the new caption" and target.path.name == "clip_C1_new.mp4"
+    world.db.expire_all()
+    still = world.db.query(Publication).filter_by(case_id=world.case.id, platform="instagram", asset_key="C1", revision=1).one()
+    assert (still.status, still.remote_id, still.caption) == ("published", "oldmedia", "the old caption")

@@ -93,6 +93,7 @@ import type {
   ResearchProviderStatus,
   SearchEngineStatus,
   DiscoveryRequest,
+  DiscoverySearchResult,
   DiscoveryCostEstimate,
   DiscoveryCountry,
   Search,
@@ -342,6 +343,7 @@ export const api = {
     post<JobStartResponse>("/api/topics/discover", payload),
   discoveryCostEstimate: (count: number) =>
     request<DiscoveryCostEstimate>(`/api/discovery/cost-estimate${query({ count })}`),
+  searchDiscovered: (q: string) => request<DiscoverySearchResult>(`/api/discovery/search${query({ q })}`),
   discoveryCountries: () => request<DiscoveryCountry[]>("/api/discovery/countries"),
   archiveCase: (id: number) => post<{ archived: boolean }>(`/api/cases/${id}/archive`),
   unarchiveCase: (id: number) => post<{ archived: boolean }>(`/api/cases/${id}/unarchive`),
@@ -695,6 +697,8 @@ export const api = {
     post<BlockReviewBlock>(`/api/documentary/versions/${versionId}/opening-voice-review/blocks/${encodeURIComponent(blockId)}/takes/${takeNo}/activate`),
   clipsReview: (versionId: number) => request<BlockReview>(`/api/documentary/versions/${versionId}/clip-voice-review`),
   openClipsReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/clip-voice-review/open`),
+  finishHostReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/host-voice-review/finish`),
+  reopenHostReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/host-voice-review/reopen`),
   finishOpeningReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/opening-voice-review/finish`),
   reopenOpeningReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/opening-voice-review/reopen`),
   finishClipsReview: (versionId: number) => post<BlockReviewOverview>(`/api/documentary/versions/${versionId}/clip-voice-review/finish`),
@@ -1223,8 +1227,8 @@ export const mvpApi = {
     request<MvpCandidateGroup[]>(
       `/api/cases/${caseId}/mvp/candidates?status=${status}&group=true&limit=5000${beat ? `&beat=${encodeURIComponent(beat)}` : ""}${cutOnly ? "&cut_only=true" : ""}`,
     ),
-  saveSelection: (caseId: number, assetId: number, selection: { must_use?: boolean; draw_priority?: number | null }) =>
-    put<{ asset_id: number; must_use: boolean; draw_priority: number | null }>(
+  saveSelection: (caseId: number, assetId: number, selection: { must_use?: boolean; draw_priority?: number | null; cover_photo?: boolean }) =>
+    put<{ asset_id: number; must_use: boolean; draw_priority: number | null; cover_photo: boolean }>(
       `/api/cases/${caseId}/mvp/assets/${assetId}/selection`, selection),
   saveNote: (caseId: number, assetId: number, note: string) =>
     put<{ asset_id: number; owner_note: string | null }>(`/api/cases/${caseId}/mvp/assets/${assetId}/note`, { note }),
@@ -1522,11 +1526,26 @@ export type CoverShapes = {
   platforms: { destination: string; takes: string; candidate_shape: CoverShapeKey | null; uploaded_now: string; preview_only: CoverShapeKey[] }[];
   hook: { title: string | null; status: string | null; confidence: number | null; reason: string | null }; plate: { available: boolean; outfit: string | null; problem: string | null };
 };
+export type TextReviewItem = { kind: "film_title" | "cover_text" | "short_title"; key: string; label: string; text: string };
+export type TextReviewState = { language: string; required: boolean; released: boolean; changed_since_release: boolean; released_by: string | null; released_at: string | null; items: TextReviewItem[] };
+export const textReviewApi = {
+  status: (caseId: number, language: string) => request<TextReviewState>(`/api/cases/${caseId}/texts/${language}`),
+  edit: (caseId: number, language: string, kind: string, key: string, text: string) =>
+    request<TextReviewState>(`/api/cases/${caseId}/texts/${language}/${kind}/${key}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) }),
+  release: (caseId: number, language: string) => post<TextReviewState>(`/api/cases/${caseId}/texts/${language}/release`, { approved_by: "owner" }),
+  withdraw: (caseId: number, language: string) => request<TextReviewState>(`/api/cases/${caseId}/texts/${language}/release`, { method: "DELETE" }),
+};
+export type CoverPhotosState = { finished: boolean; approved_by: string | null; photo_ids: number[]; finished_at: string | null; made?: number; skipped?: { language: string; key: string; reason: string }[] };
+export const coverPhotosApi = {
+  status: (caseId: number) => request<CoverPhotosState>(`/api/cases/${caseId}/cover-photos/finished`),
+  finish: (caseId: number) => post<CoverPhotosState>(`/api/cases/${caseId}/cover-photos/finished`, { approved_by: "owner" }),
+  withdraw: (caseId: number) => request<CoverPhotosState>(`/api/cases/${caseId}/cover-photos/finished`, { method: "DELETE" }),
+};
 export const coverShapesApi = {
   overview: (caseId: number, language: string, key: string) => request<CoverShapes>(`/api/cases/${caseId}/covers/${language}/${key}/shapes`),
   render: (caseId: number, language: string, key: string, body: { shapes?: CoverShapeKey[]; highlight?: string; subject_entity?: string; use_photo?: boolean; photo_asset_id?: number; subject_name?: string }) =>
     post<CoverShapes>(`/api/cases/${caseId}/covers/${language}/${key}/shapes`, body),
-  approve: (id: number, acknowledgeRights: boolean) => post<CoverVariantView>(`/api/cover-variants/${id}/approve`, { acknowledge_rights: acknowledgeRights }),
+  approve: (id: number) => post<CoverVariantView>(`/api/cover-variants/${id}/approve`, {}),
   reject: (id: number) => post<CoverVariantView>(`/api/cover-variants/${id}/reject`),
   approveEditorial: (assetId: number, approvedBy: string) => post<unknown>(`/api/visuals/${assetId}/approve-editorial`, { approved_by: approvedBy }),
 };

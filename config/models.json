@@ -80,6 +80,7 @@
         "spoken_writer": "premium",
         "spoken_meaning_checker": "writer",
         "spoken_style_critic": "writer",
+        "spoken_addition_inspector": "cheap",
         "audio_director": "writer",
         "overlay_localizer": "writer",
         "automation_feel_critic": "writer",
@@ -138,7 +139,8 @@
         "semantic_audio_reviewer": "audio_listener",
         "publishing_orthography_fixer": "premium",
         "publishing_proofreader": "premium",
-        "creative_pack": "sol"
+        "creative_pack": "sol",
+        "creative_polisher": "luna"
       },
       "fallbacks": {
         "cheap": [
@@ -239,6 +241,9 @@
     "spoken_style_critic": {
       "temperature": 0.2,
       "max_tokens": 12000
+    },
+    "spoken_addition_inspector": {
+      "temperature": 0.0
     },
     "audio_director": {
       "temperature": 0.3,
@@ -507,6 +512,10 @@
     "creative_pack": {
       "temperature": 0.8,
       "max_tokens": 32000
+    },
+    "creative_polisher": {
+      "temperature": 0.8,
+      "max_tokens": 24000
     }
   }
 }

@@ -30,7 +30,7 @@ def picture(tmp_path):
 def test_the_configuration_has_a_theme_for_every_channel_and_five_shorts():
     cfg = ai_config.covers_settings()
     assert set(cfg.themes) == set(ai_config.channels)
-    assert cfg.shorts_per_episode == 5 <= ai_config.short_clips_settings().max_clips
+    assert cfg.shorts_per_episode == 5 == len(ai_config.creative_pack.clip_keys)
     assert (cfg.formats["long"].width, cfg.formats["long"].height) == (3840, 2160)
     assert (cfg.formats["short"].width, cfg.formats["short"].height) == (2160, 3840)
     assert (cfg.formats["short"].video_width, cfg.formats["short"].video_height) == (1080, 1920)      # the video and its cover are not the same size
@@ -44,9 +44,9 @@ def test_what_no_upload_has_shown_is_marked_to_test():
     assert cfg.scene_image["max_images_per_scene"] == 1 and cfg.scene_image["model"] == "gpt-image-2.6-flare" and cfg.scene["source"] == "generated"
 
 
-def test_a_title_is_a_hook_of_seven_to_eighteen_words_and_turkish_capitals_keep_their_dot():
-    assert C.title_issues("one two three four five six seven") == [] and C.title_issues(" ".join(["word"] * 18)) == []
-    assert C.title_issues("The open door") and C.title_issues("one two three four five six") and C.title_issues(" ".join(["word"] * 19)) and C.title_issues("")
+def test_a_cover_text_has_eight_to_eighteen_words_and_turkish_capitals_keep_their_dot():
+    assert C.title_issues(" ".join(["word"] * 8)) == [] and C.title_issues(" ".join(["word"] * 18)) == []
+    assert C.title_issues("Who sent it") and C.title_issues(" ".join(["word"] * 7)) and C.title_issues(" ".join(["word"] * 19)) and C.title_issues("")
     assert C.display_title("Açık kapı", "tr") == "AÇIK KAPI" and C.display_title("izler", "tr") == "İZLER"
     assert C.display_title("دری که باز ماند", "fa") == "دری که باز ماند"
 
@@ -231,3 +231,15 @@ def test_a_title_too_long_to_read_is_sent_back_to_the_planner_with_the_fix(monke
     item = {"key": "C1", "title": long_words, "scene": "", "confidence": None, "reason": "", "alt_title": "A door left ajar"}
     issues = P.item_issues(item, "en")
     assert [i["type"] for i in issues if i["type"].startswith("title")] == ["title_unreadable"]
+
+
+def test_every_cover_module_can_be_imported_first_in_a_fresh_process():
+    """images imports service, service imports proposals: proposals used to import images at its top, so the opening stage of a fresh worker (which loads images first) failed."""
+    import os
+    import subprocess
+    import sys
+
+    env = {**os.environ, "PYTHONPATH": os.getcwd()}
+    for module in ("images", "service", "proposals", "triptych", "variants", "agents"):
+        done = subprocess.run([sys.executable, "-c", f"import app.covers.{module}"], capture_output=True, text=True, env=env)
+        assert done.returncode == 0, f"app.covers.{module} first: {done.stderr[-300:]}"

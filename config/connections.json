@@ -79,7 +79,7 @@
     "engine": null
   },
   "generation_failover": {
-    "enabled": true,
+    "enabled": false,
     "name": "apiko",
     "label": "Apiko",
     "base_url": "https://api.apiko.app/v1",

@@ -558,6 +558,13 @@ export type SuggestionState =
   | "suggested" | "accepted" | "ignored" | "duplicate" | "filtered"
   | "archived" | "deleted";
 
+/** GET /api/discovery/search: the stored suggestions matching the words or the meaning of the query. */
+export interface DiscoverySearchResult {
+  query: string;
+  mode: "lexical" | "lexical+semantic";
+  results: (SuggestionRecord & { lexical_score: number; semantic_score: number; match_score: number })[];
+}
+
 /** `candidate_dict` of app/lifecycle/selection.py — one stored suggestion. */
 export interface SuggestionRecord {
   id: number;
@@ -2367,6 +2374,7 @@ export interface MvpCandidate {
   owner_note: string | null;
   must_use: boolean;
   draw_priority: number | null;
+  cover_photo: boolean;
   thumb_url: string;
   role: string | null;
   status: string;
@@ -3136,6 +3144,7 @@ export interface CaseNaming {
   title_family_id: string | null;
   editorial_concept: string | null;
   externally_verified: boolean;
+  candidates_per_language: number;
   provenance: {
     case_resolution_status: string;
     public_status: "solved" | "unsolved" | null;

@@ -6,4 +6,4 @@ from app.documentary.block_review import host_review as HR
 from app.documentary.block_review.routes import build_router
 
 BASE = "host-voice-review"
-router = build_router(BASE, HR.HOST, HR, HR.scenes_of)
+router = build_router(BASE, HR.HOST, HR, HR.scenes_of, finishable=True)

@@ -16,6 +16,13 @@ from app.language_pipeline.length_correction import LengthCorrection, required_w
 from app.language_pipeline.lengths import LengthRange, act_word_targets, final_range
 from app.language_pipeline.store import FINAL, pipeline_of
 
+
+@pytest.fixture(autouse=True)
+def no_accepted_minutes(monkeypatch):
+    """These tests are about the correction of a text that is under the target range; the accepted-minutes
+    floor (final_accepted_minutes) would accept such texts outright, so it is set out of reach here."""
+    monkeypatch.setattr(ai_config.language_pipeline, "final_accepted_minutes", 100000)
+
 # the flow fixture patches 10 words a minute: a 60-70 minute text is 600-700 words (gate minimum 582),
 # two acts with a target of 325 words each; the approved draft has 450 words in each act
 
@@ -458,3 +465,12 @@ def test_the_ledger_books_the_correction_under_its_own_stage_name():
 
     assert stage_name(LENGTH_CORRECTION_STAGE, "fa") == "length_correction:fa"
     assert act_word_targets  # the targets the correction aims at come from the shared function
+
+
+def test_a_final_text_from_the_accepted_minutes_is_not_held_to_the_target_range(monkeypatch):
+    monkeypatch.setattr(ai_config.language_pipeline, "final_accepted_minutes", 40)
+    span = final_range("en", 60)
+    assert ai_config.language_pipeline.final_accepted_minutes == 40
+    assert span.gate_words_min == 40 * span.words_per_minute < int(span.words_min * 0.8)
+    assert span.after_correction().gate_words_min == 40 * span.words_per_minute
+    assert span.gate_words_max == int(span.words_max * (1 + ai_config.language_pipeline.final_length_tolerance))

@@ -20,5 +20,5 @@ RULES
 7. When "youtube_titles" is present, the film's cover and its YouTube title are one pair: the cover's title is the thumbnail text, short, and it shows one concrete detail of the title's event (a time, an object, a place) and makes its promise visible; it never repeats the words of the YouTube title, and it never gives away more than the title does. For the long cover choose the option whose promise your scene and thumbnail text complement best: "title_pick" is its id and "pair_reason" says in a few words why they belong together. The short covers have no pick.
 
 Return JSON only:
-{"covers": [{"key": "long", "title": "...", "alt_title": "...", "scene": "...", "confidence": 0.0, "reason": "...", "title_pick": "A", "pair_reason": "..."}]}
-("alt_title" is on every cover: one alternative cover phrase for the same format, "format" in the input tells it: 16:9 for the film, 9:16 for a short; it takes another angle of the case, within the words of the title, and the same rules.) (title_pick and pair_reason only on the long cover and only when "youtube_titles" is present.)
+{"covers": [{"key": "long", "title": "...", "scene": "...", "confidence": 0.0, "reason": "...", "title_pick": "A", "pair_reason": "..."}]}
+(title_pick and pair_reason only on the long cover and only when "youtube_titles" is present.)

@@ -49,7 +49,7 @@ def split_block(block: VoiceBlock) -> tuple[str, str]:
 def rows_of(db: Session, version: StoryVersion) -> list[ShortClip]:
     """The newest valid version of each clip of this version's language that has its voices, in the order of the clips."""
     rows = [r for r in C.clips_of(db, version.case_id, version.language or "") if r.story_version_id == version.id and json.loads(r.media_json or "{}").get("voice")]
-    return [r for r in rows if not OM.stale_voices({p: json.loads(r.script_json)[p] for p in CM.PARTS}, json.loads(r.media_json)["voice"])]
+    return [r for r in rows if not OM.stale_voices({p: json.loads(r.script_json)[p] for p in CM.PARTS if json.loads(r.script_json)[p].strip()}, json.loads(r.media_json)["voice"])]
 
 
 def parts_of(db: Session, version: StoryVersion) -> list[tuple[str, dict, str]]:
@@ -101,7 +101,15 @@ def original_request(row: ShortClip, block_id: str, voice: dict) -> tuple[dict, 
 
 
 def stale(db: Session, version: StoryVersion, review: VoiceReview) -> bool:
-    return [b.block_id for b in S.blocks_of(db, review)] != [bid for bid, _, _ in parts_of(db, version)]
+    """Whether the review belongs to clips that are no longer the current ones: other blocks, or a clip version made after the review was opened (a clip written again keeps its block ids; a correction
+    changes a clip in place and makes no new version)."""
+    return [b.block_id for b in S.blocks_of(db, review)] != [bid for bid, _, _ in parts_of(db, version)] or any(r.created_at > review.created_at for r in rows_of(db, version))
+
+
+def archive(db: Session, review: VoiceReview) -> None:
+    """Sets a review of replaced clips aside, corrections and takes kept (it is no longer the clips' review, so a new one can be opened)."""
+    review.kind = f"clips-{review.id}"
+    db.commit()
 
 
 def current_review(db: Session, version: StoryVersion) -> VoiceReview | None:

@@ -15,6 +15,12 @@ from app.covers import triptych as T
 from app.covers.compose import CoverError
 
 
+@pytest.fixture(autouse=True)
+def _renders_stay_proposals(monkeypatch):
+    """These tests are about the renders and their approvals one by one: the app's automatic approval of the upload shapes has its own test at the end."""
+    monkeypatch.setitem(T.settings()["approval"], "auto_approve_upload_shapes", False)
+
+
 @pytest.fixture
 def assets(tmp_path, monkeypatch):
     plate = Image.new("RGB", (1920, 1080), (60, 38, 20))
@@ -59,11 +65,12 @@ def test_the_banner_names_the_person_and_never_runs_off_the_picture_however_long
     assert "banner" not in make(assets)["reel"]["elements"]                                       # no person named, no banner
 
 
-def test_a_photo_appears_only_when_one_is_given_and_a_title_of_six_words_is_refused(assets):
+def test_a_photo_appears_only_when_one_is_given_and_a_cover_text_of_seven_or_nineteen_words_is_refused(assets):
     assert "photo" not in make(assets)["reel"]["elements"]
-    assert "photo" in make(assets, photo=assets / "photo.png")["reel"]["elements"]
-    with pytest.raises(CoverError):
-        make(assets, title="one two three four five six")
+    assert "photo" in make(assets, photo=assets / "photo.png")["reel"]["elements"] and make(assets, title="one two three four five six seven eight")["reel"]["elements"]["title"]      # eight words is the fewest
+    for count in (7, 19):
+        with pytest.raises(CoverError):
+            make(assets, title=" ".join(["word"] * count))
 
 
 def test_the_validator_reports_a_title_that_covers_the_host_and_a_picture_without_a_visible_face(assets):
@@ -219,9 +226,11 @@ def test_a_photograph_is_used_only_when_authorized_and_its_approval_needs_the_co
     note = json.loads(with_photo.evidence_json)["photo"]
     assert with_photo.photo_asset_id == cleared.id and "photo" in json.loads(with_photo.elements_json) and with_photo.cover_key == "C1"          # the cover's own key, never the person's
     assert note["authorized"] and "not copyright permission" in note["why"] and "not proof of copyright permission" in note["copyright_note"]
+    monkeypatch.setitem(T.settings()["approval"], "rights_acknowledgement_required", True)         # the owner may switch the acknowledgement back on
     with pytest.raises(V.VariantError) as caught:
         V.approve(review.db, with_photo.id)
     assert caught.value.reason == "rights_not_acknowledged" and "not proof of copyright permission" in str(caught.value)
+    monkeypatch.setitem(T.settings()["approval"], "rights_acknowledgement_required", False)
     cleared.editorial_approved_by = None                                                              # the approval was withdrawn after the render
     review.db.commit()
     with pytest.raises(V.VariantError) as caught:
@@ -229,7 +238,7 @@ def test_a_photograph_is_used_only_when_authorized_and_its_approval_needs_the_co
     assert caught.value.reason == "photo_not_authorized"
     cleared.editorial_approved_by = "owner"
     review.db.commit()
-    assert V.approve(review.db, with_photo.id, acknowledge_rights=True).status == "approved"
+    assert V.approve(review.db, with_photo.id).status == "approved"                                 # by default no acknowledgement is asked
     no_photo = V.render(review.db, review.case, "en", "C1", shapes=["feed"], use_photo=False)[0]
     assert no_photo.photo_asset_id is None
 
@@ -417,7 +426,7 @@ def test_the_film_cover_is_one_16_by_9_picture_mirrored_for_right_to_left_langua
         made = T.compose_set(language, title, assets / "plate.png", assets / "logo.png", highlight=key, subject="Name", shapes=T.FILM_SHAPES)
         assert list(made) == ["film"] and made["film"]["image"].size == (1920, 1080)
         title_box, logo = made["film"]["elements"]["title"], made["film"]["elements"]["logo"]
-        assert (title_box[0] + title_box[2] / 2 < 960) == host_on_the_right and (logo[0] + logo[2] / 2 < 960) == host_on_the_right      # the words and the logo (their centres) on the side the host is not on
+        assert (title_box[0] + title_box[2] / 2 < 960) == host_on_the_right and 0 <= logo[0] and logo[0] + logo[2] <= 1920 and logo[1] + logo[3] < title_box[1] + title_box[3]      # the words on the side the host is not on; the logo above the host's shoulder, inside the picture
         assert not [p for p in made["film"]["problems"] if "outside the picture" in p]
     lay = T.settings()["layout"]["film"]
     assert T._mirrored(lay)["host"]["face_x"] == pytest.approx(1 - lay["host"]["face_x"]) and "safe_band" not in lay
@@ -553,3 +562,73 @@ def test_a_photo_that_covers_the_title_the_banner_or_the_logo_is_reported(assets
     assert not [p for p in made["problems"] if "photo" in p]
     on_title = {**made["elements"], "photo": [made["elements"]["title"][0] - 20, made["elements"]["title"][1] - 20, 300, 300]}
     assert "the photo covers the title" in T.problems_of(made["image"], on_title, (1080, 1920), lay)
+
+
+def test_the_shapes_that_get_uploaded_are_approved_by_the_app_itself_when_they_have_no_problem_and_the_previews_are_not(review, monkeypatch):
+    monkeypatch.setitem(T.settings()["approval"], "auto_approve_upload_shapes", True)
+    candidates(monkeypatch, person(asset(review)))
+    made = V.render(review.db, review.case, "en", "C1", shapes=["reel", "feed", "grid"], use_photo=False)
+    status = {row.shape: (row.status, row.approved_by) for row in made}
+    assert status["reel"] == ("approved", "automatic") and status["feed"][0] == "proposed" and status["grid"][0] == "proposed"
+    monkeypatch.setitem(T.settings()["approval"], "auto_approve_upload_shapes", False)
+    assert V.render(review.db, review.case, "en", "C1", shapes=["reel"], use_photo=False)[0].status == "proposed"
+
+
+def test_a_photo_the_owner_chose_for_the_covers_is_cleared_unless_its_rights_forbid_it(review, monkeypatch):
+    monkeypatch.setitem(T.settings()["subject_photo"]["standing_approval"], "enabled", False)
+    chosen, plain, forbidden = asset(review), asset(review), asset(review, rights="do_not_use")
+    chosen.cover_photo = forbidden.cover_photo = True
+    review.db.commit()
+    ok, why = V.cleared(chosen)
+    assert ok and "not copyright permission" in why
+    assert not V.cleared(plain)[0] and not V.cleared(forbidden)[0]
+
+
+@needs_assets
+def test_the_cover_uses_the_photo_the_owner_chose_even_when_another_one_is_larger(review, monkeypatch):
+    monkeypatch.setattr(T, "problems_of", lambda *a, **k: [])
+    large, chosen = asset(review, approved_by="owner"), asset(review, approved_by="owner")
+    chosen.cover_photo, chosen.width, chosen.height = True, 400, 500
+    review.db.commit()
+    both = person(large)
+    both["photos"].append({"asset_id": chosen.id, "authorized": True, "why": "owner"})
+    candidates(monkeypatch, both)
+    made = V.render(review.db, review.case, "en", "C1", shapes=["reel"])[0]
+    assert made.photo_asset_id == chosen.id
+
+
+def test_the_cover_subject_includes_a_person_photo_only_the_owner_chose(review):
+    row = asset(review, rights="editorial_review_required")
+    row.cover_photo, row.entity_key, row.asset_type = True, "navjeet_singh", "photo"
+    review.db.commit()
+    people = V.subject_candidates(review.db, review.case, "en")
+    assert [p["entity_key"] for p in people] == ["navjeet_singh"] and people[0]["photos"][0]["asset_id"] == row.id and V.cleared(row)[0]
+
+
+def test_an_outfit_without_a_front_picture_uses_its_standing_picture_for_the_cover(monkeypatch):
+    class Pose:
+        def __init__(self, path):
+            self.path = path
+
+    class Outfit:
+        poses = {"stand": Pose("stand.png"), "sitHands": Pose("sit.png")}
+
+    monkeypatch.setattr(V, "_film_outfit", lambda db, case_id, language: ("en/brownSweater", {"from": "test"}, None))
+    monkeypatch.setattr(V, "OutfitRegistry", lambda: type("R", (), {"resolve": staticmethod(lambda outfit_id: Outfit())})())
+    path, source, why = V.plate_for(None, 1, "en", "long")
+    assert path == "stand.png" and source["pose"] == "stand" and why is None
+
+
+def test_a_host_pushed_against_the_side_is_reported_and_one_inside_the_picture_is_not():
+    size = (1000, 1000)
+    host = {"face_width": 0.15, "face_y": 0.5}
+    inside, outside = Image.new("L", size, 0), Image.new("L", size, 0)
+    ImageDraw.Draw(inside).rectangle((300, 550, 700, 999), fill=255)
+    ImageDraw.Draw(outside).rectangle((600, 550, 999, 999), fill=255)
+    assert T.host_cut_by_edge(inside, host, size) is None
+    assert T.host_cut_by_edge(outside, host, size) == "right shoulder"
+
+
+def test_the_standard_layouts_keep_the_standing_host_inside_the_square_and_the_feed(assets):
+    out = make(assets, subject="Name")
+    assert not any("cut by the edge" in p for name in ("feed", "grid") for p in out[name]["problems"])

@@ -309,7 +309,7 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         body: dict[str, Any] = {
             "model": model,
             "temperature": gen.temperature,
-            "max_tokens": gen.max_tokens,
+            **({"max_tokens": gen.max_tokens} if gen.max_tokens is not None else {}),
             "messages": [
                 self._system_message(model, system, prefix),
                 {"role": "user", "content": content},

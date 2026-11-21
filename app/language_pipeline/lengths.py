@@ -15,6 +15,8 @@ class LengthRange:
     words_per_minute: int
     # Set for the gate that follows the one length correction (see after_correction).
     lower_tolerance: float | None = None
+    # The shortest accepted text in minutes (language_pipeline.final_accepted_minutes); None for ranges that have no such floor (the draft).
+    accepted_minutes_min: float | None = None
 
     @property
     def words_min(self) -> int:
@@ -28,7 +30,10 @@ class LengthRange:
     def gate_words_min(self) -> int:
         tolerance = ai_config.language_pipeline.final_length_tolerance if self.lower_tolerance is None \
             else self.lower_tolerance
-        return int(self.words_min * (1 - tolerance))
+        floor = int(self.words_min * (1 - tolerance))
+        if self.accepted_minutes_min is None:
+            return floor
+        return min(floor, round(self.accepted_minutes_min * self.words_per_minute))
 
     def after_correction(self) -> LengthRange:
         """The same range for the gate that judges the corrected text: its lower bound accepts the
@@ -55,7 +60,8 @@ def minutes_of(text: str, language: str) -> float:
 def final_range(language: str, requested_minutes: float | None = None) -> LengthRange:
     """Stages 2-4: the requested minutes up to the headroom above them."""
     low, high = ai_config.language_pipeline.minutes_range(requested_minutes)
-    return LengthRange(language, low, high, words_per_minute(language))
+    return LengthRange(language, low, high, words_per_minute(language),
+                       accepted_minutes_min=ai_config.language_pipeline.final_accepted_minutes)
 
 
 def act_word_targets(plan_words: dict[str, float], span: LengthRange, cap_ratio: float) -> dict[str, int]:

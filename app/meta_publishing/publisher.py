@@ -117,7 +117,8 @@ class InstagramReelsPublisher:
             raise Refused("clip_not_found", f"Case {case_id} has no finished {language} clip {clip_key}.")
         path = delivery_of(original) or prepared_copy_of(original) or original
         manifest = build_publish_manifest(LEGACY_PLATFORM, film_id=case_id, short_id=clip_key, language=language, uses_generated_music=True)
-        pub = db.query(Publication).filter_by(case_id=case_id, language=language, platform=PLATFORM, kind="short", asset_key=clip_key).first()
+        pub = (db.query(Publication).filter_by(case_id=case_id, language=language, platform=PLATFORM, kind="short", asset_key=clip_key)
+               .order_by(Publication.revision.desc()).first())          # the newest revision: an older published one is never the target of a new upload
         caption = compose_description(pub) if pub is not None and pub.caption.strip() else manifest.caption       # the approved text of the publication, with its hashtags
         return Target(clip_key, language, case_id, path, caption, manifest.manual_steps, self.preflight.check_file(clip_key, path))
 
@@ -216,7 +217,8 @@ class InstagramReelsPublisher:
         if self._ops(db, content_hash, "published", "publish_uncertain", "publishing"):
             raise Refused("duplicate_publish", "This exact file is already published, being published, or its publish outcome is unknown on this account. Check Instagram first.")
         registry = PublicationRegistry(db)
-        op = db.query(Publication).filter_by(case_id=target.case_id, language=language, platform=PLATFORM, kind="short", asset_key=clip_key).first()
+        op = (db.query(Publication).filter_by(case_id=target.case_id, language=language, platform=PLATFORM, kind="short", asset_key=clip_key)
+              .order_by(Publication.revision.desc()).first())
         if op is None:
             raise Refused("not_planned", "This clip has no publication yet: make the publishing plan for this case and language in the Publishing Studio first.")
         if waiting := registry.film_blockers(op):

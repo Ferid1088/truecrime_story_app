@@ -78,7 +78,7 @@ export function NamingTab({ caseId }: { caseId: number }) {
             onClick={() => run("all", () => api.generateNaming(caseId))}
             loading={busy === "all"}
           >
-            <Sparkles className="size-3.5" /> Generate 7 titles per language
+            <Sparkles className="size-3.5" /> Generate {data.candidates_per_language} titles per language
           </Button>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">

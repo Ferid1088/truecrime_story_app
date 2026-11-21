@@ -255,3 +255,16 @@ def test_a_clip_video_is_served_and_a_clip_without_voice_is_not_voiced(clips, tm
     media_row.media_json = json.dumps(media)
     db.commit()
     assert client.get(f"/api/cases/{version.case_id}/short-clips").json()["languages"][0]["clips"][0]["voiced"] is False
+
+
+def test_clips_written_again_make_the_review_stale_although_their_block_ids_are_the_same_and_a_correction_does_not(clips):
+    db, version, _ = clips
+    review = CR.open_review(db, version)
+    assert CR.stale(db, version, review) is False
+    row = CR.rows_of(db, version)[0]
+    db.add(ShortClip(case_id=row.case_id, language=row.language, clip_key=row.clip_key, kind=row.kind, story_version_id=row.story_version_id, version=row.version + 1, status="valid", script_json=row.script_json,
+                     media_json=row.media_json))
+    db.commit()
+    assert CR.stale(db, version, review) is True
+    CR.archive(db, review)
+    assert CR.current_review(db, version) is None and S.get_review(db, version, CR.CLIPS) is None

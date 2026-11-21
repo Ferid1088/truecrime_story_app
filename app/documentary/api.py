@@ -449,28 +449,33 @@ def documentary_overview(case_id: int, version_id: int | None = None,
         if vp:
             out["visual_plan"] = {"id": vp.id, "status": vp.status, "version": vp.version,
                                   "validation": _loads(vp.validation_json, {})}
-        plan = json.loads(ap.plan_json) if ap else None
-        for lang in [master.language]:
-            v = J.latest_spoken(db, master, lang, bp.id)
-            if not v:
-                out["languages"][lang] = None
-                continue
-            crit = _loads(v.critic_notes, {})
-            ps = J.latest_production(db, v.id)
-            from app.documentary.voice_performance import latest_performance
+    # Every language has its own final text, its own blueprint and its own spoken version: one entry per language, each from that language's own chain
+    # (the master above is only the story the blueprint, audio plan and visual plan shown beside it belong to).
+    for lang in sorted({f.language for f in finals if f.language}):
+        own = master if master.language == lang else _pick_final(db, case_id, None, lang)
+        own_bp = bp if own.id == master.id else latest_blueprint(db, own.id)
+        v = J.latest_spoken(db, own, lang, own_bp.id) if own_bp else None
+        if not v:
+            out["languages"][lang] = None
+            continue
+        own_ap = latest_audio_plan(db, own_bp.id)
+        plan = json.loads(own_ap.plan_json) if own_ap else None
+        crit = _loads(v.critic_notes, {})
+        ps = J.latest_production(db, v.id)
+        from app.documentary.voice_performance import latest_performance
 
-            vperf = latest_performance(db, v.id)
-            vstats = (_loads(vperf.performance_json, {}) or {}).get("stats") if vperf else None
-            out["languages"][lang] = {
-                "version_id": v.id, "status": v.status,
-                "voice_performance": {"id": vperf.id, "status": vperf.status,
-                                      "stats": vstats} if vperf else None,
-                "quality_gates": crit.get("quality_gates"),
-                "storyteller_beats": (crit.get("spoken") or {}).get("storyteller_beats"),
-                "beats": (crit.get("spoken") or {}).get("beats"),
-                "estimated_film_minutes": J.estimate_film_minutes(v, plan),
-                "production": production_dict(ps, full=False) if ps else None,
-            }
+        vperf = latest_performance(db, v.id)
+        vstats = (_loads(vperf.performance_json, {}) or {}).get("stats") if vperf else None
+        out["languages"][lang] = {
+            "version_id": v.id, "status": v.status,
+            "voice_performance": {"id": vperf.id, "status": vperf.status,
+                                  "stats": vstats} if vperf else None,
+            "quality_gates": crit.get("quality_gates"),
+            "storyteller_beats": (crit.get("spoken") or {}).get("storyteller_beats"),
+            "beats": (crit.get("spoken") or {}).get("beats"),
+            "estimated_film_minutes": J.estimate_film_minutes(v, plan),
+            "production": production_dict(ps, full=False) if ps else None,
+        }
     return out
 
 

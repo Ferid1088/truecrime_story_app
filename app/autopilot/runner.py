@@ -95,12 +95,12 @@ class Ports:
         return await LanguagePipeline(embedder=default_embedder()).run_case(
             case.id, languages, minutes, parallel_languages=True)
 
-    async def write_titles(self, db: Session, case: Case, languages: list[str]) -> None:
+    async def write_titles(self, db: Session, case: Case, languages: list[str], selected: list[str]) -> None:
         from app.naming import agent as naming_agent
         from app.naming import api as naming_api
         from app.shortform import pack as creative_pack
 
-        await creative_pack.ensure(db, case, naming_api._gen())         # every title, cover text and Short of every language from one request, once per case
+        await creative_pack.ensure(db, case, naming_api._gen(), selected)         # every title, cover text and Short of the case's selected languages, once per case: two creative requests
         await naming_agent.generate_case_titles(
             db, case, naming_api._gen(), naming_api._embedder(), languages)
 
@@ -558,23 +558,35 @@ class AutopilotRunner:
                 out[lang] = job
         return out
 
+    @staticmethod
+    def _english_texts_released(db: Session, case: Case) -> bool:
+        from app.covers import text_gate as TG
+
+        return not TG.required("en") or TG.status(db, case, "en")["released"]
+
     async def _titles(self, db: Session, run: AutopilotRun, case: Case, languages) -> bool:
         target = ai_config.case_naming.candidates_per_language
         ready = [lang for lang in languages if approved_final(db, case.id, lang) is not None]      # a title needs the case and the language's approved final text, not its film
         tried = S.recall(run, "titles", "tried", [])
+        english_released = "en" not in languages or self._english_texts_released(db, case)
         short = [lang for lang in ready
-                 if len(live_titles(db, case.id, lang)) < target and lang not in tried]
+                 if len(live_titles(db, case.id, lang)) < target and lang not in tried
+                 and (lang == "en" or english_released)]          # English first: the other languages' titles and cover texts are made from the English ones the owner released
         if short:
             self._budget(db, case)
-            await self._try(db, run, "titles", lambda: self.ports.write_titles(db, case, short),
+            await self._try(db, run, "titles", lambda: self.ports.write_titles(db, case, short, languages),
                             settled_on_return=False)
             S.remember(run, "titles", "tried", sorted({*tried, *short}))
             S.set_attempts(run, "titles", 0)           # each batch of newly ready languages is its own call: the limit counts failures in a row
             db.commit()
             db.expire_all()
+        if "en" in ready and not english_released:
+            S.add_need(run, "texts:en:release", "texts_release",
+                       "Review and correct the English film title, cover texts and Short titles in the Texts tab, then release them: "
+                       "the other languages are made from them.", language="en")
         for lang in ready:
             have = len(live_titles(db, case.id, lang))
-            if have < target:
+            if have < target and (lang == "en" or english_released):
                 S.add_need(run, f"titles:{lang}:titles_short", "titles_short",
                            f"Only {have} of {target} title suggestions exist for {lang}.",
                            language=lang)

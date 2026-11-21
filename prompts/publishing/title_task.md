@@ -1,0 +1,1 @@
+TASK: write the title of ONE Short, following the standard above for the language of the input. Return JSON only: {"candidates": [{"title": "...", "angle": "...", "why": "one line: the case fact it states"}, three different ones], "winner": 0, "backup": 1}. Each title is natural, a real hook, at most "max_characters" characters, and built only on what the Short says.

@@ -603,3 +603,25 @@ def test_a_retired_pinned_extract_is_cut_again_but_a_latest_one_is_kept(tmp_path
     DATA.ensure_extract(10, [FALL_RIVER], runner=runner, exists=lambda url: True)
     DATA.ensure_extract(10, [FALL_RIVER], runner=runner, exists=lambda url: False)   # covered: nothing is asked again
     assert len(calls) == 1
+
+
+def test_the_build_check_sends_its_own_user_agent_because_the_provider_refuses_pythons(monkeypatch):
+    """build.protomaps.com answers 403 to Python-urllib: every build looked missing and every film used the old map."""
+    seen = {}
+
+    class Reply:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_open(request, timeout):
+        seen["agent"] = request.get_header("User-agent")
+        return Reply()
+
+    monkeypatch.setattr(DATA.urllib.request, "urlopen", fake_open)
+    assert DATA.build_exists("https://build.protomaps.com/20261120.pmtiles") is True
+    assert seen["agent"] == "truecrime-story-app zoom-map"

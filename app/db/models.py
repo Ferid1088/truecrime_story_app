@@ -1540,6 +1540,7 @@ class VisualAsset(Base):
     # priority (1 to 10) is drawn by the pencil, the first priority first
     must_use: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     draw_priority: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cover_photo: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)          # the owner chose this photo of a person for the covers
     original_media_segments = relationship(
         "OriginalMediaSegment", back_populates="asset", cascade="all, delete-orphan"
     )
@@ -3636,7 +3637,7 @@ class Publication(Base):
 
     __tablename__ = "publications"
     __table_args__ = (
-        UniqueConstraint("case_id", "language", "platform", "kind", "asset_key", name="uq_publication_item"),
+        UniqueConstraint("case_id", "language", "platform", "kind", "asset_key", "revision", name="uq_publication_item"),
         Index("uq_publication_once", "platform", "account_id", "content_hash", unique=True,
               postgresql_where=text("status IN ('published', 'publish_uncertain')"),
               sqlite_where=text("status IN ('published', 'publish_uncertain')")),
@@ -3648,6 +3649,7 @@ class Publication(Base):
     platform: Mapped[str] = mapped_column(String(20))
     kind: Mapped[str] = mapped_column(String(10), default="short")
     asset_key: Mapped[str] = mapped_column(String(10))
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")          # 1 for a Short's first publication; a new clip of an already published Short is revision 2, 3 ...
     video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id"), nullable=True, index=True)
     short_clip_id: Mapped[int | None] = mapped_column(ForeignKey("short_clips.id"), nullable=True)
     account_ref_id: Mapped[int | None] = mapped_column(ForeignKey("publication_accounts.id"), nullable=True)
@@ -3835,3 +3837,31 @@ class CoverVariant(Base):
     approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
+
+
+class TextApproval(Base):
+    """The owner's release of the titles and cover texts of a language for a case (config covers.text_review_languages): who released them, when, and a hash of exactly the texts he saw. A text
+    changed afterwards makes the release void (the hash no longer matches); no cover of that language is made without a valid release."""
+
+    __tablename__ = "text_approvals"
+    __table_args__ = (UniqueConstraint("case_id", "language", name="uq_text_approval_case_language"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(10))
+    approved_by: Mapped[str] = mapped_column(String(120))
+    texts_hash: Mapped[str] = mapped_column(String(64))
+    texts_json: Mapped[str] = mapped_column(Text, default="[]")
+    approved_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class CoverPhotoApproval(Base):
+    """The owner's "I'm finished" with the photographs for the covers of a case: who said it, when, and which photographs were approved at that moment (the covers use these)."""
+
+    __tablename__ = "cover_photo_approvals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), unique=True, index=True)
+    approved_by: Mapped[str] = mapped_column(String(120))
+    photo_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    finished_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)

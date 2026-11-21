@@ -277,7 +277,7 @@ def test_cover_and_short_clip_configuration_is_untouched():
     from app.core.ai_config import ai_config
 
     assert ai_config.covers_settings().shorts_per_episode == 5
-    assert ai_config.short_clips_settings().max_clips == 5 and ai_config.short_clips_settings().video.width == 1080
+    assert len(ai_config.creative_pack.clip_keys) == 5 and ai_config.short_clips_settings().video.width == 1080
 
 
 def test_a_missing_or_unreadable_configuration_file_is_an_error(tmp_path, monkeypatch):

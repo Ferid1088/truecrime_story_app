@@ -253,10 +253,16 @@ def validate_blueprint(
                 revealed_in[eid] = b["id"]
     known: set[str] = set()
     for b in beats:
+        # A dependency must have been revealed in an EARLIER beat: the later stages build the dependency graph
+        # from it and reject a blueprint that breaks this. A dependency that is not known yet is dropped (and
+        # reported) instead of passing on as a blueprint that fails further down.
+        kept = []
         for eid in b["relies_on"]:
-            if eid in evidence_ids and eid not in known and eid not in b["reveals"]:
-                warnings.append({"code": "relies_on_unrevealed", "beat": b["id"],
-                                 "id": eid})
+            if eid in evidence_ids and eid not in known:
+                warnings.append({"code": "relies_on_unrevealed", "beat": b["id"], "id": eid, "dropped": True})
+            else:
+                kept.append(eid)
+        b["relies_on"] = kept
         known |= set(b["reveals"])
         b["viewer_knows"] = sorted(known)
 
