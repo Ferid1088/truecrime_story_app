@@ -2,15 +2,15 @@
 # System requirement: ffmpeg (brew install ffmpeg / apt-get install ffmpeg).
 -r requirements.txt
 faster-whisper>=1.1,<2      # local speech-to-text check of rendered voice blocks
-whisper-normalizer>=0.1.12  # number/date-aware English normalization for that check
+whisper-normalizer>=1.0.1  # number/date-aware English normalization for that check
 Pillow>=10.3                 # typography, cards, maps (raqm layout for Persian/Arabic)
-opencv-python-headless>=4.9  # video frames: camera moves, face focus
+opencv-python-headless>=5.1.0.95  # video frames: camera moves, face focus
 arabic-reshaper>=3.0          # joined letter forms for Persian/Arabic graphics when Pillow has no raqm
 python-bidi>=0.6              # visual order of right-to-left lines (same)
 # pronunciation check (phoneme listener, CPU is enough):
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
 torch>=2.3
-transformers>=5.5,<6
+transformers>=5.23.0,<6
 setuptools>=83             # torch needs it; older releases carry known advisories
-playwright>=1.49,<2          # headless Chromium for the zoom-in map shots (MapLibre)
-yt-dlp==2026.8.19  # the YouTube clip route (Unlicense); behind an owner switch, off by default
+playwright>=1.65.2,<2          # headless Chromium for the zoom-in map shots (MapLibre)
+yt-dlp==2026.10.26  # the YouTube clip route (Unlicense); behind an owner switch, off by default
